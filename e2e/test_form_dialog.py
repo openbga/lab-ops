@@ -444,6 +444,7 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
         "lab-logo-edit": reverse("lab-logo-edit"),
         "lab-certificate-create": reverse("lab-certificate-create"),
         "lab-certificate-edit": reverse("lab-certificate-edit", args=[certificate.pk]),
+        "jobs:settings-edit": reverse("jobs:settings-edit"),
         # Request desk
         "desk:request-create": reverse("desk:request-create"),
         "desk:request-assign": reverse("desk:request-assign", args=[desk_request.pk]),
