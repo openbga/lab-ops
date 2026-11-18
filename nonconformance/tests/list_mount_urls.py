@@ -22,3 +22,19 @@ def use_this_urlconf(get_response):
         return get_response(request)
 
     return handle
+
+
+def guide(request):
+    from django.http import HttpResponse
+
+    return HttpResponse("Synthetic guide")
+
+
+# A host list that mixes its own route with the module's patterns in one include.
+mixed_urlpatterns = [
+    path(
+        "site/quality/",
+        include(([path("guide/", guide, name="guide"), *quality.urlpatterns], quality.app_name)),
+    ),
+    path("site/", include("config.urls")),
+]

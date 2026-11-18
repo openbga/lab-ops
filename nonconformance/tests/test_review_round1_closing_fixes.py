@@ -111,3 +111,20 @@ def test_an_off_module_mounted_as_its_pattern_list_is_an_unknown_address(client,
         unknown.get("Location"),
         unknown.content,
     )
+
+
+# Sign-off of 6d17419: a host include that mixes its own route with the module's patterns keeps
+# its own route while the module is off.
+
+
+def test_an_off_module_mixed_into_a_host_include_leaves_the_host_route(client, settings):
+    settings.DEBUG = False
+    settings.MIDDLEWARE = [
+        "nonconformance.tests.mixed_mount_urls.use_this_urlconf",
+        *settings.MIDDLEWARE,
+    ]
+    unknown = client.get("/site/quality/unknown", secure=True)
+    off = client.get("/site/quality/nonconformances/", secure=True)
+    assert unknown.status_code == 404 and b"see /site/quality/guide/" in unknown.content
+    assert (off.status_code, off.content) == (unknown.status_code, unknown.content)
+    assert client.get("/site/quality/guide/", secure=True).content == b"Synthetic guide"

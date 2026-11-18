@@ -152,24 +152,22 @@ def _module_key_for(path, root=None):
 _URLCONFS = {}
 
 
-def _is_mount_of(resolver, module):
-    """Whether `resolver` includes `module`'s address list, however it was included: by dotted
-    path, as the module, or as its pattern list (the same pattern objects)."""
-    included = resolver.urlconf_name
-    if included is module or getattr(included, "__name__", included) == module.__name__:
-        return True
-    own = {id(pattern) for pattern in module.urlpatterns}
-    patterns = getattr(included, "urlpatterns", included)
-    return isinstance(patterns, (list, tuple)) and bool(own) and own <= {id(p) for p in patterns}
-
-
 def _patterns_without(patterns, modules):
-    """`patterns` without the includes of the address lists of `modules` (URLconf modules), at
-    any depth (the project's addresses may themselves be included beneath a prefix)."""
+    """`patterns` without the addresses of `modules` (URLconf modules), at any depth: an include
+    of a module's address list by dotted path or as the module is left out, and so is each of
+    its own pattern objects wherever a host list reuses them; everything else is kept (the
+    project's or a host's addresses may be included beneath a prefix, or mixed with them)."""
+    own = {id(pattern) for module in modules for pattern in module.urlpatterns}
     kept = []
     for pattern in patterns:
+        if id(pattern) in own:
+            continue
         if isinstance(pattern, URLResolver):
-            if any(_is_mount_of(pattern, module) for module in modules):
+            included = pattern.urlconf_name
+            if any(
+                included is module or getattr(included, "__name__", None) == module.__name__
+                for module in modules
+            ):
                 continue
             pattern = URLResolver(
                 pattern.pattern,
