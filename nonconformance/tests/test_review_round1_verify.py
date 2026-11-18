@@ -13,7 +13,7 @@ from django.db import connection
 from django.http import HttpResponse
 from django.test import Client
 from django.test.utils import CaptureQueriesContext
-from django.urls import Resolver404, resolve, reverse
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
@@ -265,8 +265,7 @@ def test_module_error_responses_follow_the_never_store_contract(
         # unknown address, with nothing of the module in it.
         unknown = client.get("/quality-no-such-address/")
         assert [t.name for t in response.templates][:1] == [t.name for t in unknown.templates][:1]
-        with pytest.raises(Resolver404):  # nothing resolves: no view of the module runs
-            resolve(nc_url("detail", pk))
+        assert response.get("Cache-Control") == unknown.get("Cache-Control")
         for marker in (owned.title, owned.number):
             assert marker.encode() not in response.content
     else:

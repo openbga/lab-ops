@@ -8,7 +8,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from accounts.roles import ROLES, has_role, require_staff
-from core.modules import is_enabled, require_enabled
+from core.modules import enabled_for, is_enabled, require_enabled
 from desk.selectors import staff_requests
 
 from .models import ACTIVE_STATUSES, ActionStatus, CorrectiveAction, Nonconformance, TicketLink
@@ -72,9 +72,12 @@ def linked_tickets(user, nc, include_removed=False):
     )
 
 
-def module_on_for(user):
-    """Whether pages outside the module (a ticket, the menu) show its records to `user`."""
-    return has_role(user, *ROLES) and is_enabled(MODULE)
+def module_on_for(user, request=None):
+    """Whether pages outside the module (a ticket, the menu) show its records to `user`; with
+    `request`, in that request's one reading of the switch (core.modules.states_for)."""
+    return has_role(user, *ROLES) and (
+        enabled_for(request, MODULE) if request is not None else is_enabled(MODULE)
+    )
 
 
 def linked_records(request):

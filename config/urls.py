@@ -7,7 +7,6 @@ from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
 from core import announcement_views, lab_profile_views, lookups, preferences, views
-from core.modules import module_urls
 from desk.notification_views import email_notices
 
 
@@ -96,6 +95,6 @@ urlpatterns = [
     path("portal/forms/", include("request_forms.portal_urls")),
     path("attachments/", include("attachments.urls")),
     # Optional modules (core.modules): their pages answer 404 while the module is off.
-    # Optional module: its addresses resolve only while it is on (core.modules).
-    module_urls("quality/", "nonconformance.urls", module="nonconformance"),
+    # Optional module: its addresses are Not found while it is off (core.modules).
+    path("quality/", include("nonconformance.urls")),
 ]

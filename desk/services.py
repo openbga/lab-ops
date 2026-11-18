@@ -374,6 +374,8 @@ def add_entry(*, actor, request, kind, body, expected_revision, contact=None, ne
     if not portal:
         require_staff(actor)
     request = _locked_request(actor, request.pk, portal=portal)
+    if not portal:
+        settle(actor, request)
     if request.revision != expected_revision:
         raise ValidationError("This ticket changed. Reload it and review the latest entries.")
     fields = {}
@@ -442,12 +444,22 @@ def current_staff(actor):
     return current
 
 
+def settle(actor, request):
+    """After a staff change's last lock: the actor read again (current_staff) and `request` still
+    one that reading may open (a team membership or a role can end without the ticket's lock).
+    Returns the fresh reading; role checks made afterwards use it."""
+    current = current_staff(actor)
+    if not staff_requests(current).filter(pk=request.pk).exists():
+        raise ServiceRequest.DoesNotExist("No such ticket.")
+    return current
+
+
 def _staff_request(actor, request, expected_revision):
     """The request locked for a staff change, after the revision check and a fresh check that
-    the actor is still an active staff account."""
+    the actor is still an active staff account who may open it."""
     require_staff(actor)
     locked = _locked_request(actor, request.pk, portal=False)
-    current_staff(actor)
+    settle(actor, locked)
     if expected_revision is None or locked.revision != expected_revision:
         raise ValidationError("This ticket changed. Reload it and review the latest entries.")
     return locked
@@ -483,6 +495,7 @@ def _assign(request, actor, team, assignee, reason):
     team = _current_team(team)
     if assignee is not None:
         assignee = _current_assignee(assignee, team)
+    settle(actor, request)  # the team and person locks came after the ticket's
     old_team_id, old_assignee_id = request.team_id, request.assignee_id
     if team.pk == old_team_id and (assignee.pk if assignee else None) == old_assignee_id:
         return False
@@ -607,6 +620,7 @@ def update_properties(*, actor, request, expected_revision, priority, category, 
         request.priority = priority
     if category.pk != request.category_id:
         category = _check_category(category, portal=False)  # as it stands now, not the copy
+        settle(actor, request)  # the category lock came after the ticket's
         previous["category_id"] = request.category_id
         request.category = category
         if category.is_complaint and not request.is_complaint:
@@ -718,7 +732,7 @@ def _complaint_record(request, actor):
     if not (actor.pk == request.assignee_id or is_supervisor(actor)):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     review, _ = ComplaintReview.objects.select_for_update().get_or_create(request=request)
-    actor = current_staff(actor)
+    actor = settle(actor, request)
     if not (actor.pk == request.assignee_id or is_supervisor(actor)):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     if review_counts(request, review):
@@ -798,7 +812,7 @@ def review_complaint(*, actor, request, expected_revision, note):
     if not request.is_complaint:
         raise ValidationError("This ticket is not a complaint.")
     review = ComplaintReview.objects.select_for_update().filter(request=request).first()
-    actor = current_staff(actor)
+    actor = settle(actor, request)
     if refusal := review_refusal(actor, request, review):
         raise PermissionDenied(refusal)
     previous_reviewer = review.reviewed_by_id  # set when an earlier review no longer counts
@@ -835,6 +849,8 @@ def withdraw_reply(*, actor, entry, reason, expected_revision):
         raise PermissionDenied("Only a supervisor can withdraw a reply.")
     request = _staff_request(actor, entry.request, expected_revision)
     entry = RequestEntry.objects.select_for_update().get(pk=entry.pk, request=request)
+    if not is_supervisor(settle(actor, request)):
+        raise PermissionDenied("Only a supervisor can withdraw a reply.")
     if entry.kind != EntryKind.REPLY:
         raise ValidationError("Only a reply can be withdrawn from client view.")
     if entry.withdrawn_at is not None:

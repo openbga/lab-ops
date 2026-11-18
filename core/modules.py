@@ -17,8 +17,6 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
 from django.db import connection, transaction
 from django.http import Http404
-from django.urls import include
-from django.urls.resolvers import Resolver404, RoutePattern, URLResolver
 from django.utils.cache import add_never_cache_headers
 
 from accounts.roles import has_role, require_role
@@ -75,37 +73,58 @@ def module_view(key):
             add_never_cache_headers(response)
             return response
 
+        wrapped.module_key = key
         return wrapped
 
     return decorator
 
 
-class ModuleURLResolver(URLResolver):
-    """The addresses of a module, included under one prefix: while the module is off they do not
-    resolve, so every request to them, of any method, is Not found before any middleware (the
-    CSRF check included) or view runs."""
-
-    def __init__(self, *args, module, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.module = module
-
-    def resolve(self, path):
-        if self.pattern.match(str(path)) and not is_enabled(self.module):
-            raise Resolver404({"path": path, "tried": []})
-        return super().resolve(path)
+def states_for(request):
+    """{key: whether it is on} for every module, read once per request and kept on it: the menu
+    and every page part of one response show the same reading of the switches."""
+    cached = getattr(request, "_vr_module_states", None)
+    if cached is None:
+        rows = dict(LabModule.objects.filter(key__in=MODULES).values_list("key", "is_enabled"))
+        cached = {key: bool(rows.get(key)) for key in MODULES}
+        if request is not None:
+            request._vr_module_states = cached
+    return cached
 
 
-def module_urls(route, urlconf, *, module):
-    """`path(route, include(urlconf))` for an optional module's addresses (config/urls.py)."""
-    _known(module)
-    urlconf_module, app_name, namespace = include(urlconf)
-    return ModuleURLResolver(
-        RoutePattern(route, is_endpoint=False),
-        urlconf_module,
-        app_name=app_name,
-        namespace=namespace,
-        module=module,
-    )
+def enabled_for(request, key):
+    """Whether `key` is on, in this request's one reading of the switches (states_for)."""
+    _known(key)
+    return states_for(request)[key]
+
+
+class ModuleAddressMiddleware:
+    """Placed before CsrfViewMiddleware (config/settings.py). For a view of an optional module
+    (core.modules.module_view): while the module is off the address is Not found for every method,
+    before the CSRF check or any sign-in and role check, the same answer as an unknown address;
+    and every response of a module address, refusals of any middleware included, is marked never
+    to be stored."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if _module_of(request) is not None and not getattr(request, "_vr_module_off", False):
+            add_never_cache_headers(response)
+        return response
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        key = getattr(view_func, "module_key", None)
+        if key is not None and not enabled_for(request, key):
+            # Exactly the answer to an unknown address: the same page and headers.
+            request._vr_module_off = True
+            return response_for_exception(request, Http404("No such page."))
+        return None
+
+
+def _module_of(request):
+    match = getattr(request, "resolver_match", None)
+    return getattr(getattr(match, "func", None), "module_key", None) if match else None
 
 
 def lock_enabled(key):

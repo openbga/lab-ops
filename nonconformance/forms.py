@@ -123,13 +123,6 @@ class NonconformanceCreateForm(DetailsFields):
 class DetailsForm(DetailsFields, RevisionForm):
     reason = _optional_reason()
 
-    def __init__(self, *args, from_complaint=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        if from_complaint:
-            # A record opened from a complaint keeps that source (services.update_details).
-            self.fields["source"].choices = [(Source.COMPLAINT, Source.COMPLAINT.label)]
-            self.fields["source"].help_text = "The source of this record stays Complaint."
-
 
 class OwnerForm(RevisionForm):
     owner = StaffChoiceField(label="Owner", empty_label="Choose a person")

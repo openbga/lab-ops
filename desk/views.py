@@ -16,7 +16,7 @@ from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.cache import add_never_cache_headers
+from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -517,7 +517,7 @@ def _detail_context(request, request_obj, composer=None):
         )
     supervisor = is_supervisor(user)
     return {
-        **_nonconformance_context(user, request_obj),
+        **_nonconformance_context(request, request_obj),
         "page_title": f"{request_obj.number} {request_obj.subject}",
         "req": request_obj,
         "entries": entries,
@@ -549,7 +549,7 @@ def _detail_context(request, request_obj, composer=None):
     }
 
 
-def _nonconformance_context(user, request_obj):
+def _nonconformance_context(request, request_obj):
     """The optional nonconformance module on a ticket's pages, from one check of the switch.
 
     The record opened from a complaint is part of the complaint's record, so its number shows
@@ -560,7 +560,7 @@ def _nonconformance_context(user, request_obj):
     from nonconformance import selectors as nonconformance_selectors
     from nonconformance.models import Nonconformance
 
-    module_on = nonconformance_selectors.module_on_for(user)
+    module_on = nonconformance_selectors.module_on_for(request.user, request)
     opened = (
         Nonconformance.objects.filter(source_request=request_obj).first()
         if request_obj.is_complaint
@@ -578,7 +578,11 @@ def _nonconformance_context(user, request_obj):
 @login_required
 def request_detail(request, pk):
     request_obj = _request_or_404(request.user, pk)
-    return render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    response = render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    # Never kept by a shared cache. Not no-store: the browser restores the page from its history,
+    # scrubbing a revealed key (static/js, e2e/test_links_journey.py).
+    patch_cache_control(response, private=True)
+    return response
 
 
 @login_required
@@ -636,10 +640,21 @@ def request_take(request, pk):
 
 
 def _action_form(
-    request, request_obj, form, *, title, submit_label, apply, template=None, extra=None
+    request,
+    request_obj,
+    form,
+    *,
+    title,
+    submit_label,
+    apply,
+    template=None,
+    extra=None,
+    reread=None,
 ):
     """Render and handle one of the request page's action forms (the shared form dialog).
-    `extra` adds to the template's context."""
+    `extra` adds to the template's context. `reread` reads the request again for a refused form
+    (default: _request_or_404), so a page that draws more than the ticket (a complaint and its
+    record) draws it all from that one new reading."""
     record_url = _record_url(request_obj, _back(request))
     if request.method == "POST" and form.is_valid():
         try:
@@ -657,7 +672,7 @@ def _action_form(
             return redirect(record_url)
     if request.method == "POST":
         # Scope again before the refused form shows anything about the request.
-        request_obj = _request_or_404(request.user, request_obj.pk)
+        request_obj = reread() if reread else _request_or_404(request.user, request_obj.pk)
     response = render(
         request,
         template or "desk/request_action.html",
@@ -835,9 +850,18 @@ def _complaint_or_404(request, pk):
         )
     except ServiceRequest.DoesNotExist:
         raise Http404("No such ticket.") from None
-    if not request_obj.is_complaint:
+    # A form drawn while it was a complaint is answered by the service (stale), its draft kept.
+    if not request_obj.is_complaint and not _posted_earlier(request, request_obj):
         raise Http404("This ticket is not a complaint.")
     return request_obj, getattr(request_obj, "complaint_review", None)
+
+
+def _still_staff(user):
+    try:
+        services.current_staff(user)
+    except PermissionDenied:
+        return False
+    return True
 
 
 def _posted_earlier(request, request_obj):
@@ -847,7 +871,7 @@ def _posted_earlier(request, request_obj):
     if request.method != "POST":
         return False
     posted = whole_number(request.POST.get("expected_revision"))
-    return posted is not None and posted < request_obj.revision
+    return posted is not None and 1 <= posted < request_obj.revision  # revisions start at 1
 
 
 @login_required
@@ -873,6 +897,7 @@ def complaint_decision(request, pk):
         request_obj,
         form,
         title="Investigation decision",
+        reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Record decision",
         apply=apply,
     )
@@ -911,6 +936,7 @@ def complaint_record(request, pk):
         request_obj,
         form,
         title="Findings and outcome",
+        reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Save record",
         apply=apply,
     )
@@ -942,7 +968,7 @@ def complaint_review(request, pk):
         submit_label="Approve review",
         apply=apply,
         template="desk/complaint_review.html",
-        extra={"nonconformance_opened_number": request_obj.opened_number},
+        reread=lambda: _complaint_or_404(request, pk)[0],
     )
 
 
@@ -954,6 +980,8 @@ def _guarded(request, request_obj, form, **kwargs):
         try:
             return apply(data)
         except PermissionDenied as exc:
+            if not _still_staff(request.user):
+                raise  # no longer staff: 403, nothing of the ticket drawn again
             raise ValidationError(str(exc)) from exc
 
     if not (

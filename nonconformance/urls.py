@@ -1,6 +1,6 @@
-"""Pages of the nonconformance module, mounted at quality/ (config/urls.py through
-core.modules.module_urls): while the module is off its addresses do not resolve, so every request
-is Not found before any middleware or view runs, and each view checks the switch again
+"""Pages of the nonconformance module, mounted at quality/ (config/urls.py). While the module is off
+every address is Not found, for every method, before the CSRF check or any sign-in and role check
+(core.modules.ModuleAddressMiddleware), and each view checks the switch again
 (core.modules.module_view)."""
 
 from django.urls import path as django_path

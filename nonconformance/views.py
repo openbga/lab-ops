@@ -7,7 +7,9 @@ its revision again under lock. A page and its form are drawn from one reading of
 hidden expected_revision is the revision of the record the page shows, and a refused save shows
 the service's message with the input kept. Tickets are read only through
 desk.selectors.staff_requests, so a ticket the reader may not open is never shown or linked.
-Messages are fixed text: nothing typed into a record reaches a message, a URL or a list title.
+Messages are fixed text, and saving redirects to the record's address only: nothing typed into a
+record reaches a message or a redirect. The words typed into a list's search go into its address,
+as on every list (docs/product.md, "Nonconformance and corrective action").
 """
 
 from django.contrib import messages
@@ -208,7 +210,7 @@ def _posted_earlier(request, current):
     if request.method != "POST":
         return False
     posted = whole_number(request.POST.get("expected_revision"))
-    return posted is not None and posted < current
+    return posted is not None and 1 <= posted < current  # revisions start at 1
 
 
 def _still_staff(user):
@@ -579,6 +581,8 @@ def nonconformance_create(request):
         except ValidationError as exc:
             _errors(form, exc)
         except PermissionDenied as exc:
+            if not _still_staff(user):
+                raise
             form.add_error(None, str(exc))
         else:
             messages.success(request, f"Nonconformance {nc.number} raised.")
@@ -646,7 +650,13 @@ def from_ticket(request, pk):
         except ValidationError as exc:
             _errors(form, exc)
         except PermissionDenied as exc:
+            if not _still_staff(user):
+                raise
             form.add_error(None, str(exc))
+        except ModuleOff:
+            raise
+        except Http404:  # the ticket left the reader's reach meanwhile
+            raise Http404("No such complaint.") from None
         else:
             messages.success(request, f"Nonconformance {nc.number} opened.")
             return redirect(_record_url(nc))
@@ -680,7 +690,6 @@ def nonconformance_edit(request, pk):
     nc = _record_or_404(user, pk)
     form = DetailsForm(
         request.POST or None,
-        from_complaint=bool(nc.source_request_id),
         initial={
             **_revision(nc),
             "title": nc.title,
@@ -1090,6 +1099,8 @@ def ticket_unlink(request, pk, link_pk):
     if link is None:
         raise Http404("No such linked ticket.")
     nc = link.nonconformance
+    if link.removed_at is not None and not _posted_earlier(request, nc.revision):
+        raise Http404("No such linked ticket.")  # only a form drawn before its removal
     form = ReasonForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):

@@ -1062,18 +1062,20 @@ def test_update_details_without_a_change_is_refused(ctx):
         )
 
 
-def test_a_record_opened_from_a_complaint_keeps_its_source(ctx):
+def test_a_record_opened_from_a_complaint_can_change_its_source_and_stays_its_record(ctx):
+    """Review round 1, F-11: a record opened from a complaint is edited like any other (a fixed
+    source would tell a reader who may not open the complaint that it exists)."""
     nc = _open_from_complaint(ctx, ctx.agent)
-    with pytest.raises(ValidationError):
-        services.update_details(
-            actor=ctx.lead,
-            nc=nc,
-            expected_revision=nc.revision,
-            title="Changed",
-            description=nc.description,
-            source="internal",
-            severity=nc.severity,
-        )
+    nc = services.update_details(
+        actor=ctx.lead,
+        nc=nc,
+        expected_revision=nc.revision,
+        title="Changed",
+        description=nc.description,
+        source="internal",
+        severity=nc.severity,
+    )
+    assert nc.source == "internal" and nc.source_request_id == ctx.complaint.pk
 
 
 # Impact

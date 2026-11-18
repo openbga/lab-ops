@@ -22,7 +22,7 @@
     }
   ],
   "good_to_know": [
-    "A record opened from a complaint keeps Complaint as its source.",
+    "A record opened from a complaint stays linked to it, whatever source you choose.",
     "Saving is refused unless at least one detail changed.",
     "A reason, when given, is kept with the change in the record's history.",
     "If someone changed the record after you opened this form, saving is refused and your input kept. Reload the record and review it."
@@ -50,7 +50,7 @@
         },
         {
           "label": "Source",
-          "description": "Required. On a record opened from a complaint the only choice is Complaint, with the note Opened from a complaint: the source stays Complaint."
+          "description": "Required. Where it came from. A record opened from a complaint can change its source like any other; it stays linked to that complaint."
         },
         {
           "label": "Severity",
@@ -79,7 +79,7 @@
       "items": [
         {
           "label": "Refusals",
-          "description": "Nothing changed: Change at least one detail before saving. A closed record: A closed nonconformance does not change. A supervisor can reopen it. A record opened from a complaint with another source: A record opened from a complaint keeps that source."
+          "description": "Nothing changed: Change at least one detail before saving. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
         },
         {
           "label": "Stale form",

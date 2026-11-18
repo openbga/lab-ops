@@ -149,13 +149,16 @@ def _current_actor(actor):
 WORK = "The owner or a supervisor works this nonconformance."
 
 
-def _recheck(actor, allowed, message):
+def _recheck(actor, allowed, message, ticket=None):
     """After a change's last lock (a person, an action, a ticket, the complaint record): the
     acting account read again and the rule applied to that reading, so an account deactivated or
-    a role removed while the change waited for its locks is refused."""
+    a role removed while the change waited for its locks is refused. With `ticket`, the ticket
+    must still be one that reading may open (a team membership can end without its lock)."""
     actor = _current_actor(actor)
     if not allowed(actor):
         raise PermissionDenied(message)
+    if ticket is not None and not staff_requests(actor).filter(pk=ticket.pk).exists():
+        raise Http404("No such ticket.")
     return actor
 
 
@@ -297,6 +300,7 @@ def open_from_complaint(
         actor,
         lambda current: current.pk == ticket.assignee_id or is_supervisor(current),
         "The assignee or a supervisor records the complaint.",
+        ticket=ticket,
     )
     if desk_services.review_counts(ticket, review):
         raise ValidationError(
@@ -328,8 +332,6 @@ def update_details(
 ):
     nc, actor = _work(actor, nc, expected_revision)
     details = _details(title, description, source, severity, area)
-    if nc.source_request_id and details["source"] != Source.COMPLAINT:
-        raise ValidationError({"source": "A record opened from a complaint keeps that source."})
     before = snapshot(nc)
     for name, value in details.items():
         setattr(nc, name, value)
@@ -598,6 +600,7 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
     may stay as it is; a new one is today or later."""
     nc, actor = _work(actor, nc, expected_revision)
     action = _locked_action(nc, action)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
     if action.status != ActionStatus.OPEN:
         raise ValidationError("Only an open action changes.")
     description, assignee, due_on = _action_values(
@@ -662,7 +665,7 @@ def link_ticket(*, actor, nc, expected_revision, request):
     """Link a ticket the actor may read. The ticket's timeline records it."""
     nc, actor = _work(actor, nc, expected_revision)
     ticket = _locked_ticket(actor, request.pk)
-    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK, ticket=ticket)
     link = _link(actor, nc, ticket)
     _ticket_event(actor, ticket, "nonconformance_linked", nc)
     _save(nc)
@@ -682,7 +685,7 @@ def unlink_ticket(*, actor, nc, expected_revision, link, reason):
     if link is None:
         raise Http404("No such linked ticket.")
     ticket = _locked_ticket(actor, link.request_id)
-    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK, ticket=ticket)
     if ticket.pk == nc.source_request_id:
         raise ValidationError("The complaint it was opened from stays linked.")
     link.removed_by, link.removed_at = actor, timezone.now()

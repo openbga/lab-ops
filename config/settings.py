@@ -55,6 +55,8 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Before the CSRF check: an optional module's addresses are Not found while it is off.
+    "core.modules.ModuleAddressMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "core.preferences.GridPreferenceMiddleware",

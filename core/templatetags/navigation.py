@@ -22,7 +22,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.urls import NoReverseMatch, reverse
 
 from accounts.roles import ROLES, effective_roles
-from core.modules import is_enabled
+from core.modules import enabled_for
 
 register = template.Library()
 
@@ -307,14 +307,15 @@ STAFF_MENU_ROLES = {
 MODULE_ITEMS = {"nonconformances": "nonconformance"}
 
 
-def visible_staff_items(user, roles=None):
+def visible_staff_items(user, roles=None, request=None):
     """Keys of the staff menu items this account's current work capabilities show, without the
-    items of an optional module that is off."""
+    items of an optional module that is off (in `request`'s one reading of the switches, so the
+    menu agrees with the page; core.modules.states_for)."""
     if roles is None:
         roles = effective_roles(user)
     visible = {key for key, allowed in STAFF_MENU_ROLES.items() if roles.intersection(allowed)}
     for key, module in MODULE_ITEMS.items():
-        if key in visible and not is_enabled(module):
+        if key in visible and not enabled_for(request, module):
             visible.discard(key)
     if (
         user.is_authenticated
@@ -330,7 +331,8 @@ def visible_staff_items(user, roles=None):
 @register.simple_tag(takes_context=True)
 def staff_nav_sections(context):
     """Return nonempty menu sections for this account's current work capabilities."""
-    visible = visible_staff_items(context["request"].user, context.get("user_roles"))
+    request = context["request"]
+    visible = visible_staff_items(request.user, context.get("user_roles"), request)
     return [
         {"key": key, "label": label, "items": items}
         for key, label, keys in STAFF_SECTIONS
