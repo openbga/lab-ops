@@ -41,13 +41,15 @@ def test_roadmap_page_shows_the_roadmap_of_this_branch(site):
     """Each section, planned item and table row of docs/roadmap.md is on the page."""
     _, sections = builder.parse_roadmap((ROOT / "docs/roadmap.md").read_text())
     page = (site / "roadmap" / "index.html").read_text()
+    # What a visitor reads: a name can carry a link or code, which the page marks up.
+    words = html.unescape(re.sub(r"<[^>]+>", "", page))
     assert {"built", "next", "later"} <= {section.slug for section in sections}
     for section in sections:
         assert f'id="{section.slug}"' in page
         names = [item.title for item in section.items]
         names += [row[0] for kind, *rest in section.blocks if kind == "table" for row in rest[1]]
         for name in names:
-            assert html.escape(builder.plain(name), quote=False) in page, name
+            assert builder.plain(name) in words, name
     assert "<!-- roadmap:" not in page
 
 
