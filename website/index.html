@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OpenBGA Lab Ops is a free, open-source client service desk for laboratories. Staff track questions, pickups and supply orders; clients follow them in a portal.">
+  <meta name="theme-color" content="#eee8ed" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1e171e" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <title>OpenBGA Lab Ops · Free, open-source client service desk for labs</title>
+  <link rel="canonical" href="https://openbga.github.io/lab-ops/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OpenBGA Lab Ops">
+  <meta property="og:title" content="OpenBGA Lab Ops: client requests, from intake to resolution">
+  <meta property="og:description" content="An open-source client service desk and client portal for one laboratory: tickets, pickups, supply orders, complaints and service targets.">
+  <meta property="og:url" content="https://openbga.github.io/lab-ops/">
+  <meta property="og:image" content="https://openbga.github.io/lab-ops/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The OpenBGA Lab Ops mark and name, with a one-line description of the product.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/overpass-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenBGA Lab Ops",
+    "description": "OpenBGA Lab Ops is a free, open-source client service desk for laboratories. Staff track questions, pickups and supply orders; clients follow them in a portal.",
+    "url": "https://openbga.github.io/lab-ops/",
+    "applicationCategory": "BusinessApplication",
+    "isAccessibleForFree": true,
+    "offers": {"@type": "Offer", "price": 0, "priceCurrency": "USD"},
+    "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "sameAs": ["https://github.com/openbga/lab-ops"],
+    "publisher": {"@type": "Organization", "name": "BGASoft", "url": "https://bgasoft.com/"}
+  }
+  </script>
+  <script src="assets/theme-init.js"></script>
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <!-- Bootstrap Icons 1.13.2 (MIT), copied verbatim from static/img/icons.svg and the pinned package -->
+  <svg xmlns="http://www.w3.org/2000/svg" hidden><symbol id="i-circle-half" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 0 8 1zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16"/></symbol><symbol id="i-sun" viewBox="0 0 16 16"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6m0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/></symbol><symbol id="i-moon-stars" viewBox="0 0 16 16"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278M4.858 1.311A7.27 7.27 0 0 0 1.025 7.71c0 4.02 3.279 7.276 7.319 7.276a7.32 7.32 0 0 0 5.205-2.162q-.506.063-1.029.063c-4.61 0-8.343-3.714-8.343-8.29 0-1.167.242-2.278.681-3.286"/>
+  <path d="M10.794 3.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387a1.73 1.73 0 0 0-1.097 1.097l-.387 1.162a.217.217 0 0 1-.412 0l-.387-1.162A1.73 1.73 0 0 0 9.31 6.593l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387a1.73 1.73 0 0 0 1.097-1.097zM13.863.099a.145.145 0 0 1 .274 0l.258.774c.115.346.386.617.732.732l.774.258a.145.145 0 0 1 0 .274l-.774.258a1.16 1.16 0 0 0-.732.732l-.258.774a.145.145 0 0 1-.274 0l-.258-.774a1.16 1.16 0 0 0-.732-.732l-.774-.258a.145.145 0 0 1 0-.274l.774-.258c.346-.115.617-.386.732-.732z"/></symbol><symbol id="i-check2" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"/></symbol><symbol id="i-arrow-right" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8"/></symbol><symbol id="i-inbox" viewBox="0 0 16 16"><path d="M4.98 4a.5.5 0 0 0-.39.188L1.54 8H6a.5.5 0 0 1 .5.5 1.5 1.5 0 1 0 3 0A.5.5 0 0 1 10 8h4.46l-3.05-3.812A.5.5 0 0 0 11.02 4zm9.954 5H10.45a2.5 2.5 0 0 1-4.9 0H1.066l.32 2.562a.5.5 0 0 0 .497.438h12.234a.5.5 0 0 0 .496-.438zM3.809 3.563A1.5 1.5 0 0 1 4.981 3h6.038a1.5 1.5 0 0 1 1.172.563l3.7 4.625a.5.5 0 0 1 .105.374l-.39 3.124A1.5 1.5 0 0 1 14.117 13H1.883a1.5 1.5 0 0 1-1.489-1.314l-.39-3.124a.5.5 0 0 1 .106-.374z"/></symbol><symbol id="i-building" viewBox="0 0 16 16"><path d="M4 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zm3 0a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zM4 5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zM7.5 5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zM4.5 8a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5z"/>
+  <path d="M2 1a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zm11 0H3v14h3v-2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V15h3z"/></symbol><symbol id="i-list-check" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M3.854 2.146a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 3.293l1.146-1.147a.5.5 0 0 1 .708 0m0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 7.293l1.146-1.147a.5.5 0 0 1 .708 0m0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 0 1 .708-.708l.146.147 1.146-1.147a.5.5 0 0 1 .708 0"/></symbol><symbol id="i-clock-history" viewBox="0 0 16 16"><path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022zm2.004.45a7 7 0 0 0-.985-.299l.219-.976q.576.129 1.126.342zm1.37.71a7 7 0 0 0-.439-.27l.493-.87a8 8 0 0 1 .979.654l-.615.789a7 7 0 0 0-.418-.302zm1.834 1.79a7 7 0 0 0-.653-.796l.724-.69q.406.429.747.91zm.744 1.352a7 7 0 0 0-.214-.468l.893-.45a8 8 0 0 1 .45 1.088l-.95.313a7 7 0 0 0-.179-.483m.53 2.507a7 7 0 0 0-.1-1.025l.985-.17q.1.58.116 1.17zm-.131 1.538q.05-.254.081-.51l.993.123a8 8 0 0 1-.23 1.155l-.964-.267q.069-.247.12-.501m-.952 2.379q.276-.436.486-.908l.914.405q-.24.54-.555 1.038zm-.964 1.205q.183-.183.35-.378l.758.653a8 8 0 0 1-.401.432z"/>
+  <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0z"/>
+  <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5"/></symbol><symbol id="i-exclamation-triangle" viewBox="0 0 16 16"><path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.15.15 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.2.2 0 0 1-.054.06.1.1 0 0 1-.066.017H1.146a.1.1 0 0 1-.066-.017.2.2 0 0 1-.054-.06.18.18 0 0 1 .002-.183L7.884 2.073a.15.15 0 0 1 .054-.057m1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767z"/>
+  <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/></symbol><symbol id="i-sliders" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.5 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M9.05 3a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0V3zM4.5 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M2.05 8a2.5 2.5 0 0 1 4.9 0H16v1H6.95a2.5 2.5 0 0 1-4.9 0H0V8zm9.45 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m-2.45 1a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0v-1z"/></symbol><symbol id="i-reply" viewBox="0 0 16 16"><path d="M6.598 5.013a.144.144 0 0 1 .202.134V6.3a.5.5 0 0 0 .5.5c.667 0 2.013.005 3.3.822.984.624 1.99 1.76 2.595 3.876-1.02-.983-2.185-1.516-3.205-1.799a8.7 8.7 0 0 0-1.921-.306 7 7 0 0 0-.798.008h-.013l-.005.001h-.001L7.3 9.9l-.05-.498a.5.5 0 0 0-.45.498v1.153c0 .108-.11.176-.202.134L2.614 8.254l-.042-.028a.147.147 0 0 1 0-.252l.042-.028zM7.8 10.386q.103 0 .223.006c.434.02 1.034.086 1.7.271 1.326.368 2.896 1.202 3.94 3.08a.5.5 0 0 0 .933-.305c-.464-3.71-1.886-5.662-3.46-6.66-1.245-.79-2.527-.942-3.336-.971v-.66a1.144 1.144 0 0 0-1.767-.96l-3.994 2.94a1.147 1.147 0 0 0 0 1.946l3.994 2.94a1.144 1.144 0 0 0 1.767-.96z"/></symbol><symbol id="i-telephone" viewBox="0 0 16 16"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58zM1.884.511a1.745 1.745 0 0 1 2.612.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.68.68 0 0 0 .178.643l2.457 2.457a.68.68 0 0 0 .644.178l2.189-.547a1.75 1.75 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.6 18.6 0 0 1-7.01-4.42 18.6 18.6 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877z"/></symbol><symbol id="i-file-earmark-arrow-up" viewBox="0 0 16 16"><path d="M8.5 11.5a.5.5 0 0 1-1 0V7.707L6.354 8.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 7.707z"/>
+  <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></symbol><symbol id="i-house" viewBox="0 0 16 16"><path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293zM13 7.207V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V7.207l5-5z"/></symbol><symbol id="i-github" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></symbol><symbol id="i-terminal" viewBox="0 0 16 16"><path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9M3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708z"/>
+  <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/></symbol></svg>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+   <div class="site-header-inner">
+    <a class="brand" href="./">
+      <img src="assets/mark.svg" alt="" width="40" height="40">
+      <span class="wordmark"><span class="wordmark-parent">OpenBGA</span> <span class="wordmark-name">Lab Ops</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="#staff">Staff</a>
+      <a href="#portal">Client portal</a>
+      <a href="#demo">Demo</a>
+      <a href="#start">Run it</a>
+      <a href="#project">Project</a>
+    </nav>
+    <div class="theme-menu" data-theme-menu>
+      <button class="theme-button" type="button" aria-expanded="false" aria-controls="theme-options" data-theme-button><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-circle-half"/></svg><span class="theme-button-text">Theme: <span data-theme-label>System</span></span></button>
+      <div class="theme-options" id="theme-options" role="group" aria-label="Theme" data-theme-options hidden>
+        <button type="button" data-theme-value="light" aria-pressed="false"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sun"/></svg>Light<svg class="icon theme-check" aria-hidden="true" focusable="false"><use href="#i-check2"/></svg></button>
+        <button type="button" data-theme-value="dark" aria-pressed="false"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-moon-stars"/></svg>Dark<svg class="icon theme-check" aria-hidden="true" focusable="false"><use href="#i-check2"/></svg></button>
+        <button type="button" data-theme-value="system" aria-pressed="false"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-circle-half"/></svg>System<svg class="icon theme-check" aria-hidden="true" focusable="false"><use href="#i-check2"/></svg></button>
+      </div>
+    </div>
+   </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="intro-title">
+      <div class="wrap">
+        <div class="hero-inner">
+          <div class="hero-description">
+            <h1 id="intro-title">Client requests, from intake to resolution.</h1>
+            <p>OpenBGA Lab Ops is a free, open-source client service desk for laboratories.</p>
+            <p>Staff track questions, complaints, pickups and supply orders in one ticket queue. Clients use a portal to open tickets, reply to their laboratory and follow work for their organization or sites. Each deployment serves one laboratory.</p>
+            <div class="actions">
+              <a class="button" href="#demo">Try the demo</a>
+              <a class="button button-quiet" href="https://github.com/openbga/lab-ops"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-github"></use></svg>View on GitHub</a>
+            </div>
+            <p class="project-status">AGPL-3.0-only · No committed release dates</p>
+          </div>
+          <picture class="scene">
+            <source media="(prefers-color-scheme: dark)" srcset="assets/scene-dark.svg" data-theme-dark>
+            <img src="assets/scene-light.svg" alt="" width="1100" height="1000" fetchpriority="high">
+          </picture>
+        </div>
+        <figure class="shot hero-shot">
+          <div class="window">
+          <img class="screen" src="assets/dashboard-1280.webp"
+               srcset="assets/dashboard-1280.webp 1280w, assets/dashboard-2560.webp 2560w"
+               sizes="(min-width: 1280px) 1200px, 94vw"
+               width="1280" height="800"
+               alt="The staff Dashboard, shown with demo data: work queues for overdue tickets, tickets unassigned in my teams and my open tickets, each with a count and the age of the oldest, beside a list of recently added example client organizations with their location and status."></div>
+          <figcaption>The staff dashboard. Every screen on this page is shown with demo data.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="flow" aria-labelledby="flow-title">
+      <div class="wrap">
+        <div class="section-intro">
+          <h2 id="flow-title">One queue for<br>every client request.</h2>
+          <p>A ticket can concern an organization, a site, a contact or an internal issue. Testing, result reporting and billing stay in the laboratory's own systems.</p>
+        </div>
+        <ol class="workflow">
+          <li><h3>Intake</h3><p>A client raises a ticket in the portal, or staff log a call or walk-in. Each ticket gets a permanent number.</p></li>
+          <li><h3>Route</h3><p>A category proposes a priority and team. Staff assign the ticket to a member of that team.</p></li>
+          <li><h3>Work</h3><p>Send client-visible replies, keep internal notes, log calls and attach files. Mark when the laboratory is waiting on the client or a third party.</p></li>
+          <li><h3>Resolve</h3><p>Record a resolution summary, then close. A complaint closes only after review by a supervisor independent of it.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section band" id="staff" aria-labelledby="staff-title">
+      <div class="wrap">
+        <div class="section-intro">
+          <h2 id="staff-title">What laboratory<br>staff can do.</h2>
+          <p>The staff desk brings client records, tickets, service requests and service targets together. Roles and explicit permissions decide who sees and changes what.</p>
+        </div>
+        <dl class="principles">
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-inbox"></use></svg>Service desk</dt><dd>Route tickets to teams and staff. Record calls, send client-visible replies, attach files and keep internal notes. Filter work queues, save views and review complaints.</dd></div>
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-building"></use></svg>Client records</dt><dd>Manage organizations, sites, contacts and portal access. Preview CSV imports and see each client's ticket history.</dd></div>
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-list-check"></use></svg>Service requests</dt><dd>Offer pickup, supply order and other forms through the portal. Configure required fields and orderable items.</dd></div>
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-clock-history"></use></svg>Targets and references</dt><dd>Measure first response and resolution on the lab's business calendar. Link tickets to orders, samples and reports in existing systems.</dd></div>
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-exclamation-triangle"></use></svg>Quality records</dt><dd>Optionally record nonconformances with containment, impact on reported results, root cause, actions, an effectiveness check and independent closing. Open one from a complaint.</dd></div>
+          <div><dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sliders"></use></svg>Administration</dt><dd>Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history.</dd></div>
+        </dl>
+
+        <div class="feature feature-after">
+          <div class="feature-text">
+            <p class="eyebrow">A ticket</p>
+            <h3>Everything about a request on one page.</h3>
+            <p>A ticket shows its organization, contact, category and how it arrived, the form details still needed, and its first-response and resolution clocks. Staff choose whether an entry is a reply the client sees, an internal note or a logged contact.</p>
+          </div>
+          <figure class="shot">
+            <div class="window"><img class="screen" src="assets/ticket-1280.webp" width="1280" height="800" loading="lazy" decoding="async"
+                 alt="A staff ticket page, shown with demo data: ticket REQ-000036, Result not received; order number to follow, open at normal priority for an example family clinic. A highlighted row says the order, requisition or sample number is still needed, the first response target is met and resolution is on track, and a side panel offers Reply, Note or Log contact with a message box and file upload."></div>
+            <figcaption>A ticket in the staff desk, with its service clocks and the reply panel.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="portal" aria-labelledby="portal-title">
+      <div class="wrap">
+        <div class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Client portal</p>
+            <h2 id="portal-title">What clients can do in the portal.</h2>
+            <ul class="checks">
+              <li><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check2"></use></svg>Choose a service, such as a pickup or a supply order, or open a ticket about another topic.</li>
+              <li><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check2"></use></svg>See the status, the conversation and the form details, files and references the laboratory shares.</li>
+              <li><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check2"></use></svg>Reply to the laboratory. A reply to a resolved ticket, or one waiting for the client, returns it to the laboratory.</li>
+              <li><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check2"></use></svg>Follow tickets for their organization or the sites assigned to their account, from a phone or desktop.</li>
+              <li><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check2"></use></svg>Start a request again from an earlier ticket, with eligible answers copied.</li>
+            </ul>
+          </div>
+          <figure class="shot">
+            <div class="window"><img class="screen" src="assets/portal-1280.webp" width="1280" height="800" loading="lazy" decoding="async"
+                 alt="The client portal home of an example family clinic, shown with demo data: a How can we help? panel offering Request a pickup, Order supplies, Ask about a result, Request an urgent pickup and Something else, above a list of seven open tickets that are with the laboratory."></div>
+            <figcaption>The portal home for a client organization.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section band" id="demo" aria-labelledby="demo-title">
+      <div class="wrap demo">
+        <div>
+          <h2 id="demo-title">Try the public demo.</h2>
+          <p>The public demo has example records for a reference laboratory. Its sign-in page lists shared accounts and a password. Choose <code>demo_client_services</code> to work the staff queue or <code>demo_client</code> to see the same desk from a clinic's portal.</p>
+          <p>Use synthetic data only. The demo resets daily.</p>
+        </div>
+        <div class="demo-action">
+          <a class="button" href="https://openbga-lab-ops.onrender.com/">Open the demo<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section start" id="start" aria-labelledby="start-title">
+      <div class="wrap">
+      <div class="start-inner">
+        <div>
+          <h2 id="start-title">Run it<br>yourself.</h2>
+          <p>With Docker Compose installed, these commands start the application and PostgreSQL on your machine's loopback interface and load the same synthetic records. This configuration is for evaluation.</p>
+          <ul class="next-steps">
+            <li><a href="https://github.com/openbga/lab-ops/blob/main/README.md#set-up-your-laboratory">Set up your laboratory<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a></li>
+            <li><a href="https://github.com/openbga/lab-ops/blob/main/README.md#deploy-to-render">Deploy to Render<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a></li>
+            <li><a href="https://github.com/openbga/lab-ops/blob/main/README.md#local-development">Develop locally<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a></li>
+          </ul>
+        </div>
+        <div class="terminal">
+          <div class="commands" role="region" aria-label="Commands for the Docker trial" tabindex="0">
+          <p class="commands-bar" aria-hidden="true"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-terminal"></use></svg>Terminal</p>
+          <pre><code>git clone https://github.com/openbga/lab-ops.git
+cd lab-ops
+docker compose --profile app up --build --wait
+<span class="comment"># Type a password of at least 12 characters and press Enter.</span>
+read -rs DEMO_PASSWORD
+export DEMO_PASSWORD
+docker compose --profile app exec -e DEMO_PASSWORD web \
+  python manage.py seed_demo
+unset DEMO_PASSWORD</code></pre>
+          </div>
+          <p>Then open <code>http://127.0.0.1:8000</code> and sign in as <code>demo_client_services</code>, <code>demo_client</code> or another demo account with the password you chose.</p>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+      <div class="wrap">
+        <div class="section-intro">
+          <h2 id="roadmap-title">What comes next.</h2>
+          <p>The order may change as laboratories use the software, and there are no committed release dates. Planned quality modules would be optional, and the desk would continue to work on its own.</p>
+        </div>
+        <table>
+          <caption>Planned next on the OpenBGA Lab Ops roadmap</caption>
+          <thead><tr><th scope="col">Planned work</th><th scope="col">What it would add</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Scheduled jobs and a notification outbox</th><td>Delivery retries, service clock breach notices and an optional interval for automatically closing resolved tickets.</td></tr>
+            <tr><th scope="row">Email channel</th><td>Send replies by email and receive messages through a provider webhook, associating a verified reply with its ticket.</td></tr>
+            <tr><th scope="row">Sign-off and controlled documents</th><td>Versioned documents, approval, effective dates, review dates and an attributed sign-off.</td></tr>
+            <tr><th scope="row">Read-and-acknowledge and training records</th><td>Assign a particular document version to people or teams and record training attendance and acknowledgement.</td></tr>
+          </tbody>
+        </table>
+        <p class="table-note"><a href="https://github.com/openbga/lab-ops/blob/main/docs/roadmap.md">Read the full roadmap</a></p>
+      </div>
+    </section>
+
+    <section class="section band" id="project" aria-labelledby="project-title">
+      <div class="wrap project">
+        <div>
+          <h2 id="project-title">Project and support.</h2>
+          <p>OpenBGA Lab Ops is part of <a href="https://github.com/openbga">OpenBGA</a> and an open-source project of <a href="https://bgasoft.com">BGASoft</a>, a laboratory software company. It is maintained in <a href="https://github.com/openbga/lab-ops">openbga/lab-ops</a> and built with Django and PostgreSQL.</p>
+          <p>There is no licence fee and no per-user pricing. The source is published under AGPL-3.0-only, so anyone may use, study, change and share it under that licence. The software is provided as is, with no support commitment: issues and pull requests are answered on a best-effort basis. BGASoft offers optional paid hosting, support and implementation through <a href="https://bgasoft.com/openbga/">OpenBGA</a> and <a href="https://bgasoft.com/services/open-source-support/">open-source support</a>.</p>
+          <p class="links">
+            <a class="text-link" href="https://github.com/openbga/lab-ops/blob/main/README.md">Read the documentation</a>
+            <a class="text-link" href="https://github.com/openbga/lab-ops/blob/main/docs/product.md">Product scope</a>
+            <a class="text-link" href="https://github.com/openbga/lab-ops/blob/main/CONTRIBUTING.md">Contribute</a>
+            <a class="text-link" href="https://github.com/openbga/lab-ops/blob/main/SECURITY.md">Security policy</a>
+          </p>
+        </div>
+        <aside class="support" aria-label="Support">
+          <p>Are you looking for support? Contact <a href="https://bgasoft.com">bgasoft.com</a>.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>OpenBGA Lab Ops</span>
+    <a href="https://github.com/openbga/lab-ops">Source code</a>
+    <a href="https://github.com/openbga/lab-ops/blob/main/LICENSE">AGPL-3.0-only</a>
+    <a href="assets/overpass-OFL.txt">Overpass font licence (OFL-1.1)</a>
+  </footer>
+</body>
+</html>

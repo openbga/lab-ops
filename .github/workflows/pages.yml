@@ -1,0 +1,64 @@
+name: Publish project site
+
+# Publishes the static project site (website/) to GitHub Pages at
+# https://openbga.github.io/lab-ops/. The application does not serve these files.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Visits are counted on the published copy only, with the Plausible site shared by the
+      # OpenBGA project sites on openbga.github.io. The committed page stays free of third-party
+      # scripts (tests/test_project_site.py), so local previews load nothing external.
+      - name: Add Plausible analytics to the published page
+        run: |
+          python3 - <<'EOF'
+          from pathlib import Path
+
+          snippet = '''<!-- Privacy-friendly analytics by Plausible -->
+          <script async src="https://plausible.io/js/pa-As5SrVpCQgama4d7wsW_9.js"></script>
+          <script>
+            window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+            plausible.init()
+          </script>
+          '''
+          pages = sorted(Path("website").rglob("*.html"))
+          assert pages, "no pages to publish"
+          for page in pages:
+              html = page.read_text()
+              assert html.count("</head>") == 1 and "plausible" not in html, page
+              page.write_text(html.replace("</head>", snippet + "</head>"))
+              print(f"Added analytics to {page}")
+          EOF
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: website
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

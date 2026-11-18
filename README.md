@@ -9,6 +9,8 @@ sites. Each deployment serves one laboratory.
 
 [Try the public demo](https://openbga-lab-ops.onrender.com/) · [Deployment guide](#deploy-to-render) · [Roadmap](docs/roadmap.md)
 
+[Presentation website](https://openbga.github.io/lab-ops/)
+
 ## What you can do
 
 | Area | Features |
