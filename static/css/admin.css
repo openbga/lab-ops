@@ -59,19 +59,6 @@ html[data-theme="dark"] {
   }
 }
 
-/* Dark primary buttons use dark text for contrast. */
-html[data-theme="dark"] .submit-row input.default,
-html[data-theme="dark"] input[type="submit"].default {
-  color: #271829;
-}
-
-@media (prefers-color-scheme: dark) {
-  html[data-theme="auto"] .submit-row input.default,
-  html[data-theme="auto"] input[type="submit"].default {
-    color: #271829;
-  }
-}
-
 #site-name a {
   display: inline-flex;
   align-items: center;

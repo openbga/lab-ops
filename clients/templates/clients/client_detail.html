@@ -15,7 +15,7 @@ first), toc (on-this-page anchors). can_manage_clients comes from the workspace 
 Contacts have no page of their own: the name links to the edit form for those who may change it.
 {% endcomment %}
 {% block title %}{{ client.name }} · Client organizations · OpenBGA Lab Ops{% endblock %}
-{% block breadcrumbs %}{% url 'clients:client-list' as list_url %}{% breadcrumbs section="Client organizations" section_url=list_url current=client.name %}{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Client organizations" section_url=list_url current=client.name %}{% endblock %}
 {% block page_meta %}{% page_meta %}
   <li>{% if client.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
   {% if client.account_number %}<li>Account <span class="vr-id">{{ client.account_number }}</span></li>{% endif %}
@@ -46,6 +46,9 @@ Contacts have no page of their own: the name links to the edit form for those wh
 
 {% panel title="Open tickets" heading_id="requests-heading" count=open_count table=True class="mb-3" %}
   <p class="vr-muted small">{% for code, label, count in status_counts %}{{ label }}: {{ count }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+  {% if open_count > open_requests|length %}
+  <p class="vr-muted small">Showing the {{ open_requests|length }} most recently updated of {{ open_count }} open tickets. <a href="{{ open_tickets_url }}">Show all open tickets</a>.</p>
+  {% endif %}
   {% list_results items=open_requests empty_title="No open tickets" empty_body="Tickets for this organization that are open or waiting appear here." %}
     <div class="vr-table-wrap"><table class="table table-hover vr-table">
       <thead><tr><th scope="col">Ticket</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Site</th><th scope="col">Team</th><th scope="col">Last update</th></tr></thead>

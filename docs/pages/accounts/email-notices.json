@@ -11,7 +11,7 @@
       "title": "Stop ticket notices",
       "steps": [
         "Clear [[Email me ticket notices]].",
-        "Select [[Save]]. The page confirms that notices are turned off."
+        "Select [[Save]]. The page confirms your preference was saved."
       ]
     },
     {
@@ -24,7 +24,7 @@
   "good_to_know": [
     "Notices are on until you turn them off.",
     "A notice names only the ticket number, what happened and the laboratory. Sign in to read the ticket.",
-    "Nothing is sent when the laboratory has not set up email, as in the public demonstration.",
+    "When outgoing email is off, the page tells you. You can still save your preference for when delivery is enabled.",
     "This page is for laboratory staff. Client portal accounts always receive their notices and cannot open it."
   ],
   "sections": [
@@ -37,7 +37,7 @@
         },
         {
           "label": "Save",
-          "description": "Stores the choice for your account only and returns to this page with a confirmation."
+          "description": "Saves the setting for your own account. The Email is off notice appears when outgoing email is disabled, even if you turn ticket notices on."
         }
       ]
     },
@@ -53,6 +53,7 @@
     "desk/notifications.py",
     "desk/templates/desk/email/preferences.html",
     "desk/templates/desk/email/notice_body.txt",
-    "core/preferences.py"
+    "core/preferences.py",
+    "core/context_processors.py"
   ]
 }

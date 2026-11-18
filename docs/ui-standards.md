@@ -142,7 +142,7 @@ hides and reorders columns. One list is one `section.card.vr-table-card`.
      an identifier always leads to the record it names, on every list where it appears.
    - Where a record has no page of its own (a client contact), the identifier links to the edit
      form for users who may edit, and is plain text for everyone else.
-   - Queue and count tables on overviews follow the same rule: the label is the link.
+   - A dashboard queue row is one link to its filtered list, including its count. Each count belongs to that queue alone.
 4. Row actions. Only for something done to the row that is not opening it. At most one inline
    button (`btn btn-sm btn-outline-secondary`), the next step for that row's state. Two or more
    go in an `Actions` dropdown. A destructive row action is a button that asks for confirmation,
@@ -424,9 +424,9 @@ fields, panels, menus and dialogs.
   underlined only on hover.
 - Status: a tinted pill (tone fill, tone text, a Bootstrap Icons glyph, 12px bold), no edge;
   inside a table cell it may wrap with a 10px radius; inside a notice it drops its fill.
-- Notices: the tone's fill, 16px radius, no border; one grid: the status in its own column, its
-  pill centred on the content's first line, labelled lines as a two-column `dl` of `{% fact %}`
-  rows.
+- Notices use the tone's fill and a 16px radius. The status sits beside the first line of
+  the message when both fit. In a narrow panel the message wraps below the status and uses
+  the full width. Labelled lines use a two-column `dl` of `{% fact %}` rows.
 - Wide tables: the identifier column stays frozen while the table scrolls sideways, with its row's
   opaque fill and an edge shadow only while scrolled; full-width sub-rows (`td.vr-subrow` holding
   `.vr-subrow-content`) stay pinned to the visible width. A free-text row header (`th.vr-wrap`, a
@@ -444,12 +444,14 @@ fields, panels, menus and dialogs.
   quiet at rest and fades in on hover or focus (no fade under reduced motion). Tables and panels
   keep a visible scrollbar, so overflow is never silent.
 
-**The line diagram.** Each area of work has a line colour. On the dashboard its work queues
-are stations on a lane: a ring with the queue link, its status pill, the oldest item and a count
-badge when work waits; a short tick, a muted label and a muted 0 when empty. A record that moves
-through stages may show its route the same way: done stops filled, the current stop ringed with a
-soft halo, pending stops muted. The sidebar's group stubs use the same colours. These dots, rings, ticks and stubs are shapes of the diagram,
-not icons: they are the one exception to the icon rule in section 1.
+**Dashboard and area colours.** Dashboard queues are grouped by area in short, linked rows.
+Each row shows its own count and, for tickets, the age of the oldest item. Queue definitions
+give the role-specific descriptions. The recent organization list shares the row with the
+queue panel when the available content width permits. In a narrow panel each organization
+keeps its name, code, status and location together in a compact row.
+The dashboard's group stubs use the same area colours as the sidebar. A record that moves
+through stages can show a route with filled completed stops, a ringed current stop and muted
+pending stops. These stubs and stops are the diagram shapes permitted by section 1.
 
 **Footer and printed records.** A record footer gives its identifier, who produced the view
 and when. The application footer displays the product name, license and Source code link

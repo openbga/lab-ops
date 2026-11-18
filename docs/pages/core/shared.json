@@ -23,7 +23,7 @@
         },
         {
           "label": "Narrow screens",
-          "description": "The panel retains the preferred width when space allows and is bounded to the window with a small margin on narrow screens. Close it to return to the page; returning to a wider window restores the preferred desktop width."
+          "description": "Below 992px the panel opens over the page. Keyboard focus stays in Help. Select Close documentation or press Escape to return to the Help button. At wider widths the reference sits beside the page, and both remain available."
         }
       ]
     },
@@ -56,7 +56,7 @@
         },
         {
           "label": "Account menu",
-          "description": "Shows the signed-in name and staff roles or client organization. Change password and Two-factor authentication open account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those two links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
+          "description": "Shows the signed-in name and staff roles or client organization. Change password, Email addresses and Two-factor authentication open your account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
         },
         {
           "label": "Forms",

@@ -85,7 +85,7 @@
         },
         {
           "label": "General email, Main phone",
-          "description": "The shared email address and main phone the laboratory has on file. Blank when none is recorded."
+          "description": "Select the shared email address to write to your organization or the main phone number to call. Blank when none is recorded."
         },
         {
           "label": "Mailing address",
@@ -105,7 +105,7 @@
       "items": [
         {
           "label": "Name, Role, Email, Phone",
-          "description": "Each contact's name, what the laboratory contacts them about, email address and phone number. Blank values show a dash."
+          "description": "Each contact’s name, responsibilities, email address and phone number. Select an email address to write or a phone number to call. Blank values show a dash."
         }
       ]
     },
@@ -118,7 +118,7 @@
         },
         {
           "label": "Laboratory, Phone, Email, Address",
-          "description": "The laboratory's name and contact details. Blank values are left empty or shown as Not recorded."
+          "description": "Select the laboratory’s phone number to call or its email address to write. Blank values are left empty or shown as Not recorded."
         }
       ]
     },

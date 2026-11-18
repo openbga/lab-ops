@@ -11,11 +11,11 @@ its fields. The picker lists the forms offered to the organization chosen when i
 Changing the picker re-renders the category section (desk:category-guidance).
 {% endcomment %}{% if picker %}
 <div class="vr-intake">
-  {% if picker.non_field_errors %}{% load ui %}{% notice tone="danger" %}{% for error in picker.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Your entries were kept.{% endnotice %}{% endif %}
+  {% if picker.non_field_errors %}{% load ui %}{% notice tone="danger" %}{% for error in picker.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}{% endnotice %}{% endif %}
   {{ picker.request_form.as_field_group }}
   {% if template %}
   {% if template.instructions %}<p class="form-text">{{ template.instructions|linebreaksbr }}</p>{% endif %}
-  {% if form.errors %}{% load ui %}{% notice tone="danger" %}{% for error in form.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Check the highlighted form details below. Your entries were kept.{% endnotice %}{% endif %}
+  {% if form.errors %}{% load ui %}{% notice tone="danger" %}{% for error in form.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Check the highlighted form details below.{% endnotice %}{% endif %}
   {% include "request_forms/_layout.html" with form=form level=3 only %}
   {% if not_known %}{{ not_known.as_field_group }}{% endif %}
   {% for field in form.hidden_fields %}{{ field }}{% endfor %}

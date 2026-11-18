@@ -370,6 +370,34 @@ class TestPages:
         assert "view=all" in everything["Location"]  # no system view stored: all requests
         assert mine.pk
 
+    def test_clear_search_restores_saved_filters_and_named_queue(self, client, agent):
+        view = make_view(agent, "Urgent", QueryDict("view=all&priority=urgent"))
+        client.force_login(agent)
+        url = reverse("desk:request-list")
+        result = client.get(url, {"view": "all", "saved": view.pk, "q": "missing"})
+        assert result.context["clear_url"] == f"{url}?view=all&priority=urgent&saved={view.pk}"
+        assert result.context["filter_form"]["saved"].value() == str(view.pk)
+        assert not any(chip["label"] == "Saved" for chip in result.context["active_filters"])
+        assert client.get(result.context["clear_url"]).context["refined"] is False
+        result = client.get(url, {"view": "unassigned", "q": "missing"})
+        assert result.context["clear_url"] == f"{url}?view=unassigned"
+
+    def test_delete_confirmation_checks_the_revision_it_displayed(self, client, agent):
+        view = make_view(agent, "Original")
+        client.force_login(agent)
+        edit = reverse("desk:view-edit", args=[view.pk])
+        confirm = client.get(edit, {"confirm": "delete"})
+        assert "Delete view Original?" in confirm.content.decode()
+        client.post(
+            edit, {"name": "New name", "shared_with": "private", "expected_revision": view.revision}
+        )
+        delete = reverse("desk:view-delete", args=[view.pk])
+        assert client.post(delete)["Location"] == edit
+        assert SavedView.objects.filter(pk=view.pk).exists()
+        response = client.post(delete, {"expected_revision": view.revision})
+        assert response["Location"] == edit
+        assert SavedView.objects.get(pk=view.pk).name == "New name"
+
     def test_non_supervisor_is_only_offered_private(self, client, agent, quality):
         client.force_login(agent)
         response = client.post(
@@ -448,7 +476,11 @@ class TestPages:
         move = reverse("desk:view-move", args=[second.pk])
         assert client.post(move, {"direction": "up"}).status_code == 302
         assert [v.name for v in SavedView.objects.filter(owner=agent)] == ["Second", "First"]
-        response = client.post(reverse("desk:view-delete", args=[first.pk]), follow=True)
+        response = client.post(
+            reverse("desk:view-delete", args=[first.pk]),
+            {"expected_revision": first.revision},
+            follow=True,
+        )
         assert response.status_code == 200
         assert [v.name for v in SavedView.objects.all()] == ["Second"]
 

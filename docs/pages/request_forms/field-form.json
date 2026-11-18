@@ -67,14 +67,18 @@
         },
         {
           "label": "Required",
-          "description": "The client must fill it to send the ticket. Staff must too, unless they tick Some required details are not known yet while logging a call; the ticket page then lists what is missing. A confirmation is always required, whatever you set here. When staff later correct a ticket, a required field may be left empty."
+          "description": "The client must fill it to send the ticket. Staff must too, unless they tick Some required details are not known yet while logging a call; the ticket page then lists what is missing. This control is hidden for a confirmation, which is always required, and for a section heading, which takes no answer. When staff later correct a ticket, a required field may be left empty."
+        },
+        {
+          "label": "Copy the answer when a client chooses Request again",
+          "description": "Offered for client-entered fields whose answers can be copied. Clear it for a number that belongs to one order or sample. Dates, times, confirmations and patient information are always entered again."
         }
       ]
     },
     {
       "title": "Type settings",
       "paragraphs": [
-        "Each setting applies to one type. A setting for another type is cleared when you save."
+        "Type settings appear for a choice, number or catalog item list. You can switch types and switch back to recover what you typed before saving. Saving a different type removes the previous type’s options, numeric limits or catalog when they no longer apply."
       ],
       "items": [
         {
@@ -96,10 +100,6 @@
         {
           "label": "Highest value",
           "description": "For a number. Empty: no limit."
-        },
-        {
-          "label": "Copy the answer when a client chooses Request again",
-          "description": "On by default. When a client starts a new ticket from an earlier one with Request again, this field's answer is copied into the new form for the client to check. Clear it for a number that belongs to one order or sample. Dates, times, confirmations and patient information are never copied, whatever this says."
         }
       ]
     },
@@ -146,6 +146,7 @@
     "request_forms/selectors.py",
     "templates/core/record_form.html",
     "request_forms/tests/test_setup.py",
-    "request_forms/tests/test_pages.py"
+    "request_forms/tests/test_pages.py",
+    "e2e/test_request_forms.py"
   ]
 }

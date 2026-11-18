@@ -250,6 +250,11 @@ class EntryForm(RevisionForm):
         ],
     )
 
+    def __init__(self, *args, closed=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if closed:
+            self.fields["kind"].choices = [(EntryKind.NOTE, "Note")]
+
     def clean(self):
         data = super().clean()
         if data.get("files") and data.get("kind") == EntryKind.CONTACT:

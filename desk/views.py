@@ -56,6 +56,7 @@ from .lists import (
     FILTER_FIELDS,
     INLINE,
     MORE,
+    SAVED_FILTERS,
     SEARCH_FIELDS,
     SYSTEM_VIEWS,
     RequestFilter,
@@ -67,7 +68,7 @@ from .lists import (
 from .models import ComplaintReview, EntryKind, RequestEntry, SavedView, ServiceRequest, Status
 from .permissions import is_supervisor
 from .selectors import portal_audience, staff_requests
-from .timeline import describe
+from .timeline import audit_changes, describe
 
 NEIGHBOUR_WINDOW = 2000  # requests of the list scanned for previous and next
 
@@ -149,10 +150,28 @@ def request_list(request):
         return redirect(f"{reverse('desk:request-list')}?{params.urlencode()}")
     current_saved = request.GET.get("saved", "")
     views, saved = _view_picker(user, current_view, current_saved)
-    title = next(
-        (v["label"] for v in saved if v["current"]),
-        SYSTEM_VIEWS[current_view][0],
+    active_view = next((item for item in saved if item["current"]), None)
+    title = active_view["label"] if active_view else SYSTEM_VIEWS[current_view][0]
+    clear_url = (
+        active_view["url"] if active_view else f"{reverse('desk:request-list')}?view={current_view}"
     )
+    baseline = active_view["view"].filters if active_view else {}
+    refined = any(
+        request.GET.get(name, "") != baseline.get(name, "")
+        for name in SAVED_FILTERS
+        if name != "view"
+    )
+    bulk_form = BulkForm(request.POST if request.method == "POST" else None, auto_id="bulk_%s")
+    selected_rows = set()
+    if request.method == "POST":
+        _apply_bulk(request, bulk_form)
+        if not bulk_form.errors:
+            return redirect(request.get_full_path())
+        # Row values include the displayed revision. A changed ticket is never silently
+        # selected at its new revision. The refreshed list still enforces visibility.
+        selected_rows = set(request.POST.getlist("requests"))
+        for error in bulk_form.non_field_errors():
+            messages.error(request, error)
     return list_response(
         request,
         queryset=base_queryset(user),
@@ -173,7 +192,10 @@ def request_list(request):
             "saved_views": saved,
             "current_view": current_view,
             "view_description": SYSTEM_VIEWS[current_view][1],
-            "bulk_form": BulkForm(),
+            "bulk_form": bulk_form,
+            "selected_rows": selected_rows,
+            "clear_url": clear_url,
+            "refined": refined,
             "list_query": request.GET.urlencode(),
         },
     )
@@ -186,12 +208,7 @@ def _safe_next(request, fallback):
     return fallback
 
 
-@login_required
-@require_POST
-def request_bulk(request):
-    require_staff(request.user)
-    back = _safe_next(request, reverse("desk:request-list"))
-    form = BulkForm(request.POST)
+def _apply_bulk(request, form):
     # Each selected row posts "<id>:<revision>", the revision the list showed;
     # a selection without its revision is refused by the service as out of date.
     selected = {}
@@ -199,9 +216,7 @@ def request_bulk(request):
         pk, _, revision = value.partition(":")
         selected[pk] = revision or None
     if not form.is_valid():
-        for errors in form.errors.values():
-            messages.error(request, " ".join(errors))
-        return redirect(back)
+        return
     data = form.cleaned_data
     try:
         if data["action"] == "assign":
@@ -218,10 +233,21 @@ def request_bulk(request):
         else:
             count = services.bulk_close(actor=request.user, selected=selected)
     except (ValidationError, PermissionDenied, ValueError) as exc:
-        messages.error(request, " ".join(getattr(exc, "messages", [str(exc)])))
+        form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
     else:
         messages.success(request, f"{count} ticket{'s' if count != 1 else ''} changed.")
-    return redirect(back)
+
+
+@login_required
+@require_POST
+def request_bulk(request):
+    """Accept forms opened before the list itself handled bulk corrections."""
+    require_staff(request.user)
+    form = BulkForm(request.POST)
+    _apply_bulk(request, form)
+    for errors in form.errors.values():
+        messages.error(request, " ".join(errors))
+    return redirect(_safe_next(request, reverse("desk:request-list")))
 
 
 def _category_terms_refused(exc):
@@ -477,12 +503,14 @@ def _detail_context(request, request_obj, composer=None):
     audience = portal_audience(request_obj)
     review = getattr(request_obj, "complaint_review", None)
     previous, following = _neighbours(user, request_obj, list_query)
+    closed = request_obj.status == Status.CLOSED
     if composer is None:
         composer = EntryForm(
+            closed=closed,
             initial={
-                "kind": EntryKind.REPLY if audience else EntryKind.NOTE,
+                "kind": EntryKind.REPLY if audience and not closed else EntryKind.NOTE,
                 "expected_revision": request_obj.revision,
-            }
+            },
         )
     supervisor = is_supervisor(user)
     return {
@@ -501,7 +529,8 @@ def _detail_context(request, request_obj, composer=None):
         and not (review and review.is_reviewed),
         "is_supervisor": supervisor,
         "is_member": request_obj.team.memberships.filter(user=user).exists(),
-        "is_closed": request_obj.status == Status.CLOSED,
+        "is_closed": closed,
+        "composer_title": "Add an internal note" if closed else "Reply or add a note",
         "list_query": list_query,
         "list_url": f"{reverse('desk:request-list')}?{list_query}"
         if list_query
@@ -525,7 +554,7 @@ def request_detail(request, pk):
 @require_POST
 def request_entry(request, pk):
     request_obj = _request_or_404(request.user, pk)
-    form = EntryForm(request.POST, request.FILES)
+    form = EntryForm(request.POST, request.FILES, closed=request_obj.status == Status.CLOSED)
     if form.is_valid():
         data = form.cleaned_data
         try:
@@ -545,6 +574,8 @@ def request_entry(request, pk):
             _errors(form, exc)
         else:
             label = {"reply": "Reply sent", "note": "Note added", "contact": "Contact logged"}
+            if entry.kind == EntryKind.REPLY and not portal_audience(request_obj):
+                label[entry.kind] = "Reply recorded. No portal account can see this ticket"
             messages.success(request, label[entry.kind] + ".")
             return redirect(_record_url(request_obj, _back(request)))
     # Scope again before anything about the request is rendered: it may have left the actor's
@@ -904,7 +935,7 @@ def request_history(request, pk):
         {
             "page_title": f"History of {request_obj.number}",
             "req": request_obj,
-            "events": events,
+            "events": audit_changes(events),
             "record_url": _record_url(request_obj, _back(request)),
         },
     )
@@ -979,6 +1010,16 @@ def view_create(request):
 def view_edit(request, pk):
     require_staff(request.user)
     view = get_object_or_404(SavedView, pk=pk, owner=request.user)
+    if request.method == "GET" and request.GET.get("confirm") == "delete":
+        return render(
+            request,
+            "desk/view_delete.html",
+            {
+                "page_title": f"Delete view {view.name}?",
+                "view": view,
+                "cancel_url": _saved_url(view),
+            },
+        )
     form = SavedViewForm(
         request.POST or None,
         initial={"name": view.name, "shared_with": view.shared_with, "team": view.team_id},
@@ -1022,7 +1063,15 @@ def view_edit(request, pk):
 def view_delete(request, pk):
     require_staff(request.user)
     view = get_object_or_404(SavedView, pk=pk, owner=request.user)
-    saved_views.delete_view(actor=request.user, view=view)
+    try:
+        saved_views.delete_view(
+            actor=request.user,
+            view=view,
+            expected_revision=request.POST.get("expected_revision", ""),
+        )
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("desk:view-edit", pk=pk)
     messages.success(request, f"View “{view.name}” deleted.")
     return redirect("desk:request-list")
 

@@ -16,15 +16,8 @@ from . import changelog, preferences
 from .models import AuditEvent, Lab
 from .templatetags.navigation import ITEMS, ROUTE_ITEMS, visible_staff_items
 
-# Dashboard lines: the area of the work each queue belongs to, in navigation order (accents only,
-# never status), and the words of a queue's status pill when work is waiting, by tone. An area
-# key is also its line colour (--vr-line-<key> in static/css/app.css) and its menu section.
-QUEUE_AREAS = (
-    ("clients", "Clients"),
-    ("desk", "Service desk"),
-    ("records", "Records"),
-    ("setup", "Setup"),
-)
+# Each area counts its own records. A ticket can appear in several desk queues.
+QUEUE_AREAS = (("desk", "Service desk"), ("clients", "Clients"))
 QUEUE_STATUS = {
     "hold": "Needs a decision",
     "info": "Waiting",
@@ -35,7 +28,7 @@ QUEUE_STATUS = {
 RECENT_CLIENTS = 8
 
 
-def _queue(label, rows, url, params, *, area, oldest=None, tone="info", note="", status=""):
+def _queue(label, rows, url, params, *, area, icon, oldest=None, tone="info", note="", status=""):
     """One dashboard queue. `rows` is the same queryset the linked list builds for `params`, so
     the count here is the count there. A single aggregate query gives count and oldest item."""
     totals = {"count": Count("pk", distinct=True)}
@@ -48,41 +41,51 @@ def _queue(label, rows, url, params, *, area, oldest=None, tone="info", note="",
         "url": f"{reverse(url)}?{urlencode(params)}" if params else reverse(url),
         "oldest_at": totals.get("oldest"),
         "tone": tone,
+        "icon": icon,
         "note": note,
         "area": area,
         "status": status or QUEUE_STATUS[tone],
     }
 
 
-def _queue_lines(queues):
-    """The queues grouped by area, in QUEUE_AREAS order, with each area's total; empty areas out."""
-    lines = []
+def _queue_groups(queues):
+    groups = []
     for family, name in QUEUE_AREAS:
-        stations = [queue for queue in queues if queue["area"] == family]
-        if stations:
-            total = sum(queue["count"] for queue in stations)
-            lines.append({"family": family, "name": name, "total": total, "queues": stations})
-    return lines
+        rows = [queue for queue in queues if queue["area"] == family]
+        if rows:
+            # Stable order within each group, with empty queues after those carrying work.
+            rows.sort(key=lambda queue: not queue["count"])
+            groups.append({"family": family, "name": name, "queues": rows})
+    return groups
 
 
-# Service desk queues: (label, list parameters, tone, note, roles or None for all staff)
+# Priority order within the service desk. The list itself enforces the operator's scope.
 DESK_QUEUES = (
-    ("My open tickets", {"view": "my-open"}, "info", "Assigned to you.", None),
+    (
+        "Overdue tickets",
+        {"view": "overdue"},
+        "danger",
+        "exclamation-circle-fill",
+        "A service clock is past due.",
+        None,
+    ),
     (
         "Unassigned in my teams",
         {"view": "unassigned"},
         "warning",
+        "inbox",
         "Take one or assign it.",
         None,
     ),
-    ("Overdue tickets", {"view": "overdue"}, "danger", "A service clock is past due.", None),
     (
         "Complaints awaiting my review",
         {"view": "complaints-review", "complaint": "review"},
         "progress",
+        "list-check",
         "Decided complaints you may review independently.",
         ("supervisor",),
     ),
+    ("My open tickets", {"view": "my-open"}, "info", "person-circle", "Assigned to you.", None),
 )
 
 
@@ -90,7 +93,7 @@ def _desk_queues(user, roles):
     from desk.lists import view_queryset
 
     queues = []
-    for label, params, tone, note, needs in DESK_QUEUES:
+    for label, params, tone, icon, note, needs in DESK_QUEUES:
         if needs and not roles.intersection(needs):
             continue
         queues.append(
@@ -100,6 +103,7 @@ def _desk_queues(user, roles):
                 "desk:request-list",
                 params,
                 area="desk",
+                icon=icon,
                 oldest="created_at",
                 tone=tone,
                 note=note,
@@ -122,6 +126,7 @@ def _work_queues(user):
                 "clients:client-list",
                 {"active": "yes", "contacts": "none"},
                 area="clients",
+                icon="building",
                 tone="warning",
                 status="Incomplete",
                 note="Add the people the laboratory deals with there.",
@@ -142,8 +147,7 @@ def dashboard(request):
         {
             "page_title": "Dashboard",
             "queues": queues,
-            "queue_lines": _queue_lines(queues),
-            "queue_total": sum(queue["count"] for queue in queues),
+            "queue_groups": _queue_groups(queues),
             "queues_clear": not any(queue["count"] for queue in queues),
             "recent_clients": Client.objects.order_by("-pk")[:RECENT_CLIENTS],
         },

@@ -212,8 +212,11 @@ def test_reply_with_a_photo_from_the_composer(page: Page, demo, view: View):
         composer.locator("input[type=file]").set_input_files(
             {"name": "label-photo.png", "mimeType": "image/png", "buffer": png()}
         )
+        composer.get_by_label("Leave out any listed files I do not choose again").check()
         composer.get_by_role("button", name="Send").click()
-        expect(page.get_by_text("Reply sent.")).to_be_visible()
+        expect(
+            page.get_by_text("Reply recorded. No portal account can see this ticket.")
+        ).to_be_visible()
         conversation = page.locator(".vr-entries")
         link = conversation.get_by_role("link", name="label-photo.png").first
         expect(link).to_be_visible()
@@ -244,7 +247,14 @@ def test_client_raises_and_replies_with_a_photo_in_the_portal(page: Page, demo, 
         if form.locator("select[name=site]").count():
             pick(field(form, "Site"), index=1)
         field(form, "Subject").fill(f"Smudged label {index}")
+        form.locator("input[type=file]").set_input_files(
+            {"name": "label.png", "mimeType": "image/png", "buffer": png()}
+        )
+        form.get_by_role("button", name="Send", exact=True).click()
+        expect(form.locator("[data-vr-files-retry]")).to_contain_text("label.png")
         field(form, "Description").fill("Photo of the sample label attached.")
+        form.get_by_role("button", name="Send", exact=True).click()
+        expect(form.locator("[data-vr-files-problem]")).to_be_visible()
         form.locator("input[type=file]").set_input_files(
             {"name": "label.png", "mimeType": "image/png", "buffer": png()}
         )

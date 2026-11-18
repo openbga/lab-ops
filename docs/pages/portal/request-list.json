@@ -53,11 +53,11 @@
         },
         {
           "label": "New ticket",
-          "description": "Opens the form for a new ticket. The empty state offers it too."
+          "description": "Opens the services your laboratory offers. Select a service or choose Something else for a general ticket. If no service forms are offered, the general ticket form opens directly. The empty state offers the same action."
         },
         {
           "label": "Ticket number",
-          "description": "Opens the ticket."
+          "description": "Opens the ticket. Its Tickets breadcrumb returns you to this search, status, sort and page."
         }
       ]
     },

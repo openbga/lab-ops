@@ -237,6 +237,20 @@ def test_organization_counts_honour_restricted_categories(
     assert client.get(reverse("clients:client-detail", args=[clinic.pk])).context["open_count"] == 2
 
 
+def test_show_all_open_tickets_uses_the_authorized_organization_queue(
+    client, make_user, agent, category, privacy_category, clinic, water
+):
+    visible = [log(agent, category, clinic) for _ in range(9)]
+    log(agent, privacy_category, clinic)
+    log(agent, category, water)
+    client.force_login(make_user("reader", "technical"))
+    response = client.get(reverse("clients:client-detail", args=[clinic.pk]))
+    assert b"Showing the 8 most recently updated of 9 open tickets" in response.content
+    assert len(response.context["open_requests"]) == 8
+    queue = client.get(response.context["open_tickets_url"])
+    assert set(queue.context["page_obj"]) == set(visible)
+
+
 def test_new_request_for_this_organization_prefills(client, agent, clinic):
     from clients.views import new_request_url
 
@@ -357,14 +371,17 @@ def test_timeline_page_access(client, make_user, clinic):
 # N1 email notices page ----------------------------------------------------------------------
 
 
-def test_email_notices_page(client, make_user, clinic):
+def test_email_notices_page(client, make_user, clinic, settings):
+    settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
     staff = make_user("staffer", "technical")
     client.force_login(staff)
     url = reverse("email-notices")
     assert client.get(url).context["form"].initial["enabled"] is True
     client.post(url, {})
     assert UserPreference.objects.get(user=staff, key=OPT_OUT_KEY).value is False
-    client.post(url, {"enabled": "on"})
+    saved = client.post(url, {"enabled": "on"}, follow=True)
+    assert b"Email is off" in saved.content
+    assert b"Email notice preference saved" in saved.content
     assert not UserPreference.objects.filter(user=staff, key=OPT_OUT_KEY).exists()
     client.force_login(make_user("portal", client=clinic))
     assert client.get(url).status_code == 403

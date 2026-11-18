@@ -37,10 +37,12 @@ a POST per row (Move up, Move down); the order is the portal menu's and the staf
           <td>{{ template.client_label|default:"Same as name" }}</td>
           <td>
             {% url 'request_forms:template-move' template.pk 'up' as up_url %}{% url 'request_forms:template-move' template.pk 'down' as down_url %}
-            {% more_actions label="Move" small=True %}
-              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
-              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+            {% with pk=template.pk|stringformat:"s" %}
+            {% more_actions label="Move" small=True id="move-form-"|add:pk %}
+              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True name="show" value=show %}</li>{% endif %}
+              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True name="show" value=show %}</li>{% endif %}
             {% endmore_actions %}
+            {% endwith %}
           </td>
         </tr>
         {% endfor %}

@@ -51,6 +51,7 @@ def test_shared_account_cannot_reach_any_account_setting(client, make_user):
     menu = client.get(reverse("dashboard")).content.decode()
     assert "Shared demonstration account" in menu
     assert reverse("account_change_password") not in menu and reverse("mfa_index") not in menu
+    assert reverse("account_email") not in menu
 
     # Signing out still works, and a reset link is never mailed for a shared account.
     assert client.post(reverse("account_logout")).status_code == 302
@@ -66,6 +67,7 @@ def test_other_accounts_keep_their_account_settings(client, make_user):
     assert client.get(reverse("mfa_index")).status_code == 200
     menu = client.get(reverse("dashboard")).content.decode()
     assert reverse("account_change_password") in menu and "Shared demonstration" not in menu
+    assert reverse("account_email") in menu
     client.post(reverse("account_logout"))
     client.post(reverse("account_reset_password"), {"email": own.email})
     assert len(mail.outbox) == 1

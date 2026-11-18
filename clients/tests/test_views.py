@@ -78,6 +78,21 @@ def test_every_staff_role_reads_the_list_and_the_record(client, make_user, clini
     assert set(shown.values()) == {expected}, (role, shown)
 
 
+def test_opening_an_organization_keeps_the_directory_query(client, make_user, clinic):
+    client.force_login(make_user("directory-reader", "technical"))
+    filters = {"q": "Example", "active": "yes", "sort": "name", "page": "1"}
+    listing = client.get(reverse("clients:client-list"), filters)
+    query = listing.wsgi_request.GET.urlencode()
+    detail_url = reverse("clients:client-detail", args=[clinic.pk], query={"list": query})
+    assert f'href="{detail_url}"' in listing.content.decode()
+    detail = client.get(detail_url)
+    assert detail.context["list_url"] == reverse("clients:client-list", query=filters)
+    direct = client.get(
+        reverse("clients:client-detail", args=[clinic.pk]), {"list": "//example.invalid/"}
+    )
+    assert direct.context["list_url"] == reverse("clients:client-list")
+
+
 def test_portal_accounts_and_visitors_are_refused_every_staff_page(client, make_user, clinic, pat):
     page = urls(clinic, pat)
     portal = make_user("portal", client=clinic)

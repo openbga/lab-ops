@@ -1,10 +1,17 @@
 """Server-rendered list pages: one filtered, sorted, paginated grid per call (core.grids)."""
 
 from django.db.models import Q
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, QueryDict
 from django.shortcuts import render
 
 from core.grids import GridRequest, active_filters
+
+
+def return_list_params(request, form_class):
+    """Only the list's filters, sorting, and pagination may travel back from a record."""
+    params = QueryDict(request.GET.get("list", ""))
+    allowed = {*form_class.base_fields, "page", "per_page", "sort"}
+    return {key: value for key, value in params.items() if key in allowed}
 
 
 def toolbar_context(form, chips, *, inline=(), more=(), placeholder=""):

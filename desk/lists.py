@@ -178,6 +178,7 @@ class RequestFilter(SearchFilter):
     )
     sort = forms.CharField(required=False, widget=forms.HiddenInput)
     per_page = forms.CharField(required=False, widget=forms.HiddenInput)
+    saved = forms.CharField(required=False, widget=forms.HiddenInput)
     status = forms.ChoiceField(required=False, choices=STATUS_FILTERS)
     team = forms.ModelChoiceField(
         required=False, queryset=Team.objects.all(), empty_label="Any team"
@@ -221,7 +222,7 @@ class RequestFilter(SearchFilter):
 
 # Filters a saved view may store: the list's own and its system view, not sort or page size.
 SAVED_FILTERS = tuple(
-    name for name in RequestFilter.base_fields if name not in ("sort", "per_page")
+    name for name in RequestFilter.base_fields if name not in ("sort", "per_page", "saved")
 )
 INLINE = ("status", "assignee")
 MORE = (

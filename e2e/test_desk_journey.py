@@ -92,6 +92,8 @@ def test_log_work_and_close_a_request(page: Page, demo, view: View):
     page.goto("/requests/?view=resolved")
     expect(page.get_by_role("heading", level=1, name="Resolved not closed")).to_be_visible()
     page.get_by_role("checkbox", name=f"Select {created.number}").check()
+    if view.phone:
+        page.get_by_role("button", name=re.compile("^Change selected tickets")).click()
     pick(field(page, "With the selected"), label="Close")
     page.get_by_role("button", name="Apply to selected").click()
     expect(page.get_by_text(re.compile(r"ticket.? changed\."))).to_be_visible()
@@ -129,3 +131,50 @@ def test_complaint_is_reviewed_by_another_supervisor(page: Page, demo, viewport)
     sign_in(page, "demo_client_services", demo.password)
     response = page.goto(f"/requests/{complaint.pk}/complaint/review/")
     assert response.status == 403
+
+
+def test_unsent_ticket_entry_survives_declining_an_assignment(page: Page, demo):
+    from desk.models import ServiceRequest
+
+    ticket = ServiceRequest.objects.filter(
+        status="open",
+        team__memberships__user__username="demo_client_services",
+        assignee__isnull=True,
+    ).first()
+    sign_in(page, "demo_client_services", demo.password)
+    page.goto(f"/requests/{ticket.pk}/")
+    composer = page.locator("form.vr-composer")
+    field(composer, "Message").fill("Please call the synthetic office back.")
+    composer.locator("input[type=file]").set_input_files(
+        {"name": "call.txt", "mimeType": "text/plain", "buffer": b"Synthetic call log."}
+    )
+    take = page.get_by_role("button", name="Take it")
+    page.once("dialog", lambda prompt: prompt.dismiss())
+    take.click()
+    expect(take).to_be_enabled()
+    assert take.locator("xpath=ancestor::form").get_attribute("aria-busy") is None
+    page.get_by_role("link", name="Assign", exact=True).click()
+    dialog = page.get_by_role("dialog")
+    pick(field(dialog, "Assign to"), label="Demo Client services (Client services)")
+    prompts = []
+
+    def keep_draft(prompt):
+        prompts.append(prompt.message)
+        prompt.dismiss()
+
+    revision = ticket.revision
+    page.once("dialog", keep_draft)
+    dialog.get_by_role("button", name="Assign").click()
+    expect(dialog.get_by_role("button", name="Assign")).to_be_enabled()
+    assert prompts == ["Discard the unsent ticket entry and its selected files to continue?"]
+    ticket.refresh_from_db()
+    assert ticket.revision == revision
+    expect(composer.locator("textarea[name=body]")).to_have_value(
+        "Please call the synthetic office back."
+    )
+    assert composer.locator("input[type=file]").evaluate("el => el.files[0].name") == "call.txt"
+    page.once("dialog", lambda prompt: prompt.accept())
+    dialog.get_by_role("button", name="Assign").click()
+    expect(page.get_by_text("Assignment changed.")).to_be_visible()
+    ticket.refresh_from_db()
+    assert ticket.revision == revision + 1

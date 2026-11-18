@@ -10,6 +10,7 @@
     var baseSource = document.querySelector("template[data-vr-documentation-source]");
     var formDialog = document.getElementById("vr-form-dialog");
     var storageKey = "vr-documentation:" + (panel.dataset.vrUser || "anonymous");
+    var narrow = window.matchMedia("(max-width: 991.98px)");
     var width = 440;
     var open = false;
     var inForm = false;
@@ -63,8 +64,23 @@
       if (wasReading) { destination.querySelector("h2").focus(); }
     }
 
-    function render() {
+    function present() {
+      var modal = open && narrow.matches;
+      if (panel.open && (!open || panel.matches(":modal") !== modal)) { panel.close(); }
       panel.hidden = !open;
+      if (modal) {
+        if (!panel.open) {
+          panel.showModal();
+          destination.querySelector("h2").focus();
+        }
+      } else {
+        // A wide reference panel stays beside the page and never takes its focus on reload.
+        panel.toggleAttribute("open", open);
+      }
+    }
+
+    function render() {
+      present();
       document.body.classList.toggle("vr-documentation-open", open);
       document.querySelectorAll("[data-vr-documentation-toggle]").forEach(function (button) {
         button.hidden = false;
@@ -101,6 +117,11 @@
       if (heading) { heading.focus(); }
     });
     panel.querySelector("[data-vr-documentation-close]").addEventListener("click", close);
+    panel.addEventListener("cancel", function (event) {
+      event.preventDefault();
+      close();
+    });
+    narrow.addEventListener("change", present);
     panel.addEventListener("keydown", function (event) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -144,11 +165,13 @@
         inForm = true;
         formDialog.append(panel);
         refresh();
+        present();
       });
       formDialog.addEventListener("hidden.bs.modal", function () {
         inForm = false;
         home.after(panel);
         refresh();
+        present();
       });
       new MutationObserver(refresh).observe(formDialog.querySelector("#vr-form-content"), { childList: true, subtree: true });
     }

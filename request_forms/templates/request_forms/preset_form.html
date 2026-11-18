@@ -9,14 +9,14 @@ Admin only.
 {% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
 {% block page_intro %}<p class="vr-page-intro">Starting ticket forms with their fields and catalogs, by laboratory type. Loading adds only what is missing.</p>{% endblock %}
 {% block content %}
-{% panel title="What each preset adds" table=True class="mb-3" %}
-  <div class="vr-table-wrap"><table class="table vr-table">
+{% panel title="What each preset adds" heading_id="preset-comparison-heading" table=True class="mb-3" %}
+  <div class="vr-table-wrap" tabindex="0" role="region" aria-labelledby="preset-comparison-heading"><table class="table vr-table">
     <thead><tr><th scope="col">Preset</th><th scope="col">Forms</th><th scope="col" class="text-end">Not here yet</th><th scope="col" class="text-end">Category missing</th></tr></thead>
     <tbody>
       {% for preset in presets %}
       <tr>
         <th scope="row">{{ preset.name }}</th>
-        <td>{{ preset.templates|join:", " }}</td>
+        <td class="vr-wrap">{{ preset.templates|join:", " }}</td>
         <td class="text-end">{% if preset.missing %}{{ preset.missing }}{% else %}{% status label="All here" tone="success" plain=True %}{% endif %}</td>
         <td class="text-end">{{ preset.no_category|default:"—" }}</td>
       </tr>

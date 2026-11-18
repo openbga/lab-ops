@@ -5,7 +5,7 @@ import secrets
 import pytest
 from conftest import NARROW
 from django.urls import reverse
-from helpers import field, sign_in, sign_out
+from helpers import field, sign_in
 from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -86,6 +86,9 @@ def test_help_tracks_dialog_errors_close_and_save_without_losing_input(page: Pag
     trigger.click()
     box = panel.bounding_box()
     assert box and box["x"] >= 0 and box["x"] + box["width"] <= NARROW["width"] + 1
+    assert panel.evaluate("el => el.matches(':modal')")
+    field(dialog, "Organization name").evaluate("el => el.focus()")
+    assert panel.evaluate("el => el.contains(document.activeElement)")
     # Sticky form actions must not cover the overlaid reference sheet on a phone.
     assert panel.evaluate("""el => {
       const r = el.getBoundingClientRect();
@@ -129,6 +132,16 @@ def test_help_narrow_anonymous_portal_and_per_user_preferences(page: Page, demo)
     page.locator("[data-vr-documentation-toggle]").first.click()
     panel = page.locator("#vr-documentation")
     expect(panel).to_be_visible()
+    assert panel.evaluate("el => el.matches(':modal')")
+    # The last reference section loops back to the panel controls, past the covered form.
+    panel.locator("summary").last.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    assert panel.evaluate("el => el.contains(document.activeElement)")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    expect(page.locator("[data-vr-documentation-toggle]").first).to_be_focused()
+    page.locator("[data-vr-documentation-toggle]").first.click()
     anonymous_help = help_id(page)
     assert anonymous_help
     box = panel.bounding_box()
@@ -142,7 +155,11 @@ def test_help_narrow_anonymous_portal_and_per_user_preferences(page: Page, demo)
     assert help_id(page) != anonymous_help
     page.reload()
     expect(panel).to_be_visible()
-    sign_out(page, who="^Account$")
+    # A phone guide covers the page. Use the wide reference layout to leave it open
+    # while signing out and verify that the open state belongs to the portal user.
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto(reverse("account_logout"))
+    page.get_by_role("main").get_by_role("button", name="Sign Out", exact=True).click()
     expect(panel).to_be_hidden()  # Anonymous preference was closed.
     sign_in(page, "demo_client", demo.password, visit=False)
     expect(panel).to_be_visible()  # The client's preference survived sign-out.

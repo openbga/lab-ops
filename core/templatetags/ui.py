@@ -268,7 +268,7 @@ COMPONENTS = {
         derive=history_panel_values,
     ),
     "page_meta": Component(I + "page_meta.html", body="block"),
-    "more_actions": Component(I + "more_actions.html", ("label", "small"), body="block"),
+    "more_actions": Component(I + "more_actions.html", ("label", "small", "id"), body="block"),
     "record_layout": Component(I + "record_layout.html", ("aside_label",), body="block"),
     "sheet": Component(
         I + "sheet.html", ("id", "title", "below", "class"), body="block", derive=sheet_values
@@ -329,8 +329,8 @@ COMPONENTS = {
     "select_all": Component(I + "select_all.html", ("name", "label", "ready_label")),
     "row_select": Component(
         I + "row_select.html",
-        ("name", "value", "label", "form_id", "ready", "checked", "disabled", "id",
-         "describedby"),
+        ("name", "value", "label", "form_id", "ready", "checked", "selected_values",
+         "disabled", "id", "describedby"),
     ),
     "post_button": Component(
         I + "post_button.html",

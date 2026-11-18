@@ -5,6 +5,19 @@ checks type, size and count before sending. On a phone the system picker offers 
 photo library and files. Without JavaScript the native input works alone; the server checks
 every file again by its content.
 {% endcomment %}{% load ui static %}<div class="vr-file-field vr-files" data-vr-files-field>
+{% if widget.previous %}
+<div data-vr-files-retry>
+  {% notice tone="warning" label="Choose files again" %}
+    <p>The browser cleared these files. Choose each one again to attach it.</p>
+    <ul>{% for name in widget.previous %}<li>{{ name }}</li>{% endfor %}</ul>
+  {% endnotice %}
+  {% for name in widget.previous %}<input type="hidden" name="{{ widget.name }}-previous" value="{{ name }}">{% endfor %}
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" id="{{ widget.attrs.id }}-omit" name="{{ widget.name }}-omit" value="yes">
+    <label class="form-check-label" for="{{ widget.attrs.id }}-omit">Leave out any listed files I do not choose again</label>
+  </div>
+</div>
+{% endif %}
 <input type="file" name="{{ widget.name }}" multiple class="form-control vr-file-native vr-files-native"{% include "django/forms/widgets/attrs.html" %}>
 <label class="vr-drop vr-files-drop"{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %}>{% icon name="file-earmark-arrow-up" %}<span class="vr-drop-title">Add photos or files</span> <span class="vr-drop-text">camera, photo library or files</span><span class="vr-drop-hint">{{ widget.allowed }}. Up to {{ widget.max_files }} files, {{ widget.max_total }} together. Files are not scanned for viruses.</span></label>
 <ul class="vr-files-list list-unstyled" data-vr-files-list aria-live="polite"></ul>

@@ -10,7 +10,8 @@
     {
       "title": "Turn on two-factor authentication",
       "steps": [
-        "Under [[Authenticator App]], select [[Activate]] and follow the setup."
+        "Under [[Authenticator App]], select [[Activate]] and follow the setup.",
+        "If verification is required, open [[Email addresses]], select the unverified address and choose [[Re-send Verification]]."
       ]
     },
     {
@@ -33,7 +34,7 @@
     }
   ],
   "good_to_know": [
-    "Setup is blocked while any email address on your account is unverified.",
+    "Setup requires all addresses on your account to be verified. Contact the laboratory administrator if outgoing email is off.",
     "Viewing codes and the other actions here may ask you to confirm your password or a code first.",
     "Each recovery code works once, as an alternative to an app code.",
     "Security keys and passkeys are not offered."
@@ -69,7 +70,8 @@
     {
       "title": "Enrollment and sensitive actions",
       "paragraphs": [
-        "Activation is blocked while any associated email address record is unverified. Ordinary email login may still succeed because its verification policy is optional. Successful first app activation automatically creates recovery codes if none exist and opens their page. Sensitive MFA actions and code viewing/downloading require recent reauthentication, normally within five minutes. The overview itself does not require a fresh check."
+        "Activation is blocked while any associated email address record is unverified. Ordinary email login may still succeed because its verification policy is optional. Successful first app activation automatically creates recovery codes if none exist and opens their page. Sensitive MFA actions and code viewing/downloading require recent reauthentication, normally within five minutes. The overview itself does not require a fresh check.",
+        "Before an authenticator is active, Email addresses opens your own account’s address list so you can request a verification link. When outgoing email is disabled, the page directs you to the laboratory administrator."
       ]
     }
   ],
@@ -77,6 +79,8 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "templates/mfa/index.html",
+    "core/context_processors.py"
   ]
 }

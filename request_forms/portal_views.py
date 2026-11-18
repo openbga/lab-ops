@@ -152,10 +152,14 @@ def raise_request(request, key):
             return _not_offered(request)
         messages.error(request, FORM_CHANGED)
         kept = {name: request.POST.getlist(name) for name in KEPT_ON_CHANGE if name in request.POST}
+        initial = {name: value[0] if len(value) == 1 else value for name, value in kept.items()}
+        # The refreshed definition has new questions, but the common ticket file picker still
+        # needs to tell the user which uploads to reselect.
+        initial["files"] = form["files"].value()
         form = PortalRaiseForm(
             template,
             user=request.user,
-            initial={name: value[0] if len(value) == 1 else value for name, value in kept.items()},
+            initial=initial,
             definition=fresh,
         )
     patient_fields = [f for f in form.template_fields if f.holds_patient_information]

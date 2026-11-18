@@ -38,7 +38,7 @@
     {
       "title": "What each preset adds",
       "paragraphs": [
-        "A table lists every preset, so you can see what loading would do before you do it. It is read-only."
+        "The table lists each preset’s forms and missing counts. The names wrap to keep the counts in view. When space is tight, focus the table region and use the arrow keys to scroll."
       ],
       "items": [
         {

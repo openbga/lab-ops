@@ -98,8 +98,10 @@ def update_view(*, actor, view, expected_revision, name, shared_with, team=None)
 
 
 @transaction.atomic
-def delete_view(*, actor, view):
+def delete_view(*, actor, view, expected_revision=None):
     view = _own(actor, view)
+    if expected_revision is not None and str(view.revision) != str(expected_revision):
+        raise ValidationError("This view changed. Review it before deleting.")
     record_event(actor=actor, action="saved_view.deleted", obj=view, before=snapshot(view))
     view.delete()
 

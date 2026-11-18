@@ -1,5 +1,5 @@
 {% extends "layouts/portal.html" %}
-{% load ui %}
+{% load request_forms ui %}
 {% comment %}
 Client portal request list (requirement P1): the requests this account may see
 (desk.portal_scope.portal_requests), open first (the Status sort), filterable by status in the client's words.
@@ -7,9 +7,9 @@ Context (core.lists.list_response): page_obj (ServiceRequest annotated with clie
 client_status_label is the model's client wording), filter_form (desk.portal_forms.PortalRequestFilter), q, sort and the
 toolbar context. Never shows team, assignee, priority or clocks.
 {% endcomment %}
-{% block page_actions %}<a class="btn btn-primary" href="{% url 'portal:request-create' %}">{% icon name="plus-lg" %}New ticket</a>{% endblock %}
+{% block page_actions %}{% portal_new_request_url as create_url %}<a class="btn btn-primary" href="{{ create_url }}">{% icon name="plus-lg" %}New ticket</a>{% endblock %}
 {% block content %}
-{% url 'portal:request-create' as create_url %}
+{% portal_new_request_url as create_url %}
 {% panel title="Tickets" table=True hidden_title=True %}
   {% grid_toolbar label="Filter tickets" grid="portal.requests" invalid=filter_form.errors chips=active_filters sort=sort %}
   {% list_results items=page_obj noun="tickets" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match these filters" empty_title="No tickets yet" empty_body="Open a ticket when you need something from the laboratory." action_url=create_url action_label="New ticket" %}
@@ -28,7 +28,7 @@ toolbar context. Never shows team, assignee, priority or clocks.
       <tbody>
         {% for item in page_obj %}
         <tr>
-          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}">{{ item.number }}</a></th>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}{% if request.GET %}?list={{ request.GET.urlencode|urlencode:"" }}{% endif %}">{{ item.number }}</a></th>
           <td>{{ item.subject }}</td>
           <td>{{ item.category.portal_label }}</td>
           <td>{{ item.site.name|default:"—" }}</td>

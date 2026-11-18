@@ -33,9 +33,7 @@ def email_notices(request):
     if request.method == "POST" and form.is_valid():
         enabled = form.cleaned_data["enabled"]
         preferences.save(request, OPT_OUT_KEY, None if enabled else False)
-        messages.success(
-            request, "Ticket notices turned on." if enabled else "Ticket notices turned off."
-        )
+        messages.success(request, "Email notice preference saved.")
         return redirect("email-notices")
     return render(
         request,

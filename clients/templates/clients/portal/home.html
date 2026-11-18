@@ -44,8 +44,8 @@ laboratory features and "Something else"; New request opens every form (request_
     {% panel title="Your organization" heading_id="portal-organization-heading" class="mb-3" %}
       <dl class="vr-facts">
         {% fact label="Organization" value=client.name %}
-        {% fact label="General email" value=client.email %}
-        {% fact label="Main phone" value=client.phone class="vr-nowrap" %}
+        {% fact label="General email" %}{% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% endif %}{% endfact %}
+        {% fact label="Main phone" class="vr-nowrap" %}{% if client.phone %}<a href="tel:{{ client.phone|cut:' ' }}">{{ client.phone }}</a>{% endif %}{% endfact %}
         {% fact label="Mailing address" wide=True empty="Not recorded" %}{% for line in client.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
       </dl>
     {% endpanel %}
@@ -55,7 +55,7 @@ laboratory features and "Something else"; New request opens every form (request_
           <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
           <tbody>
             {% for contact in contacts %}
-            <tr><th scope="row">{{ contact.name }}</th><td>{{ contact.role|default:"—" }}</td><td>{{ contact.email|default:"—" }}</td><td class="vr-nowrap">{{ contact.phone|default:"—" }}</td></tr>
+            <tr><th scope="row">{{ contact.name }}</th><td>{{ contact.role|default:"—" }}</td><td>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}—{% endif %}</td><td class="vr-nowrap">{% if contact.phone %}<a href="tel:{{ contact.phone|cut:' ' }}">{{ contact.phone }}</a>{% else %}—{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table></div>
@@ -67,8 +67,8 @@ laboratory features and "Something else"; New request opens every form (request_
       {% if logo %}<img class="vr-lab-logo" src="{% url 'lab-logo-image' logo.sha256 %}" alt="{{ lab.name }} logo" width="{{ logo.width }}" height="{{ logo.height }}">{% endif %}
       <dl class="vr-facts">
         {% fact label="Laboratory" value=lab.name %}
-        {% fact label="Phone" value=lab.phone class="vr-nowrap" %}
-        {% fact label="Email" value=lab.email %}
+        {% fact label="Phone" class="vr-nowrap" %}{% if lab.phone %}<a href="tel:{{ lab.phone|cut:' ' }}">{{ lab.phone }}</a>{% endif %}{% endfact %}
+        {% fact label="Email" %}{% if lab.email %}<a href="mailto:{{ lab.email }}">{{ lab.email }}</a>{% endif %}{% endfact %}
         {% fact label="Address" wide=True empty="Not recorded" %}{% for line in lab.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
       </dl>
     {% endpanel %}

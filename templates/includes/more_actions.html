@@ -6,9 +6,10 @@ An empty body renders nothing.
 Parameters:
   label   the toggle's words (default "More")
   small   truthy in a table row or a card header, where buttons are the row size (btn-sm)
+  id      optional toggle id, for returning focus to a row action after navigation
 Usage:
   {% more_actions %}<li><a class="dropdown-item" href="{{ url }}">Correct reference</a></li>{% endmore_actions %}
 {% endcomment %}{% load ui %}{% if body %}<div class="dropdown">
-  <button class="btn{% if small %} btn-sm{% endif %} btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{% firstof label "More" %}{% icon name="chevron-down" class="vr-caret" %}</button>
+  <button{% if id %} id="{{ id }}"{% endif %} class="btn{% if small %} btn-sm{% endif %} btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{% firstof label "More" %}{% icon name="chevron-down" class="vr-caret" %}</button>
   <ul class="dropdown-menu dropdown-menu-end">{{ body }}</ul>
 </div>{% endif %}

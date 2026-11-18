@@ -1,11 +1,32 @@
-"""The upload field host forms add (see the attachments contract in the scope folder)."""
+"""The upload field shared by ticket and reply forms."""
+
+from collections import Counter
+from dataclasses import dataclass
 
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .inspection import ACCEPT, ALLOWED_TEXT, inspect_upload
+from .inspection import ACCEPT, ALLOWED_TEXT, clean_name, inspect_upload
 from .limits import human_size, max_entry_bytes, max_file_bytes, max_files
 from .services import check_batch
+
+
+@dataclass
+class FileSelection:
+    """Only filenames make the round trip after validation. Bytes always come from FILES."""
+
+    uploads: list
+    previous: list[str]
+    omit_missing: bool
+
+    def missing_names(self):
+        if self.omit_missing:
+            return []
+        chosen = Counter(clean_name(upload.name) for upload in self.uploads)
+        return list((Counter(self.previous) - chosen).elements())
+
+    def names_to_reselect(self):
+        return [clean_name(upload.name) for upload in self.uploads] + self.missing_names()
 
 
 class FilesInput(forms.FileInput):
@@ -27,6 +48,18 @@ class FilesInput(forms.FileInput):
             }
         )
 
+    def value_from_datadict(self, data, files, name):
+        uploads = super().value_from_datadict(data, files, name) or []
+        if not isinstance(uploads, (list, tuple)):
+            uploads = [uploads]
+        key = f"{name}-previous"
+        previous = data.getlist(key) if hasattr(data, "getlist") else data.get(key, [])
+        if isinstance(previous, str):
+            previous = [previous]
+        return FileSelection(
+            uploads, [clean_name(item) for item in previous], data.get(f"{name}-omit") == "yes"
+        )
+
     def get_context(self, name, value, attrs):
         context = super().get_context(name, value, attrs)
         context["widget"].update(
@@ -35,6 +68,7 @@ class FilesInput(forms.FileInput):
                 "max_files": max_files(),
                 "max_file": human_size(max_file_bytes()),
                 "max_total": human_size(max_entry_bytes()),
+                "previous": value or [],
             }
         )
         return context
@@ -63,7 +97,19 @@ class AttachmentsField(forms.FileField):
     def to_python(self, data):
         return data
 
+    def bound_data(self, data, initial):
+        return data.names_to_reselect()
+
     def clean(self, data, initial=None):
+        if isinstance(data, FileSelection):
+            missing = data.missing_names()
+            if missing:
+                raise ValidationError(
+                    "Choose these files again or confirm you want to leave them out: %(names)s.",
+                    params={"names": ", ".join(missing)},
+                    code="missing_files",
+                )
+            data = data.uploads
         uploads = [item for item in (data if isinstance(data, list | tuple) else [data]) if item]
         if not uploads:
             if self.required:

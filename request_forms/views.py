@@ -207,7 +207,8 @@ def template_move(request, pk, direction):
         move_template(actor=request.user, template_id=template.pk, direction=direction)
     except ValidationError as exc:
         messages.info(request, " ".join(exc.messages))
-    return redirect(_list_url())
+    query = {"show": "all"} if request.POST.get("show") == "all" else None
+    return redirect(reverse("request_forms:template-list", query=query, fragment=f"move-form-{pk}"))
 
 
 @login_required

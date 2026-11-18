@@ -46,7 +46,7 @@ def active_filters(request, form):
     """Build removable links from validated, named filters without a query DSL."""
     chips = []
     for name, value in form.cleaned_data.items():
-        if name in {"sort", "page", "per_page"} or value in (None, "", "all", [], ()):
+        if name in {"sort", "page", "per_page", "saved"} or value in (None, "", "all", [], ()):
             continue
         field = form.fields[name]
         label = field.label or name.replace("_", " ").capitalize()

@@ -92,11 +92,14 @@ class RaiseRequestForm(StyledForm, forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = raisable_categories()
         sites = portal_sites(user)
-        if not sites.exists():
+        site_ids = list(sites.values_list("pk", flat=True)[:2])
+        if not site_ids:
             del self.fields["site"]
         else:
             self.fields["site"].queryset = sites
             self.fields["site"].required = site_required(user)
+            if self.fields["site"].required and len(site_ids) == 1:
+                self.initial.setdefault("site", site_ids[0])
             if not self.fields["site"].required:
                 self.fields["site"].empty_label = "Not about one site"
                 self.fields["site"].help_text = "Leave it if the ticket is not about one site."

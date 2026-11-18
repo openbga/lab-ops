@@ -37,7 +37,7 @@
     }
   ],
   "good_to_know": [
-    "A saved view starts from All tickets and applies the filters you saved. It does not remember which system view you were on, such as My open.",
+    "A saved view remembers the queue you chose, such as My open, and applies its saved filters. If no queue was specified, it starts from All tickets.",
     "Sharing with a team or everyone is for supervisors. Everyone else can only choose Only me.",
     "A shared view shows each reader only what they may read. Restricted tickets stay hidden from people outside their team.",
     "The edit page changes the name and who sees it, not the filters. To change filters, save a new view."
@@ -87,7 +87,7 @@
         },
         {
           "label": "Delete view",
-          "description": "Opens a confirmation. Deleting removes the view's name and filters for everyone it is shared with. No ticket changes. Confirms View deleted."
+          "description": "Opens a confirmation naming the view. Cancel returns to the list. Confirming removes the saved view for everyone it is shared with. The tickets stay in their queues. If the view changed since you opened the confirmation, review it before deleting."
         },
         {
           "label": "Move up / Move down",
@@ -104,7 +104,7 @@
         },
         {
           "label": "What a view stores",
-          "description": "The list's filters, search text and sort. Not the columns you chose, the page size or the system view."
+          "description": "The queue, filters, search text and sort are saved. Your column choices and page size are separate list preferences."
         }
       ]
     }
@@ -117,6 +117,7 @@
     "desk/lists.py",
     "desk/models.py",
     "desk/templates/desk/view_form.html",
-    "desk/templates/desk/request_list.html"
+    "desk/templates/desk/request_list.html",
+    "desk/templates/desk/view_delete.html"
   ]
 }
