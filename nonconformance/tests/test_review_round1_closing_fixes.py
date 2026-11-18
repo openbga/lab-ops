@@ -92,3 +92,22 @@ def test_a_stale_findings_form_says_the_ticket_changed_once(client, complaint, a
         assert (
             list(errors).count("This ticket changed. Reload it and review the latest entries.") == 1
         )
+
+
+# Sign-off of efea433: a host that mounts the module's pattern list itself, not its dotted path.
+
+
+def test_an_off_module_mounted_as_its_pattern_list_is_an_unknown_address(client, settings):
+    settings.DEBUG = False
+    settings.MIDDLEWARE = [
+        "nonconformance.tests.list_mount_urls.use_this_urlconf",
+        *settings.MIDDLEWARE,
+    ]
+    unknown = client.get("/site/quality/unknown", secure=True)
+    off = client.get("/site/quality/nonconformances", secure=True)
+    assert unknown.status_code == 404 and unknown.content == b"List-mount site page not found"
+    assert (off.status_code, off.get("Location"), off.content) == (
+        unknown.status_code,
+        unknown.get("Location"),
+        unknown.content,
+    )

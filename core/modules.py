@@ -152,18 +152,28 @@ def _module_key_for(path, root=None):
 _URLCONFS = {}
 
 
-def _patterns_without(patterns, urlconfs):
-    """`patterns` without the includes of the address lists named in `urlconfs`, at any depth
-    (the project's addresses may themselves be included beneath a prefix)."""
+def _is_mount_of(resolver, module):
+    """Whether `resolver` includes `module`'s address list, however it was included: by dotted
+    path, as the module, or as its pattern list (the same pattern objects)."""
+    included = resolver.urlconf_name
+    if included is module or getattr(included, "__name__", included) == module.__name__:
+        return True
+    own = {id(pattern) for pattern in module.urlpatterns}
+    patterns = getattr(included, "urlpatterns", included)
+    return isinstance(patterns, (list, tuple)) and bool(own) and own <= {id(p) for p in patterns}
+
+
+def _patterns_without(patterns, modules):
+    """`patterns` without the includes of the address lists of `modules` (URLconf modules), at
+    any depth (the project's addresses may themselves be included beneath a prefix)."""
     kept = []
     for pattern in patterns:
         if isinstance(pattern, URLResolver):
-            name = getattr(pattern.urlconf_name, "__name__", pattern.urlconf_name)
-            if isinstance(name, str) and name in urlconfs:
+            if any(_is_mount_of(pattern, module) for module in modules):
                 continue
             pattern = URLResolver(
                 pattern.pattern,
-                _patterns_without(pattern.url_patterns, urlconfs),
+                _patterns_without(pattern.url_patterns, modules),
                 pattern.default_kwargs,
                 app_name=pattern.app_name,
                 namespace=pattern.namespace,
@@ -179,9 +189,9 @@ def _urlconf_without(disabled, root=None):
     key = (root, frozenset(disabled))
     if key not in _URLCONFS:
         base = import_module(root) if isinstance(root, str) else root
-        urlconfs = {MODULE_URLCONFS[module] for module in key[1]}
+        modules = [import_module(MODULE_URLCONFS[module]) for module in key[1]]
         urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key[1]))}")
-        urlconf.urlpatterns = _patterns_without(base.urlpatterns, urlconfs)
+        urlconf.urlpatterns = _patterns_without(base.urlpatterns, modules)
         for handler in ("handler400", "handler403", "handler404", "handler500"):
             if hasattr(base, handler):
                 setattr(urlconf, handler, getattr(base, handler))
