@@ -11,10 +11,18 @@ from django.db import OperationalError, connection
 LOCK_NOT_AVAILABLE = "55P03"
 
 
-def share_lock(model, pks, *, nowait=False):
-    """Hold the rows of `model` with these primary keys FOR SHARE until the transaction ends.
-    Returns the keys found. With `nowait`, a row someone is changing raises OperationalError
-    (lock not available) at once instead of waiting."""
+MODES = {"share": "FOR SHARE", "key share": "FOR KEY SHARE"}
+
+
+def share_lock(model, pks, *, nowait=False, mode="share"):
+    """Hold the rows of `model` with these primary keys until the transaction ends. Returns the
+    keys found. With `nowait`, a row someone is changing raises OperationalError (lock not
+    available) at once instead of waiting.
+
+    mode "share" (FOR SHARE) makes every change to the rows wait. mode "key share" (FOR KEY
+    SHARE) makes only a deletion, or a change that first takes the row FOR UPDATE, wait: the
+    team services lock a team or membership FOR UPDATE to add a member or change a lead, while
+    an assignment locks them FOR NO KEY UPDATE and goes ahead."""
     if not connection.in_atomic_block:
         raise RuntimeError("A shared row lock lasts for a transaction; open one first.")
     pks = sorted({pk for pk in pks if pk is not None})
@@ -25,7 +33,7 @@ def share_lock(model, pks, *, nowait=False):
     with connection.cursor() as cursor:
         cursor.execute(
             f"SELECT {column} FROM {table} WHERE {column} = ANY(%s) ORDER BY {column} "
-            f"FOR SHARE{' NOWAIT' if nowait else ''}",
+            f"{MODES[mode]}{' NOWAIT' if nowait else ''}",
             [pks],
         )
         return [row[0] for row in cursor.fetchall()]

@@ -29,7 +29,7 @@ from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.contrib.auth.models import Group, Permission
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
 
@@ -133,9 +133,13 @@ class AccessRules:
             leaving = not all(
                 data.get(flag, True) for flag in ("is_superuser", "is_active", "is_staff")
             )
-            others = User.objects.filter(is_superuser=True, is_active=True, is_staff=True).exclude(
-                pk__in=[self.instance.pk, system_account_id()]
-            )
+            owners = User.objects.filter(is_superuser=True, is_active=True, is_staff=True)
+            if leaving and connection.in_atomic_block:
+                # Every owner row held until this save commits (the admin saves in one
+                # transaction): two owners stepping down at once take turns, and the second sees
+                # the first has gone.
+                list(owners.select_for_update().order_by("pk"))
+            others = owners.exclude(pk__in=[self.instance.pk, system_account_id()])
             if leaving and not others.exists():
                 raise forms.ValidationError(
                     "Keep at least one active superuser with staff status, so someone can still "
@@ -156,6 +160,15 @@ class AccountCreationForm(AccessRules, AdminUserCreationForm):
 class AccountAdmin(SuperuserOnly, UserAdmin):
     form = AccountChangeForm
     add_form = AccountCreationForm
+
+    def has_change_permission(self, request, obj=None):
+        # The scheduled jobs' account is shown, never changed (its password page included).
+        from jobs.actor import is_system_account
+
+        if obj is not None and is_system_account(obj):
+            return False
+        return super().has_change_permission(request, obj)
+
     list_display = (
         "username",
         "full_name",

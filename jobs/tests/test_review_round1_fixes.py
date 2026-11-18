@@ -33,7 +33,7 @@ from jobs.views import recipient_label
 from service_levels import jobs as clock_job
 from service_levels.models import RequestClock, ServiceTarget
 from service_levels.tests import conftest as clock_fixtures
-from teams.models import TeamMembership, ensure_default_team
+from teams.models import ensure_default_team
 
 from .conftest import DUMMY, LOCMEM
 
@@ -168,13 +168,12 @@ def at_handoff(monkeypatch):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_breach_notice_holds_the_recipients_membership_and_the_tickets_category(
-    agent, team_ticket, accessioning, at_handoff
-):
-    membership = TeamMembership.objects.get(team=accessioning, user=agent)
-    observed = at_handoff(lambda: [membership, team_ticket.category])
+def test_a_breach_notice_holds_the_tickets_category(agent, team_ticket, accessioning, at_handoff):
+    # Memberships are held only against membership and lead changes (key share), so this
+    # no-key probe passes them; test_review_verify_fixes checks those writers wait.
+    observed = at_handoff(lambda: [team_ticket.category])
     assert clock_job.notice_breaches()["notices"] == 1
-    assert observed == [[False, False]]
+    assert observed == [[False]]
     assert Notice.objects.get(topic=notifications.BREACH_TOPIC).status == NoticeStatus.SENT
 
 

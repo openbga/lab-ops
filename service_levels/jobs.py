@@ -32,7 +32,7 @@ from jobs.locks import is_lock_unavailable, share_lock
 from .models import RequestClock
 from .rules import STOPPED_STATUSES
 
-# Most requests one run looks at; the rest wait for the next run.
+# Breached clocks are read in pages of this many until none is left.
 BREACH_BATCH = 500
 CLOCKS = ("first_response", "resolution")
 
@@ -54,27 +54,30 @@ def breached_filter(now):
 
 
 def notice_breaches(now=None):
-
     now = now or timezone.now()
-    request_ids = list(
-        RequestClock.objects.filter(breached_filter(now))
-        .order_by("pk")
-        .values_list("request_id", flat=True)[:BREACH_BATCH]
-    )
     counts = Counter({"breaches": 0, "notices": 0})
-    if not request_ids:
-        return dict(counts)
-    actor = system_account()
-    for request_id in request_ids:
-        try:
-            outcome = _notice_request(request_id, actor, now)
-        except OperationalError as exc:
-            if not is_lock_unavailable(exc):
-                raise
-            # A person to tell is being changed right now (an account edit that may also need
-            # this request): the transaction let go of everything; the next run decides again.
-            outcome = {"busy": 1}
-        counts.update(outcome)
+    actor = None
+    after = 0  # the last clock looked at: every breached clock gets its turn in each run
+    while True:
+        page = list(
+            RequestClock.objects.filter(breached_filter(now), pk__gt=after)
+            .order_by("pk")
+            .values_list("pk", "request_id")[:BREACH_BATCH]
+        )
+        if not page:
+            break
+        actor = actor or system_account()
+        for clock_id, request_id in page:
+            after = clock_id
+            try:
+                outcome = _notice_request(request_id, actor, now)
+            except OperationalError as exc:
+                if not is_lock_unavailable(exc):
+                    raise
+                # A person to tell, or the team, is being changed right now: the transaction
+                # let go of everything; the next run decides again.
+                outcome = {"busy": 1}
+            counts.update(outcome)
     return dict(counts)
 
 
@@ -85,6 +88,7 @@ def _notice_request(request_id, actor, now):
     from accounts.models import User
     from desk import notifications
     from desk.models import ServiceRequest
+    from teams.models import Team, TeamMembership
 
     counts = Counter()
     with transaction.atomic():
@@ -100,9 +104,15 @@ def _notice_request(request_id, actor, now):
         clock = clock.first()
         if clock is None:  # being changed right now: next run
             return {"busy": 1}
+        # Who is responsible, held while it is decided and recorded: the team and its
+        # memberships against a member added or a lead changed (key share: assignments go on),
+        # then the accounts the notices reference, all without waiting.
+        share_lock(Team, [request.team_id], nowait=True, mode="key share")
+        memberships = TeamMembership.objects.filter(team_id=request.team_id)
+        share_lock(
+            TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
+        )
         recipients = notifications.breach_recipients(request)
-        # Their accounts are referenced by the notices: held now, without waiting, rather than
-        # at commit behind an account change that may be waiting for this request.
         share_lock(User, [user.pk for user, _role in recipients], nowait=True)
         changed, recorded = [], []
         for which in CLOCKS:

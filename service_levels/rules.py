@@ -249,6 +249,7 @@ def meet_first_response(clock, at: datetime) -> bool:
     clock.first_response_met_at = at
     if _late(at, clock.first_response_due_at):
         clock.first_response_missed = True
+    clear_breach_mark(clock, "first_response")  # met: its breach run, if any, is over
     return True
 
 

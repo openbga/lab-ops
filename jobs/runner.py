@@ -50,15 +50,16 @@ def _unlock():
 
 
 def run(*, only=None, now=None):
-    """Run every job, or those named in `only`, and return their Results. Raises Busy when
-    another run is in progress. `now` fixes the time each job sees (tests)."""
-    only = list(only) if only is not None else None
-    if only:
-        unknown = set(only) - set(JOBS_BY_NAME)
+    """Run every job (`only` None), or exactly those named in `only`, and return their Results.
+    Raises Busy when another run is in progress. `now` fixes the time each job sees (tests)."""
+    if only is not None:
+        only = set(only)  # read once: any collection or iterator of names
+        unknown = only - set(JOBS_BY_NAME)
         if unknown:
             raise ValueError(f"Unknown scheduled jobs: {', '.join(sorted(unknown))}.")
-    # Registry order, each job once, whatever order or repetition `only` names them in.
-    jobs = [job for job in JOBS if not only or job.name in set(only)]
+    # Registry order, each job once. None runs every job; a selection runs exactly those named,
+    # and an empty one runs none.
+    jobs = [job for job in JOBS if only is None or job.name in only]
     if not _try_lock():
         raise Busy
     try:

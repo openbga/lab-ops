@@ -123,9 +123,10 @@ def TeamMembershipOf(user, team):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_client_notice_holds_the_tickets_team_and_its_memberships(
+def test_a_client_notice_leaves_the_tickets_team_and_its_memberships_free(
     agent, make_user, join, portal_ticket, sender_in_transport
 ):
+    # A client's notice does not rest on the team (final check F03): team changes go on.
     manager = human_manager(make_user)
     newcomer = make_user("review_newcomer", "technical")
     colleague = make_user("review_colleague", "technical")
@@ -135,7 +136,7 @@ def test_a_client_notice_holds_the_tickets_team_and_its_memberships(
         lambda: teams.set_lead(actor=manager, membership=membership, is_lead=True),
     )
     cases.reply(agent, portal_ticket)
-    assert observed == [[True, True]]
+    assert observed == [[False, False]]
 
 
 # V02: the email-notices page compares with what is stored ---------------------------------------
@@ -520,11 +521,17 @@ def test_the_migration_marks_old_breaches_without_a_run_identifier(
 # V14: which jobs a run takes --------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("only", [None, (), []], ids=["none", "tuple", "list"])
-def test_an_empty_choice_runs_every_job(fake_jobs, only):
-    results = runner.run(only=only)
+def test_no_choice_runs_every_job(fake_jobs):
+    results = runner.run(only=None)
     assert [r.name for r in results] == [job.name for job in runner.JOBS]
     assert fake_jobs == [job.name for job in runner.JOBS]
+
+
+@pytest.mark.parametrize("only", [(), []], ids=["tuple", "list"])
+def test_an_empty_choice_runs_no_job(fake_jobs, only):
+    # A selection runs exactly what it names (final check F11).
+    assert runner.run(only=only) == []
+    assert fake_jobs == []
 
 
 def test_a_choice_given_as_a_generator_is_read_once_and_runs_in_registry_order(fake_jobs):

@@ -59,10 +59,13 @@ A clock copies the applicable target, and business time uses the deployment zone
 Queries use the same clock states for lists and counts. The notification hooks record one
 notice per recipient in the outbox inside the change's transaction, holding ids, event codes and
 the ticket number only. After commit each notice gets its first attempt. At every attempt the
-topic's handler takes shared locks on the rows its decision rests on (the ticket, the account,
-the category, the account's teams, roles and portal grants), decides from that reading whether the
-notice still applies, and builds the email from the ticket number, fixed event text, the
-laboratory name and a sign-in URL. The locks hold until the notice is sent, so a change to those
+topic's handler takes shared locks on the rows its decision rests on (the ticket, the account and
+the category; for a client, the account's portal grants; for staff, its roles and team
+membership; for a passed target, also the team and its memberships, held only against members
+and leads changing), decides from that reading whether the notice still applies, and builds the email from the ticket number, fixed event text, the
+laboratory name and a sign-in URL. The notices one transaction records get their first attempt
+together after it commits, sharing one wait for the mail server. The locks hold until the notice
+is sent, so a change to those
 rows waits; the ticket is waited for briefly and the rest are taken without waiting
 ([jobs/locks.py](../jobs/locks.py)), so an attempt never waits while holding a lock a writer
 needs. A failed attempt is counted and retried later; delivery is

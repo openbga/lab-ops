@@ -121,8 +121,13 @@ def _current_assignee(assignee, team):
     from accounts.models import User
     from accounts.roles import ROLES, has_role
     from jobs.actor import is_system_account
+    from jobs.locks import share_lock
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
+    if current is not None:
+        # The roles this check reads, held until the assignment commits: removing one waits.
+        roles = User.groups.through.objects.filter(user_id=current.pk).values_list("pk", flat=True)
+        share_lock(User.groups.through, roles, mode="key share")
     if not (
         current is not None
         and not is_system_account(current)  # it does no work, even if someone gave it a role

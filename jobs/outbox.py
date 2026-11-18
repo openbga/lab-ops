@@ -108,13 +108,49 @@ def record(*, recipient, topic, object_id, reference, events, data=None):
     )
 
 
+class _AfterCommit:
+    """The notices one transaction recorded, given their first attempt together once it commits,
+    so the whole change (a bulk action over many tickets included) shares one budget."""
+
+    def __init__(self):
+        self.ids = []
+        self.done = False
+
+    def __call__(self):
+        self.done = True
+        send_now(self.ids)
+
+
+def after_commit(create=True):
+    """The current transaction's collector: registered with transaction.on_commit the first
+    time. Once that transaction commits or rolls back, its collector is gone (or done) and the
+    next transaction gets a new one. None when `create` is false and there is none yet."""
+    connection_ = transaction.get_connection()
+    open_savepoints = set(connection_.savepoint_ids)
+    for savepoints, callback, *_rest in connection_.run_on_commit:
+        # Only a collector of this transaction and of savepoints still open: one registered in
+        # a savepoint since released belongs to an earlier change (inside an enclosing
+        # transaction, as in tests) and is not added to.
+        if (
+            isinstance(callback, _AfterCommit)
+            and not callback.done
+            and savepoints <= open_savepoints
+        ):
+            return callback
+    if not create:
+        return None
+    collector = _AfterCommit()
+    transaction.on_commit(collector)
+    return collector
+
+
 def send_after_commit(notice_ids):
-    """Give these notices their first attempt once the current transaction commits. The change
-    has committed by then: nothing that goes wrong while sending reaches the person who made it,
-    and a notice left waiting is the scheduled job's to retry."""
+    """Give these notices their first attempt once the current transaction commits, with the
+    other notices it recorded. The change has committed by then: nothing that goes wrong while
+    sending reaches the person who made it, and a notice left waiting is the scheduled job's."""
     ids = list(notice_ids)
     if ids:
-        transaction.on_commit(lambda: send_now(ids))
+        after_commit().ids.extend(ids)
 
 
 def send_now(notice_ids):
@@ -122,6 +158,11 @@ def send_now(notice_ids):
     not take, and once one wait for the mail server (EMAIL_TIMEOUT) has been spent: the rest wait
     for the scheduled job. Returns the outcomes counted. Never raises."""
     counts = Counter()
+    try:
+        notice_ids = list(notice_ids)
+    except Exception as exc:
+        logger.warning("Notices left for the scheduled job: error=%s", type(exc).__name__)
+        return {"error": 1}
     started = timezone.now()
     budget = timedelta(seconds=settings.EMAIL_TIMEOUT or 0)
     for index, pk in enumerate(notice_ids):
@@ -185,15 +226,7 @@ def attempt(pk, now=None):
     seen = None  # (attempts, last attempt, next attempt) as this attempt found them
     try:
         with transaction.atomic():
-            with connection.cursor() as cursor:
-                cursor.execute(f"SET LOCAL lock_timeout = '{LOCK_WAIT}'")
-                # The write lock this attempt needs on the outbox to record its outcome, taken
-                # first: a whole-database maintenance lock (core.demo.lock_application_tables)
-                # then waits for the attempt instead of the two waiting on each other.
-                cursor.execute(
-                    f"LOCK TABLE {connection.ops.quote_name(Notice._meta.db_table)} "
-                    "IN ROW EXCLUSIVE MODE"
-                )
+            _reserve_outbox()
             notice = (
                 Notice.objects.select_for_update(skip_locked=True)
                 .filter(pk=pk, status=NoticeStatus.WAITING, next_attempt_at__lte=now)
@@ -224,6 +257,7 @@ def attempt(pk, now=None):
         if seen is None:
             raise
         with transaction.atomic():
+            _reserve_outbox()
             # Only the notice as this attempt found it: another sender may have attempted or
             # deferred it since this one let go of it, and its later outcome stands.
             attempts, last, next_at = seen
@@ -242,6 +276,18 @@ def attempt(pk, now=None):
                 notice.save(update_fields=["next_attempt_at"])
                 return "busy"
             return _failed_attempt(notice, exc, _clock(now))
+
+
+def _reserve_outbox():
+    """Bound this transaction's lock waits (LOCK_WAIT) and take the write lock it needs on the
+    outbox to record an outcome first: a whole-database maintenance lock
+    (core.demo.lock_application_tables) then waits for the attempt instead of the two waiting on
+    each other."""
+    with connection.cursor() as cursor:
+        cursor.execute(f"SET LOCAL lock_timeout = '{LOCK_WAIT}'")
+        cursor.execute(
+            f"LOCK TABLE {connection.ops.quote_name(Notice._meta.db_table)} IN ROW EXCLUSIVE MODE"
+        )
 
 
 _ATTEMPT_FIELDS = ["status", "attempts", "last_attempt_at", "last_error", "next_attempt_at"]

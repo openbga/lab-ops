@@ -12,6 +12,7 @@ from accounts.models import User
 from accounts.roles import require_staff
 from core import preferences
 from core.forms import StyledForm
+from core.models import UserPreference
 
 from .notifications import OPT_OUT_KEY, wants_notices
 
@@ -40,12 +41,17 @@ def email_notices(request):
             # A notice being sent to this account holds the account's row (jobs.outbox): the
             # change waits for it, and every later attempt reads the new choice.
             User.objects.select_for_update().filter(pk=request.user.pk).first()
-            # Compare with what is stored, not this session's copy: another session may have
-            # changed it since this one signed in.
-            request.session.pop(preferences.SESSION_KEY, None)
-            if hasattr(request, "_vr_preferences"):
-                del request._vr_preferences
-            preferences.save(request, OPT_OUT_KEY, None if enabled else False)
+            # Written straight to the stored preference: not compared with this session's copy
+            # (another session may have changed it), and never refused by the limit on saved
+            # page layouts, so turning mail off always works.
+            stored = UserPreference.objects.filter(user=request.user, key=OPT_OUT_KEY)
+            if enabled:
+                stored.delete()
+            else:
+                UserPreference.objects.update_or_create(
+                    user=request.user, key=OPT_OUT_KEY, defaults={"value": False}
+                )
+            request.session.pop(preferences.SESSION_KEY, None)  # re-read at the next request
         messages.success(request, "Email notice preference saved.")
         return redirect("email-notices")
     return render(

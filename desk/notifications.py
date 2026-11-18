@@ -238,11 +238,13 @@ def prepared(*, user, number, request_id, event, portal):
 
 class _Batch:
     """Notices of one change to one request, recorded in the outbox, one per recipient. Ids and
-    codes only. `send` gives them their first attempt once the change commits."""
+    codes only. Their first attempt comes once the change commits, with every other notice the
+    transaction recorded (jobs.outbox.after_commit), so a bulk action shares one mail budget."""
 
-    def __init__(self, request):
+    def __init__(self, request, collector):
         self.number = request.number
         self.request_id = request.pk
+        self.collector = collector  # the transaction's jobs.outbox._AfterCommit
         self.notices = {}  # user pk -> jobs.models.Notice recorded in this change
 
     def add(self, user, event, entry=None):
@@ -260,6 +262,7 @@ class _Batch:
                 data={"portal": user.client_id is not None, "entries": {}},
             )
             self.notices[user.pk] = notice
+            self.collector.ids.append(notice.pk)
         elif event not in notice.events:
             notice.events = sorted({*notice.events, event})
         if entry is not None:  # a notice about a reply rests on that reply
@@ -268,54 +271,49 @@ class _Batch:
                 ids.append(entry.pk)
         notice.save(update_fields=["events", "data"])
 
-    def send(self):
-        from jobs import outbox
-
-        outbox.send_now([notice.pk for notice in self.notices.values()])
-
 
 def _notify(request, user, event, entry=None):
     connection = transaction.get_connection()
     if not connection.in_atomic_block:  # services always run atomically; be safe regardless
         with transaction.atomic():
-            _batch(request, connection).add(user, event, entry)
+            _batch(request).add(user, event, entry)
         return
-    _batch(request, connection).add(user, event, entry)
+    _batch(request).add(user, event, entry)
 
 
-def _batch(request, connection):
-    """This change's batch for `request`, registering its sending on commit the first time. A
-    batch belongs to the transaction that registered it: once that commits or rolls back, its
-    callback is gone and the next change on the same instance starts a new batch."""
+def _batch(request):
+    """This change's batch for `request`. A batch belongs to the transaction whose collector it
+    holds: once that commits or rolls back, the next change on the same instance starts a new
+    batch."""
+    from jobs import outbox
+
+    collector = outbox.after_commit()
     batch = getattr(request, "_pending_notices", None)
-    registered = batch is not None and any(
-        getattr(item[1], "__self__", None) is batch for item in connection.run_on_commit
-    )
-    if not registered:
-        batch = _Batch(request)
+    if batch is None or batch.collector is not collector:
+        batch = _Batch(request, collector)
         request._pending_notices = batch
-        transaction.on_commit(batch.send)
     return batch
 
 
 # Checked and worded at each sending attempt (jobs.outbox) --------------------------------------
 
 
-def _hold(notice):
-    """Hold, until the attempt's transaction ends, the rows the decision about `notice` rests on:
-    the request, the recipient's account, the request's category (restriction), the request's
-    team and every membership of it (who is responsible: the leads, or the members while there
-    is no assignee and no lead), the recipient's own memberships, roles and portal access grants.
-    A change to any of them (reassignment, a reply withdrawn, a status change, deactivation, a
-    role or grant removed, an organization move, a category restricted, a lead appointed or
-    removed, a member added) waits until the notice has been sent, and the notice is decided from
-    this reading. The request is waited for briefly (the
-    outbox's lock_timeout); the rest are taken without waiting, so the attempt never waits while
-    holding a lock a writer needs, and a busy row leaves the notice for a later attempt.
+def _hold(notice, scope):
+    """Hold, until the attempt's transaction ends, the rows the decision about `notice` rests on,
+    and read the request and the recipient after them. A change to any of these rows waits until
+    the notice has been sent, so it goes out only on the reading it was decided from:
 
-    Returns (request, user), freshly read under the locks, or (None, None)."""
-    from django.db.models import Q
+    - always: the request (reassignment, a status change, a reply withdrawn lock it), the
+      recipient's account (deactivation, an organization move) and the request's category
+      (restriction);
+    - scope "portal": the recipient's portal access grants;
+    - scope "staff": the recipient's roles and their membership of the request's team;
+    - scope "breach": as "staff", and the request's team and all of its memberships, held only
+      against adding a member or changing a lead (key share), so assigning other tickets goes on.
 
+    The request is waited for briefly (the outbox's lock_timeout); the rest are taken without
+    waiting, so the attempt never waits while holding a lock a writer needs, and a busy row leaves
+    the notice for a later attempt. Returns (request, user), or (None, None)."""
     from accounts.models import User
     from clients.models import PortalAccess
     from jobs.locks import share_lock
@@ -332,16 +330,20 @@ def _hold(notice):
     if request is None or user is None:
         return None, None
     share_lock(RequestCategory, [request.category_id], nowait=True)
-    share_lock(Team, [request.team_id], nowait=True)  # teams.services.add_member locks it
-    for model, rows in (
-        (
-            TeamMembership,
-            TeamMembership.objects.filter(Q(user=user) | Q(team_id=request.team_id)),
-        ),
-        (User.groups.through, User.groups.through.objects.filter(user=user)),
-        (PortalAccess, PortalAccess.objects.filter(user=user)),
-    ):
-        share_lock(model, rows.values_list("pk", flat=True), nowait=True)
+    if scope == "portal":
+        grants = PortalAccess.objects.filter(user=user).values_list("pk", flat=True)
+        share_lock(PortalAccess, grants, nowait=True)
+        return request, user
+    roles = User.groups.through.objects.filter(user=user).values_list("pk", flat=True)
+    share_lock(User.groups.through, roles, nowait=True, mode="key share")
+    memberships = TeamMembership.objects.filter(team_id=request.team_id)
+    if scope == "breach":
+        share_lock(Team, [request.team_id], nowait=True, mode="key share")
+    else:
+        memberships = memberships.filter(user=user)
+    share_lock(
+        TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
+    )
     return request, user
 
 
@@ -368,13 +370,13 @@ def _client_events_still_true(request, events):
 
 def prepare_request_notice(notice):
     """`notice` (topic desk.request) worded for sending, or None when it no longer applies."""
-    request, user = _hold(notice)
+    portal = bool(notice.data.get("portal"))
+    request, user = _hold(notice, "portal" if portal else "staff")
     if request is None:
         return None
     entries = notice.data.get("entries") or {}
     stale = set(entries) - _replies_still_visible(entries)
     events = set(notice.events) - stale  # e.g. a reply withdrawn before the notice went out
-    portal = bool(notice.data.get("portal"))
     if portal:
         events = _client_events_still_true(request, events & CLIENT_EVENTS)
         if not events or user.pk not in {u.pk for u in client_recipients(request)}:
@@ -464,7 +466,7 @@ def prepare_breach_notice(notice):
     which, role = notice.data.get("clock"), notice.data.get("role")
     if which not in BREACH_EVENTS or role not in BREACH_ROLES:
         return None
-    request, user = _hold(notice)
+    request, user = _hold(notice, "breach")
     if request is None or request.status in (Status.RESOLVED, Status.CLOSED):
         return None
     clock = RequestClock.objects.filter(request=request).first()
