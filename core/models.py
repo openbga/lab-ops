@@ -124,6 +124,20 @@ class LabCertificate(models.Model):
         return f"{self.authority} {self.number}"
 
 
+class LabModule(models.Model):
+    """Whether one optional module is in use (core.modules). A module without a row is off: rows
+    are written the first time an administrator switches it, never by a migration, so an empty
+    database stays empty (core.demo)."""
+
+    key = models.CharField(max_length=40, unique=True)
+    is_enabled = models.BooleanField(default=False)
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.key
+
+
 class AuditEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     occurred_at = models.DateTimeField(auto_now_add=True)

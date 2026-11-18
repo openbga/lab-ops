@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "request_forms",
     "dataimport",
     "attachments",
+    "nonconformance",
 ]
 MIDDLEWARE = [
     "core.security_headers.SecurityHeadersMiddleware",

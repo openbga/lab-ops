@@ -443,6 +443,17 @@ def _save(request):
     request.save()
 
 
+def record_related_event(*, actor, request, action, **data):
+    """Another app's change that concerns `request` (a nonconformance opened from it or linked to
+    it): an event on its timeline and a new revision, so a page of the ticket opened before the
+    change is refused. The caller holds `request` locked in its transaction (staff_requests and
+    select_for_update) and has authorized the change. `data` holds ids and codes only."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("Related events share the caller's transaction.")
+    _event(request, actor, action, **data)
+    _save(request)
+
+
 def _is_member(user, team):
     return TeamMembership.objects.filter(team=team, user=user, user__is_active=True).exists()
 
