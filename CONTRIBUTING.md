@@ -85,6 +85,15 @@ On Linux, add `--with-deps` to the browser installation command. CI runs the app
 browser journeys and a container test for a fresh database migration, sign-in, static assets
 and health endpoints.
 
+### Project website
+
+The static project website in `website/` is published to <https://openbga.github.io/lab-ops/>
+by `.github/workflows/pages.yml` when it changes on `main`. The application does not serve it.
+State only what this repository's README and documentation support, and use synthetic data in
+screenshots. Preview it with
+`python3 -m http.server 8118 --bind 127.0.0.1 --directory website` at <http://127.0.0.1:8118/>
+and run `uv run pytest tests/test_project_site.py`. Website changes need no release note.
+
 ## Pull requests
 
 Describe the change, why it matters and how you tested it. Call out changes to permissions,

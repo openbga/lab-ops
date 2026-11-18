@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="OpenBGA Lab Ops">
+  <rect width="32" height="32" rx="7" fill="#6b3a72"/>
+  <path d="M26 12.6A10.4 10.4 0 1 1 19.4 6.2" fill="none" stroke="#fdf9fd" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M14 10.2h4v3.6l3.8 6a1.4 1.4 0 0 1-1.2 2.2h-9.2a1.4 1.4 0 0 1-1.2-2.2l3.8-6z" fill="#fdf9fd" stroke="#fdf9fd" stroke-width="1.2" stroke-linejoin="round"/>
+  <circle cx="23.5" cy="8.5" r="2.6" fill="#f2a46d"/>
+</svg>
