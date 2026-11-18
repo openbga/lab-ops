@@ -164,7 +164,10 @@ service target. The demonstration sends no email.
 
 ## Laboratory information
 
-Staff can consult the laboratory profile, its recorded certificates and its retention statement.
+Staff can consult the laboratory profile, its recorded certificates, its security and privacy
+contacts and its retention statement. An administrator keeps the contacts current from the profile
+or from Setup > Security settings, giving a reason for each change. Security settings also lists
+what protects sign-in, sessions and patient information and who sets each item.
 Administrators can publish announcements for staff, clients or the sign-in page. Anyone visiting
 sign-in can read an announcement addressed there. The Help drawer describes these audiences and
 the controls on each page. [Product scope and record keeping](product.md#record-keeping-and-laboratory-policy)

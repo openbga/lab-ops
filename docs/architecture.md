@@ -12,7 +12,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | --- | --- |
 | `config` | Runtime settings, URL configuration and logging |
 | `accounts` | User identities, roles, capabilities, authentication and initial setup |
-| `core` | Laboratory profile, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
+| `core` | Laboratory profile and contacts, the security settings facts, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
 | `clients` | Organization directory, sites, contacts and portal access grants |
 | `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
 | `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
@@ -40,7 +40,7 @@ includes the operational roles. A person or group needs an explicit grant for pa
 information. A superuser can administer accounts. Portal accounts have a client organization
 and cannot hold staff roles or capabilities.
 
-Use the same scoped query in lists, pages, lookups, counts, exports and actions. Staff ticket
+Use the same scoped query in lists, pages, lookups, counts and actions. Staff ticket
 queries start with `staff_requests`. Portal queries start with `portal_requests`, which combines
 organization, site grants, the originating account and the ticket's restriction. Client-visible
 conversation is defined in `desk/visibility.py`. Checking the ticket URL alone is insufficient
@@ -50,6 +50,15 @@ Person-level links have no web address. A staff reveal or an exact-key search ne
 explicit capability and produces an audit event that omits the key. A non-person link can open
 an HTTPS URL only on the external system's configured host. The application does not fetch
 records from that URL. [Product access rules](product.md#roles-and-capabilities)
+
+## Security settings
+
+`core.security_settings` reads what protects sign-in, sessions and patient information from the
+running configuration and the database on each request and stores nothing. A laboratory setting
+added there later is a row with a revision: its change takes the row lock, checks the revision the
+form showed, rereads the acting account, requires a reason and records one audit event, as a
+security or privacy contact does in `core.lab_profile`. The same change updates
+[the safeguards reference](safeguards.md). [Security settings](../core/security_settings.py)
 
 ## Optional modules
 

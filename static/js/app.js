@@ -471,7 +471,7 @@
       form.querySelectorAll("button[type=submit], button:not([type])").forEach(function (button) {
         button.disabled = true;
       });
-      // Release, import and export actions render or parse on the server and can take seconds:
+      // Release and import actions render or parse on the server and can take seconds:
       // show that the request is running, and announce it, instead of only greying the button.
       if (submitter && submitter.tagName === "BUTTON") {
         var spinner = document.createElement("span");

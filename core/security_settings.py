@@ -210,6 +210,22 @@ def _sign_in(facts):
     ]
 
 
+def _browser_close():
+    """What closing the browser does: allauth's Remember me (ACCOUNT_SESSION_REMEMBER) decides,
+    unless every session ends with the browser (SESSION_EXPIRE_AT_BROWSER_CLOSE)."""
+    remember = account_settings.SESSION_REMEMBER
+    source, note = "application", ""
+    if settings.SESSION_EXPIRE_AT_BROWSER_CLOSE or remember is False:
+        value = "Ends the session"
+    elif remember is None:
+        value, source = "Ends the session, unless Remember me was ticked at sign-in", "person"
+    else:
+        value = "Does not end the session"
+    if value != "Does not end the session":
+        note = "Some browsers keep the session when they reopen the last one."
+    return Fact("browser-close", "Closing the browser", value, source, note)
+
+
 def _sessions(facts):
     secure = settings.SESSION_COOKIE_SECURE and settings.SESSION_COOKIE_HTTPONLY
     facts += [
@@ -227,14 +243,7 @@ def _sessions(facts):
             "None",
             "unavailable",
         ),
-        Fact(
-            "browser-close",
-            "Closing the browser",
-            "Ends the session"
-            if settings.SESSION_EXPIRE_AT_BROWSER_CLOSE
-            else "Does not end the session",
-            "application",
-        ),
+        _browser_close(),
         Fact(
             "account-changes",
             "Deactivation or a new password",
