@@ -1,0 +1,83 @@
+{% extends "layouts/portal.html" %}
+{% load request_forms ui %}
+{% comment %}
+One request in the client portal (requirement P3). Context (desk.portal_views.request_detail):
+service_request (always within desk.portal_scope.portal_requests), status ((label, tone) in the
+client's words), conversation (dicts built from desk.visibility.client_visible replies and
+status-change events only: kind "reply" with at, body, from_client, author; kind "status" with
+at, status), links (attachments staff chose to show, never person-level), follow_up_of and
+follow_ups (only requests this account can see), can_reply, reply_form, is_closed; lab from the
+workspace context. Staff replies are signed with the team's and the laboratory's names, never a
+person's. Nothing here shows notes, logged contacts, assignee, priority, clocks or complaints.
+Form details ({% request_form_details %}, request_forms): the values of fields shown to clients
+when the request was raised with a request form, and "Request again" while the form is offered.
+{% endcomment %}
+{% block title %}{{ service_request.number }} · Tickets · {{ lab.name|default:"Client portal" }}{% endblock %}
+{% block breadcrumbs %}{% url 'portal:request-list' as list_url %}{% breadcrumbs section="Tickets" section_url=list_url current=service_request.number %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% status label=status.0 tone=status.1 plain=True %}</li>
+  <li>{{ service_request.category.portal_label }}</li>
+  {% if service_request.site %}<li>{{ service_request.site.name }}</li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}{% if is_closed %}<a class="btn btn-primary" href="{% url 'portal:request-create' %}?follow_up={{ service_request.number|urlencode }}">New follow-up ticket</a>{% endif %}{% endblock %}
+{% block content %}
+{% if service_request.status == "waiting_client" %}
+{% notice tone="warning" label="Waiting for you" %}The laboratory is waiting for information from you. Reply below to send it back to the laboratory.{% endnotice %}
+{% elif is_closed %}
+{% notice tone="neutral" label="Closed" %}This ticket is closed and takes no more replies. Open a follow-up ticket to continue. It will link back to this ticket.{% endnotice %}
+{% elif service_request.status == "resolved" %}
+{% notice tone="success" label="Resolved" %}The laboratory has resolved this ticket. If something is still wrong, reply and it goes back to the laboratory.{% endnotice %}
+{% endif %}
+{% record_layout %}
+  {% fill lead %}
+  {% panel title="Details" heading_id="request-heading" class="mb-3" %}
+    <dl class="vr-facts">
+      {% fact label="Ticket" value=service_request.number class="vr-id" %}
+      {% fact label="Topic" value=service_request.category.portal_label %}
+      {% fact label="Site" value=service_request.site.name empty="Not about one site" %}
+      {% fact label="Your reference" value=service_request.client_reference class="vr-id" empty="None given" %}
+      {% fact label="Raised" class="vr-nowrap" %}<time datetime="{{ service_request.created_at|date:'c' }}">{{ service_request.created_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+      {% fact label="Last update" class="vr-nowrap" %}<time datetime="{{ service_request.updated_at|date:'c' }}">{{ service_request.updated_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+      {% if follow_up_of %}{% fact label="Follow-up of" %}<a class="vr-id" href="{% url 'portal:request-detail' follow_up_of.number %}">{{ follow_up_of.number }}</a>{% endfact %}{% endif %}
+      {% if follow_ups %}{% fact label="Followed up in" %}{% for item in follow_ups %}<a class="vr-id" href="{% url 'portal:request-detail' item.number %}">{{ item.number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endfact %}{% endif %}
+    </dl>
+  {% endpanel %}
+  {% endfill %}
+{% request_form_details service_request %}
+{% if links %}
+{% panel title="References" heading_id="references-heading" count=links|length table=True class="mb-3" %}
+  <div class="vr-table-wrap"><table class="table vr-table">
+    <thead><tr><th scope="col">Reference</th><th scope="col">Type</th><th scope="col">System</th></tr></thead>
+    <tbody>
+      {% for attachment in links %}
+      <tr><th scope="row" class="vr-id">{{ attachment.link.display_label }}</th><td>{{ attachment.link.get_record_type_display }}</td><td>{{ attachment.link.system.name }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+{% endpanel %}
+{% endif %}
+{% history_panel events=conversation title="Conversation" heading_id="conversation" class="mb-3" empty_title="No messages yet" empty_body="Messages between you and the laboratory appear here." %}
+  {% for item in conversation %}
+    {% if item.kind == "status" %}
+      {% history_item title="Status: "|add:item.status.0 at=item.at actor=None reason=None changes=None detail=None by=None extra=None %}
+    {% elif item.from_client %}
+      {% if item.author == user %}{% history_item title="You wrote" at=item.at reason=item.body actor=None changes=None detail=None by=None extra=item.files|yesno:"attachments/_portal_reply_files.html," %}{% else %}{% history_item title="Message from your organization" at=item.at reason=item.body actor=item.author by="Sent by" changes=None detail=None extra=item.files|yesno:"attachments/_portal_reply_files.html," %}{% endif %}
+    {% else %}
+      {% history_item title="Reply from the laboratory" at=item.at reason=item.body detail=signature actor=None changes=None by=None extra=item.files|yesno:"attachments/_portal_reply_files.html," %}
+    {% endif %}
+  {% endfor %}
+{% endhistory_panel %}
+{% if can_reply %}
+{% url 'portal:request-reply' service_request.number as reply_url %}
+{% panel title="Reply" heading_id="reply-heading" class="mb-3" %}
+  {% form_page form=reply_form action=reply_url submit_label="Send reply" no_required_note=True multipart=True %}
+    <fieldset class="vr-form-section">
+      {{ reply_form.body.as_field_group }}
+      {{ reply_form.files.as_field_group }}
+      {{ reply_form.expected_revision }}
+    </fieldset>
+  {% endform_page %}
+{% endpanel %}
+{% endif %}
+{% endrecord_layout %}
+{% endblock %}

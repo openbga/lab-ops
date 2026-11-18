@@ -1,0 +1,5 @@
+{% comment %}
+What one portal account sees, in words (clients.models.PortalAccess). Context: access (the
+account's current PortalAccess, or None when its access is not set or was granted for another
+organization; clients.views._portal_accounts decides).
+{% endcomment %}{% if access is None %}<span class="vr-muted">Only tickets it raised (access not set)</span>{% elif access.whole_organization %}The whole organization{% else %}{% with sites=access.sites.all %}{% if sites %}{% for site in sites %}{{ site.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}<span class="vr-muted">Only tickets it raised</span>{% endif %}{% endwith %}{% endif %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Load presets (T2). Context: form (PresetForm), presets (key, name, description, count, missing:
+how many of its categories are not here yet, matched by key), crumbs, cancel_url. Admin only.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Starting categories for your laboratory's work, with the teams they route to. Loading adds only what is missing.</p>{% endblock %}
+{% block content %}
+{% panel title="What each preset adds" table=True class="mb-3" %}
+  <div class="vr-table-wrap"><table class="table vr-table">
+    <thead><tr><th scope="col">Preset</th><th scope="col">Adds</th><th scope="col" class="text-end">Categories</th><th scope="col" class="text-end">Not here yet</th></tr></thead>
+    <tbody>
+      {% for preset in presets %}
+      <tr>
+        <th scope="row">{{ preset.name }}</th>
+        <td>{{ preset.description }}</td>
+        <td class="text-end">{{ preset.count }}</td>
+        <td class="text-end">{% if preset.missing %}{{ preset.missing }}{% else %}{% status label="All here" tone="success" plain=True %}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+{% endpanel %}
+{% form_page form=form cancel_url=cancel_url submit_label="Load presets" no_required_note=True %}
+{% endform_page %}
+{% notice tone="info" label="What loading does" %}Categories are matched by their key, or by name within the same group. Loading never renames, moves or reactivates a category, never changes its rules, and creates no service targets. Missing teams are created: Client services, Accessioning, Technical, Billing, Logistics, Interfaces and IT, Quality. The standard ticket forms of the same presets are loaded too, adding only what is missing; see Ticket forms.{% endnotice %}
+{% endblock %}

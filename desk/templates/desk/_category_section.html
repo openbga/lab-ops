@@ -1,0 +1,12 @@
+{% comment %}
+The part of the new-request form that follows the category: re-rendered by desk:category-guidance
+(HTMX) whenever the category changes, and rendered by desk/request_form.html on the first load and
+after a refused submit. Context: category (taxonomy.RequestCategory or None), data (the submitted
+values, a QueryDict, empty on a first load), category_terms (taxonomy.terms.drawn), user.
+It holds the category's intake guidance, then the slot for fields that belong to the request type
+(desk/_intake_fields.html), so those fields change with the category. The hidden category_terms
+input carries the protection and routing the guidance showed; the write refuses if they changed.
+{% endcomment %}
+{% if category_terms %}<input type="hidden" name="category_terms" value="{{ category_terms }}">{% endif %}
+{% include "desk/_category_guidance.html" %}
+{% include "desk/_intake_fields.html" %}

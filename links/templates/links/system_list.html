@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+External systems (L1). Context (core.lists.list_response): page_obj (ExternalSystem),
+filter_form, q, sort, per_page, active_filters and the toolbar context. Admin only. Systems have
+no page of their own: the name opens the edit form.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The laboratory's other systems that tickets and organizations link to.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-primary" href="{% url 'links:system-create' %}">{% icon name="plus-lg" %}New external system</a>{% endblock %}
+{% block content %}
+{% url 'links:system-create' as create_url %}
+{% panel title="External systems" table=True hidden_title=True %}
+  {% grid_toolbar label="Filter external systems" grid="links.systems" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="systems" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path no_results_title="No systems match these filters" empty_title="No external systems yet" empty_body="Add the systems your tickets refer to: the LIS, LIMS, billing system." action_url=create_url action_label="New external system" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="links.systems" data-vr-grid-version="1">
+      <thead>
+        <tr>
+          {% sort_header label="System" asc="name" desc="-name" col="name" locked=True %}
+          {% sort_header label="Kind" asc="kind" desc="-kind" col="kind" %}
+          {% sort_header label="Base address" asc="base_url" desc="-base_url" col="base_url" priority="low" %}
+          {% sort_header label="Status" asc="is_active" desc="-is_active" col="is_active" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for system in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'links:system-edit' system.pk %}">{{ system.name }}</a> <span class="vr-muted small vr-id">{{ system.key }}</span></th>
+          <td>{{ system.get_kind_display }}</td>
+          <td class="text-break">{{ system.base_url|default:"—" }}</td>
+          <td>{% if system.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

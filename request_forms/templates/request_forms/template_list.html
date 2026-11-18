@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Request forms (F1): the laboratory's request templates in the portal menu's order. Context:
+templates (RequestTemplate with category, category.parent and field_count, the active fields),
+show ("active" or "all"), inactive_count, has_any. Admin only (request_forms.views). Reordering is
+a POST per row (Move up, Move down); the order is the portal menu's and the staff picker's.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Forms for routine tickets, each with its own fields. Clients open the ones on the service menu from the portal home.</p>{% endblock %}
+{% block page_actions %}
+{% if show == "active" %}{% if inactive_count %}<a class="btn btn-outline-secondary" href="?show=all">Show inactive</a>{% endif %}{% else %}<a class="btn btn-outline-secondary" href="?show=active">Hide inactive</a>{% endif %}
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:catalog-list' %}">Catalogs</a>
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:preset-load' %}">Load standard forms</a>
+<a class="btn btn-primary" href="{% url 'request_forms:template-create' %}">{% icon name="plus-lg" %}New ticket form</a>
+{% endblock %}
+{% block content %}
+{% url 'request_forms:preset-load' as preset_url %}
+{% panel title="Ticket forms" hidden_title=True table=True %}
+  {% if has_any %}
+  {% list_results items=templates empty_title="No active ticket forms" empty_body="Every form is inactive. Show inactive forms to edit them." %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="request_forms.templates" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Form</th>
+        <th scope="col">Category</th>
+        <th scope="col">Client portal</th>
+        <th scope="col" class="text-end">Fields</th>
+        <th scope="col" data-vr-col-priority="low">Client label</th>
+        <th scope="col"><span class="visually-hidden">Order</span></th>
+      </tr></thead>
+      <tbody>
+        {% for template in templates %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'request_forms:template-detail' template.pk %}">{{ template.name }}</a>{% if not template.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td>{{ template.category.parent.name }}: {{ template.category.name }}</td>
+          <td>{% if template.offered_in_portal and template.category.client_may_raise %}{% if template.featured %}On the service menu{% else %}Offered{% endif %}{% else %}<span class="vr-muted">Staff only</span>{% endif %}</td>
+          <td class="text-end">{{ template.field_count }}</td>
+          <td>{{ template.client_label|default:"Same as name" }}</td>
+          <td>
+            {% url 'request_forms:template-move' template.pk 'up' as up_url %}{% url 'request_forms:template-move' template.pk 'down' as down_url %}
+            {% more_actions label="Move" small=True %}
+              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
+              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+            {% endmore_actions %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+  {% else %}
+  {% empty_state kind="empty" title="No ticket forms yet" body="Load the standard forms for your laboratory's work, then edit, reorder and deactivate what you do not need." action_url=preset_url action_label="Load standard forms" %}
+  {% endif %}
+{% endpanel %}
+{% if show == "active" and inactive_count %}<p class="vr-muted small">{{ inactive_count }} inactive form{{ inactive_count|pluralize }} hidden.</p>{% endif %}
+{% endblock %}

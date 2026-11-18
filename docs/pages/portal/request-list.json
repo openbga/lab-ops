@@ -1,0 +1,132 @@
+{
+  "id": "portal-request-list",
+  "routes": [
+    "portal:request-list"
+  ],
+  "title": "Tickets",
+  "purpose": "Find the tickets your account can see, open first, and open one to follow it or reply to the laboratory.",
+  "summary": "Your tickets to the laboratory, open ones first. Find one by number, subject or your own reference, filter by status, and open it to read the conversation or reply.",
+  "tasks": [
+    {
+      "title": "Find a ticket",
+      "steps": [
+        "Type the ticket number, a word from the subject or your own reference in [[Search]] and select [[Apply]].",
+        "Select the ticket number to open it."
+      ]
+    },
+    {
+      "title": "See what waits for you",
+      "steps": [
+        "Choose [[Waiting for you]] in [[Status]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Hide finished tickets",
+      "steps": [
+        "Choose [[Not yet resolved]] in [[Status]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Open a ticket",
+      "steps": [
+        "Select [[New ticket]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The list holds the tickets your account may see: the ones it raised, plus your organization's or your sites' tickets when the laboratory gave it that access.",
+    "Open tickets come first, then resolved ones, then closed ones. Within each group the most recently updated comes first.",
+    "Not yet resolved means With the laboratory, Waiting for you and With a third party together.",
+    "Search looks only at the ticket number, the subject and your reference, not at messages."
+  ],
+  "sections": [
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the ticket number, the subject or the reference you gave when raising the ticket, ignoring case. It does not search the messages."
+        },
+        {
+          "label": "Status",
+          "description": "Any status; Not yet resolved, which keeps With the laboratory, Waiting for you and With a third party; or one status: With the laboratory, Waiting for you, With a third party, Resolved or Closed. These are the client wording of the laboratory's statuses."
+        },
+        {
+          "label": "New ticket",
+          "description": "Opens the form for a new ticket. The empty state offers it too."
+        },
+        {
+          "label": "Ticket number",
+          "description": "Opens the ticket."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Ticket",
+          "description": "The ticket number. Always shown. Sortable."
+        },
+        {
+          "label": "Subject",
+          "description": "The subject given when the ticket was raised. Sortable."
+        },
+        {
+          "label": "Topic",
+          "description": "What the ticket is about, in the laboratory's client wording."
+        },
+        {
+          "label": "Site",
+          "description": "The site the ticket is about, or a dash."
+        },
+        {
+          "label": "Status",
+          "description": "Where the ticket stands: With the laboratory, Waiting for you, With a third party, Resolved or Closed. Sortable; the default sort puts open tickets first, then resolved, then closed, most recently updated first in each group."
+        },
+        {
+          "label": "Last update",
+          "description": "The date and time of the latest change to the ticket. Sortable."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "paragraphs": [
+        "Only an active client portal account can open this page; laboratory staff accounts are refused. A ticket outside your account's scope is not listed and cannot be opened. The page never shows who at the laboratory is assigned, priorities or service clocks. An invalid filter shows an error and no rows until corrected or cleared. With no tickets the page says No tickets yet; with filters that match nothing it says No tickets match these filters."
+      ],
+      "items": [
+        {
+          "label": "Apply",
+          "description": "Combines the search and the status filter across all your tickets and returns to page 1."
+        },
+        {
+          "label": "Clear all / filter chips",
+          "description": "Clear all restores the unfiltered list and default sort. Removing one chip clears that criterion and keeps the others."
+        },
+        {
+          "label": "Column headings",
+          "description": "Linked headings sort all matching tickets, not just this page."
+        },
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns. The Ticket column stays visible. The preference is saved for your account and changes no data."
+        },
+        {
+          "label": "Rows per page, pagination",
+          "description": "Choose the number of rows per page; First, Previous, Next and Last keep the filters and sort."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/portal_urls.py",
+    "clients/portal.py",
+    "desk/portal_views.py",
+    "desk/portal_forms.py",
+    "desk/portal_scope.py",
+    "desk/templates/desk/portal/request_list.html",
+    "desk/tests/test_portal.py",
+    "core/lists.py"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "id": "request-forms-catalog-form",
+  "routes": [
+    "request_forms:catalog-create",
+    "request_forms:catalog-edit"
+  ],
+  "title": "Catalog settings",
+  "purpose": "Create a catalog of orderable items or change its name, description and whether it is active. Editing needs a reason.",
+  "summary": "Name a catalog of items clients may order and say what it holds. Editing needs a reason and can switch the catalog off. Only the admin role can use this page.",
+  "tasks": [
+    {
+      "title": "Create a catalog",
+      "steps": [
+        "Enter the [[Catalog name]] and, if useful, a [[Description]].",
+        "Select [[Create catalog]]. The catalog's page opens, ready for its items."
+      ]
+    },
+    {
+      "title": "Change a catalog",
+      "steps": [
+        "Change the name or description, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Retire a catalog",
+      "steps": [
+        "Clear [[Active]], give the reason and save.",
+        "The catalog takes no new orders: an item-list field that uses it is left off new tickets, in the portal and at staff intake, until it uses an active catalog.",
+        "Its items, and the tickets that ordered them, stay."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The key is a code that never changes. Leave it empty on a new catalog and it is made from the name.",
+    "Every change needs a reason and at least one change. If someone else saved first, yours is refused and your input stays: reload and review.",
+    "An inactive catalog cannot be chosen by an item-list field that is active.",
+    "Tickets that ordered its items keep them. A staff correction shows those lines as no longer offered and keeps them until someone changes that field.",
+    "The description is for staff. Clients never see it."
+  ],
+  "sections": [
+    {
+      "title": "Catalog",
+      "items": [
+        {
+          "label": "Catalog name",
+          "description": "Required, up to 120 characters. It must be unique, ignoring capital letters; a duplicate name is refused."
+        },
+        {
+          "label": "Key",
+          "description": "Shown only when creating. A stable code of letters, numbers, hyphens and underscores, up to 60 characters, used by standard forms to recognize the catalog. Empty: made from the name. It must be unique. It is not shown when editing and never changes."
+        },
+        {
+          "label": "Description",
+          "description": "Optional, up to 300 characters. For staff: what the catalog holds and who keeps it."
+        }
+      ]
+    },
+    {
+      "title": "Status and change record",
+      "items": [
+        {
+          "label": "Active",
+          "description": "Shown only when editing. Clear it to retire the catalog: it takes no new orders, and an item-list field that uses it is left off new tickets (the form's page says so beside the field). A field cannot be saved as active with an inactive catalog. While the stored catalog is inactive, a notice says so at the top."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Shown only when editing and required. Kept with the change in the catalog's history. Creating a catalog asks for no reason."
+        },
+        {
+          "label": "Save changes",
+          "description": "Records the change, its reason, who made it and when, together. It is refused when nothing changed, when the reason is missing, or when the catalog was changed by someone else after you opened it (your input stays). Cancel returns to the catalog, or to the list when creating."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/forms.py",
+    "request_forms/services.py",
+    "request_forms/models.py",
+    "templates/core/record_form.html",
+    "request_forms/tests/test_setup.py"
+  ]
+}

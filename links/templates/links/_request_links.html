@@ -1,0 +1,6 @@
+{% comment %}
+The Links section of the staff request page.
+Context: request (desk.ServiceRequest, already authorized for user), user. Renders
+links/request_links_panel.html through {% request_links %}, which masks person-level links for
+readers without view_patient_information.
+{% endcomment %}{% load record_links %}{% request_links request user %}

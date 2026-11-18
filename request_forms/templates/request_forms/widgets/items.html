@@ -1,0 +1,14 @@
+{% comment %}
+Item-list field (request_forms.kinds.ItemsWidget): one row per orderable catalog item with its name,
+other names, code, unit and limit, and a quantity box (the shared number control). Rendered inside the field's
+fieldset, whose legend is the field label. widget.rows: (CatalogItem, subwidget, retired) triples; a
+retired item appears only on a staff correction, where the request already ordered it.
+{% endcomment %}<div class="vr-items">
+  <ul class="vr-items-list">{% for item, sub, retired in widget.rows %}
+    <li class="vr-items-row">
+      <label class="vr-items-label" for="{{ sub.attrs.id }}"><span class="vr-items-name">{{ item.name }}</span>{% if retired %}<span class="vr-items-meta">No longer offered: kept on this ticket until you change it</span>{% endif %}{% if item.search_words %}<span class="vr-items-meta">{{ item.search_words }}</span>{% endif %}{% if item.code or item.unit or item.max_quantity %}<span class="vr-items-meta">{% if item.code %}<span class="vr-id">{{ item.code }}</span>{% endif %}{% if item.unit %}<span>{{ item.unit }}</span>{% endif %}{% if item.max_quantity %}<span>at most {{ item.max_quantity }}</span>{% endif %}</span>{% endif %}</label>
+      <div class="vr-items-qty">{% with widget=sub %}{% include widget.template_name %}{% endwith %}</div>
+    </li>{% empty %}
+    <li class="vr-items-row vr-muted">No items are offered at the moment.</li>{% endfor %}
+  </ul>
+</div>

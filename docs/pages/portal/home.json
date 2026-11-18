@@ -1,0 +1,147 @@
+{
+  "id": "portal-home",
+  "routes": [
+    "portal:home"
+  ],
+  "title": "Client portal home",
+  "purpose": "Start a ticket from the laboratory's service menu, see which tickets are open or waiting for you, check what the laboratory has on file for your organization and how to reach the laboratory.",
+  "summary": "Choose a service, follow your open tickets and see which ones need a reply. You can also check your organization’s details and find the laboratory’s contact information.",
+  "tasks": [
+    {
+      "title": "Start a ticket",
+      "steps": [
+        "Under How can we help?, select the tile for what you need; it opens that form.",
+        "Select [[All services]] for forms not on the menu, or [[Something else]] for any other question.",
+        "Fill in the form and send it. [[New ticket]] at the top opens the same choice."
+      ]
+    },
+    {
+      "title": "Answer a ticket that waits for you",
+      "steps": [
+        "In the notice Waiting for you, select [[Show it]] or [[Show them]].",
+        "Open the ticket and send your reply."
+      ]
+    },
+    {
+      "title": "Follow your open tickets",
+      "steps": [
+        "Read the Open tickets table and select a ticket number to open it.",
+        "Select [[All tickets]] for every ticket, including resolved and closed ones."
+      ]
+    },
+    {
+      "title": "Correct a detail or a contact",
+      "steps": [
+        "Contact the laboratory using the details under Your laboratory. It makes the change."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "You see only your own organization. Nothing about other organizations is shown.",
+    "Open tickets lists what your account may see: the tickets it raised, plus your organization's or your sites' tickets when the laboratory gave it that access.",
+    "The table shows the ten most recently updated open tickets. A line under it links to all open tickets when there are more.",
+    "You cannot change the organization details or contacts here. The laboratory keeps them, and only active contacts who serve your sites or the whole organization are listed.",
+    "Announcements from the laboratory appear at the top and cannot be dismissed. The service menu shows the forms the laboratory chose, in its order."
+  ],
+  "sections": [
+    {
+      "title": "Tickets",
+      "paragraphs": [
+        "Open means With the laboratory, Waiting for you or With a third party. The counts and the table come from the same set of tickets as the Tickets list, so they always agree."
+      ],
+      "items": [
+        {
+          "label": "How can we help?",
+          "description": "The service menu: one tile per ticket form the laboratory features, each with its name, a short line and a picture, in the laboratory's order; one tap opens the form. Something else, always last, opens the general form where you choose a topic. All services appears when the laboratory offers more forms than it features."
+        },
+        {
+          "label": "New ticket",
+          "description": "The page's main button. Opens every ticket form the laboratory offers you, grouped by topic when there are many, and Something else for the general form. When the laboratory offers you no forms it opens the general form directly."
+        },
+        {
+          "label": "Waiting for you",
+          "description": "A notice shown only when the laboratory is waiting for information from you on at least one ticket, with how many. The same count also shows in the page header as N waiting for you. Show it / Show them opens the ticket list filtered to Waiting for you."
+        },
+        {
+          "label": "Open tickets",
+          "description": "The count beside the panel title is every open ticket your account may see. The table shows up to ten of them, most recently updated first, with the columns Ticket, Subject, Status (in the laboratory's client wording) and Last update. The ticket number opens the ticket. When there are none the panel says No open tickets and offers New ticket."
+        },
+        {
+          "label": "All tickets",
+          "description": "Opens the full ticket list. When more open tickets exist than the table shows, a line under the table says Showing the most recent of N and links to Show all open tickets."
+        },
+        {
+          "label": "Page header",
+          "description": "Shows how many tickets are waiting for you (only when there are some), how many are open, and the Account code when the laboratory has given your organization one."
+        }
+      ]
+    },
+    {
+      "title": "Your organization",
+      "items": [
+        {
+          "label": "Organization",
+          "description": "Your organization's name as the laboratory has it."
+        },
+        {
+          "label": "General email, Main phone",
+          "description": "The shared email address and main phone the laboratory has on file. Blank when none is recorded."
+        },
+        {
+          "label": "Mailing address",
+          "description": "The address the laboratory has on file, or Not recorded."
+        },
+        {
+          "label": "Account",
+          "description": "Shown in the page header when the laboratory has given your organization an account code."
+        }
+      ]
+    },
+    {
+      "title": "Contacts on file",
+      "paragraphs": [
+        "The active people at your organization the laboratory deals with, as far as your account may see them: with access to the whole organization, every one of them; with access to listed sites, the people who serve one of your sites or the whole organization. When there are none, the page says so; ask the laboratory to add the people it should contact."
+      ],
+      "items": [
+        {
+          "label": "Name, Role, Email, Phone",
+          "description": "Each contact's name, what the laboratory contacts them about, email address and phone number. Blank values show a dash."
+        }
+      ]
+    },
+    {
+      "title": "Your laboratory",
+      "items": [
+        {
+          "label": "Logo",
+          "description": "The laboratory's current logo, when it has set one."
+        },
+        {
+          "label": "Laboratory, Phone, Email, Address",
+          "description": "The laboratory's name and contact details. Blank values are left empty or shown as Not recorded."
+        }
+      ]
+    },
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only an active portal account of a client organization can open this page. Laboratory staff accounts are refused and use the staff workspace instead. An account that can sign in only to the portal cannot open staff pages."
+      ]
+    }
+  ],
+  "sources": [
+    "clients/models.py",
+    "clients/portal.py",
+    "clients/portal_urls.py",
+    "clients/templates/clients/portal/home.html",
+    "core/lab_profile.py",
+    "core/templatetags/announcements.py",
+    "desk/portal_forms.py",
+    "desk/portal_scope.py",
+    "desk/portal_views.py",
+    "request_forms/selectors.py",
+    "request_forms/templates/request_forms/_portal_menu.html",
+    "request_forms/templatetags/request_forms.py",
+    "templates/layouts/portal.html"
+  ]
+}

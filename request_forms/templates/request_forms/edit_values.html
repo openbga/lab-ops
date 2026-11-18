@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Fill or correct the form details of one request (F4). Context: service_request (within
+desk.selectors.staff_requests), filled (its FilledForm with template), form (CorrectionForm: the
+form's active fields this account may fill, each starting from its current value, a hidden token
+per field, the reason for ordinary values, and reason_code (a fixed list) with patient_note, shown
+when the person may change a patient-information field; an item list also shows the items the
+request already holds, retired ones marked), details (request_forms.selectors.FormDetails: current values as this
+account may see them, missing required fields; the request is open: a closed one redirects), earlier (superseded values, newest first: title (label and
+the old value, or that it is hidden), detail (who entered it), replaced_at, replaced_by, reason), hidden_fields (the form has
+patient-information fields this account may not fill), back_url, crumbs. Any staff role.
+Patient-information values appear only for staff with “Can view patient information”.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{{ filled.template_name }}</li>
+  {% if details.missing %}<li>{% status label=details.missing|length|stringformat:"d"|add:" required missing" tone="warning" plain=True %}</li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block content %}
+{% if hidden_fields %}
+{% notice tone="neutral" label="Patient information" %}This form has fields that hold patient information. Only staff who can view patient information see, fill or correct them.{% endnotice %}
+{% endif %}
+{% form_page form=form cancel_url=back_url submit_label="Save form details" class="vr-narrow" no_required_note=True %}
+  {% fill note %}{% endfill %}
+  <fieldset class="vr-form-section">
+    <legend>{{ filled.template_name }}</legend>
+    {% include "request_forms/_layout.html" with form=form level=2 only %}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>Change record</legend>
+    {{ form.reason.as_field_group }}
+    {% if "reason_code" in form.fields %}{{ form.reason_code.as_field_group }}{{ form.patient_note.as_field_group }}{% endif %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  </fieldset>
+{% endform_page %}
+{% history_panel events=earlier newest_first=True title="Earlier values" class="mt-3" empty_title="No corrections" empty_body="When a value is changed, the value it replaced stays here with who changed it and why." %}
+  {% for row in earlier reversed %}
+    {% history_item title=row.title at=row.replaced_at actor=row.replaced_by by="Changed by" reason=row.reason detail=row.detail changes=None extra=None %}
+  {% endfor %}
+{% endhistory_panel %}
+{% endblock %}

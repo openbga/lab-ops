@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load ui clocks %}
+{% comment %}
+One business calendar (S1): weekly opening hours, holidays, the targets that count in it, and its
+history. Context: calendar, weekly_hours ([(weekday, "HH:MM-HH:MM, ..." or "")]), holidays,
+targets, history (AuditEvent of the calendar and its holidays, oldest first). Admin only.
+{% endcomment %}
+{% block title %}{{ calendar.name }} · Business calendars · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% url 'service_levels:calendar-list' as list_url %}{% breadcrumbs section="Business calendars" section_url=list_url current=calendar.name %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if calendar.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
+  <li>{{ holidays|length }} holiday{{ holidays|length|pluralize }}</li>
+  <li>{{ targets|length }} target{{ targets|length|pluralize }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'service_levels:calendar-edit' calendar.pk %}">Edit calendar</a>{% endblock %}
+{% block content %}
+{% if not calendar.is_active %}
+{% notice tone="neutral" label="Inactive" %}This calendar is not offered for new targets. Tickets that already count in it keep it.{% endnotice %}
+{% endif %}
+{% panel title="Weekly opening hours" class="mb-3" %}
+  <dl class="vr-facts">
+    {% for day, hours in weekly_hours %}{% fact label=day value=hours empty="Closed" class="vr-nowrap" %}{% endfor %}
+  </dl>
+  <p class="vr-muted small">Local time of the laboratory. Holidays close the whole day.</p>
+{% endpanel %}
+{% panel title="Holidays" count=holidays|length table=True class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'service_levels:holiday-create' calendar.pk %}">Add holiday</a>{% endfill %}
+  {% list_results items=holidays empty_title="No holidays" empty_body="Add the days the laboratory is closed. Clocks on this calendar do not run on them." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Date</th><th scope="col">Holiday</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        {% for holiday in holidays %}
+        <tr>
+          <th scope="row" class="vr-nowrap"><time datetime="{{ holiday.date|date:'Y-m-d' }}">{{ holiday.date|date:"Y-m-d" }}</time> <span class="vr-muted">{{ holiday.date|date:"D" }}</span></th>
+          <td>{{ holiday.name }}</td>
+          <td><a class="btn btn-sm btn-outline-danger" href="{% url 'service_levels:holiday-remove' holiday.pk %}">Remove {{ holiday.name }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% panel title="Targets counting in this calendar" count=targets|length table=True class="mb-3" %}
+  {% list_results items=targets empty_title="No targets use this calendar" empty_body="Choose this calendar on a service target to count only opening hours." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Target</th><th scope="col">First response</th><th scope="col">Resolution</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for target in targets %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'service_levels:target-edit' target.pk %}">{{ target.name }}</a></th>
+          <td class="vr-nowrap">{{ target.first_response_minutes|duration|default:"—" }}</td>
+          <td class="vr-nowrap">{{ target.resolution_minutes|duration|default:"—" }}</td>
+          <td>{% if target.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% history_panel events=history empty_title="No recorded changes" empty_body="Changes to this calendar and its holidays are listed here." %}{% endhistory_panel %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=calendar.name %}{% endblock %}

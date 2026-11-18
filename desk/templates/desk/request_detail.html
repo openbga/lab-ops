@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load ui desk %}
+{% comment %}
+One request: its facts, the composer (reply, note or logged contact), its service clock and links
+(slots filled by the service_levels and links apps), the complaint record when it is a complaint,
+and the conversation, newest first. Context (desk.views._detail_context): req, entries (newest
+first; events carry .phrase), audience (portal accounts that can read it), composer (EntryForm),
+review (ComplaintReview or None), review_refusal, can_record_complaint, is_supervisor, is_member,
+is_closed, list_query, list_url, previous_url, next_url, follow_ups, follow_up_of.
+On a phone the page reads: facts, composer, then the conversation with the latest entry first;
+the thumb bar's primary action is Reply, which jumps to the composer.
+{% endcomment %}
+{% block title %}{{ req.number }} · Tickets · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
+{% block page_heading %}<span class="vr-id">{{ req.number }}</span> {{ req.subject }}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% status label=req.get_status_display tone=req.status|status_tone %}</li>
+  <li>{% status label=req.get_priority_display|add:" priority" tone=req.priority|priority_tone plain=True %}</li>
+  {% if req.is_complaint %}<li>{% status label="Complaint" tone="warning" plain=True %}</li>{% endif %}
+  <li>{{ req.team.name }}{% if req.assignee %} · {{ req.assignee|person }}{% else %} · <span class="vr-muted">nobody assigned</span>{% endif %}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+{% if not is_closed %}
+{% if is_member and req.assignee_id != user.pk %}{# form: button-target #}
+<form method="post" action="{% url 'desk:request-take' req.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ req.revision }}"><input type="hidden" name="list" value="{{ list_query }}"><button class="btn btn-outline-secondary" type="submit">Take it</button></form>{% endif %}
+<a class="btn btn-outline-secondary" href="{% url 'desk:request-assign' req.pk %}?list={{ list_query|urlencode }}">Assign</a>
+<a class="btn btn-outline-secondary" href="{% url 'desk:request-status' req.pk %}?list={{ list_query|urlencode }}">Status</a>
+{% endif %}
+{% more_actions %}
+  {% if not is_closed %}<li><a class="dropdown-item" href="{% url 'desk:request-properties' req.pk %}?list={{ list_query|urlencode }}">Edit category and priority</a></li>
+  {% if not req.is_complaint %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Mark as a complaint</a></li>{% elif is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Unmark complaint</a></li>{% endif %}{% endif %}
+  {% if is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:request-history' req.pk %}?list={{ list_query|urlencode }}">Audit history</a></li>{% endif %}
+{% endmore_actions %}
+{% if not is_closed %}<a class="btn btn-primary" href="#composer">{% icon name="reply" %}Reply</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% if is_closed %}{% notice tone="neutral" label="Closed" %}This ticket is closed. Internal notes can still be added; for anything the client needs, log a new ticket.{% endnotice %}{% endif %}
+{% record_layout aside_label="Reply or add a note" %}
+  {% fill lead %}
+  {% panel title="Ticket" heading_id="request-facts-heading" %}
+    <dl class="vr-facts">
+      {% fact label="Organization" empty="No organization" %}{% if req.client %}<a href="{% url 'clients:client-detail' req.client.pk %}">{{ req.client.name }}</a>{% endif %}{% endfact %}
+      {% fact label="Site" value=req.site.name empty="No site" %}
+      {% fact label="Contact" empty="No contact" %}{% if req.contact %}{{ req.contact.name }}{% if req.contact.phone %} · <a href="tel:{{ req.contact.phone }}">{{ req.contact.phone }}</a>{% endif %}{% if req.contact.email %} · <a href="mailto:{{ req.contact.email }}">{{ req.contact.email }}</a>{% endif %}{% endif %}{% endfact %}
+      {% if req.reported_by %}{% fact label="Reported by" value=req.reported_by %}{% endif %}
+      {% fact label="Category" %}{{ req.category.parent.name }} › {{ req.category.name }}{% endfact %}
+      {% fact label="Arrived by" value=req.get_channel_display %}
+      {% fact label="Logged" %}<time datetime="{{ req.created_at|date:'c' }}">{{ req.created_at|date:"Y-m-d H:i" }}</time> by {{ req.created_by|person }}{% endfact %}
+      {% if req.client_reference %}{% fact label="Reference given" %}<span class="vr-id">{{ req.client_reference }}</span>{% endfact %}{% endif %}
+      {% if follow_up_of %}{% fact label="Follows up" %}<a class="vr-id" href="{% url 'desk:request-detail' follow_up_of.pk %}">{{ follow_up_of.number }}</a>{% endfact %}{% endif %}
+      {% if req.resolution_summary %}{% fact label="Resolution" wide=True value=req.resolution_summary|linebreaksbr %}{% endif %}
+    </dl>
+    {% include "desk/_request_details.html" with service_request=req %}
+    {% include "service_levels/_request_clock.html" with request=req %}
+  {% endpanel %}
+  {% endfill %}
+  {% fill aside %}
+  {% panel title="Reply or add a note" id="composer" heading_id="composer-heading" %}
+    {% if is_closed %}<p class="vr-form-note">The ticket is closed: only internal notes can be added.</p>{% endif %}
+    {% if not audience %}{% notice tone="info" label="Nobody in the portal sees this ticket" %}A reply is recorded but reaches nobody. Call the client and log the contact instead.{% endnotice %}{% endif %}
+    {% url 'desk:request-entry' req.pk as composer_action %}
+    {% form_page form=composer action=composer_action no_required_note=True submit_label="Send" class="vr-composer" multipart=True %}
+      <input type="hidden" name="list" value="{{ list_query }}">
+      {{ composer.expected_revision }}
+      <fieldset class="vr-form-section vr-composer-mode">
+        <legend class="visually-hidden">Kind of entry</legend>
+        {{ composer.kind.as_field_group }}
+        <p class="vr-composer-visibility" aria-live="polite"><span class="vr-composer-public">{% icon name="eye" %}Visible to the client{% if audience %} ({{ audience|length }} portal account{{ audience|length|pluralize }}){% endif %}</span><span class="vr-composer-internal">{% icon name="lock" %}Internal, not shown to the client</span></p>
+      </fieldset>
+      <fieldset class="vr-form-section">
+        {{ composer.body.as_field_group }}
+        <div class="vr-composer-files">{{ composer.files.as_field_group }}</div>
+      </fieldset>
+      <fieldset class="vr-form-section vr-composer-contact">
+        <legend>The contact</legend>
+        {{ composer.contact_direction.as_field_group }}
+        {{ composer.contact_channel.as_field_group }}
+        {{ composer.contact_with.as_field_group }}
+        {{ composer.contact_outcome.as_field_group }}
+      </fieldset>
+      {% if not is_closed and req.status != "resolved" %}<fieldset class="vr-form-section">{{ composer.new_status.as_field_group }}</fieldset>{% endif %}
+    {% endform_page %}
+  {% endpanel %}
+  {% endfill %}
+
+  {% include "links/_request_links.html" with request=req %}
+
+  {% if req.is_complaint %}
+  {% panel title="Complaint" heading_id="complaint-heading" class="mb-3" %}
+    {% fill actions %}{% if can_record_complaint %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-decision' req.pk %}?list={{ list_query|urlencode }}">{% if review.decision %}Revise decision{% else %}Record decision{% endif %}</a> <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-record' req.pk %}?list={{ list_query|urlencode }}">Findings and outcome</a>{% endif %}{% if not review_refusal %} <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-review' req.pk %}?list={{ list_query|urlencode }}">Review</a>{% endif %}{% endfill %}
+    <dl class="vr-facts">
+      {% fact label="Decision" empty="Not recorded yet" %}{% if review.decision %}{{ review.get_decision_display }} · {{ review.decided_by|person }}, <time datetime="{{ review.decided_at|date:'c' }}">{{ review.decided_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
+      {% if review.rationale %}{% fact label="Rationale" wide=True value=review.rationale|linebreaksbr %}{% endif %}
+      {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
+      {% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}
+      {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
+      {% fact label="Independent review" empty="Not reviewed" %}{% if review.is_reviewed %}{{ review.reviewed_by|person }}, <time datetime="{{ review.reviewed_at|date:'c' }}">{{ review.reviewed_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
+      {% if review.review_note %}{% fact label="Review note" wide=True value=review.review_note|linebreaksbr %}{% endif %}
+    </dl>
+    {% if review.is_reviewed and not review_counts %}{% notice tone="warning" label="Review no longer counts" %}The reviewer has been assigned this ticket or has recorded its decision, so the complaint needs a new review by another supervisor before it can close.{% endnotice %}{% endif %}
+    {% if review_refusal and not review_counts %}<p class="vr-form-note mb-0">Review: {{ review_refusal }}</p>{% endif %}
+  {% endpanel %}
+  {% endif %}
+
+  {% panel title="Conversation" heading_id="conversation-heading" count=entries|length|stringformat:"d"|add:" entries, latest first" class="mb-3" %}
+    <ol class="vr-entries">
+      {% for entry in entries %}
+      {% if entry.kind == "event" %}
+      <li class="vr-entry vr-entry-event"><span>{{ entry.phrase }}</span> <span class="vr-muted">· {{ entry.author|person }} · <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"Y-m-d H:i" }}</time></span></li>
+      {% else %}
+      <li class="vr-entry vr-entry-{{ entry.kind }}{% if entry.withdrawn_at %} vr-entry-withdrawn{% endif %}">
+        <div class="vr-entry-head">
+          <span class="vr-entry-kind">{% if entry.kind == "reply" %}{% if entry.withdrawn_at %}{% icon name="eye-slash" %}Reply, withdrawn from client view{% else %}{% icon name="eye" %}Reply, visible to the client{% endif %}{% elif entry.kind == "note" %}{% icon name="lock" %}Internal note{% else %}{% icon name="telephone" %}Logged contact, internal{% endif %}</span>
+          <span class="vr-muted">{{ entry.author|person }}{% if entry.author_capacity == "client" %} (client){% endif %} · <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"Y-m-d H:i" }}</time></span>
+        </div>
+        {% if entry.kind == "contact" %}<p class="vr-entry-contact">{{ entry.get_contact_direction_display }} by {{ entry.get_contact_channel_display|lower }}{% if entry.contact_with %}, {{ entry.contact_with }}{% endif %}: <strong>{{ entry.get_contact_outcome_display }}</strong></p>{% endif %}
+        <div class="vr-entry-body">{{ entry.body|linebreaks }}</div>
+        {% include "attachments/_entry_files.html" with entry=entry audience="staff" %}
+        {% if entry.withdrawn_at %}<p class="vr-form-note mb-0">Withdrawn by {{ entry.withdrawn_by|person }} on {{ entry.withdrawn_at|date:"Y-m-d H:i" }}: {{ entry.withdrawal_reason }}</p>{% elif entry.kind == "reply" and is_supervisor %}<p class="mb-0"><a href="{% url 'desk:entry-withdraw' req.pk entry.pk %}?list={{ list_query|urlencode }}">Withdraw from client view</a></p>{% endif %}
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ol>
+  {% endpanel %}
+
+  {% if follow_ups %}
+  {% panel title="Follow-up tickets" heading_id="follow-ups-heading" count=follow_ups|length class="mb-3" %}
+    <ul class="vr-plain-list">{% for item in follow_ups %}<li><a class="vr-id" href="{% url 'desk:request-detail' item.pk %}">{{ item.number }}</a> {{ item.subject }}</li>{% endfor %}</ul>
+  {% endpanel %}
+  {% endif %}
+
+  {% if previous_url or next_url %}
+  <nav class="vr-record-pager" aria-label="Tickets in this list">
+    {% if previous_url %}<a class="btn btn-outline-secondary" href="{{ previous_url }}">{% icon name="arrow-left" %}Previous in list</a>{% endif %}
+    {% if next_url %}<a class="btn btn-outline-secondary" href="{{ next_url }}">Next in list{% icon name="arrow-right" %}</a>{% endif %}
+  </nav>
+  {% endif %}
+{% endrecord_layout %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=req.number %}{% endblock %}

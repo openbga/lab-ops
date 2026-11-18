@@ -1,0 +1,94 @@
+{
+  "id": "links-client-link-add",
+  "routes": [
+    "link_records:client-link-add"
+  ],
+  "title": "Add link to a client organization",
+  "purpose": "Link a client organization to a record in another system, such as an account, project or study, by typing its identifier.",
+  "summary": "Link a client organization to an account, project, study or other record in another system. Every staff role can add these links. Person-level records cannot be linked here.",
+  "tasks": [
+    {
+      "title": "Link an account or project",
+      "steps": [
+        "Choose the [[System]] and [[Record type]], then type the [[Identifier]] as that system writes it.",
+        "Select [[Add link]]. The organization's Links panel opens."
+      ]
+    },
+    {
+      "title": "Add an address that opens the record",
+      "steps": [
+        "Paste the https link in [[Address]] and save. It must be on the system's own host; a system without a base address takes no address."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Patient, research participant and donor records cannot be linked to an organization.",
+    "If the same record is already linked elsewhere, that link is reused and the label and address you type are ignored.",
+    "Links on an organization are for staff. There is no Show to client choice here.",
+    "The identifier is stored as typed and is not checked against the other system."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "System",
+          "description": "Required. An active external system."
+        },
+        {
+          "label": "Record type",
+          "description": "Order, Accession, Requisition, Sample, Custody form, Report, Invoice, Shipment, Project, Lot or batch, Study or Other. Person-level types are never offered for an organization."
+        },
+        {
+          "label": "Identifier",
+          "description": "Required, up to 200 characters, as the source system writes it. Surrounding spaces are removed; control and invisible characters are refused."
+        },
+        {
+          "label": "Identifier scheme",
+          "description": "Optional, up to 40 characters, for systems with several kinds of number."
+        },
+        {
+          "label": "Label",
+          "description": "Optional, up to 120 characters. What staff see; empty means the identifier."
+        },
+        {
+          "label": "Role",
+          "description": "Primary, Related (the default), Original, or Replacement or corrected. The same record cannot be on the organization twice in the same role."
+        },
+        {
+          "label": "Address",
+          "description": "Optional https link to the record, up to 500 characters, with no user name or password. Only for a system with a base address, and on that host."
+        }
+      ]
+    },
+    {
+      "title": "Saving and the organization's Links panel",
+      "items": [
+        {
+          "label": "Add link",
+          "description": "Adds the link, records who added it, and returns to the organization's page at its Links panel. A reused link is noted in the message."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the organization's page without saving."
+        },
+        {
+          "label": "Links panel",
+          "description": "Lists Record (opens the link's page), Type, System (opens the record in a new tab when an address is set), Role and a Remove button. Removed links are kept in a collapsed list with who, when and why."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "links/record_urls.py",
+    "links/views.py",
+    "links/forms.py",
+    "links/services.py",
+    "links/access.py",
+    "links/identifiers.py",
+    "links/templatetags/record_links.py",
+    "links/templates/links/link_form.html",
+    "links/templates/links/client_links_panel.html",
+    "links/tests/test_links.py"
+  ]
+}

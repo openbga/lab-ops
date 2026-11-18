@@ -1,0 +1,97 @@
+{
+  "id": "request-forms-item-form",
+  "routes": [
+    "request_forms:item-create",
+    "request_forms:item-edit"
+  ],
+  "title": "Catalog item",
+  "purpose": "Add an item to a catalog or change its name, code, unit, limit, other names and whether it is offered. Editing needs a reason.",
+  "summary": "Define one item clients may order: its name, the laboratory's code, what one counts as and the most per ticket. Editing needs a reason and can stop offering the item. Only the admin role can use this page.",
+  "tasks": [
+    {
+      "title": "Add an item",
+      "steps": [
+        "Enter the [[Item name]], and the [[Item code]] and [[Unit]] if the laboratory uses them.",
+        "Select [[Add item]]. The item goes to the end of the catalog's list."
+      ]
+    },
+    {
+      "title": "Help clients find an item",
+      "steps": [
+        "Write the words clients use, such as a cap color, in [[Other names]]. They show under the name on the form."
+      ]
+    },
+    {
+      "title": "Limit how many a client orders",
+      "steps": [
+        "Enter a number in [[Most per ticket]], give a reason when editing, and save."
+      ]
+    },
+    {
+      "title": "Stop offering an item",
+      "steps": [
+        "Clear [[Active]], write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A ticket keeps the code, name and unit an item had when it was ordered. Editing an item does not change old orders.",
+    "A quantity is a whole number from 1 to 9,999, and it cannot go above the item's most per ticket.",
+    "An inactive item is no longer offered, and a ticket cannot order it. Tickets that ordered it keep it.",
+    "An item code must be unique in its catalog, ignoring capital letters. Items without a code are not checked."
+  ],
+  "sections": [
+    {
+      "title": "Item",
+      "items": [
+        {
+          "label": "Item name",
+          "description": "Required, up to 160 characters. What clients see in the list and on the ticket."
+        },
+        {
+          "label": "Item code",
+          "description": "Optional, up to 40 characters. The laboratory's item number, if it has one. Shown beside the name. It must be unique within the catalog, ignoring capital letters."
+        },
+        {
+          "label": "Unit",
+          "description": "Optional, up to 60 characters. What one counts as: each, box of 50, case of 12."
+        },
+        {
+          "label": "Most per ticket",
+          "description": "Optional whole number, 1 or more. The most a client may order at once. Empty: no limit. The form shows it as at most that number."
+        },
+        {
+          "label": "Other names",
+          "description": "Optional, up to 300 characters. Other words clients use for it, such as a cap color or a common name. Shown under the item's name in the form."
+        }
+      ]
+    },
+    {
+      "title": "Status and change record",
+      "items": [
+        {
+          "label": "Active",
+          "description": "Shown only when editing. Clear it to stop offering the item. While the stored item is inactive, a notice says so at the top. Items are switched off, not deleted."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Shown only when editing and required. Kept with the change in the item's audit history. Adding an item asks for no reason."
+        },
+        {
+          "label": "Save changes",
+          "description": "Records the change, its reason, who made it and when, together. It is refused when nothing changed, when the reason is missing, or when the item was changed by someone else after you opened it (your input stays). Cancel returns to the catalog."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/forms.py",
+    "request_forms/services.py",
+    "request_forms/kinds.py",
+    "request_forms/models.py",
+    "request_forms/templates/request_forms/widgets/items.html",
+    "request_forms/tests/test_values.py"
+  ]
+}

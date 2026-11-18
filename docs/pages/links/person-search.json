@@ -1,0 +1,76 @@
+{
+  "id": "links-person-search",
+  "routes": [
+    "link_records:person-search"
+  ],
+  "title": "Find by patient key",
+  "purpose": "Find the tickets that carry a person-level link with an exact patient, research participant or donor key. Each search is recorded.",
+  "summary": "Search tickets by the exact key of a patient, research participant or donor link. Only staff with the Can view patient information permission can search, and every search is recorded.",
+  "tasks": [
+    {
+      "title": "Find tickets for a key",
+      "steps": [
+        "Type the key exactly as the source system writes it in [[Patient, participant or donor key]].",
+        "Select [[Search]]. Tickets carrying the key are listed."
+      ]
+    },
+    {
+      "title": "Open a ticket found",
+      "steps": [
+        "Select the ticket number in [[Tickets carrying this key]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only the exact key matches. Capital letters count, and a part of a key finds nothing.",
+    "Staff without the Can view patient information permission see a notice instead of the form. No role, admin included, includes it.",
+    "The key is not written back into the page. Type it again for another search.",
+    "Each search is recorded with a keyed digest of the key, not the key itself."
+  ],
+  "sections": [
+    {
+      "title": "Search",
+      "items": [
+        {
+          "label": "Reaching this page",
+          "description": "Select Find by patient key in the Links section of a ticket. The button shows only to staff with the Can view patient information permission. The page has no menu item, because a permission never changes the menu."
+        },
+        {
+          "label": "Patient, participant or donor key",
+          "description": "Required, up to 200 characters, as the source system writes it. Surrounding spaces are removed. The search is exact: no prefix, partial or case-insensitive match."
+        },
+        {
+          "label": "Search",
+          "description": "Runs the search as a POST. A GET request never searches. The key is not echoed into the form or the results, the page is not cached, and the key is never in the address."
+        },
+        {
+          "label": "Permission needed",
+          "description": "Staff without the permission see this notice and no form. It says an administrator grants the permission in Accounts & roles. A search sent without the permission is refused."
+        }
+      ]
+    },
+    {
+      "title": "Tickets carrying this key",
+      "paragraphs": [
+        "Columns: Ticket (opens the ticket), Subject, Organization and Status. Only tickets you may read are listed, so a ticket in a restricted category of another team is left out. Only current links count: a link that was removed no longer finds its ticket. No tickets carry this key means no readable ticket matched."
+      ]
+    },
+    {
+      "title": "What is recorded",
+      "paragraphs": [
+        "Each search writes an audit event on your account with a keyed digest of the key (an HMAC made with the deployment's secret, so the same key gives the same digest and the key cannot be read back), the link ids found and the ids of the tickets listed. The key itself is never stored in the history. Records of person-level links never appear in the client portal, in notifications, in page titles or addresses, or in list columns."
+      ]
+    }
+  ],
+  "sources": [
+    "links/forms.py",
+    "links/masking.py",
+    "links/record_urls.py",
+    "links/search.py",
+    "links/services.py",
+    "links/templates/links/person_search.html",
+    "links/templates/links/request_links_panel.html",
+    "links/tests/test_person_links.py",
+    "links/views.py"
+  ]
+}

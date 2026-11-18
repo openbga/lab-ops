@@ -1,0 +1,283 @@
+{
+  "id": "desk-request-list",
+  "routes": [
+    "desk:request-list"
+  ],
+  "title": "Tickets",
+  "purpose": "Work the laboratory's tickets: open a view such as My open or Unassigned in my teams, search and filter, change several tickets at once, and save your own views.",
+  "summary": "The laboratory's tickets, in views such as My open and Unassigned in my teams. Search, filter, open a ticket, change several at once, or log a new one.",
+  "tasks": [
+    {
+      "title": "Work your own tickets",
+      "steps": [
+        "The list opens on My open: tickets assigned to you that are not resolved or closed.",
+        "Select a ticket's number to open it.",
+        "Use [[Views]] to switch to another list, such as Unassigned in my teams. Each view shows how many tickets it holds."
+      ]
+    },
+    {
+      "title": "Log a new ticket",
+      "steps": [
+        "Select [[New ticket]] and fill in the form. On a phone the button is in the bar at the bottom of the screen."
+      ]
+    },
+    {
+      "title": "Find a ticket",
+      "steps": [
+        "Type a number, subject, organization, contact, caller or reference in [[Search]] and select [[Apply]].",
+        "To look beyond your view, open [[Views]] and choose All tickets first."
+      ]
+    },
+    {
+      "title": "Change several tickets at once",
+      "steps": [
+        "Tick the tickets, or the header checkbox to tick the whole page.",
+        "Choose assign, set status or close in [[With the selected]] and fill in what it asks for.",
+        "Select [[Apply to selected]]."
+      ]
+    },
+    {
+      "title": "Keep a list you use often",
+      "steps": [
+        "Set the filters and sort you want, then select [[Save view]].",
+        "Name it and choose who sees it. It then appears under Saved views in [[Views]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Filters narrow the view you are in. Under My open, Assigned to set to Nobody finds nothing. Choose All tickets for the widest list.",
+    "You only see tickets you may read. A ticket in a restricted category is listed only for its team's members and for supervisors.",
+    "A saved view keeps the filters, search text and sort, but starts from All tickets. To mimic My open, save it with Assigned to Me and Status Open or waiting.",
+    "Closing is all or nothing: one ticket that is not resolved, or a complaint not yet reviewed, stops the whole bulk close and nothing is closed.",
+    "The Overdue view and the Service clock filter depend on service targets. Where none is configured a ticket has no clock."
+  ],
+  "sections": [
+    {
+      "title": "Views and actions",
+      "paragraphs": [
+        "Every active staff role can open this page. Client portal accounts cannot (access refused). Each view and its count are computed for you from the tickets you may read, so counts differ between people. A line under the title describes the current view.",
+        "Bulk actions apply to the tickets as you saw them: if one changed since you opened the list, the whole action is refused and names it. Reload and select again."
+      ],
+      "items": [
+        {
+          "label": "Views",
+          "description": "Opens the list of views with the number of tickets each holds, then your saved views and the ones shared with you. The current view is highlighted. A view's count ignores the filters you have set on this page."
+        },
+        {
+          "label": "My open",
+          "description": "The default view. Tickets assigned to you whose status is Open, Waiting on client or Waiting on third party."
+        },
+        {
+          "label": "Unassigned in my teams",
+          "description": "Open or waiting tickets in a team you belong to that nobody is assigned to."
+        },
+        {
+          "label": "My teams",
+          "description": "Every open or waiting ticket in the teams you belong to, assigned or not."
+        },
+        {
+          "label": "Waiting on client",
+          "description": "Tickets whose status is Waiting on client: the client owes the next step."
+        },
+        {
+          "label": "Waiting on third party",
+          "description": "Tickets whose status is Waiting on third party: an outsider owes the next step."
+        },
+        {
+          "label": "Overdue",
+          "description": "Open or waiting tickets with a service clock past due. Service clocks exist when service targets are configured; a ticket with no clock is not overdue."
+        },
+        {
+          "label": "Complaints awaiting review",
+          "description": "Complaints that have not been reviewed and are not closed, whether or not a decision is recorded and whether or not you may review them. The Complaints filter's Awaiting review is narrower: see below."
+        },
+        {
+          "label": "Resolved not closed",
+          "description": "Tickets with status Resolved. Close them when nothing more is owed."
+        },
+        {
+          "label": "Recently closed",
+          "description": "Tickets closed in the last 7 days."
+        },
+        {
+          "label": "All tickets",
+          "description": "Every ticket you may read, whatever its status."
+        },
+        {
+          "label": "Saved views",
+          "description": "Your own views and those a supervisor shared with everyone or with a team you belong to, each with who it is shared with. A saved view opens with its filters and sort on top of All tickets. A shared view shows each reader only what that reader may read."
+        },
+        {
+          "label": "Rename, share or delete",
+          "description": "A link under the heading, shown only on one of your own saved views. It opens the view's edit page."
+        },
+        {
+          "label": "Save view",
+          "description": "Opens a form that stores this list's current filters, search text and sort under a name. Shown to every staff role; sharing needs the supervisor role."
+        },
+        {
+          "label": "New ticket",
+          "description": "Opens the form to log a ticket. On a phone it is the main button in the bar at the bottom of the screen. Every staff role may log tickets."
+        }
+      ]
+    },
+    {
+      "title": "Search and filters",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the ticket number, subject, organization name, organization account code, contact name, the caller's name (Reported by) and the reference the caller gave, ignoring case. It does not search the text of entries."
+        },
+        {
+          "label": "Status",
+          "description": "Any status, Open or waiting (the three statuses that are not resolved or closed), or one status. It narrows the current view, so a view and a status that exclude each other show nothing."
+        },
+        {
+          "label": "Assigned to",
+          "description": "Anyone, Me, or Nobody (tickets without an assignee)."
+        },
+        {
+          "label": "Team",
+          "description": "More filters: tickets of one team."
+        },
+        {
+          "label": "Person",
+          "description": "More filters: tickets assigned to one active staff account. Choose from the pick list; it searches as you type."
+        },
+        {
+          "label": "Category",
+          "description": "More filters: one ticket category (not a category group)."
+        },
+        {
+          "label": "Priority",
+          "description": "More filters: Low, Normal, High or Urgent."
+        },
+        {
+          "label": "Organization",
+          "description": "More filters: tickets of one client organization (any organization, active or not). Tickets logged without an organization are not matched."
+        },
+        {
+          "label": "Site",
+          "description": "More filters: tickets for one client site."
+        },
+        {
+          "label": "Complaints",
+          "description": "More filters: Any, Complaints, Not complaints, or Awaiting review. Awaiting review keeps the complaints that have a decision, that you did not record the decision for, that you are not assigned to and have never been assigned to, and that are not yet reviewed: the ones you may review as independent reviewer."
+        },
+        {
+          "label": "Service clock",
+          "description": "More filters: Overdue, Due soon, Paused, On track, Met, Missed or No clock. Clocks are worked out from service targets, so this filter is meaningful once targets are configured."
+        },
+        {
+          "label": "Created from / Created to",
+          "description": "More filters: the date the ticket was logged. The end date must not be before the start date."
+        },
+        {
+          "label": "Apply, Clear all and filter chips",
+          "description": "Apply combines the search and the filters and returns to page 1. Clear all restores the unfiltered address and default sort. Removing a chip clears one criterion. Filters and sort stay in the page address, so a list can be bookmarked."
+        },
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, filters, Apply, Clear all, Columns and the sort choices are behind one Filter and sort button, so the first rows show straight away. The button shows how many filters are active. Tickets show as stacked rows instead of a wide table."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "paragraphs": [
+        "The list is sorted by Updated, newest first, unless you sort another column. Sorting covers every matching ticket, not just the visible page. The Columns control shows, hides and reorders columns for your account; Number always stays."
+      ],
+      "items": [
+        {
+          "label": "Number",
+          "description": "The ticket number, such as REQ-000123. It opens the ticket, which remembers this list so Previous in list and Next in list can step through it. Sortable."
+        },
+        {
+          "label": "Subject",
+          "description": "The ticket's one-line subject, with its category below it. A Complaint chip follows the subject when the ticket is a complaint. Sortable by subject."
+        },
+        {
+          "label": "Status",
+          "description": "Open, Waiting on client, Waiting on third party, Resolved or Closed. Sortable."
+        },
+        {
+          "label": "Service clock",
+          "description": "The service clock's state in words (On track, Due soon, Overdue, Paused, Met, Missed, No target) with the earliest due time while it runs. Sortable by that due time."
+        },
+        {
+          "label": "Priority",
+          "description": "Low, Normal, High or Urgent. Sorting orders by urgency, not alphabetically."
+        },
+        {
+          "label": "Organization",
+          "description": "The client organization and, after a dot, its site. Shows No organization for an anonymous caller or an internal problem. Sortable."
+        },
+        {
+          "label": "Assigned to",
+          "description": "The person assigned, or Nobody yet, with the team that owns the ticket below. Sortable by person."
+        },
+        {
+          "label": "Updated",
+          "description": "When the ticket last changed, as date and time. Sortable."
+        }
+      ]
+    },
+    {
+      "title": "Change several tickets",
+      "paragraphs": [
+        "The bar above the table acts on the ticked tickets. The header checkbox ticks only the rows on the current page, and the bar counts how many are selected. Every selected ticket must be one you may read, or the whole action is refused and nothing changes. Selecting nothing is refused. Success reads \"N tickets changed.\""
+      ],
+      "items": [
+        {
+          "label": "With the selected",
+          "description": "Assign, Set status or Close."
+        },
+        {
+          "label": "Assign to",
+          "description": "For Assign: choose a team, or a person from a team's list. Tickets already with that team and person are skipped, and closed tickets are refused. A person is offered only with the team they belong to. No reason is asked in bulk."
+        },
+        {
+          "label": "Status",
+          "description": "For Set status: Open, Waiting on client or Waiting on third party. Resolved and closed tickets are refused (the message names them); resolve them or reopen them one at a time from their page."
+        },
+        {
+          "label": "Close",
+          "description": "Closes the selected tickets. Each must be Resolved. A complaint also needs its independent review first. If any one is refused, none is closed and the message names the ticket."
+        },
+        {
+          "label": "Apply to selected",
+          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns. The preference is saved for your account and changes no data."
+        },
+        {
+          "label": "Rows per page and pagination",
+          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total."
+        },
+        {
+          "label": "Empty states",
+          "description": "No tickets here means the view is empty. No tickets match means the filters hide everything; use Clear all. An invalid filter shows an error and no rows."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/lists.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/saved_views.py",
+    "desk/selectors.py",
+    "desk/templates/desk/request_list.html",
+    "service_levels/selectors.py",
+    "docs/workflows.md"
+  ]
+}

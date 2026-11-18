@@ -1,0 +1,140 @@
+{
+  "id": "teams-team-detail",
+  "routes": [
+    "teams:team-detail"
+  ],
+  "title": "Team",
+  "purpose": "See a team's members and history, add or remove members, set team leads, and open the team's tickets.",
+  "summary": "One team: its members, who leads it and what changed. Admins and supervisors add and remove members and set leads. The admin role edits the team.",
+  "tasks": [
+    {
+      "title": "Add a member",
+      "steps": [
+        "Choose the [[Person]] under Add a member. Tick [[Team lead]] if they lead the team.",
+        "Select [[Add member]]."
+      ]
+    },
+    {
+      "title": "Make someone a team lead, or not",
+      "steps": [
+        "In the member's row select [[Make lead]] or [[Not lead]]."
+      ]
+    },
+    {
+      "title": "Remove a member",
+      "steps": [
+        "In the member's row select [[Remove]] and confirm."
+      ]
+    },
+    {
+      "title": "See the team's work",
+      "steps": [
+        "Select [[The team's tickets]] to open the Tickets list for its open and waiting tickets."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only admins and supervisors see the member buttons and the form; other staff roles read the list.",
+    "Removing a member returns their open tickets in this team to its queue, unassigned; the confirmation says how many. Deactivating an account does the same in every team.",
+    "Membership matters for restricted ticket categories: only a team's members and supervisors read those tickets.",
+    "A person who has left stays listed with an Inactive account chip until they are removed."
+  ],
+  "sections": [
+    {
+      "title": "Header",
+      "items": [
+        {
+          "label": "Active / Inactive",
+          "description": "Whether the team takes new tickets. An inactive team keeps its tickets and history."
+        },
+        {
+          "label": "Default team",
+          "description": "Shown when this is the default team, which receives tickets whose category names no team."
+        },
+        {
+          "label": "Members count",
+          "description": "The number of members, for example 3 members."
+        },
+        {
+          "label": "Edit team",
+          "description": "Opens the team form (see Team form). Shown to the admin role only."
+        },
+        {
+          "label": "The team's tickets",
+          "description": "Opens the Tickets list in the All tickets view, filtered to this team and to open or waiting statuses. It shows only tickets you may read."
+        },
+        {
+          "label": "Description",
+          "description": "The team's description, when one was entered."
+        }
+      ]
+    },
+    {
+      "title": "Members",
+      "paragraphs": [
+        "Members are listed with leads first, then by name. A member's Inactive account chip means the person can no longer sign in; they remain a member until removed."
+      ],
+      "items": [
+        {
+          "label": "Person",
+          "description": "The member's name (or user name)."
+        },
+        {
+          "label": "Lead",
+          "description": "A Lead chip, or a dash. A team may have several leads or none. The lead flag marks who leads; it gives no extra permissions in this version."
+        },
+        {
+          "label": "Open tickets",
+          "description": "How many tickets in this team that are not closed are assigned to the person. If you remove them, these return to the team's queue."
+        },
+        {
+          "label": "Make lead / Not lead",
+          "description": "Switches the lead flag. Shown to admins and supervisors."
+        },
+        {
+          "label": "Remove",
+          "description": "Opens a confirmation. Removing deletes the membership and records it in the team's history. They stop seeing the team's unassigned work in their views and lose access to the team's restricted tickets. Their tickets in this team that are not closed return to the team's queue, unassigned; the confirmation shows how many first, and Open tickets in the members table counts them. No reason is asked."
+        },
+        {
+          "label": "No members yet",
+          "description": "Shown for an empty team."
+        }
+      ]
+    },
+    {
+      "title": "Add a member",
+      "paragraphs": [
+        "Shown to admins and supervisors. Anyone else who posts to this page is refused."
+      ],
+      "items": [
+        {
+          "label": "Person",
+          "description": "Required. An active laboratory staff account with at least one staff role; client portal accounts are never offered. The list searches as you type. Someone already in the team is refused (\"This person already belongs to the team.\")."
+        },
+        {
+          "label": "Team lead",
+          "description": "Optional. Tick to add them as a lead."
+        },
+        {
+          "label": "Add member",
+          "description": "Adds the person and confirms Member added."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "A panel with the team's recorded changes, oldest first: creation, edits with their reasons, members added or removed and lead changes, each with who and when. No recorded changes shows when there are none."
+      ]
+    }
+  ],
+  "sources": [
+    "teams/urls.py",
+    "teams/views.py",
+    "teams/forms.py",
+    "teams/services.py",
+    "teams/models.py",
+    "teams/templates/teams/team_detail.html",
+    "desk/selectors.py"
+  ]
+}

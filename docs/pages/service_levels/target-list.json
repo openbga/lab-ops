@@ -1,0 +1,217 @@
+{
+  "id": "service-levels-target-list",
+  "routes": [
+    "service_levels:target-list"
+  ],
+  "title": "Service targets",
+  "purpose": "See the first-response and resolution times the laboratory has set, which tickets each one covers, and how the clocks they start behave.",
+  "summary": "The first-response and resolution times set for tickets, by category and priority. The most specific active target decides each ticket's clocks. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Find a target",
+      "steps": [
+        "Type part of a target, category or calendar name in [[Search]] and select [[Apply]].",
+        "Select the target's name to open its edit form."
+      ]
+    },
+    {
+      "title": "Add a target",
+      "steps": [
+        "Select [[New service target]], choose what it covers and enter at least one time.",
+        "Save. New tickets use it straight away."
+      ]
+    },
+    {
+      "title": "Check which target a ticket will get",
+      "steps": [
+        "Read [[Which target applies]] under the table: the first active target that matches, from most to least specific."
+      ]
+    },
+    {
+      "title": "Review the business hours behind the times",
+      "steps": [
+        "Select [[Business calendars]] to see the opening hours and holidays that targets count in."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The product sets no service levels. With no target there are no clocks, and the presets add none.",
+    "A ticket is given its times when it is created and again when its category or priority changes. A clock that was met never moves.",
+    "Editing a target does not change tickets that already have their times. It applies to tickets created or recalculated afterwards.",
+    "Waiting on the client always pauses the resolution clock. Waiting on a third party pauses it only when the target says so."
+  ],
+  "sections": [
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the target name, the category or group name, or the calendar name, ignoring case."
+        },
+        {
+          "label": "Status",
+          "description": "All statuses and All show active and inactive targets. Active or Inactive filters on the target's Active setting."
+        },
+        {
+          "label": "New service target",
+          "description": "Opens the form to add a target."
+        },
+        {
+          "label": "Business calendars",
+          "description": "Opens the list of business calendars."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Target",
+          "description": "The name staff see. It opens the edit form. Always shown; default sort is name."
+        },
+        {
+          "label": "Category",
+          "description": "The category the target covers, the group followed by (whole group) when it covers a group, or Any category. Sortable."
+        },
+        {
+          "label": "Priority",
+          "description": "Low, Normal, High or Urgent, or Any priority. Sortable."
+        },
+        {
+          "label": "First response",
+          "description": "The time allowed before a first reply, such as 4 h or 30 min, or a dash when none is set. Sortable."
+        },
+        {
+          "label": "Resolution",
+          "description": "The time allowed to resolve the ticket, or a dash. A note says pauses for third party when the target pauses while waiting on a third party. Sortable."
+        },
+        {
+          "label": "Calendar",
+          "description": "The business calendar the times count in, or Around the clock. Sortable; hidden first on narrow screens."
+        },
+        {
+          "label": "Status",
+          "description": "Active or Inactive. Sortable."
+        }
+      ]
+    },
+    {
+      "title": "Which target applies",
+      "paragraphs": [
+        "A ticket takes the first active target that matches it, in this order: category and priority; category, any priority; group and priority; group, any priority; any category and priority; any category, any priority. A target set on a group covers every category in that group. No match means no clock.",
+        "Only one active target may cover a given category and priority combination, so two active targets never tie. Deactivate or change the existing one first."
+      ]
+    },
+    {
+      "title": "How time is counted",
+      "paragraphs": [
+        "A target with a calendar counts only its opening hours, less its holidays, in the laboratory's time zone. A target with no calendar runs around the clock.",
+        "Opening hours cannot cross midnight. An overnight shift is written as two intervals, for example 22:00-24:00 on one day and 00:00-06:00 on the next, and time runs on without a break across midnight.",
+        "A due time that falls exactly at closing time stays at closing time; it does not move to the next opening. A day with a daylight saving change counts its real length in hours."
+      ]
+    },
+    {
+      "title": "When due times are worked out",
+      "paragraphs": [
+        "Due times are counted from the ticket's creation time when the ticket is created, and again when its category or priority changes. At that moment the target's times, calendar and third-party setting are copied to the ticket's clock.",
+        "A clock that has been met never moves. If no target applies after a change, the clocks that are still running lose their due times. If none applied before and one applies now, the clocks start, counted from creation.",
+        "Editing a target or calendar applies to tickets created or recalculated afterwards. The calendar's hours and holidays in force are also read whenever a due time is worked out again, including when a paused or reopened clock resumes."
+      ]
+    },
+    {
+      "title": "First-response clock",
+      "paragraphs": [
+        "It starts at creation and does not pause. It is met by the first staff reply, or by the first logged contact whose outcome reached the client (spoke with, or message delivered). For a ticket staff log from a call or walk-in it is met at creation. The words a ticket was opened with, notes, events and client replies do not meet it. Resolving or closing the ticket also meets it."
+      ]
+    },
+    {
+      "title": "Resolution clock",
+      "paragraphs": [
+        "It stops when the ticket is Resolved or Closed. If the ticket is reopened, it resumes and the time spent resolved does not count. It pauses while the ticket is Waiting on client, and while it is Waiting on third party only when the target's Pause while waiting on a third party is on. The due time is the creation time plus the target plus the time paused, counted on the target's calendar."
+      ]
+    },
+    {
+      "title": "Clock states",
+      "items": [
+        {
+          "label": "On track",
+          "description": "Running, not past due, with more than the due-soon margin left."
+        },
+        {
+          "label": "Due soon",
+          "description": "Running, with less than a fifth of the target, or one hour, whichever is longer, left. The time left is measured in clock time, not business time."
+        },
+        {
+          "label": "Overdue",
+          "description": "Running and past its due time."
+        },
+        {
+          "label": "Paused",
+          "description": "The resolution clock while the ticket waits on the client, or on a third party when the target says so."
+        },
+        {
+          "label": "Met",
+          "description": "Answered or resolved on time."
+        },
+        {
+          "label": "Missed",
+          "description": "Met late, or past due when a change touched it. Once missed, a clock stays missed."
+        },
+        {
+          "label": "No target",
+          "description": "No target applies, so the ticket has no clock."
+        }
+      ]
+    },
+    {
+      "title": "One state per ticket",
+      "paragraphs": [
+        "A ticket with two clocks shows the worst one still running: Overdue, then Missed, then Due soon, then Paused, then On track. When both clocks are met, the ticket is Missed if either was late, otherwise Met."
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, status filter, Apply, Clear all, Columns and the sort links are behind one Filter and sort button."
+        },
+        {
+          "label": "Apply",
+          "description": "Combines the search and the status filter across all targets and returns to page 1."
+        },
+        {
+          "label": "Clear all / filter chips",
+          "description": "Clear all restores the unfiltered list and default sort. Removing a chip clears that criterion."
+        },
+        {
+          "label": "Column headings",
+          "description": "Linked headings sort all matching targets, not just this page."
+        },
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns for your account. The Target column stays visible. It does not change data."
+        },
+        {
+          "label": "Empty states",
+          "description": "No service targets yet explains there are no clocks until a target applies. No targets match these filters offers to clear the filters."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/rules.py",
+    "service_levels/clocks.py",
+    "service_levels/business_time.py",
+    "service_levels/states.py",
+    "service_levels/models.py",
+    "service_levels/forms.py",
+    "service_levels/templates/service_levels/target_list.html",
+    "core/lists.py",
+    "templates/includes/grid_toolbar.html",
+    "service_levels/tests/test_clocks.py",
+    "service_levels/tests/test_setup.py"
+  ]
+}

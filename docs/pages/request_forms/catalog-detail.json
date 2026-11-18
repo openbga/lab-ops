@@ -1,0 +1,128 @@
+{
+  "id": "request-forms-catalog-detail",
+  "routes": [
+    "request_forms:catalog-detail"
+  ],
+  "title": "Catalog",
+  "purpose": "See one catalog with the forms that use it, its items and its history, and add, reorder or open its items.",
+  "summary": "One catalog of orderable items: its description, the forms that use it, its items in the order clients see them, and its change history. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Add an item",
+      "steps": [
+        "Select [[Add item]], enter the [[Item name]] and, if the laboratory has one, the [[Item code]] and [[Unit]].",
+        "Save. The item goes to the end of the list."
+      ]
+    },
+    {
+      "title": "Put items in the order clients see",
+      "steps": [
+        "In the last column of a row, open [[Move]] and select [[Move up]] or [[Move down]]."
+      ]
+    },
+    {
+      "title": "Stop offering an item",
+      "steps": [
+        "Select the item's name, clear [[Active]], give a reason and save.",
+        "Select [[Show inactive]] to find it again."
+      ]
+    },
+    {
+      "title": "Rename or switch off the catalog",
+      "steps": [
+        "Select [[Edit catalog]], change it, write the reason and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Clients see only active items. An item you switch off disappears from new tickets but stays on tickets that ordered it.",
+    "Other names are shown under an item's name on the form, so clients find it by a cap color or a common name.",
+    "A catalog that is inactive cannot be chosen by new item-list fields.",
+    "The product records the order. The laboratory fills it."
+  ],
+  "sections": [
+    {
+      "title": "Header",
+      "items": [
+        {
+          "label": "Status line",
+          "description": "Under the title: Active or Inactive, and the number of items shown (offered, when only active items are listed)."
+        },
+        {
+          "label": "Edit catalog",
+          "description": "Opens the catalog settings."
+        },
+        {
+          "label": "Add item",
+          "description": "Opens the form to add an item to this catalog."
+        }
+      ]
+    },
+    {
+      "title": "Catalog panel",
+      "items": [
+        {
+          "label": "Description",
+          "description": "The staff note about what the catalog holds. None when empty."
+        },
+        {
+          "label": "Used by",
+          "description": "The active item-list fields that use the catalog, each as the form's name (linked) and the field's label in brackets. No form uses it when there are none."
+        },
+        {
+          "label": "Key",
+          "description": "The catalog's stable code. It never changes."
+        }
+      ]
+    },
+    {
+      "title": "Items table",
+      "paragraphs": [
+        "Items are listed in the order clients see them. Select Show inactive to include items that were switched off, and Hide inactive to return. Inactive items carry an Inactive mark and cannot be ordered."
+      ],
+      "items": [
+        {
+          "label": "Item",
+          "description": "The item's name. It opens the item's settings."
+        },
+        {
+          "label": "Code",
+          "description": "The laboratory's item number. A dash when none."
+        },
+        {
+          "label": "Unit",
+          "description": "What one counts as, for example each, box of 50 or case of 12. A dash when none."
+        },
+        {
+          "label": "Most per ticket",
+          "description": "The most a client may order at once. No limit when empty."
+        },
+        {
+          "label": "Other names",
+          "description": "Words clients use for the item. Shown under its name in the form. Hidden first on narrow screens."
+        },
+        {
+          "label": "Move",
+          "description": "Menu with Move up and Move down, one step each. The first row has no Move up and the last no Move down. The move uses the full order, inactive items included."
+        },
+        {
+          "label": "No items yet",
+          "description": "Shown when the catalog has no item. It offers Add item."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "The latest recorded changes to the catalog itself, newest first, with who made them, when and the reason. Changes to its items are in each item's history in the audit log."
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/services.py",
+    "request_forms/models.py",
+    "request_forms/templates/request_forms/catalog_detail.html"
+  ]
+}

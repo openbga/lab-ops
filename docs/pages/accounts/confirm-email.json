@@ -1,0 +1,67 @@
+{
+  "id": "accounts-confirm-email",
+  "routes": [
+    "account_confirm_email"
+  ],
+  "title": "Confirm email address",
+  "purpose": "Confirm the email address identified by a verification link.",
+  "summary": "Confirm that an email address belongs to your account, from the link in a verification email.",
+  "tasks": [
+    {
+      "title": "Confirm the address",
+      "steps": [
+        "Check the address and account shown.",
+        "Select [[Confirm]]. Opening the link alone does not verify the address."
+      ]
+    },
+    {
+      "title": "Get a new link when this one has expired",
+      "steps": [
+        "Select [[issue a new email confirmation request]] to open Email addresses.",
+        "Request another link there and use it within three days."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Opening a link for a different account signs out the account you were using.",
+    "If another account already holds this verified address, the page says Unable to confirm and nothing is recorded.",
+    "Confirming an address never creates an account or adds laboratory access."
+  ],
+  "sections": [
+    {
+      "title": "Displayed target and action",
+      "items": [
+        {
+          "label": "Email address / user",
+          "description": "Read-only address and account display name obtained from the signed link; the email is also a mailto link."
+        },
+        {
+          "label": "Confirm",
+          "description": "Shown only for a valid link whose address can be verified. POSTs confirmation; merely opening the link does not verify it. Successful confirmation returns to the application/sign-in destination."
+        },
+        {
+          "label": "issue a new email confirmation request",
+          "description": "Shown for invalid or expired links and opens Email Addresses, requiring sign-in if necessary. A link normally expires after three days."
+        },
+        {
+          "label": "Unable to confirm",
+          "description": "Shown without Confirm when another account already holds the same verified address; no verification is recorded."
+        }
+      ]
+    },
+    {
+      "title": "Account boundaries",
+      "paragraphs": [
+        "Opening a valid confirmation link for a different account signs out the currently signed-in account. Verifying an address does not create an account, issue laboratory roles or grant another client’s records. Public sign-up remains closed."
+      ]
+    }
+  ],
+  "sources": [
+    "config/settings.py",
+    "templates/allauth/layouts/base.html",
+    "templates/allauth/layouts/manage.html",
+    "uv.lock",
+    "accounts/models.py",
+    "accounts/adapter.py"
+  ]
+}

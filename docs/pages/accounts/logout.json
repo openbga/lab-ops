@@ -1,0 +1,60 @@
+{
+  "id": "accounts-logout",
+  "routes": [
+    "account_logout"
+  ],
+  "title": "Sign out",
+  "purpose": "Confirm that you want to end the current session.",
+  "summary": "Confirm that you want to sign out of this browser.",
+  "tasks": [
+    {
+      "title": "Sign out",
+      "steps": [
+        "Select [[Sign Out]]. The session ends and you return to sign in."
+      ]
+    },
+    {
+      "title": "Stay signed in",
+      "steps": [
+        "Leave the page with the normal navigation. Opening this page does not sign you out."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The Sign out item in the account menu signs out at once, without this page.",
+    "Your theme, column and help-panel preferences are kept after you sign out.",
+    "Signing out ends any half-finished sign-in in this browser too."
+  ],
+  "sections": [
+    {
+      "title": "Action",
+      "items": [
+        {
+          "label": "Sign Out",
+          "description": "POSTs the confirmation and ends this browser session, including any pending authentication stage, then returns to sign-in. Viewing this page with GET does not sign out. The account menu’s Sign out submits the same action directly without opening confirmation."
+        }
+      ]
+    },
+    {
+      "title": "Navigation and persistence",
+      "paragraphs": [
+        "There is no Back or Cancel button in the confirmation form. Leave using normal page/navigation links if you want to stay signed in. Existing browser theme, column and documentation preferences are not removed by signing out. This is the account confirmation page; the administration Log out control is a separate immediate POST action."
+      ]
+    },
+    {
+      "title": "Sign-out activity",
+      "paragraphs": [
+        "Ending an authenticated session records a sign-out with the stored username in the deployment’s application logs. Opening this confirmation page or canceling a pending sign-in while already signed out does not record a sign-out. These logs follow the deployment’s retention and survive database resets. A browser cookie expiring or a database reset is not an explicit sign-out and does not generate this event."
+      ]
+    }
+  ],
+  "sources": [
+    "config/settings.py",
+    "templates/allauth/layouts/base.html",
+    "templates/allauth/layouts/manage.html",
+    "uv.lock",
+    "templates/includes/user_menu.html",
+    "accounts/signin_log.py",
+    "accounts/tests/test_signin_log.py"
+  ]
+}

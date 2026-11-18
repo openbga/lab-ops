@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load ui desk %}
+{% comment %}
+The request list (docs/ui-standards.md section 5). Context (core.lists.list_response): page_obj
+(ServiceRequest, annotated by service_levels.selectors.annotate_clock_state), filter_form
+(desk.lists.RequestFilter), q, sort, per_page, active_filters and the toolbar context; views (the
+system views with counts), saved_views, current_view, view_description, bulk_form (each selected
+row posts "<id>:<revision>", so a request changed since the list was opened is refused), list_query
+(this list's query string, carried to each request page for previous and next).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">{{ view_description }}</p>{% endblock %}
+{% block page_actions %}
+<div class="dropdown">
+  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{% icon name="list-check" %}Views{% icon name="chevron-down" class="vr-caret" %}</button>
+  <ul class="dropdown-menu dropdown-menu-end vr-view-menu">
+    {% for view in views %}<li><a class="dropdown-item{% if view.current %} active{% endif %}" href="{{ view.url }}"{% if view.current %} aria-current="page"{% endif %}><span>{{ view.label }}</span> <span class="vr-muted">{{ view.count }}</span></a></li>{% endfor %}
+    {% if saved_views %}<li><hr class="dropdown-divider"></li><li><h2 class="dropdown-header">Saved views</h2></li>
+    {% for view in saved_views %}<li><a class="dropdown-item{% if view.current %} active{% endif %}" href="{{ view.url }}"{% if view.current %} aria-current="page"{% endif %}><span>{{ view.label }}</span>{% if view.shared %} <span class="vr-muted">{{ view.shared }}</span>{% endif %}</a></li>{% endfor %}{% endif %}
+  </ul>
+</div>
+<a class="btn btn-outline-secondary" href="{% url 'desk:request-find' %}">{% icon name="search" %}Find</a>
+<a class="btn btn-outline-secondary" href="{% url 'desk:view-create' %}?list={{ list_query|urlencode }}">Save view</a>
+<a class="btn btn-primary" href="{% url 'desk:request-create' %}">{% icon name="plus-lg" %}New ticket</a>
+{% endblock %}
+{% block content %}
+{% for view in saved_views %}{% if view.current and view.own %}
+<p class="vr-form-note"><a href="{% url 'desk:view-edit' view.view.pk %}">Rename, share or delete “{{ view.label }}”</a></p>
+{% endif %}{% endfor %}
+{% url 'desk:request-create' as create_url %}
+{% panel title=page_title table=True hidden_title=True %}
+  {% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields %}
+  {% list_results items=page_obj noun="tickets" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match" no_results_body="Nothing in this view matches these filters." empty_title="No tickets here" empty_body="Tickets appear here as they are logged in the desk or raised in the client portal." action_url=create_url action_label="New ticket" %}
+{# form: bulk-selection #}
+  <form method="post" action="{% url 'desk:request-bulk' %}" id="bulk-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <div class="vr-bulkbar" role="group" aria-label="Change the selected tickets">
+      {{ bulk_form.action.as_field_group }}
+      {{ bulk_form.assign_to.as_field_group }}
+      {{ bulk_form.status.as_field_group }}
+      <button class="btn btn-outline-secondary" type="submit">Apply to selected</button>
+      <p class="vr-form-note mb-0"><span data-vr-select-count="requests" aria-live="polite">0 selected</span>. The header checkbox selects this page only. Close applies to resolved tickets; a complaint closes after its review.</p>
+    </div>
+  </form>
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="desk.requests" data-vr-grid-version="3" aria-label="{{ page_title }}">
+      <thead>
+        <tr>
+          <th scope="col" data-vr-col="select" data-vr-col-locked data-vr-col-label="Select">{% select_all name="requests" label="Select all tickets on this page" %}</th>
+          {% sort_header label="Number" asc="number" desc="-number" col="number" locked=True first="desc" %}
+          {% sort_header label="Subject" asc="subject" desc="-subject" col="subject" %}
+          {% sort_header label="Status" asc="status" desc="-status" col="status" %}
+          {% sort_header label="Service clock" asc="clock" desc="-clock" col="clock" %}
+          {% sort_header label="Priority" asc="priority" desc="-priority" col="priority" first="desc" %}
+          {% sort_header label="Organization" asc="client" desc="-client" col="client" %}
+          {% sort_header label="Assigned to" asc="assignee" desc="-assignee" col="assignee" %}
+          {% sort_header label="Updated" asc="updated_at" desc="-updated_at" col="updated_at" first="desc" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in page_obj %}
+        <tr>
+          <td>{% with key=req.pk|stringformat:"s" seen=req.revision|stringformat:"s" %}{% row_select name="requests" value=key|add:":"|add:seen label="Select "|add:req.number form_id="bulk-form" %}{% endwith %}</td>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'desk:request-detail' req.pk %}?list={{ list_query|urlencode }}">{{ req.number }}</a></th>
+          <td>{{ req.subject }}{% if req.is_complaint %} {% status label="Complaint" tone="warning" plain=True %}{% endif %}<div class="vr-muted small">{{ req.category.name }}</div></td>
+          <td>{% status label=req.get_status_display tone=req.status|status_tone plain=True %}</td>
+          <td>{% include "service_levels/_clock_badge.html" with request=req %}</td>
+          <td>{% status label=req.get_priority_display tone=req.priority|priority_tone plain=True %}</td>
+          <td>{% if req.client %}{{ req.client.name }}{% if req.site %} <span class="vr-muted">· {{ req.site.name }}</span>{% endif %}{% else %}<span class="vr-muted">No organization</span>{% endif %}</td>
+          <td>{{ req.assignee|person|default:"Nobody yet" }}<div class="vr-muted small">{{ req.team.name }}</div></td>
+          <td class="vr-nowrap"><time datetime="{{ req.updated_at|date:'c' }}">{{ req.updated_at|date:"Y-m-d H:i" }}</time></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

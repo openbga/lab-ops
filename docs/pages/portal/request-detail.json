@@ -1,0 +1,206 @@
+{
+  "id": "portal-request-detail",
+  "routes": [
+    "portal:request-detail"
+  ],
+  "title": "Ticket",
+  "purpose": "Follow one ticket: read the conversation with the laboratory, see where it stands, reply, or raise a follow-up once it is closed.",
+  "summary": "One of your tickets: where it stands, the conversation with the laboratory, and a box to reply. A closed ticket takes a follow-up ticket instead.",
+  "tasks": [
+    {
+      "title": "Reply to the laboratory",
+      "steps": [
+        "Write your message in [[Your reply]] under Reply.",
+        "Select [[Send reply]]. Your message joins the Conversation."
+      ]
+    },
+    {
+      "title": "Answer a ticket that waits for you",
+      "steps": [
+        "Read the notice Waiting for you and the latest message in the Conversation.",
+        "Send the information with [[Send reply]]. The ticket goes back to the laboratory."
+      ]
+    },
+    {
+      "title": "Continue a closed ticket",
+      "steps": [
+        "Select [[New follow-up ticket]], fill in the form and send it."
+      ]
+    },
+    {
+      "title": "Ask for the same thing again",
+      "steps": [
+        "In Form details select [[Request again]].",
+        "Check the copied answers, fill what is blank and select [[Send ticket]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Replying to a ticket that is Waiting for you or Resolved sends it back to the laboratory, and it shows With the laboratory again.",
+    "A closed ticket takes no more replies. Select [[New follow-up ticket]] to continue. The new ticket links back to the closed one.",
+    "Laboratory replies are signed with the team's name and the laboratory's name, never a person's.",
+    "You never see the laboratory's internal notes, who is assigned, priorities, service clocks, complaint records or patient links.",
+    "If the ticket changed after you opened the page, your reply is not sent. Your text stays in the box; reload and send it again."
+  ],
+  "sections": [
+    {
+      "title": "Header and notices",
+      "items": [
+        {
+          "label": "Status",
+          "description": "Where the ticket stands, in your wording: With the laboratory, Waiting for you, With a third party, Resolved or Closed. The header also shows the ticket number, the topic and the site."
+        },
+        {
+          "label": "Waiting for you",
+          "description": "A notice that the laboratory is waiting for information from you. Replying sends the ticket back to the laboratory."
+        },
+        {
+          "label": "Resolved",
+          "description": "A notice that the laboratory has resolved the ticket. If something is still wrong, reply and it goes back to the laboratory."
+        },
+        {
+          "label": "Closed",
+          "description": "A notice that the ticket takes no more replies, with a link to open a follow-up ticket that records this ticket's number."
+        },
+        {
+          "label": "New follow-up ticket",
+          "description": "Shown only on a closed ticket. Opens the ticket form with this ticket's number carried along."
+        }
+      ]
+    },
+    {
+      "title": "Ticket facts",
+      "paragraphs": [
+        "The first panel is titled with the ticket's subject."
+      ],
+      "items": [
+        {
+          "label": "Ticket",
+          "description": "The ticket number."
+        },
+        {
+          "label": "Topic",
+          "description": "What the ticket is about, in the laboratory's client wording."
+        },
+        {
+          "label": "Site",
+          "description": "The site the ticket is about, or Not about one site."
+        },
+        {
+          "label": "Your reference",
+          "description": "The reference you gave when raising the ticket, or None given."
+        },
+        {
+          "label": "Raised, Last update",
+          "description": "When the ticket was raised and when it last changed."
+        },
+        {
+          "label": "Follow-up of, Followed up in",
+          "description": "Follow-up of links to the closed ticket this one follows up. Followed up in lists up to three follow-up tickets raised from this one. Both show only tickets your account can see."
+        }
+      ]
+    },
+    {
+      "title": "Form details",
+      "paragraphs": [
+        "Shown when the ticket was raised with one of the laboratory's ticket forms. It lists the form's name and the answers you gave, under the labels they had then, and answers the laboratory records for you, such as a tracking number. Fields only the laboratory uses are not shown."
+      ],
+      "items": [
+        {
+          "label": "Request again",
+          "description": "Opens the same form with your answers copied, so you can check them and send a new ticket. Only answers shown to you on this ticket are copied. Dates, times, confirmations, patient details and order or sample numbers are left blank. Shown while the laboratory still offers the form to you."
+        }
+      ]
+    },
+    {
+      "title": "References",
+      "paragraphs": [
+        "This panel appears only when the laboratory chose to show you references to records in its other systems for this ticket. Person-level links are never shown."
+      ],
+      "items": [
+        {
+          "label": "Reference, Type, System",
+          "description": "The reference's label, what kind of record it is and the system it belongs to."
+        }
+      ]
+    },
+    {
+      "title": "Conversation",
+      "paragraphs": [
+        "The messages between you and the laboratory and the changes of status, oldest first. Nothing else about the ticket appears here."
+      ],
+      "items": [
+        {
+          "label": "You wrote",
+          "description": "A message sent by your own account."
+        },
+        {
+          "label": "Message from your organization",
+          "description": "A message sent by another portal account at your organization, with Sent by and their name."
+        },
+        {
+          "label": "Reply from the laboratory",
+          "description": "A reply from the laboratory, signed with the team's name and the laboratory's name."
+        },
+        {
+          "label": "Files on a message",
+          "description": "Files sent with a message are listed under it with their size and Not scanned. Select a name to download the file; it is never opened in the portal. Files the laboratory keeps internal, or has withdrawn, are not shown. Not scanned means no virus scanner has checked the file. Its type was checked from its content (an image must decode, every page or frame of it, a PDF must have a document structure, a Word or Excel file must be a valid package without macros), and it is always downloaded rather than opened here, but it can still carry harmful content. Open it only with up-to-date software, and ask the sender when something looks wrong."
+        },
+        {
+          "label": "Status: ...",
+          "description": "A change of status, in your wording, with its time."
+        },
+        {
+          "label": "No messages yet",
+          "description": "The empty state when nothing has been said yet."
+        }
+      ]
+    },
+    {
+      "title": "Reply",
+      "paragraphs": [
+        "The Reply panel is shown while the ticket is With the laboratory, Waiting for you, With a third party or Resolved. It is not shown on a closed ticket."
+      ],
+      "items": [
+        {
+          "label": "Your reply",
+          "description": "Required. Seen by the laboratory. Do not enter patient names or dates of birth."
+        },
+        {
+          "label": "Files",
+          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames; if one is refused, your text stays and you choose the files again. Files are not scanned for viruses."
+        },
+        {
+          "label": "Send reply",
+          "description": "Sends the message and returns to the Conversation with the message Reply sent to the laboratory. A reply on a ticket that was Waiting for you or Resolved sends it back to the laboratory, so its status becomes With the laboratory. A closed ticket refuses the reply with a message to open a follow-up ticket."
+        },
+        {
+          "label": "Ticket changed meanwhile",
+          "description": "If the ticket changed after you opened the page, the reply is refused with a message that the ticket changed, and the text you wrote stays in the box. Reload the page and send it again."
+        }
+      ]
+    },
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only an active client portal account can open this page, and only for a ticket it may see: one it raised, or one of its organization's or its sites' tickets when the laboratory gave it that access. A ticket in a restricted category is seen only by the account that raised it. Any other ticket number answers as not found. The page never shows internal notes, logged contacts, who is assigned, priorities, service clocks, complaint records or patient links. Sending a reply is a POST-only action of this page and has no page of its own."
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/forms.py",
+    "attachments/templates/attachments/_portal_reply_files.html",
+    "clients/portal.py",
+    "clients/portal_urls.py",
+    "desk/portal_forms.py",
+    "desk/portal_scope.py",
+    "desk/portal_views.py",
+    "desk/templates/desk/portal/request_detail.html",
+    "desk/tests/test_portal.py",
+    "docs/product.md",
+    "docs/workflows.md",
+    "request_forms/selectors.py",
+    "request_forms/templates/request_forms/_details.html",
+    "request_forms/templatetags/request_forms.py"
+  ]
+}

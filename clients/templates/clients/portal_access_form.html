@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Set one portal account's linked contact and scope (requirement C4). Context: client, account
+(the portal account, always of this organization), access (its PortalAccess for this
+organization, or None before the first save or when the access was granted for another
+organization), granted (access gives the whole organization or at least one site; false after a
+reset), form (clients.forms.PortalAccessForm; carries the reason once access exists),
+cancel_url, history (AuditEvent of the access row, newest first; shown oldest first).
+{% endcomment %}
+{% block breadcrumbs %}{% url 'clients:client-list' as list_url %}{% url 'clients:client-detail' client.pk as client_url %}{% breadcrumbs section="Client organizations" section_url=list_url record=client.name record_url=client_url %}{% endblock %}
+{% block content %}
+{% if not granted %}
+{% notice tone="info" label="Access not set" %}Until its access is saved, this account sees only the tickets it raises itself.{% endnotice %}
+{% endif %}
+{% form_page form=form cancel_url=cancel_url submit_label="Save access" class="vr-narrow" %}
+  <fieldset class="vr-form-section">
+    {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  </fieldset>
+{% endform_page %}
+{% if history %}
+{% history_panel events=history|dictsort:"occurred_at" heading_id="access-history-heading" class="mt-3 vr-narrow" %}{% endhistory_panel %}
+{% endif %}
+{% endblock %}

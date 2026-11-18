@@ -1,0 +1,64 @@
+{
+  "id": "portal-forms-choose",
+  "routes": [
+    "portal_forms:choose"
+  ],
+  "title": "New ticket",
+  "purpose": "Choose what you need from the laboratory: one of its ticket forms, or Something else for any other question.",
+  "summary": "Choose the service you need. Each form asks for the details the laboratory needs to open your ticket. Choose Something else for a question the forms do not cover.",
+  "tasks": [
+    {
+      "title": "Start a ticket with a form",
+      "steps": [
+        "Select the tile that describes what you need.",
+        "Fill in the form and send it."
+      ]
+    },
+    {
+      "title": "Ask something no form covers",
+      "steps": [
+        "Select [[Something else]]. It opens the general ticket form, where you choose a topic and describe what you need."
+      ]
+    },
+    {
+      "title": "Go back to your tickets",
+      "steps": [
+        "Select [[Tickets]] in the breadcrumbs at the top of the page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "You see only the forms the laboratory offers to clients. Staff-only forms never appear here.",
+    "Each tile shows the name and a short line from the laboratory. The laboratory chooses their order; with more than seven forms they are grouped under headings.",
+    "Something else is always offered, even when the laboratory offers no forms.",
+    "Only client portal accounts can open this page. Staff accounts are refused."
+  ],
+  "sections": [
+    {
+      "title": "Forms offered",
+      "items": [
+        {
+          "label": "Form tiles",
+          "description": "One tile for each ticket form that is active, offered to clients, and whose category clients may raise, in the laboratory's order. With more than seven forms, the tiles are grouped under headings, one per group of ticket topics. Each shows the form's picture, its client name and, when it has one, a short description. Selecting a tile opens that form. Featured forms also appear on the portal home's service menu; this page lists every offered form."
+        },
+        {
+          "label": "Something else",
+          "description": "The last tile, under Anything else when the forms are grouped. Its description reads “Contact the laboratory about something else.” Choose it to open a ticket, select a topic and describe what you need."
+        },
+        {
+          "label": "Tickets",
+          "description": "In the breadcrumbs: returns to your ticket list."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/portal_urls.py",
+    "request_forms/portal_views.py",
+    "request_forms/selectors.py",
+    "request_forms/templates/request_forms/portal/choose.html",
+    "request_forms/templates/request_forms/_service_grid.html",
+    "request_forms/templates/request_forms/_portal_menu.html",
+    "request_forms/tests/test_pages.py"
+  ]
+}

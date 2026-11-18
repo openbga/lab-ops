@@ -1,0 +1,125 @@
+{
+  "id": "clients-site-form",
+  "routes": [
+    "clients:site-create",
+    "clients:site-edit"
+  ],
+  "title": "Client site",
+  "purpose": "Add a place a client organization works from, or the laboratory serves, or change one already recorded. Editing also sets whether the site is active.",
+  "summary": "Add or change a site of a client organization, such as an office, department, collection site, plant or sampling location. Editing needs a reason and can mark the site inactive.",
+  "tasks": [
+    {
+      "title": "Add a site",
+      "steps": [
+        "Enter the [[Site name]], and optionally a code, the kind of site, its address and phone.",
+        "Select [[Add site]]. The organization's page opens at its Sites panel."
+      ]
+    },
+    {
+      "title": "Change a site",
+      "steps": [
+        "Change the details, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Leave instructions for staff",
+      "steps": [
+        "Write them in [[Internal instructions]], for example access, opening hours or where to leave kits, and save. The client never sees them."
+      ]
+    },
+    {
+      "title": "Stop using a site",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Its tickets and history stay."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only account managers, client services staff and the admin role can open this form. Other staff roles can read the sites on the organization's page.",
+    "A site code must be unique within its organization, whatever its letter case. Another organization can use the same code.",
+    "An inactive site keeps its tickets and history. It is no longer offered for new tickets or portal scopes.",
+    "A saved change needs a reason and at least one changed detail. Both go in the site's history.",
+    "If someone else changed the site after you opened the form, saving is refused and your input stays. Reload and review first."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "The form is grouped as Site, Address and phone, Instructions, Status and Change record. Surrounding spaces are removed from the code, name, phone, city and ZIP code before saving. A site has no page of its own: saving returns to the organization's Sites panel."
+      ],
+      "items": [
+        {
+          "label": "Site name",
+          "description": "Required. The name staff and, in the portal, clients see when choosing the site."
+        },
+        {
+          "label": "Site code",
+          "description": "Optional short code for the site. When given it must be unique within the organization; \"WEST\" and \"west\" count as the same code. Organizations do not share codes with each other, so another organization may use it. In the portal the code is shown beside the site name."
+        },
+        {
+          "label": "Kind",
+          "description": "What sort of place the site is: Office, Facility or department, Collection site, Plant, Sampling location or Other. Shown in the Kind column of the Sites panel."
+        },
+        {
+          "label": "Street address, Suite, building or PO box, City, State, ZIP code",
+          "description": "Optional address of the site. The Sites panel shows the street line and the city."
+        },
+        {
+          "label": "Phone",
+          "description": "Optional. Shown on the organization's page as a link that places a call on a phone."
+        },
+        {
+          "label": "Internal instructions",
+          "description": "Optional. For laboratory staff: access, opening hours, where to leave kits. They are not shown to the client."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. Clear it when the organization no longer works from this site. Its tickets and history are kept; it is no longer offered for new tickets."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the site's history."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Add site / Save changes",
+          "description": "Saves and returns to the organization's Sites panel. Each creation and change is audited with the person, the time and, for changes, the values before and after and the reason. A submission with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the organization's page without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the site changed after you opened the form, saving is refused with a message to reload and review the current record, and your input stays in the form."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored site is inactive, the edit form shows a notice that its tickets and history are kept."
+        },
+        {
+          "label": "Site history",
+          "description": "When editing, the changes recorded for this site are listed below the form, oldest first, with the reason for each."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/forms.py",
+    "clients/services.py",
+    "clients/permissions.py",
+    "clients/templates/clients/site_form.html",
+    "clients/templates/clients/client_detail.html",
+    "desk/portal_forms.py",
+    "desk/portal_scope.py",
+    "core/forms.py",
+    "templates/core/record_form.html",
+    "templates/includes/grouped_fields.html"
+  ]
+}

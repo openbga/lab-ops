@@ -1,0 +1,17 @@
+{% comment %}
+Decorative entrance illustration (the sign-in page's left side): a calm sky with the headline,
+lavender hills and a small town where the laboratory stands among its clients (a clinic, a water
+utility, a factory, offices) along one road: courier vans bring pickups in, cartons of supplies are
+stacked by the laboratory's door and a sample cooler waits on the clinic's step. The art is a CSS
+background (app.css .vr-scene): static/img/entrance/scene-light.svg or scene-dark.svg by the page's
+data-bs-theme, built by tools/entrance_scene/build.py. No script; the sky colour shows while it
+loads. The art is a background, so assistive technology skips it; the headline and subline are
+plain paragraphs (not headings: the page's heading is "Sign in") and are read first, before the
+sign-in panel. Below 992px the whole scene, text included, is not shown.
+{% endcomment %}
+<div class="vr-scene">
+  <div class="vr-scene-headline">
+    <p class="vr-scene-title">Every ticket, in good order</p>
+    <p class="vr-scene-sub">Client service tickets, pickups and supply orders, with their replies and files, kept by your laboratory in one place.</p>
+  </div>
+</div>

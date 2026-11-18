@@ -1,0 +1,160 @@
+# OpenBGA Lab Ops operations
+
+Use the [installation guide](../README.md) to set up the application. The procedures below
+cover recovery, access controls and the optional public demonstration.
+
+## What is protected
+
+PostgreSQL holds the application state, including accounts and MFA credentials, client
+records, tickets and conversations, form answers, attachment bytes, lab logos and audit
+events. Back up the entire database. The container filesystem is disposable.
+
+Keep the database backup encrypted and restrict access. It contains the authentication
+secrets and recovery codes stored by django-allauth. Back up the deployment configuration
+and secret keys separately in a secret manager. Reusing the deployment's secret key on
+recovery preserves signed sessions, tokens and the seal used by a demonstration database.
+
+The database enforces restrictions on updating and deleting history. A database owner or
+superuser can change the schema or disable triggers. Restrict database administration and
+keep separately protected backups.
+
+## Decisions the operator must make
+
+Set recovery time and recovery point objectives, backup retention, an encrypted off-provider
+destination and a restore-test schedule. Check that the provider's plan meets those
+objectives. Give each person a separate account so that audit events and independent
+complaint reviews identify the people involved.
+
+## Take a backup
+
+Use PostgreSQL 17 client tools. Configure connection details using PostgreSQL service
+definitions and a protected password file. The examples use service names `lab_ops_source`
+and `lab_ops_restore`. Give the second service its own empty database on an isolated
+instance. Confirm the database and host before running a restore.
+
+```sh
+pg_dump --dbname=service=lab_ops_source --format=directory --jobs=4 --no-owner --file=lab-ops.dump
+```
+
+Encrypt and copy the backup to its destination. Record the time, application revision and
+database version. To compare source and restored counts, suspend writes while taking the
+dump and recording the source counts. Queries issued separately from the dump can otherwise
+see a different snapshot.
+
+## Restore into an isolated database
+
+```sh
+pg_restore --exit-on-error --no-owner --no-privileges --jobs=4 \
+  --dbname=service=lab_ops_restore lab-ops.dump
+```
+
+Use a role with permission to create the objects in the empty database. Grant the application
+role its usual privileges before testing. A provider's point-in-time recovery can also
+supply an isolated restored database.
+
+## Verify the restore
+
+1. Start the same application revision with its database connection pointed at the restore.
+   Keep outbound mail disabled. Run `python manage.py migrate --check`.
+2. Compare these counts with the source summary taken while writes were suspended. An
+   installation that captures additional business records can include their tables too.
+
+   ```sql
+   select 'accounts', count(*) from accounts_user
+   union all select 'organizations', count(*) from clients_client
+   union all select 'tickets', count(*) from desk_servicerequest
+   union all select 'entries', count(*) from desk_requestentry
+   union all select 'attachments', count(*) from attachments_attachment
+   union all select 'audit events', count(*) from core_auditevent;
+   ```
+3. Check stored files and logos. Both queries should return zero.
+
+   ```sql
+   select count(*) from attachments_attachment a
+   left join attachments_attachmentblob b on b.attachment_id = a.id
+   where b.data is null or octet_length(b.data) <> a.size
+      or encode(sha256(b.data), 'hex') <> a.sha256;
+   select count(*) from core_lablogo where encode(sha256(image), 'hex') <> sha256;
+   ```
+4. Compare non-internal triggers against the original database and verify the restore
+   serves `/ready/`. Sign in, open a known ticket and download an attachment using an
+   account entitled to read it. Record the result of the drill.
+
+## Recover production
+
+For a bad application release, check whether the previous revision works with the current
+schema before redeploying it. Restoring an older database discards newer writes.
+
+For data loss, stop writes and retain the damaged database. Restore to a separate database,
+verify it and reconcile records created since the backup with the laboratory. Switch the
+application to the verified database. Keep the old copy for the laboratory's recovery and
+retention requirements.
+
+## Sign-in limits behind a proxy
+
+Failed sign-ins, password resets and sign-in code requests are rate limited. By default the
+address is the connecting peer. If a proxy serves everyone, requests can share one
+per-address limit. Set `ALLAUTH_TRUSTED_PROXY_COUNT` to the number of trusted proxies
+appending to `X-Forwarded-For`, or set `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` to a header
+your platform overwrites with the visitor's address. Verify the selected value from a known
+client. Make sure visitors cannot supply that value themselves. With the default per-process
+cache, each worker maintains separate counters.
+
+## Browser security headers
+
+The default Content Security Policy restricts resources to the application's origin.
+The Permissions Policy disables camera, microphone, geolocation, payment and USB access.
+`CONTENT_SECURITY_POLICY` replaces the entire policy. Review any replacement before deployment.
+
+## Request size
+
+The application rejects declared bodies larger than `MAX_REQUEST_BODY_BYTES` (12 MiB
+by default). Configure a body-size limit at the reverse proxy to cover requests without
+a declared length. Attachment type, count and file-size checks also apply in the application.
+
+## HTTPS policy
+
+With `DEBUG=false`, HTTP redirects to HTTPS and cookies are secure. The default
+`SECURE_HSTS_SECONDS` is one hour. Increase it once every applicable host works over HTTPS.
+Enable `SECURE_HSTS_INCLUDE_SUBDOMAINS` only if all subdomains support HTTPS.
+
+## Email
+
+Production mail is disabled until configured. Set the SMTP values in [.env.example](../.env.example)
+and verify delivery with a test account. Store credentials in the host's secret settings.
+Set `PUBLIC_URL` to the external HTTPS origin so sign-in links reach the correct deployment.
+
+Ticket notices include the number, a fixed event description, the laboratory name and a
+sign-in link. They are sent after the change commits. The `lab_ops.notifications` logger
+records delivery failures. An SMTP failure leaves the ticket change in place.
+
+## Logs
+
+`lab_ops.request` records the generated request ID, HTTP method, matched route, status
+and duration. Use the `X-Request-ID` response header to correlate an error.
+`lab_ops.signin` records sign-ins, failures and explicit sign-outs. Treat usernames as
+personal data. Set access and retention limits for platform and proxy logs too.
+Keep credentials, bodies, URLs carrying tokens and ticket contents out of operational logs.
+
+## Public demonstration
+
+Use a dedicated deployment with synthetic data. To display shared sign-in credentials,
+run `seed_demo --announce-accounts` with a public `DEMO_PASSWORD` and a different,
+private `DEMO_ADMIN_PASSWORD`. The seed checks that announced accounts have the expected
+permissions, organization and site access. It publishes credentials only when it can verify
+that the demonstration was initialized from an empty database.
+
+For a scheduled reset, set `ALLOW_DEMO_RESET=true` **only on the demonstration reset job**.
+The reset erases application records, including sessions and audit history, and reseeds in
+one transaction. It requires an empty or sealed demonstration database and matching
+migrations. A laboratory initialized with `setup_lab` is ineligible.
+
+`render.demo.yaml` defines an optional paid cron job for an existing demonstration web
+service and database. The job shares their source revision, database connection and signing
+key. Set both demo passwords when configuring it. Its default schedule is 08:00 UTC daily.
+Change the schedule and the public reset notice together. A regular deployment uses
+`render.yaml`; its deploy button creates no reset job.
+
+Deploy each release to the web service and reset job together. If using automatic deploys,
+point both services at the same branch and enable deployment after CI passes. A web deploy
+applies migrations. Seed changes take effect on the next demonstration reset.

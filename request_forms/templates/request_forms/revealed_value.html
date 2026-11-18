@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Reveal of a patient-information form value without JavaScript (F6): the same content as the HTMX
+fragment on a page of its own. The title is the field's label, never the value. Context: row,
+lines, back, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% panel title="Patient information" %}
+  <dl class="vr-facts">
+    {% fact label=row.label %}{% include "request_forms/_revealed_value.html" %}{% endfact %}
+  </dl>
+  <p><a href="{{ back }}">Back to the ticket</a></p>
+{% endpanel %}
+{% endblock %}

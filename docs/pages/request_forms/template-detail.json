@@ -1,0 +1,163 @@
+{
+  "id": "request-forms-template-detail",
+  "routes": [
+    "request_forms:template-detail"
+  ],
+  "title": "Ticket form",
+  "purpose": "See one ticket form with its fields and history, preview it as a client sees it, and add, reorder or open its fields.",
+  "summary": "One ticket form: its category, portal settings, fields and change history. Add and reorder fields, preview the client's view, or edit the form. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Add a field",
+      "steps": [
+        "Select [[Add field]], name the field, choose its [[Type]] and [[Who fills it]], and save.",
+        "Select [[Move]] on a row, then [[Move up]] or [[Move down]], to put it where it belongs."
+      ]
+    },
+    {
+      "title": "See the form as a client does",
+      "steps": [
+        "Select [[Preview]]. The preview shows the fields a client fills and sends nothing."
+      ]
+    },
+    {
+      "title": "Change or retire a field",
+      "steps": [
+        "Select the field's name in the [[Fields]] table, make the change and give a reason.",
+        "To retire it, clear [[Active]]. Tickets that hold a value keep it."
+      ]
+    },
+    {
+      "title": "Check why clients do not see the form",
+      "steps": [
+        "Read the notice at the top and the portal line under the title: Offered in the portal, On the service menu or Staff only.",
+        "Select [[Edit form]] to change the portal settings."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A field is never deleted. Switch it off and it leaves the form, while tickets that hold a value keep it.",
+    "Once tickets hold values of a field, its type cannot change. Add a new field and switch the old one off.",
+    "Patient information fields are marked in the Rules column. Their values are revealed one at a time, with an audit entry, to staff who hold Can view patient information.",
+    "The history here lists changes to the form itself. Changes to a field are in that field's own history in the audit log."
+  ],
+  "sections": [
+    {
+      "title": "Header and notices",
+      "items": [
+        {
+          "label": "Status line",
+          "description": "Under the title: Active or Inactive, the category's name, the portal state (On the service menu, Offered in the portal or Staff only) and how many tickets were raised with the form."
+        },
+        {
+          "label": "Not offered",
+          "description": "Shown for an active form whose category, or the category's group, is inactive. Neither clients nor staff can then use the form. Choose another category or reactivate the category."
+        },
+        {
+          "label": "Not in the portal",
+          "description": "Shown when the form is marked for the portal but clients may not raise tickets in its category, so the portal does not offer it."
+        },
+        {
+          "label": "Copy form",
+          "description": "Opens Copy, which creates a new form with every field of this one (inactive ones too, keys kept) under a new name and key. The copy is not on the service menu and has its own tickets and history. Use it for a variant, such as an urgent pickup beside the routine one."
+        },
+        {
+          "label": "Preview",
+          "description": "Opens the preview page."
+        },
+        {
+          "label": "Edit form",
+          "description": "Opens the form settings."
+        },
+        {
+          "label": "Add field",
+          "description": "Shown only while the form is active. Opens the form to add a field."
+        }
+      ]
+    },
+    {
+      "title": "Form panel",
+      "items": [
+        {
+          "label": "Category",
+          "description": "The category group and category tickets are filed under."
+        },
+        {
+          "label": "Client label",
+          "description": "The name clients see: the client label, or the form name when there is none."
+        },
+        {
+          "label": "Menu description",
+          "description": "The line under the label on the portal menu. None when empty."
+        },
+        {
+          "label": "Icon",
+          "description": "The portal menu icon and its name."
+        },
+        {
+          "label": "Instructions",
+          "description": "The text shown at the top of the form. None when empty."
+        },
+        {
+          "label": "Offered to",
+          "description": "Every client organization, or the organizations the form is limited to. Set it with Edit form."
+        },
+        {
+          "label": "Key",
+          "description": "The form's stable code. It never changes."
+        }
+      ]
+    },
+    {
+      "title": "Fields table",
+      "paragraphs": [
+        "Fields are listed in the order the form shows them. The panel title counts the fields shown. Select Show inactive to include fields that were switched off, and Hide inactive to return. Inactive fields carry an Inactive mark and are not on the form."
+      ],
+      "items": [
+        {
+          "label": "Field",
+          "description": "The field's label. It opens the field's settings."
+        },
+        {
+          "label": "Type",
+          "description": "The kind of answer the field takes. Under it: the catalog name for an item list, or the number of options for a choice. An item list whose catalog is retired says so: it is left off new tickets until it uses an active catalog."
+        },
+        {
+          "label": "Who fills it",
+          "description": "Client fills it; staff see it, Staff fill it; the client sees it, or Staff only."
+        },
+        {
+          "label": "Rules",
+          "description": "Required or Optional, and a Patient information mark when the field holds patient information."
+        },
+        {
+          "label": "Values",
+          "description": "How many values tickets hold for the field, counting corrected and replaced values too. Hidden first on narrow screens."
+        },
+        {
+          "label": "Move",
+          "description": "Menu with Move up and Move down, one step each, recorded in the field's history. The first row has no Move up and the last no Move down. The move uses the full order, inactive fields included."
+        },
+        {
+          "label": "No fields yet",
+          "description": "Shown when the form has no fields. Without fields the form asks only for the usual subject, description and reference."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "The latest recorded changes to the form itself, newest first, each with who made it, when and the reason. Reordering is recorded too. Changes to fields are not listed here."
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/services.py",
+    "request_forms/selectors.py",
+    "request_forms/models.py",
+    "request_forms/templates/request_forms/template_detail.html",
+    "request_forms/tests/test_pages.py"
+  ]
+}

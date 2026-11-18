@@ -1,0 +1,71 @@
+{
+  "id": "attachments-withdraw",
+  "routes": [
+    "attachments:withdraw"
+  ],
+  "title": "Withdraw file",
+  "purpose": "Withdraw a file attached to a ticket's reply or note, with a reason, so clients no longer reach it.",
+  "summary": "Take a file out of reach when it was attached by mistake, for example to the wrong ticket. The file stays in the ticket's history; only supervisors can do this.",
+  "tasks": [
+    {
+      "title": "Withdraw a file",
+      "steps": [
+        "On the ticket, select [[Withdraw file]] beside the file.",
+        "Type why in [[Reason for withdrawal]].",
+        "Select [[Withdraw file]] to confirm."
+      ]
+    },
+    {
+      "title": "Send the right file instead",
+      "steps": [
+        "Withdraw the wrong file with a reason.",
+        "On the ticket, add a new reply or note and attach the right file with it."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Withdrawing cannot be undone, and the file is never deleted or replaced.",
+    "Clients no longer see or download the file. Staff see it labelled Withdrawn with the reason.",
+    "Only supervisors can still download a withdrawn file."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "File",
+          "description": "The file's name as it was uploaded, its size, and whether it is on a reply (the client can see it) or a note (internal)."
+        },
+        {
+          "label": "Reason for withdrawal",
+          "description": "Required. Kept with the file in the ticket's history and shown to staff beside the withdrawn file."
+        },
+        {
+          "label": "Withdraw file",
+          "description": "Withdraws the file at once. The page returns to the ticket."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Only staff with the supervisor role (or administrators) can open this page, and only for a ticket they may read. Other staff do not get the action.",
+        "A file is added with its reply or note and is never edited afterwards. Withdrawal is the only change, it happens once, and it is recorded with who did it, when and why. The record holds the file's size, type and checksum, never its name or content.",
+        "Files are always downloaded, never opened inside the application, under a name made from the ticket number and the file's number. Not scanned means no virus scanner has checked the file. Its type was checked from its content (an image must decode, every page or frame of it, a PDF must have a document structure, a Word or Excel file must be a valid package without macros), and it is always downloaded rather than opened here, but it can still carry harmful content. Open it only with up-to-date software, and ask the sender when something looks wrong.",
+        "Withdrawing a file counts as a change to the ticket: a page or a bulk selection opened before it is refused as out of date and must be reloaded."
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/views.py",
+    "attachments/services.py",
+    "attachments/forms.py",
+    "attachments/templates/attachments/withdraw.html",
+    "attachments/templates/attachments/_entry_files.html",
+    "attachments/tests/test_attachments.py"
+  ]
+}

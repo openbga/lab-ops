@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Teams requests are routed to. Context: teams (annotated with member_count and open_count),
+can_manage_teams (admin role).
+{% endcomment %}
+{% block page_actions %}{% if can_manage_teams %}<a class="btn btn-primary" href="{% url 'teams:team-create' %}">{% icon name="plus-lg" %}New team</a>{% endif %}{% endblock %}
+{% block content %}
+{% url 'teams:team-create' as create_url %}
+{% panel title="Teams" table=True hidden_title=True %}
+  {% list_results items=teams empty_title="No teams yet" empty_body="Create the teams tickets are routed to." action_url=create_url action_label="New team" %}
+  <div class="vr-table-wrap"><table class="table table-hover vr-table">
+    <thead><tr><th scope="col">Team</th><th scope="col">Status</th><th scope="col">Members</th><th scope="col">Open or waiting tickets</th></tr></thead>
+    <tbody>
+      {% for team in teams %}
+      <tr>
+        <th scope="row"><a class="vr-row-link" href="{% url 'teams:team-detail' team.pk %}">{{ team.name }}</a>{% if team.is_default %} {% status label="Default" tone="info" plain=True %}{% endif %}</th>
+        <td>{% if team.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        <td>{{ team.member_count }}</td>
+        <td><a href="{% url 'desk:request-list' %}?view=all&amp;status=active&amp;team={{ team.pk }}">{{ team.open_count }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

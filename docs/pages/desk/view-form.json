@@ -1,0 +1,122 @@
+{
+  "id": "desk-view-form",
+  "routes": [
+    "desk:view-create",
+    "desk:view-edit"
+  ],
+  "title": "Saved view",
+  "purpose": "Save the ticket list's current filters and sort as a named view, or rename, share, reorder or delete one of your saved views.",
+  "summary": "Keep a ticket list you use often. Save the current filters under a name, and choose whether only you, a team or everyone sees it. Supervisors share views.",
+  "tasks": [
+    {
+      "title": "Save the current list as a view",
+      "steps": [
+        "On the Tickets list, set the filters and sort, then select [[Save view]].",
+        "Check the filters listed on this page, type a [[View name]], and select [[Save view]]."
+      ]
+    },
+    {
+      "title": "Share a view (supervisor)",
+      "steps": [
+        "Under [[Who sees it]] choose A team or Everyone.",
+        "For A team, choose the team in [[Team]], then save."
+      ]
+    },
+    {
+      "title": "Rename or delete your view",
+      "steps": [
+        "Open the view, then select the link Rename, share or delete under the page heading.",
+        "Change the name or sharing and select [[Save changes]], or select [[Delete view]] and confirm."
+      ]
+    },
+    {
+      "title": "Reorder your views",
+      "steps": [
+        "On the view's edit page select [[Move up]] or [[Move down]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A saved view starts from All tickets and applies the filters you saved. It does not remember which system view you were on, such as My open.",
+    "Sharing with a team or everyone is for supervisors. Everyone else can only choose Only me.",
+    "A shared view shows each reader only what they may read. Restricted tickets stay hidden from people outside their team.",
+    "The edit page changes the name and who sees it, not the filters. To change filters, save a new view."
+  ],
+  "sections": [
+    {
+      "title": "Save view (new)",
+      "paragraphs": [
+        "Opens from the Tickets list. It shows a sentence listing the filters the view will keep, for example Status: Open or waiting, or says the list has no filters so the view shows every ticket you may read. Search text and sort are kept too. If the list's filters are invalid the view is refused until they are corrected."
+      ],
+      "items": [
+        {
+          "label": "View name",
+          "description": "Required, up to 80 characters. Each of your views needs its own name (\"You already have a view with this name.\")."
+        },
+        {
+          "label": "Who sees it",
+          "description": "Only me (the default), A team or Everyone. Only supervisors (including the admin role) may choose A team or Everyone; for others the list offers only Only me and a request to share is refused."
+        },
+        {
+          "label": "Team",
+          "description": "Required for A team: choose an active team. A view shared with a team is seen by that team's members. Ignored for the other choices."
+        },
+        {
+          "label": "Save view",
+          "description": "Saves, confirms View saved and opens the list with the view applied. Adds an audit event."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the list you came from."
+        }
+      ]
+    },
+    {
+      "title": "Edit view",
+      "paragraphs": [
+        "Only the view's owner can open the edit page, from the Rename, share or delete link on the list while that view is open. Other people get Not found. The form remembers the version of the view you opened; if it changed since, saving is refused (\"This view changed. Reload it.\")."
+      ],
+      "items": [
+        {
+          "label": "View name and Who sees it and Team",
+          "description": "As above. Saving with nothing changed is refused (\"Change the name or who sees it before saving.\")."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves, confirms View saved and opens the list with the view applied."
+        },
+        {
+          "label": "Delete view",
+          "description": "Opens a confirmation. Deleting removes the view's name and filters for everyone it is shared with. No ticket changes. Confirms View deleted."
+        },
+        {
+          "label": "Move up / Move down",
+          "description": "Moves the view one place among your own views, which changes where it sits in the Saved views list. Nothing changes at the top or bottom."
+        }
+      ]
+    },
+    {
+      "title": "Where saved views appear",
+      "items": [
+        {
+          "label": "Saved views in Views",
+          "description": "On the Tickets list the Views menu lists, under Saved views, your own views, views shared with everyone and views shared with a team you belong to. A view shared by someone else shows who it is shared with."
+        },
+        {
+          "label": "What a view stores",
+          "description": "The list's filters, search text and sort. Not the columns you chose, the page size or the system view."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/saved_views.py",
+    "desk/lists.py",
+    "desk/models.py",
+    "desk/templates/desk/view_form.html",
+    "desk/templates/desk/request_list.html"
+  ]
+}

@@ -1,0 +1,46 @@
+# Security policy
+
+## Reporting a vulnerability
+
+Please report security problems privately. Do not open a public issue, pull request or
+discussion for them.
+
+Submit a [private vulnerability report](https://github.com/openbga/lab-ops/security/advisories/new).
+Include the affected component and commit, the role you used, what you observed and how a
+maintainer can verify it. Include a suggested fix if you have one.
+
+Use synthetic data only. Never include real laboratory, client, patient or personal data in a report,
+and do not test against a deployment you do not operate.
+
+Reports are handled on a best-effort basis by the maintainers. We will confirm receipt, keep
+you informed while we investigate, and credit you in the advisory unless you prefer otherwise.
+There is no bug bounty.
+
+## Supported versions
+
+Maintainers publish security fixes on `main`. Deployments should track that branch and apply
+updates promptly.
+
+## Scope
+
+In scope: this repository's application code, configuration, container image definition and
+deployment Blueprint.
+
+Out of scope: vulnerabilities in a third-party dependency with no impact specific to this
+project (report those upstream), findings that require an administrator or database owner to
+attack their own deployment, and the configuration of deployments operated by others.
+
+## Notes for operators
+
+Each deployment is operated by the laboratory that runs it. The operator is responsible for
+its secrets, HTTPS configuration, user accounts, multi-factor authentication policy, backups and
+updates. Two documented design limits matter when assessing risk:
+
+- Authenticator-app secrets and recovery codes are stored unencrypted in the database, so
+  database dumps must be encrypted and access to them restricted.
+- History tables reject updates and deletes through database triggers, but a database owner or
+  superuser can disable them. In the packaged deployment the application's own database role
+  owns its tables, so this includes anyone who holds the application's database credentials.
+  This is not tamper evidence against database administrators.
+
+See [Operations](docs/operations.md) for both.

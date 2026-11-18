@@ -1,0 +1,100 @@
+{
+  "id": "links-system-form",
+  "routes": [
+    "links:system-create",
+    "links:system-edit"
+  ],
+  "title": "External system form",
+  "purpose": "Create an external system or change its name, kind, base address and whether it is active. Editing needs a reason.",
+  "summary": "Describe one of the laboratory's other systems so staff can link to its records. Editing needs a reason. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Add a system",
+      "steps": [
+        "Enter the [[System name]] and choose its [[Kind]].",
+        "Add the [[Base address]] if links should be checked against it, then select [[Create system]]."
+      ]
+    },
+    {
+      "title": "Change a system",
+      "steps": [
+        "Change the details and write the [[Reason for change]].",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Stop offering a system",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Existing links stay."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "When a base address is set, every link's address for this system must be on that host. Without one, its links take no address.",
+    "Only https addresses are accepted.",
+    "The key is a stable code. It cannot be changed after creation.",
+    "If someone else changed the system after you opened the form, saving is refused and your input stays."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "System name",
+          "description": "Required, up to 120 characters, unique among systems."
+        },
+        {
+          "label": "Key",
+          "description": "Create only. Letters, numbers, hyphens and underscores, up to 40 characters. Leave empty to make one from the name. It must be unused and never changes."
+        },
+        {
+          "label": "Kind",
+          "description": "Laboratory information system (LIS), Laboratory information management system (LIMS), Electronic health record (EHR), Billing system, OpenBGA product or Other (the default)."
+        },
+        {
+          "label": "Base address",
+          "description": "Optional. An https:// address with a host and no user name or password. When set, a link's address must be on this host (and port). The application never opens or reads it itself. Changing it later leaves addresses on the former host as plain text that is no longer opened as a link."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. An inactive system takes no new links. Existing links stay."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the history."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create system / Save changes",
+          "description": "Saves and returns to External systems. Each creation and change is audited with the person and time and, for changes, the reason and the values before and after. A save with no change is refused with Change at least one detail before saving. A name or key already used is refused."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the system changed after you opened the form, saving is refused with a message to reload and review it."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored system is inactive the form says it takes no new links and its existing links stay."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to External systems without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "links/urls.py",
+    "links/views.py",
+    "links/forms.py",
+    "links/services.py",
+    "links/models.py",
+    "links/identifiers.py",
+    "templates/core/record_form.html",
+    "links/tests/test_links.py"
+  ]
+}

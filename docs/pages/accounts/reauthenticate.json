@@ -1,0 +1,70 @@
+{
+  "id": "accounts-reauthenticate",
+  "routes": [
+    "account_reauthenticate"
+  ],
+  "title": "Confirm your password",
+  "purpose": "Reconfirm your identity before an account-sensitive action.",
+  "summary": "Confirm your password before a sensitive account change, such as two-factor settings.",
+  "tasks": [
+    {
+      "title": "Confirm and continue",
+      "steps": [
+        "Type your current [[Password]].",
+        "Select [[Confirm]]. The action you started continues."
+      ]
+    },
+    {
+      "title": "Use your authenticator instead",
+      "steps": [
+        "Select [[Use authenticator app or code]], when you have one set up."
+      ]
+    },
+    {
+      "title": "Recover a forgotten password",
+      "steps": [
+        "Select [[Forgot your password?]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "This asks for your current password, not a new one.",
+    "A confirmation counts as recent for five minutes.",
+    "Wrong passwords are rate limited."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Password",
+          "description": "Required current password for this signed-in account; not a replacement password."
+        },
+        {
+          "label": "Confirm",
+          "description": "Records a recent successful identity check and resumes the protected operation or returns to the application destination. Incorrect passwords keep it blocked; repeated attempts are rate limited."
+        },
+        {
+          "label": "Forgot your password?",
+          "description": "Opens password recovery from the current-password field help."
+        },
+        {
+          "label": "Alternative options",
+          "description": "When an enrolled code factor exists, Use authenticator app or code opens factor reauthentication while preserving the pending destination."
+        }
+      ]
+    },
+    {
+      "title": "Availability",
+      "paragraphs": [
+        "Requires sign-in and an available password authentication method. Without a usable password, redirects to an available factor method; if no reauthentication method exists the request is denied. A stored pending operation can resume after success; a separate pending challenge is not required merely to open this page. MFA-sensitive operations require recent reauthentication; the default recent interval is five minutes."
+      ]
+    }
+  ],
+  "sources": [
+    "config/settings.py",
+    "templates/allauth/layouts/base.html",
+    "templates/allauth/layouts/manage.html",
+    "uv.lock"
+  ]
+}

@@ -1,0 +1,145 @@
+name: checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  application:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lab_ops
+          POSTGRES_PASSWORD: lab_ops
+          POSTGRES_DB: lab_ops
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U lab_ops" --health-interval 5s --health-retries 10
+    env:
+      DEBUG: "true"
+      DATABASE_URL: postgresql://lab_ops:lab_ops@127.0.0.1:5432/lab_ops
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+      - run: uv sync --frozen
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run python manage.py check
+      - run: uv run python manage.py makemigrations --check --dry-run
+      - name: CHANGELOG.md matches changelog.d/
+        run: uv run python manage.py changelog --check
+      - run: uv run python manage.py migrate --noinput
+      - name: Collect static assets for template-serving tests
+        run: uv run python manage.py collectstatic --noinput
+      - run: uv run pytest
+
+  browser:
+    # The journeys run at four views each and take about twenty minutes in one job, so they are
+    # split by file into four jobs. Each job has its own database, so the split changes nothing
+    # about isolation: one worker and one disposable test database per job.
+    name: browser (${{ matrix.shard }} of 4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lab_ops
+          POSTGRES_PASSWORD: lab_ops
+          POSTGRES_DB: lab_ops_browser
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U lab_ops" --health-interval 5s --health-retries 10
+    env:
+      DEBUG: "true"
+      DATABASE_URL: postgresql://lab_ops:lab_ops@127.0.0.1:5432/lab_ops_browser
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+      - name: Retry package downloads on transient mirror errors
+        run: printf '%s\n' 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries
+      - run: uv sync --frozen --group e2e
+      - name: Install Chromium (full browser and headless shell) and system dependencies
+        run: uv run --group e2e playwright install --with-deps chromium
+      - name: Collect assets with strict production manifest storage
+        run: uv run --group e2e python manage.py collectstatic --noinput
+      - name: Isolated browser journeys (one worker, disposable test database)
+        run: |
+          mapfile -t files < <(printf '%s\n' e2e/test_*.py | awk -v s=${{ matrix.shard }} 'NR % 4 == s % 4')
+          uv run --group e2e pytest -c e2e/pytest.ini "${files[@]}"
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lab_ops_ci
+          POSTGRES_PASSWORD: disposable_ci_password
+          POSTGRES_DB: lab_ops_container_smoke
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U lab_ops_ci -d lab_ops_container_smoke" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build application image (no push)
+        run: docker build --tag lab-ops:ci .
+      - name: Validate the local trial Compose file
+        run: docker compose --profile app config --quiet
+      - name: Configure disposable smoke environment
+        run: |
+          cat > "$RUNNER_TEMP/lab-ops-smoke.env" <<'ENV'
+          DEBUG=false
+          SECRET_KEY=disposable-ci-only-key-never-for-a-real-deployment-2026
+          DATABASE_URL=postgresql://lab_ops_ci:disposable_ci_password@127.0.0.1:5432/lab_ops_container_smoke
+          ALLOWED_HOSTS=127.0.0.1,localhost
+          PORT=8000
+          WEB_CONCURRENCY=1
+          ENV
+      - name: Migrate the empty smoke database and check the deployment
+        run: |
+          docker run --rm --network host --env-file "$RUNNER_TEMP/lab-ops-smoke.env" lab-ops:ci python manage.py migrate --noinput
+          docker run --rm --network host --env-file "$RUNNER_TEMP/lab-ops-smoke.env" lab-ops:ci python manage.py check
+      - name: Seed the local trial from the packaged application
+        run: |
+          DEMO_PASSWORD=$(openssl rand -hex 24)
+          export DEMO_PASSWORD
+          docker run --rm --network host --env-file "$RUNNER_TEMP/lab-ops-smoke.env" -e DEMO_PASSWORD lab-ops:ci python manage.py seed_demo
+      - name: Verify non-root Render SSH prerequisites
+        run: |
+          docker run --rm lab-ops:ci python -c 'import os, pwd, stat; from pathlib import Path; user=pwd.getpwuid(os.getuid()); home=Path.home(); ssh=home/".ssh"; assert os.getuid()==10001; assert str(home)==user.pw_dir=="/home/app" and os.access(home, os.W_OK); assert user.pw_shell=="/bin/bash" and os.access(user.pw_shell, os.X_OK); assert ssh.is_dir() and ssh.stat().st_uid==os.getuid(); assert stat.S_IMODE(ssh.stat().st_mode)==0o700; assert os.access(ssh, os.W_OK)'
+      - name: Start production server and check HTTP endpoints
+        run: |
+          docker run --detach --name lab-ops-smoke --network host --env-file "$RUNNER_TEMP/lab-ops-smoke.env" lab-ops:ci
+          for _ in $(seq 1 30); do
+            if curl --fail --silent -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/ready/; then break; fi
+            sleep 2
+          done
+          curl --fail --show-error -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/
+          curl --fail --show-error -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/ready/
+          curl --fail --show-error -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/accounts/login/ --output /dev/null
+          curl --fail --show-error -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/static/admin/css/base.css --output /dev/null
+      - name: Logs and cleanup
+        if: always()
+        run: |
+          docker logs lab-ops-smoke || true
+          docker rm -f lab-ops-smoke || true
+          rm -f "$RUNNER_TEMP/lab-ops-smoke.env"

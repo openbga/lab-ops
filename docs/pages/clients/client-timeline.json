@@ -1,0 +1,112 @@
+{
+  "id": "clients-client-timeline",
+  "routes": [
+    "clients:client-timeline"
+  ],
+  "title": "Client timeline",
+  "purpose": "Read everything that happened for one client organization in one feed, newest first: its tickets and the changes to the organization, its sites, contacts and portal access.",
+  "summary": "Everything about one client organization, newest first: tickets opened, replies, internal notes, logged contacts, status changes, and changes to its sites, contacts and portal access.",
+  "tasks": [
+    {
+      "title": "See what happened lately",
+      "steps": [
+        "Read the feed from the top. The newest item comes first, and further pages go back in time."
+      ]
+    },
+    {
+      "title": "Show only one kind of item",
+      "steps": [
+        "Choose a [[Kind]], such as Replies or Organization changes, and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Show one site's activity",
+      "steps": [
+        "Choose the [[Site]] and select [[Apply]]. Select [[Clear all]] to return to everything."
+      ]
+    },
+    {
+      "title": "Open a ticket from the feed",
+      "steps": [
+        "Select the ticket number in an item. It opens the ticket."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role can read this page. It is for laboratory staff: internal notes and logged contacts appear here and never in the client portal.",
+    "Tickets in a restricted category, and everything recorded on them, are left out unless you are a member of the ticket's team or a supervisor.",
+    "Choosing a site narrows the feed to that site's tickets, the changes to the site itself and the changes to contacts who serve it. Changes to the organization and to portal access are left out.",
+    "Nothing here can be edited. Recorded history is never rewritten."
+  ],
+  "sections": [
+    {
+      "title": "Filters",
+      "items": [
+        {
+          "label": "Kind",
+          "description": "All kinds, or one of Tickets opened, Replies, Internal notes, Logged contacts, Status changes, Organization changes."
+        },
+        {
+          "label": "Site",
+          "description": "All sites, or one of the organization's sites, active ones first then by name, including inactive sites."
+        },
+        {
+          "label": "Apply, filter chips, Clear all",
+          "description": "Apply combines Kind and Site and returns to the first page. Each chip removes one criterion. Clear all restores the whole feed. An invalid filter shows an error and no items until corrected or cleared. There is no search box."
+        }
+      ]
+    },
+    {
+      "title": "Items",
+      "paragraphs": [
+        "The feed merges the organization's ticket entries with its recorded changes and sorts them by time, newest first, 25 to a page. Items with the same time keep a stable order across pages. Times are shown with the deployment's time zone."
+      ],
+      "items": [
+        {
+          "label": "Tickets opened",
+          "description": "Headed Ticket opened, with the ticket number, the subject and, in brackets, the site when the ticket has one."
+        },
+        {
+          "label": "Replies",
+          "description": "Headed Reply, visible to the client. Shows the ticket number, the subject, the start of the message (shortened to 280 characters), and who wrote it, marked (client portal) when a client wrote it. Withdrawn from client view is shown when the laboratory withdrew the reply from the client."
+        },
+        {
+          "label": "Internal notes",
+          "description": "Headed Internal note. Staff only, never shown to the client."
+        },
+        {
+          "label": "Logged contacts",
+          "description": "Headed Logged contact: a call, visit or message staff recorded, with its direction, channel and outcome, and who was contacted when recorded."
+        },
+        {
+          "label": "Status changes",
+          "description": "Headed Status changed followed by the new status (Open, Waiting on client, Waiting on third party, Resolved or Closed), including resolutions and closures."
+        },
+        {
+          "label": "Organization changes",
+          "description": "Recorded changes to the organization, its sites, its contacts and its portal accounts' access, each with what happened, the time, the person who made it and the reason given. Other ticket events, such as assignment or priority, are left to the ticket itself."
+        },
+        {
+          "label": "Ticket number",
+          "description": "Opens the ticket in the staff workspace."
+        }
+      ]
+    },
+    {
+      "title": "Who sees what",
+      "paragraphs": [
+        "Every active staff role can open the timeline of any organization; client portal accounts are refused. Tickets are read the way the service desk reads them for you, so a ticket in a restricted category is absent, with all its entries, for staff who are not members of its team and not supervisors. Changes to the organization, its sites, contacts and portal access are shown to every staff role.",
+        "When nothing has been recorded the page says Nothing recorded yet. When filters match nothing it says Nothing matches these filters."
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/timeline.py",
+    "clients/forms.py",
+    "clients/templates/clients/client_timeline.html",
+    "clients/templates/clients/_timeline_link.html",
+    "docs/workflows.md"
+  ]
+}

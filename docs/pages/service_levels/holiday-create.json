@@ -1,0 +1,68 @@
+{
+  "id": "service-levels-holiday-create",
+  "routes": [
+    "service_levels:holiday-create"
+  ],
+  "title": "Add holiday",
+  "purpose": "Add a day the laboratory is closed to a business calendar, so clocks on that calendar do not run on it.",
+  "summary": "Add a closed day to a business calendar. Clocks that count in that calendar do not run on it. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Add a holiday",
+      "steps": [
+        "Choose the [[Date]] and enter the [[Holiday name]].",
+        "Select [[Add holiday]]. The calendar's page opens with the holiday listed."
+      ]
+    },
+    {
+      "title": "Correct a holiday entered wrongly",
+      "steps": [
+        "Go back to the calendar and remove the holiday with a reason, then add it again with the right date."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A calendar can have only one holiday on a date.",
+    "A holiday closes the whole day. Intervals written for that date do not count.",
+    "An overnight shift written as 22:00-24:00 on the evening before is not closed by a holiday on the next day.",
+    "Due times already worked out are not recounted. The holiday applies when a due time is worked out afterwards."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Date",
+          "description": "Required. A calendar date, chosen with the date picker."
+        },
+        {
+          "label": "Holiday name",
+          "description": "Required, up to 120 characters. Surrounding spaces are removed."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Add holiday",
+          "description": "Adds the holiday and records who added it. A second holiday on the same date is refused with a message beside the date. There is no reason field when adding, and there is no edit: remove it and add it again."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the calendar's page without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/forms.py",
+    "service_levels/services.py",
+    "service_levels/models.py",
+    "service_levels/business_time.py",
+    "templates/core/record_form.html",
+    "service_levels/tests/test_setup.py"
+  ]
+}

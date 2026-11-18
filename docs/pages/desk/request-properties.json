@@ -1,0 +1,85 @@
+{
+  "id": "desk-request-properties",
+  "routes": [
+    "desk:request-properties"
+  ],
+  "title": "Edit category and priority",
+  "purpose": "Change a ticket's category or priority, with an optional reason.",
+  "summary": "Correct the ticket's category or priority. It does not move the ticket to the new category's team, and moving it into a complaint category makes it a complaint.",
+  "tasks": [
+    {
+      "title": "Change the priority",
+      "steps": [
+        "Choose the new value in [[Priority]], add a [[Reason (optional)]] if useful and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Correct the category",
+      "steps": [
+        "Choose the right entry in [[Category]], then select [[Save changes]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Changing the category does not change the team or assignee. Use Assign to move the ticket.",
+    "A complaint category makes the ticket a complaint. Moving it out of one does not unmark it; a supervisor does that.",
+    "Save is refused unless the category or priority really changes.",
+    "A closed ticket cannot change, so this form is not offered for it."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from the More menu of the ticket page, as a dialog or a full page. Any active staff role who may read the ticket may use it. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload."
+      ],
+      "items": [
+        {
+          "label": "Category",
+          "description": "Required. Active categories under their group; a group cannot be chosen. It starts on the current category."
+        },
+        {
+          "label": "Priority",
+          "description": "Required: Low, Normal, High or Urgent. It starts on the current priority."
+        },
+        {
+          "label": "Reason (optional)",
+          "description": "Why it changed. Kept with the change in the audit history."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves, confirms Details changed and adds a timeline event naming what changed (priority, category). Choosing both unchanged is refused (\"Change the priority or the category before saving.\")."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Complaint categories",
+          "description": "Choosing a category flagged as a complaint category marks the ticket as a complaint and records that on the timeline (by its category). Choosing a category that is not one never unmarks a complaint."
+        },
+        {
+          "label": "Restricted categories",
+          "description": "Who may read a restricted ticket depends on team membership. Moving a ticket into a restricted category can hide it from you if you are not in its team and are not a supervisor."
+        },
+        {
+          "label": "Service clocks",
+          "description": "When service targets are configured, the clock targets are worked out again when category or priority changes. This page sets no targets."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/selectors.py",
+    "desk/templates/desk/request_action.html",
+    "desk/templates/desk/request_detail.html"
+  ]
+}

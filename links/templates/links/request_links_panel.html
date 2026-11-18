@@ -1,0 +1,73 @@
+{% load ui %}{% comment %}
+The Links section of a staff request page (L2 to L4), rendered by {% request_links request user %}
+(links/templatetags/record_links.py) into the template links/_request_links.html.
+Context: service_request, current and removed (links.access.LinkRow, already masked for the
+reader), may_see_person (the reader holds view_patient_information), client_reference,
+reference_linked, add_url, is_staff, can_change (staff, and the request not closed), is_closed. Holders of the capability also get Find by patient key
+(link_records:person-search).
+A person-level row without the capability is a placeholder ("Patient linked") with no label, key,
+address, link id, actor, time, reason or action, current or removed. With it, the masked label shows; the key comes only from Reveal, a
+POST whose answer replaces the row's key cell and is recorded in the audit history.
+{% endcomment %}
+{% panel title="Links" id="links" heading_id="links-heading" count=current|length table=True class="mb-3" %}
+  {% fill actions %}{% if may_see_person %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'link_records:person-search' %}">Find by patient key</a>{% endif %}{% if can_change %}<a class="btn btn-sm btn-outline-secondary" href="{{ add_url }}">Add link</a>{% endif %}{% endfill %}
+  {% if client_reference and not reference_linked %}
+  {% panel_section %}
+    <p class="mb-0"><span class="vr-muted">Client reference:</span> <span class="vr-id">{{ client_reference }}</span>{% if can_change %} <a class="btn btn-sm btn-outline-secondary ms-2" href="{{ add_url }}?from=reference">Make a link</a>{% endif %}</p>
+  {% endpanel_section %}
+  {% endif %}
+  {% if is_closed %}{% panel_section %}<p class="vr-muted mb-0">This ticket is closed, so its links can no longer change.</p>{% endpanel_section %}{% endif %}
+  {% list_results items=current empty_title="No links" empty_body="Link the orders, samples, reports or other records this ticket is about." %}
+    <div class="vr-table-wrap"><table class="table vr-table" data-vr-grid="links.request" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Record</th>
+        <th scope="col">Type</th>
+        <th scope="col">System</th>
+        <th scope="col">Role</th>
+        <th scope="col">Client sees it</th>
+        <th scope="col"><span class="visually-hidden">Actions</span></th>
+      </tr></thead>
+      <tbody>
+        {% for row in current %}
+        <tr>
+          {% if row.placeholder %}
+          <th scope="row">{{ row.placeholder.text }}</th>
+          <td>{{ row.record_type_label }}</td><td>—</td><td>—</td><td>No</td><td></td>
+          {% else %}
+          <th scope="row">
+            <a class="vr-row-link" href="{% url 'link_records:link-detail' row.link_id %}">{{ row.label }}</a>
+            {% if row.can_reveal %}<span id="key-{{ row.attachment_id }}" class="d-block" data-vr-forget-cell>{% url 'link_records:attachment-reveal' row.attachment_id as reveal_url %}
+            {# form: button-target #}
+            <form method="post" action="{{ reveal_url }}" hx-post="{{ reveal_url }}" hx-target="#key-{{ row.attachment_id }}" hx-swap="innerHTML">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit">Reveal key</button></form></span>{% endif %}
+          </th>
+          <td>{{ row.record_type_label }}{% if row.identifier_scheme %} <span class="vr-muted small">{{ row.identifier_scheme }}</span>{% endif %}</td>
+          <td>{% if row.url and row.url_on_host %}<a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.system }}<span class="visually-hidden"> (opens the record in a new tab)</span></a>{% else %}{{ row.system }}{% if row.url %} <span class="vr-muted small">(address not on the system's host)</span>{% endif %}{% endif %}</td>
+          <td>{{ row.role_label }}</td>
+          <td>{% if row.is_person %}<span class="vr-muted">Never</span>{% elif row.shown_to_client %}{% status label="Shown" tone="info" plain=True %}{% else %}No{% endif %}</td>
+          <td>{% if can_change %}
+            {% url 'link_records:attachment-shown' row.attachment_id as shown_url %}{% url 'link_records:attachment-remove' row.attachment_id as remove_url %}
+            {% more_actions label="Actions" %}
+              {# form: menu #}
+              {% if not row.is_person %}<li><form method="post" action="{{ shown_url }}">{% csrf_token %}<input type="hidden" name="shown" value="{% if row.shown_to_client %}0{% else %}1{% endif %}"><button class="dropdown-item" type="submit">{% if row.shown_to_client %}Hide from client{% else %}Show to client{% endif %}</button></form></li>{% endif %}
+              <li><a class="dropdown-item" href="{{ remove_url }}">Remove link</a></li>
+            {% endmore_actions %}
+          {% endif %}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+  {% if removed %}
+  {% panel_section rule=True %}
+    <details>
+      <summary>Removed links ({{ removed|length }})</summary>
+      <ul class="list-unstyled mb-0 mt-2">
+        {% for row in removed %}
+        <li class="mb-2">{% if row.placeholder %}{{ row.placeholder.text }}{% else %}<a href="{% url 'link_records:link-detail' row.link_id %}">{{ row.label }}</a> <span class="vr-muted">· {{ row.record_type_label }} · removed by {{ row.removed_by }} <time datetime="{{ row.removed_at|date:'c' }}">{{ row.removed_at|date:"Y-m-d H:i" }}</time>: {{ row.removal_reason }}{% if row.removal_note %} ({{ row.removal_note }}){% endif %}</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endpanel_section %}
+  {% endif %}
+{% endpanel %}

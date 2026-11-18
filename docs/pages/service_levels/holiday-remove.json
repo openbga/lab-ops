@@ -1,0 +1,61 @@
+{
+  "id": "service-levels-holiday-remove",
+  "routes": [
+    "service_levels:holiday-remove"
+  ],
+  "title": "Remove holiday",
+  "purpose": "Remove a holiday from a business calendar, with a reason that is kept in the calendar's history.",
+  "summary": "Remove a holiday from a calendar and say why. Clocks then run on that day again when due times are worked out afterwards. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Remove a holiday",
+      "steps": [
+        "Check the holiday's name and date shown above the field.",
+        "Write the [[Reason for removal]] and select [[Remove holiday]]."
+      ]
+    },
+    {
+      "title": "Keep the holiday",
+      "steps": [
+        "Select [[Cancel]] to return to the calendar without changes."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A reason is required. It is kept with the removal in the calendar's history.",
+    "Due times already worked out do not move.",
+    "The holiday itself is deleted and can be added again. Only the history of its removal stays.",
+    "If the holiday was already removed, the page cannot be opened and shows a not found message."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Holiday summary",
+          "description": "The holiday's name and date, with a reminder that due times already worked out do not move."
+        },
+        {
+          "label": "Reason for removal",
+          "description": "Required. Kept with the removal in the calendar's history."
+        },
+        {
+          "label": "Remove holiday",
+          "description": "Deletes the holiday and records who removed it, when and why, with the holiday's date and name as they were. Returns to the calendar's page. This cannot be undone; add the holiday again if it was a mistake."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the calendar's page without removing anything."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/forms.py",
+    "service_levels/services.py",
+    "service_levels/templates/service_levels/holiday_remove.html",
+    "service_levels/tests/test_setup.py"
+  ]
+}

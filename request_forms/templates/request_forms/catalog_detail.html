@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One catalog (F3) and its items in the order clients see them. Context: catalog, items (CatalogItem in
+order; inactive ones only with show="all"), show, inactive_count, used_by (active TemplateFields
+that order from it, with their template), history (its AuditEvents, newest first). Admin only.
+Items have no page of their own: the name opens the edit form.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'request_forms:catalog-list' as list_url %}{% breadcrumbs section="Catalogs" section_url=list_url current=catalog.name %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if catalog.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
+  <li>{{ items|length }} item{{ items|length|pluralize }}{% if show == "active" %} offered{% endif %}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:catalog-edit' catalog.pk %}">Edit catalog</a>
+<a class="btn btn-primary" href="{% url 'request_forms:item-create' catalog.pk %}">{% icon name="plus-lg" %}Add item</a>
+{% endblock %}
+{% block content %}
+{% record_layout %}
+  {% fill lead %}
+  {% panel title="Catalog" heading_id="catalog-heading" class="mb-3" %}
+    <dl class="vr-facts">
+      {% fact label="Description" value=catalog.description empty="None" wide=True %}
+      {% fact label="Used by" wide=True empty="No form uses it" %}{% for field in used_by %}<a href="{% url 'request_forms:template-detail' field.template_id %}">{{ field.template.name }}</a> ({{ field.label }}){% if not forloop.last %}, {% endif %}{% endfor %}{% endfact %}
+      {% fact label="Key" value=catalog.key class="vr-id" %}
+    </dl>
+  {% endpanel %}
+  {% endfill %}
+{% panel title="Items" heading_id="items-heading" count=items|length table=True class="mb-3" %}
+  {% fill actions %}{% if show == "active" %}{% if inactive_count %}<a class="btn btn-sm btn-outline-secondary" href="?show=all#items-heading">Show inactive</a>{% endif %}{% else %}<a class="btn btn-sm btn-outline-secondary" href="?show=active#items-heading">Hide inactive</a>{% endif %}{% endfill %}
+  {% url 'request_forms:item-create' catalog.pk as add_url %}
+  {% list_results items=items empty_title="No items yet" empty_body="Add the items clients may order, with the laboratory's item codes." action_url=add_url action_label="Add item" %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="request_forms.items" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Item</th>
+        <th scope="col">Code</th>
+        <th scope="col">Unit</th>
+        <th scope="col" class="text-end">Most per ticket</th>
+        <th scope="col" data-vr-col-priority="low">Other names</th>
+        <th scope="col"><span class="visually-hidden">Order</span></th>
+      </tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'request_forms:item-edit' item.pk %}">{{ item.name }}</a>{% if not item.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td class="vr-id">{{ item.code|default:"—" }}</td>
+          <td>{{ item.unit|default:"—" }}</td>
+          <td class="text-end">{{ item.max_quantity|default:"No limit" }}</td>
+          <td>{{ item.search_words|default:"—" }}</td>
+          <td>
+            {% url 'request_forms:item-move' item.pk 'up' as up_url %}{% url 'request_forms:item-move' item.pk 'down' as down_url %}
+            {% more_actions label="Move" small=True %}
+              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
+              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+            {% endmore_actions %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% history_panel events=history newest_first=True empty_title="No recorded changes" empty_body="Changes to this catalog are listed here with their reasons." %}{% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "layouts/portal.html" %}
+{% load ui %}
+{% comment %}
+Raise a request with one request form in the client portal (F5). Context: template (a form offered
+to this account: request_forms.selectors.portal_templates), form (request_forms.forms.PortalRaiseForm:
+the site when the account has sites, the form's client fields, then the usual reference, subject,
+description and urgent box), asks_patient_information (an active client field of this form holds
+patient information), again (the earlier request's number when "Request again" copied its answers,
+else empty). Staff-only fields are never on it. The send button ends the one-column form.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'portal:request-list' as list_url %}{% url 'portal_forms:choose' as choose_url %}{% breadcrumbs section="Tickets" section_url=list_url record="New ticket" record_url=choose_url current=template.portal_label %}{% endblock %}
+{% block page_intro %}{% if template.description %}<p class="vr-page-intro">{{ template.description }}</p>{% endif %}{% endblock %}
+{% block content %}
+{% if again %}{% notice tone="info" label="Copied" %}Answers copied from {{ again }}. Check each one before you send. Dates, times, confirmations, patient details and order or sample numbers are not copied.{% endnotice %}{% endif %}
+{% if template.instructions %}{% notice tone="info" label="Before you send" %}{{ template.instructions|linebreaksbr }}{% endnotice %}{% endif %}
+{% if asks_patient_information %}
+{% notice tone="neutral" label="Patient details" %}Enter patient details only in the fields that ask for them. Everywhere else, use an order, accession or sample number.{% endnotice %}
+{% else %}
+{% notice tone="neutral" label="No patient details" %}Please do not enter patient names, dates of birth or other personal health details. Use an order, accession or sample number instead.{% endnotice %}
+{% endif %}
+{% url 'portal_forms:choose' as cancel_url %}
+{% form_page form=form cancel_url=cancel_url submit_label="Send ticket" class="vr-narrow" multipart=form.is_multipart %}
+  <fieldset class="vr-form-section">
+    <legend>{{ template.portal_label }}</legend>
+    {% for field in form.site_fields %}{{ field.as_field_group }}{% endfor %}
+    {% include "request_forms/_layout.html" with form=form level=2 only %}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>More details</legend>
+    {% for field in form.common_fields %}{{ field.as_field_group }}{% endfor %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

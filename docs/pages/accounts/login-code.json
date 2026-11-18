@@ -1,0 +1,87 @@
+{
+  "id": "accounts-login-code",
+  "routes": [
+    "account_confirm_login_code"
+  ],
+  "title": "Confirm sign-in code",
+  "purpose": "Enter the emailed code in the browser window that requested it to continue signing in to your laboratory account.",
+  "summary": "Type the sign-in code from your email to finish signing in. Use the same browser window that asked for the code.",
+  "tasks": [
+    {
+      "title": "Finish signing in with the code",
+      "steps": [
+        "Check that the address in \"We've sent a code to\" is the one you expected. If it is wrong, select [[Cancel]] and ask again.",
+        "Type the code from the latest email in [[Code]] within five minutes of asking for it.",
+        "Select [[Confirm]]. If you have an authenticator app, you are asked for its code next."
+      ]
+    },
+    {
+      "title": "Get a new code",
+      "steps": [
+        "Select [[Request new code]]. The new code replaces earlier ones, and you can ask twice per attempt."
+      ]
+    },
+    {
+      "title": "Use your password instead",
+      "steps": [
+        "Select [[Cancel]] to end this attempt and go back to password sign-in."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A new code does not restart the five-minute deadline.",
+    "Three wrong codes end the attempt, and you need to ask for a code again.",
+    "This page looks the same for unknown or inactive accounts, so it does not prove that an account exists.",
+    "A code asked for in another browser cannot finish this sign-in."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Recipient",
+          "description": "Read-only email address entered on the request page. Its email link opens your mail application; it does not change the recipient. If the address is wrong, cancel and request a code again with the correct address. The confirmation screen appears for unknown addresses too, so it does not establish that an account exists."
+        },
+        {
+          "label": "Code",
+          "description": "Required one-time code from the latest sign-in email. Enter it in this browser window within five minutes of the original request. A code requested in another browser cannot complete this sign-in."
+        },
+        {
+          "label": "Confirm",
+          "description": "Checks the code for the pending sign-in. An incorrect code shows a field error; three unsuccessful submissions abandon the attempt and return to the request page. A valid code verifies the account email and continues to an enrolled second factor when applicable, then to the allowed requested destination or dashboard."
+        },
+        {
+          "label": "Request new code",
+          "description": "Emails a replacement to the same address without requiring the Code field. The replacement invalidates earlier codes. You can request two replacements during one attempt; the action then disappears. Resending does not restart the five-minute deadline or reset unsuccessful submissions."
+        },
+        {
+          "label": "Cancel",
+          "description": "Ends the pending sign-in and returns to the password sign-in page. No account is created and no laboratory access is granted."
+        }
+      ]
+    },
+    {
+      "title": "Expired or missing sign-in attempt",
+      "paragraphs": [
+        "This page requires a pending code request in the current browser session. If the attempt expires or is missing, you return to the code request page when email-code sign-in is enabled, or to password sign-in when it is disabled. Request a fresh code to start again. A successful code completes only its pending attempt; it cannot start a new session by itself.",
+        "Use the account your laboratory issued. Unknown or inactive accounts receive no usable sign-in code even though the confirmation page looks the same. If no sign-in email arrives, check the address and mail folders, then contact your laboratory for account or delivery assistance."
+      ]
+    },
+    {
+      "title": "Sign-in activity",
+      "paragraphs": [
+        "A rejected code for a known account is recorded as a failed sign-in in the deployment’s application logs. A successful code produces a completed sign-in event only after any required second factor succeeds. Logs name the stored username and never include the email address or code; requesting or resending a code does not record a completed sign-in. These logs follow the deployment’s retention and survive database resets."
+      ]
+    }
+  ],
+  "sources": [
+    "config/settings.py",
+    "accounts/adapter.py",
+    "accounts/tests/test_login.py",
+    "templates/account/request_login_code.html",
+    "templates/allauth/layouts/base.html",
+    "uv.lock",
+    "accounts/signin_log.py",
+    "accounts/tests/test_signin_log.py"
+  ]
+}

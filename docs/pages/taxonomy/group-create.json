@@ -1,0 +1,74 @@
+{
+  "id": "taxonomy-group-create",
+  "routes": [
+    "taxonomy:group-create"
+  ],
+  "title": "New group",
+  "purpose": "Add a first-level group that categories are placed in.",
+  "summary": "Add a group to hold related categories, such as the ones for billing questions. A group has a name and an optional client label. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Add a group",
+      "steps": [
+        "Enter the [[Group name]].",
+        "Select [[Create group]]. The list opens at the new group, ready for its categories."
+      ]
+    },
+    {
+      "title": "Give clients different wording",
+      "steps": [
+        "Type the wording in [[Client label]] and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A group is not a category. Tickets are filed under categories, so add at least one category before using the group.",
+    "The key cannot be changed after creation. Leave it empty to make one from the name.",
+    "Groups sit at the first level only. A group cannot be placed inside another group.",
+    "A new group is active and goes to the end of the list. Reorder it from the list."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Group name",
+          "description": "Required, up to 120 characters. Surrounding spaces are removed."
+        },
+        {
+          "label": "Key",
+          "description": "Optional, letters, numbers, hyphens and underscores, up to 60 characters. Empty means one is made from the name. It must be unused by any other group or category and never changes after creation."
+        },
+        {
+          "label": "Client label",
+          "description": "Optional, up to 120 characters. The wording for client portal users; empty means the staff name."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create group",
+          "description": "Saves the group as active at the end of the group list and records who created it. The list opens at the new group with a confirmation."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Ticket categories without saving."
+        },
+        {
+          "label": "Refusals",
+          "description": "A key already in use, or a name another group already has (ignoring capital letters), is refused with a message on the form. What you typed stays."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "taxonomy/urls.py",
+    "taxonomy/views.py",
+    "taxonomy/forms.py",
+    "taxonomy/services.py",
+    "taxonomy/models.py",
+    "templates/core/record_form.html"
+  ]
+}

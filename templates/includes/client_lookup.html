@@ -1,0 +1,14 @@
+{% load ui %}{% comment %}
+The top bar's lookup: a GET search that opens Find (desk:request-find) with the typed text: a
+ticket number opens the ticket; otherwise it lists matching tickets (subject, organization,
+contact, reference, a linked record's identifier) and client organizations (name, account code,
+email, phone, city). Find authorizes and filters; nothing here decides access. No parameters.
+{% endcomment %}
+{% url 'desk:request-find' as client_list_url %}
+{% if client_list_url %}
+<form class="vr-lookup d-none d-sm-block" action="{{ client_list_url }}" method="get" role="search">
+  <label class="visually-hidden" for="vr-lookup-q">Find a ticket or client organization</label>
+  {% icon name="search" %}
+  <input class="form-control form-control-sm" type="search" id="vr-lookup-q" name="q" placeholder="Find ticket or client" autocomplete="off" spellcheck="false">
+</form>
+{% endif %}

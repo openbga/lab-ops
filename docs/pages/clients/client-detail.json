@@ -1,0 +1,246 @@
+{
+  "id": "clients-client-detail",
+  "routes": [
+    "clients:client-detail"
+  ],
+  "title": "Client organization",
+  "purpose": "See one client organization in one place: how it fits in its group, how to reach it, its open tickets, sites, contacts, portal accounts and the history of changes to it.",
+  "summary": "One client organization: how to reach it, its open tickets, sites, contacts and portal accounts, and its change history. Start a ticket or open the timeline from here.",
+  "tasks": [
+    {
+      "title": "Start a ticket for this organization",
+      "steps": [
+        "Select [[New ticket for this organization]]. The ticket form opens with the organization already filled in."
+      ]
+    },
+    {
+      "title": "Check what is open for the organization",
+      "steps": [
+        "Read the counts above the table in Open tickets, then select a ticket number to open it.",
+        "Select [[Timeline]] to see everything that happened for the organization, newest first."
+      ]
+    },
+    {
+      "title": "Change the organization's details",
+      "steps": [
+        "Select [[Edit organization]], change the details, give a reason and save."
+      ]
+    },
+    {
+      "title": "Add or change a site or a contact",
+      "steps": [
+        "In Sites select [[Add site]], or in Contacts select [[Add contact]], and fill in the form.",
+        "To change one, select its name, change it, give a reason and save."
+      ]
+    },
+    {
+      "title": "Set what a portal account can see",
+      "steps": [
+        "In Portal accounts select [[Set access]] on the person's row.",
+        "Choose the linked contact and the tickets the account sees, then select [[Save access]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role can read this page. Editing the organization, sites, contacts and portal access is for account managers, client services staff and the admin role.",
+    "Open tickets and their counts leave out tickets you are not allowed to read, so your numbers can differ from a colleague's.",
+    "A contact is a record the laboratory keeps. It is not a sign-in account. Portal accounts are opened by a superuser in administration.",
+    "[[New ticket for this organization]] is not offered for an inactive organization. An inactive organization stays readable with its history."
+  ],
+  "sections": [
+    {
+      "title": "Header",
+      "items": [
+        {
+          "label": "Active / Inactive",
+          "description": "Whether the laboratory is working with the organization. An inactive organization also shows a notice that its records and history stay readable."
+        },
+        {
+          "label": "Account",
+          "description": "The laboratory's account code, shown only when one is recorded."
+        },
+        {
+          "label": "Organization type",
+          "description": "Shown in the header when a type is recorded, for example Physician practice or clinic."
+        },
+        {
+          "label": "Contacts count",
+          "description": "The number of contacts listed below, active or not."
+        },
+        {
+          "label": "Timeline",
+          "description": "Opens the organization's timeline. Every staff role sees this button."
+        },
+        {
+          "label": "Edit organization",
+          "description": "Account managers, client services staff and the admin role only. Opens the edit form."
+        },
+        {
+          "label": "New ticket for this organization",
+          "description": "The page's main button. It opens the staff ticket form with this organization filled in. It is shown only for an active organization and only once the service desk exists in the deployment; otherwise it is absent."
+        },
+        {
+          "label": "On this page",
+          "description": "Links that jump to Organization, Open tickets, Sites, Contacts, Portal accounts and History, with the count of each list in brackets. The Open tickets count is the number of open tickets, not all tickets."
+        }
+      ]
+    },
+    {
+      "title": "Organization",
+      "items": [
+        {
+          "label": "Organization type",
+          "description": "The kind of organization, or Not recorded."
+        },
+        {
+          "label": "Parent organization",
+          "description": "The health system, utility or sponsor this organization belongs to, as a link to its page, or None."
+        },
+        {
+          "label": "Member organizations",
+          "description": "The organizations whose parent is this one, active ones first then by name, each a link; inactive members are marked (inactive). None when there are none."
+        },
+        {
+          "label": "Account owner",
+          "description": "The laboratory staff member who looks after the relationship, or Not assigned."
+        },
+        {
+          "label": "General email",
+          "description": "The organization's shared address, as a link that opens your email application. Nothing is sent from here."
+        },
+        {
+          "label": "Main phone",
+          "description": "The organization's main telephone number. On a phone, tap it to call."
+        },
+        {
+          "label": "Mailing address",
+          "description": "Street address, suite or building, then city, state and ZIP code, or Not recorded when no part is entered."
+        },
+        {
+          "label": "Internal notes",
+          "description": "Notes for laboratory staff, or None recorded. They are not shown to the client and do not appear on the client portal."
+        }
+      ]
+    },
+    {
+      "title": "Open tickets",
+      "paragraphs": [
+        "Tickets for this organization that are open or waiting. The panel reads tickets the way the service desk does for you, so a ticket in a restricted category is left out, together with its count, unless you are a member of the ticket's team or a supervisor."
+      ],
+      "items": [
+        {
+          "label": "Status counts",
+          "description": "One line with the number of tickets in each status (Open, Waiting on client, Waiting on third party, Resolved, Closed), including resolved and closed ones. The number beside the panel title counts only the open, waiting-on-client and waiting-on-third-party tickets."
+        },
+        {
+          "label": "Ticket, Subject, Status, Site, Team, Last update",
+          "description": "Up to eight open tickets, the most recently updated first. The ticket number opens the ticket once the service desk provides its page; until then it is plain text. Site shows a dash when the ticket is not about one site. Team shows the team and, under it, the assignee when there is one. Last update shows the date and time."
+        },
+        {
+          "label": "No open tickets",
+          "description": "The empty state when nothing is open or waiting for this organization."
+        }
+      ]
+    },
+    {
+      "title": "Sites",
+      "paragraphs": [
+        "The offices, departments, collection sites, plants or sampling locations of the organization, active sites first, then by name."
+      ],
+      "items": [
+        {
+          "label": "Site, Code, Kind, Phone, Address",
+          "description": "The site's name (marked Inactive when deactivated), its code, its kind, its phone (tap to call) and its street address line and city. Blank values show a dash. For account managers, client services staff and the admin role the name opens the site form."
+        },
+        {
+          "label": "Add site",
+          "description": "Opens the form to add a site. Offered to account managers, client services staff and the admin role."
+        }
+      ]
+    },
+    {
+      "title": "Contacts",
+      "paragraphs": [
+        "The people the laboratory deals with at this organization, active contacts first, then by name. A contact has no page of its own: for those who may change contacts the name opens the contact form."
+      ],
+      "items": [
+        {
+          "label": "Name, Email, Phone",
+          "description": "The contact's name (marked Inactive when the contact was deactivated) with, under it, what the laboratory contacts this person about; an email address and a phone number. Blank values show a dash. The email address opens your email application and the phone number places a call on a phone."
+        },
+        {
+          "label": "Responsibilities",
+          "description": "What the contact deals with, for example Billing or Results and reports, or a dash. Responsibilities route work. They do not record who may receive results."
+        },
+        {
+          "label": "Sites served",
+          "description": "The sites the contact serves, or Whole organization when none are listed."
+        },
+        {
+          "label": "Add contact",
+          "description": "Opens the form to add a contact. Offered to account managers, client services staff and the admin role."
+        }
+      ]
+    },
+    {
+      "title": "Portal accounts",
+      "paragraphs": [
+        "Accounts for people at this organization who can sign in to the client portal. A portal account sees only its own organization's workspace. Access is by invitation only: there is no public sign-up."
+      ],
+      "items": [
+        {
+          "label": "Name, Status",
+          "description": "The account holder's name (or user name) with the email address under it, and whether the account is Active or Inactive."
+        },
+        {
+          "label": "Sees",
+          "description": "Which tickets the account can see in the portal: The whole organization, the names of its listed sites, or Only tickets it raised. The last one reads (access not set) for an account whose access has never been saved. An account always sees the tickets it raised itself."
+        },
+        {
+          "label": "Linked contact",
+          "description": "The contact the account belongs to, or a dash when none is linked."
+        },
+        {
+          "label": "Last sign-in",
+          "description": "The time of the last sign-in, or Never signed in."
+        },
+        {
+          "label": "Set access",
+          "description": "Account managers, client services staff and the admin role only. Opens the portal access form for that account."
+        },
+        {
+          "label": "Add portal account",
+          "description": "Superusers only. Opens the account form in administration with this organization already chosen as the client."
+        }
+      ]
+    },
+    {
+      "title": "Links",
+      "paragraphs": [
+        "Links to external records of the organization appear in their own panel between Portal accounts and History when the laboratory records them."
+      ]
+    },
+    {
+      "title": "History",
+      "items": [
+        {
+          "label": "Change history",
+          "description": "The eight most recent recorded changes to the organization itself, oldest first within that window, each with what happened, its time, the person who made it and the reason given. Changes to its sites, contacts and portal access are in the timeline, and each contact's and site's changes are also listed on its own form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/models.py",
+    "clients/permissions.py",
+    "clients/services.py",
+    "clients/timeline.py",
+    "accounts/admin.py",
+    "clients/templates/clients/client_detail.html",
+    "clients/templates/clients/_portal_scope.html",
+    "templates/includes/history_panel.html",
+    "templates/includes/page_toc.html"
+  ]
+}

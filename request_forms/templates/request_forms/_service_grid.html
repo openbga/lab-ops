@@ -1,0 +1,20 @@
+{% load ui %}{% comment %}
+The tiles of a portal service menu: one link per request form (its icon, client label and menu
+description) and a last tile for anything else. Parameters (pass with "only"): templates
+(RequestTemplate, in the laboratory's order), other_url (the generic raise form, or empty to leave its tile out), heading_id (the
+heading that names the list). One column on a phone, each tile a full-width touch target; two
+columns from 576px, three from 992px.
+{% endcomment %}<ul class="vr-service-grid" aria-labelledby="{{ heading_id }}">
+  {% for template in templates %}
+  <li><a class="vr-service-tile" href="{% url 'portal_forms:raise' template.key %}">
+    <span class="vr-service-icon">{% icon name=template.icon %}</span>
+    <span class="vr-service-text"><span class="vr-service-label">{{ template.portal_label }}</span>{% if template.description %}<span class="vr-service-desc">{{ template.description }}</span>{% endif %}</span>
+    <span class="vr-service-go">{% icon name="chevron-right" %}</span>
+  </a></li>
+  {% endfor %}
+  {% if other_url %}<li><a class="vr-service-tile vr-service-tile-other" href="{{ other_url }}">
+    <span class="vr-service-icon">{% icon name="envelope" %}</span>
+    <span class="vr-service-text"><span class="vr-service-label">Something else</span><span class="vr-service-desc">Contact the laboratory about something else.</span></span>
+    <span class="vr-service-go">{% icon name="chevron-right" %}</span>
+  </a></li>{% endif %}
+</ul>

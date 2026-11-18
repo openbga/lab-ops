@@ -1,0 +1,111 @@
+{
+  "id": "request-forms-request-details-edit",
+  "routes": [
+    "request_details:edit"
+  ],
+  "title": "Form details of a ticket",
+  "purpose": "Fill in or correct the answers recorded on a ticket form. A change keeps the earlier value, with who changed it and why.",
+  "summary": "Fill in missing ticket details or correct a recorded answer. Give a reason when you replace or clear an answer. You can read earlier values and their corrections below the form.",
+  "tasks": [
+    {
+      "title": "Fill in a missing detail",
+      "steps": [
+        "Find the field that is empty, enter the value and select [[Save form details]].",
+        "A reason is not needed when you fill an empty field."
+      ]
+    },
+    {
+      "title": "Correct a detail",
+      "steps": [
+        "Change the value and write why in [[Reason for change]].",
+        "Select [[Save form details]]. The old value moves to [[Earlier values]]."
+      ]
+    },
+    {
+      "title": "See what was changed before",
+      "steps": [
+        "Read [[Earlier values]] under the form: each old value with who entered it, who replaced it, when and why."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only the fields you change are saved. A value you leave alone is never rewritten.",
+    "Patient information fields appear only for staff who hold Can view patient information. Without it you cannot fill, see or correct them.",
+    "If someone changes an item list you also edited, the whole save is refused. Your entries stay on screen so you can compare them before reloading.",
+    "Patient-information values are never filled into this form or listed under Earlier values. To replace one, type the new value; leaving the box empty keeps it. See it with Reveal on the ticket.",
+    "An item list also shows items the ticket already ordered that the laboratory has since retired, marked No longer offered. They stay on the ticket until you change that field."
+  ],
+  "sections": [
+    {
+      "title": "Form details",
+      "paragraphs": [
+        "The page is named Form details of, followed by the ticket number. It lists the form's active fields in the form's order, each starting from its current value. This includes fields that staff fill and staff-only fields, which clients do not see. Fields switched off are not shown. Clients cannot use this page: it is for staff accounts."
+      ],
+      "items": [
+        {
+          "label": "The form's fields",
+          "description": "One input for each active field you may fill, with the field's label, help text and rules as on the form: short and long text, number, date, date and time, time of day, one choice or several, yes or no, a confirmation box, or quantities for an item list. Staff without Can view patient information do not get the patient information fields."
+        },
+        {
+          "label": "Patient information",
+          "description": "A notice shown when the form has active patient information fields and you do not hold Can view patient information. Only staff who can view patient information see, fill or correct those fields."
+        },
+        {
+          "label": "required missing",
+          "description": "In the status line under the title: how many required details the ticket still lacks, counted against the form exactly as this page shows its fields. The ticket's Form details panel lists them under Still needed."
+        },
+        {
+          "label": "Reason for a patient-information change",
+          "description": "Shown when you may change a patient information field. Required when you replace or clear a patient information value: choose Typing error, Corrected from the source record, The client gave a correction, Belongs to another person or Not needed on this ticket. The audit history keeps only this choice. It applies only to patient information values that actually change; when none changes it is dropped."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Required when you change or clear an ordinary value that already has one, a recorded No included. Not required when you fill an empty field. Kept with each value it changed and shown beside the earlier value; the audit history names the fields, not this text. Do not write patient information here."
+        },
+        {
+          "label": "Note on the patient-information change",
+          "description": "Shown with the reason list. Optional, up to 1000 characters. Kept with the patient information value it changed and shown under Earlier values only to staff who hold Can view patient information; never in the audit history or the timeline. Dropped when no patient information value changes."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "paragraphs": [
+        "A required detail can be left empty here. The ticket page then lists it as still needed.",
+        "A closed ticket's form details can no longer change: the ticket page shows no Edit form details, and this page returns to the ticket with a message.",
+        "If someone else changes a value you are correcting, nothing is saved. Your input stays on the page. Reload to review the current value before trying again. An unchanged item list keeps the other person's correction.",
+        "Saving moves the ticket on: a dialog or list selection opened before it (assign, status, bulk change) is refused and asks you to reload.",
+        "If the ticket leaves what you may see while you work (its team changes, say), the page answers Not found."
+      ],
+      "items": [
+        {
+          "label": "Save form details",
+          "description": "Records each changed answer and its author. The timeline names the fields that changed. The audit event records their names and any reason selected from the list. On success you return to the ticket and see how many values were saved. Nothing changed means every submitted answer matched the one shown. A missing reason is flagged on the form. If the form definition changed, the page reopens with current fields and values and discards what you typed. Definition changes include field labels, patient-information marks, audiences, types, choices, required settings, catalogs, catalog items and category settings. This also covers an item the ticket still holds from a former catalog."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without saving."
+        }
+      ]
+    },
+    {
+      "title": "Earlier values",
+      "paragraphs": [
+        "Replaced and cleared values stay, newest first. Each shows the field's label and the old value (blank when it was cleared), who entered it and when, who replaced it and when, and the reason. A patient information value never shows its value. Without Can view patient information the row is only Patient information (not shown), with no person, time or reason; with it, the row shows who changed it and when, the reason chosen and any note. Earlier values are never edited or deleted. When nothing was corrected, No corrections is shown."
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/forms.py",
+    "request_forms/request_urls.py",
+    "request_forms/request_views.py",
+    "request_forms/selectors.py",
+    "request_forms/services.py",
+    "request_forms/templates/request_forms/_details.html",
+    "request_forms/templates/request_forms/edit_values.html",
+    "request_forms/tests/test_capture_consistency.py",
+    "request_forms/tests/test_pages.py",
+    "request_forms/tests/test_values.py",
+    "request_forms/urls.py"
+  ]
+}

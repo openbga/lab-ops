@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- Link preview (Open Graph image) source: 1200 x 630, rendered to static/img/link-preview.png by
+     tools/brand/build.py. Colours are the light theme's tokens in static/css/app.css: the top bar's
+     mauve (--vr-topbar-bg), the panel surface (--vr-surface), text (--vr-text-strong,
+     --vr-text-muted), the selection tint (--vr-selection) and the ink (--vr-ink). -->
+<html lang="en">
+<meta charset="utf-8">
+<title>OpenBGA Lab Ops</title>
+<style>
+  @font-face {
+    font-family: "Overpass";
+    font-weight: 100 900;
+    src: url("../../static/vendor/overpass-5.3.0/overpass-latin-wght-normal.woff2") format("woff2");
+  }
+  html, body { margin: 0; }
+  body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    background: #eee8ed;
+    font-family: "Overpass", system-ui, sans-serif;
+    color: #1e1a1d;
+  }
+  .card {
+    position: absolute;
+    inset: 48px;
+    display: flex;
+    align-items: center;
+    gap: 64px;
+    padding: 0 80px;
+    background: #fdfcfd;
+    border-radius: 32px;
+    overflow: hidden;
+  }
+  .card::after { /* a soft selection-tint disc centred on the mark */
+    content: "";
+    position: absolute;
+    left: -40px;
+    top: 27px;
+    width: 480px;
+    height: 480px;
+    border-radius: 50%;
+    background: #f4def7;
+    opacity: 0.75;
+    z-index: 0;
+  }
+  .card > * { position: relative; z-index: 1; }
+  .mark { width: 240px; height: 240px; flex: none; }
+  .wordmark { display: grid; line-height: 1.02; }
+  .parent { font-size: 44px; font-weight: 500; color: #615b61; }
+  .name { font-size: 104px; font-weight: 800; letter-spacing: -0.025em; }
+  .line {
+    margin: 30px 0 0;
+    max-width: 640px;
+    font-size: 31px;
+    line-height: 1.35;
+    color: #615b61;
+  }
+  .line b { color: #8a4894; font-weight: 700; }
+</style>
+<body>
+  <div class="card">
+    <img class="mark" src="../../static/img/mark.svg" alt="">
+    <div>
+      <div class="wordmark"><span class="parent">OpenBGA</span><span class="name">Lab Ops</span></div>
+      <p class="line">Client service tickets, pickups and supply orders for laboratories. <b>Free and open source.</b></p>
+    </div>
+  </div>
+</body>
+</html>

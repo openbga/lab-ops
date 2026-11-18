@@ -1,0 +1,64 @@
+{
+  "id": "dataimport-index",
+  "routes": [
+    "dataimport:index"
+  ],
+  "title": "Spreadsheet import",
+  "purpose": "Load the laboratory's client list from CSV files: organizations, then their sites and contacts, then the identifiers other systems (such as the LIS) use for each organization. Download a template for each file, fill it in, and import it after checking a preview.",
+  "summary": "Load organizations, sites, contacts and their external identifiers from CSV files. Each file is checked before anything is saved and imports completely or not at all.",
+  "tasks": [
+    {
+      "title": "Load a client list for the first time",
+      "steps": [
+        "Download each template from the Template column and replace its example row with your own rows.",
+        "Import [[Organizations]] first, then [[Sites]], [[Contacts]] and [[External identifiers]]: each file needs the records of the ones before."
+      ]
+    },
+    {
+      "title": "Correct records in bulk",
+      "steps": [
+        "Upload a file with the same keys and the corrected values. Rows that match an existing record change it; the preview shows each value before and after."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only account managers, client services staff and the admin role can open import pages.",
+    "Importing the same file again changes nothing and records nothing.",
+    "The import never creates sign-in accounts or portal access, sends no email and takes no patient data.",
+    "Keys stay inside one organization: a site or contact row never moves a record to another organization."
+  ],
+  "sections": [
+    {
+      "title": "Files",
+      "items": [
+        {
+          "label": "File",
+          "description": "Opens the import page for organizations, sites, contacts or external identifiers."
+        },
+        {
+          "label": "Step",
+          "description": "The order to import in. Sites need their organizations; contacts need their organizations and the sites they serve; external identifiers need their organizations and the external systems an administrator set up."
+        },
+        {
+          "label": "Needs first",
+          "description": "What must already exist in the application before the file can be imported."
+        },
+        {
+          "label": "Template",
+          "description": "Downloads a CSV file with the header row and one synthetic example row, saved as UTF-8 with a byte-order mark so spreadsheet programs read accents correctly."
+        }
+      ]
+    },
+    {
+      "title": "Before you import",
+      "paragraphs": [
+        "Files are CSV UTF-8 with the header row first, up to 1024 KiB and 2000 rows. Header names ignore letter case. A file in another encoding is refused rather than guessed. Columns that would hold patient data (such as patient_name, mrn or dob) are refused."
+      ]
+    }
+  ],
+  "sources": [
+    "dataimport/views.py",
+    "dataimport/importing.py",
+    "dataimport/templates/dataimport/index.html"
+  ]
+}

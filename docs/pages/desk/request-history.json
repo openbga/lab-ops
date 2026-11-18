@@ -1,0 +1,71 @@
+{
+  "id": "desk-request-history",
+  "routes": [
+    "desk:request-history"
+  ],
+  "title": "Ticket audit history",
+  "purpose": "Read the audit trail of one ticket: its changes, entries, complaint record and link attachments, oldest first. Supervisors only.",
+  "summary": "Every recorded change to one ticket, in order, with who made it and why. For supervisors; it lists what changed, not the text of entries.",
+  "tasks": [
+    {
+      "title": "See who changed a ticket and when",
+      "steps": [
+        "On the ticket, open the [[More]] menu and select [[Audit history]].",
+        "Read the events from the oldest to the newest."
+      ]
+    },
+    {
+      "title": "Go back to the ticket",
+      "steps": [
+        "Select the link that starts with Back to the ticket number."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only supervisors (and the admin role) can open this page; other staff are refused.",
+    "History is never edited. A correction adds a new event.",
+    "Events carry codes, numbers and field names, not the words of replies, notes or logged contacts. Read those on the ticket.",
+    "A ticket you may not read answers Not found here too."
+  ],
+  "sections": [
+    {
+      "title": "What is listed",
+      "paragraphs": [
+        "The page is titled History of followed by the ticket number and shows the History panel Audit history. Events appear oldest first, each with its action, the time, who did it and, when given, the reason."
+      ],
+      "items": [
+        {
+          "label": "The ticket",
+          "description": "Creation, status, assignment, category and priority changes, and complaint marking."
+        },
+        {
+          "label": "Its entries",
+          "description": "That a reply, note or logged contact was added, and that a reply was withdrawn, with the reason. The text of the entry is not copied here."
+        },
+        {
+          "label": "Its complaint record",
+          "description": "The decision, updates and the review, with the before and after values the record keeps."
+        },
+        {
+          "label": "Its links",
+          "description": "Attachments of links to orders and other records, once links are in use."
+        },
+        {
+          "label": "Back to the ticket",
+          "description": "Returns to the ticket page, keeping the list you came from."
+        },
+        {
+          "label": "No audit events",
+          "description": "Shown when nothing is recorded."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/permissions.py",
+    "desk/templates/desk/request_history.html",
+    "templates/includes/history_panel.html"
+  ]
+}

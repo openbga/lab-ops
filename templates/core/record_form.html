@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Create or edit form for one record whose form is a core.forms.GroupedForm (sections render through
+includes/grouped_fields.html). Context: page_title ("New client organization", "Edit Example Clinic"),
+submit_label, form, crumbs, cancel_url; edit adds object (the form then carries the reason and a
+hidden expected_revision), and inactive_notice, the sentence shown while the stored record is inactive.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% comment %}Stored state comes from form.initial: a failed ModelForm validation has already copied submitted values onto object.{% endcomment %}
+{% if object and form.initial.is_active == False and inactive_notice %}
+{% notice tone="neutral" label="Inactive" %}{{ inactive_notice }}{% endnotice %}
+{% endif %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label|default:"Save changes" %}
+  {% include "includes/grouped_fields.html" %}
+{% endform_page %}
+{% endblock %}

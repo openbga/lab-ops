@@ -1,0 +1,160 @@
+{
+  "id": "desk-request-create",
+  "routes": [
+    "desk:request-create"
+  ],
+  "title": "New ticket",
+  "purpose": "Log a ticket that reached the laboratory by phone, email, fax, in person or from inside the laboratory, with the client's words as its first entry.",
+  "summary": "Log a ticket from a call, an email, a walk-in or a problem found inside the laboratory. Choose the category first; it shows the intake guidance and where the ticket goes.",
+  "tasks": [
+    {
+      "title": "Log a ticket from a call",
+      "steps": [
+        "Choose the [[Category]]. Its intake guidance and the team and priority it proposes appear.",
+        "Find the [[Organization]], or the [[Contact]] who called. Leave them empty for an anonymous caller or an internal problem.",
+        "Type a [[Subject]] and what the caller asked in [[What the client asked]], then select [[Log ticket]]."
+      ]
+    },
+    {
+      "title": "Log a ticket from an unknown caller",
+      "steps": [
+        "Leave [[Contact]] empty and write the caller's name and role in [[Reported by]].",
+        "Put any order or sample number the caller gave in [[Reference given]]."
+      ]
+    },
+    {
+      "title": "Decide who sees the first entry",
+      "steps": [
+        "Under [[The first entry is]], keep the internal note, or choose the reply the client sees in the portal.",
+        "Choose the reply only when the client should read the text."
+      ]
+    },
+    {
+      "title": "Send it to a person",
+      "steps": [
+        "Choose a person under [[Assign to]]. People are listed under their team, and the ticket goes to that team.",
+        "Leave it on the default entry to use the category's team, or the default team."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Do not enter a patient's name or date of birth. Use an order, accession or sample number.",
+    "The first entry is an internal note unless you choose the client reply. A reply reaches nobody if no portal account can see the ticket.",
+    "Only active categories are offered. Categories are managed in setup, not on this form.",
+    "If the ticket goes to a restricted category's team you do not belong to, you are sent back to the list because you may not read it.",
+    "If the category's team, priority, complaint or restricted setting, or the ticket form, changed since you opened the page, nothing is created. Review the page as it is now and save again."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "Any active staff role may log a ticket. Client portal accounts raise tickets from the portal instead. The form is one column on a phone, with Log ticket at the bottom of the screen. Category, Channel, Subject, The first entry is and What the client asked are required; everything else is optional."
+      ],
+      "items": [
+        {
+          "label": "Category",
+          "description": "Required. Active categories listed under their group; a group itself cannot be chosen. Choosing one loads its intake guidance and a line saying which team and priority it proposes, and whether tickets in it are complaints or restricted. It only proposes: Priority and Assign to keep what you choose."
+        },
+        {
+          "label": "Priority",
+          "description": "Low, Normal, High or Urgent. Left on The category's priority, the ticket gets the category's default priority."
+        },
+        {
+          "label": "Ticket form",
+          "description": "Shown when the chosen category has ticket forms. Pick the form for this kind of ticket, or No form. A category with exactly one form starts with it chosen. Changing it shows that form's fields below. Saving uses the form shown: one retired, moved to another category, or changed since the page opened (its fields, item lists, items or its category's settings, such as restricted) is refused with one message: beside the category when the category changed, on Ticket form when the form was retired, moved, or is no longer offered to the ticket's organization (Ticket form returns to No form and its fields are no longer shown: choose a form again), at the top otherwise. The form's fields are then shown again as the form is now, empty; the ticket's own fields keep what you typed. The form's instructions are always the ones of the form as its fields show it; a form retired, moved or withdrawn from the chosen organization while the section loads is not shown. A form for selected organizations only is marked so in the list; when the organization is chosen before the category, only the forms offered to it are listed. Saving refuses a form not offered to the ticket's organization (a site's or contact's when none is chosen); a ticket without an organization takes only forms offered to every organization. A ticket's organization does not change after it is logged."
+        },
+        {
+          "label": "The form's fields",
+          "description": "The chosen form's own fields, in its order and with its section headings: the ones the client fills in the portal and the staff-only ones. Fields that hold patient information appear only if you hold Can view patient information. Required fields are marked."
+        },
+        {
+          "label": "Some required details are not known yet",
+          "description": "Tick it to log the ticket while the caller cannot give a required detail. The ticket is created and its page lists what is still needed until someone fills it with Edit form details. Without Can view patient information you must tick it when the form has a required patient-information field, which you do not see; the ticket page lists it as still needed."
+        },
+        {
+          "label": "Organization",
+          "description": "Optional. Searches active client organizations by name or account code. Leave it empty for an anonymous caller or a problem found inside the laboratory. When the page address names an organization, it is filled in for you."
+        },
+        {
+          "label": "Site",
+          "description": "Optional. Searches active sites by site or organization name. Choosing a site fills in the organization when it is empty; a site of another organization than the one chosen is refused (\"Choose one of the organization's own.\")."
+        },
+        {
+          "label": "Contact",
+          "description": "Optional. The person who raised it; searches active contacts by name, role, email or organization. Choosing a contact fills in the organization when it is empty; a contact of another organization is refused."
+        },
+        {
+          "label": "Reported by",
+          "description": "Optional, up to 160 characters. An unknown caller's name and role, when there is no contact record."
+        },
+        {
+          "label": "Channel",
+          "description": "Required. How the ticket arrived: Phone (the default), Email, Fax, In person, Internal or Other. The client portal is not a choice here: portal tickets come from the portal."
+        },
+        {
+          "label": "Reference given",
+          "description": "Optional, up to 80 characters. An order, accession, sample, report or invoice number the caller gave. It is kept as text on the ticket and the list search finds it."
+        },
+        {
+          "label": "Subject",
+          "description": "Required, up to 120 characters. One line that identifies the ticket in lists."
+        },
+        {
+          "label": "The first entry is",
+          "description": "Required. An internal note (staff only, the default) or a reply the client sees in the portal. A reply is visible to the client only if a portal account can read the ticket."
+        },
+        {
+          "label": "What the client asked",
+          "description": "Required. The first entry's text. Use an order, accession or sample number; never a patient's name or date of birth."
+        },
+        {
+          "label": "Files",
+          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames; a refused file keeps your text and asks you to choose the files again. Files are not scanned for viruses. They are attached to the ticket's first entry, so the client sees them only when that entry is a reply."
+        },
+        {
+          "label": "Assign to",
+          "description": "Optional. The category's team (or the default team when the category names none), or an active team, or a member of an active team. Choosing a team alone leaves nobody assigned; choosing a person assigns them and sets the team."
+        },
+        {
+          "label": "Log ticket",
+          "description": "Creates the ticket with its number (such as REQ-000123), its first entry and a timeline event, in one step, and opens it. If you are not allowed to read the ticket you just logged (a restricted category routed to a team you are not in), you return to the list with the confirmation instead."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket list; nothing is saved."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "A group instead of a category, an inactive category, organization, site or contact, an inactive team, and an assignee who is not an active member of the chosen team are refused with a message beside the field. So is a category whose team, priority, complaint or restricted setting changed after its line was shown: the line is shown again as it is now and, with a ticket form, the form's fields are shown again empty. Everything else you typed stays in the form."
+        },
+        {
+          "label": "Service clocks",
+          "description": "Clocks start when service targets are configured for the ticket's category and priority. This form does not set targets."
+        },
+        {
+          "label": "Record of the change",
+          "description": "Who logged the ticket and when are recorded in the ticket's timeline and audit history. Entries cannot be edited or deleted afterwards."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/forms.py",
+    "desk/forms.py",
+    "desk/lookups.py",
+    "desk/services.py",
+    "desk/templates/desk/_category_guidance.html",
+    "desk/templates/desk/request_form.html",
+    "desk/urls.py",
+    "desk/views.py",
+    "docs/workflows.md",
+    "request_forms/intake.py",
+    "request_forms/services.py",
+    "request_forms/templates/request_forms/_intake.html"
+  ]
+}

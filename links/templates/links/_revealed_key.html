@@ -1,0 +1,5 @@
+{% comment %}
+HTMX answer to Reveal key (L3): the person-level key only. Staff open person-level records in the source system. Sent with
+Cache-Control: no-store; the reveal is recorded in the audit history. Marked data-vr-forget:
+static/js/app.js puts the masked cell back when the page is left or restored from history. Context: link, attachment.
+{% endcomment %}<span class="vr-id" data-vr-revealed-key data-vr-forget>{{ link.identifier }}</span> <span class="vr-muted small">Reveal recorded.</span>

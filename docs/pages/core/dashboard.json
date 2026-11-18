@@ -1,0 +1,135 @@
+{
+  "id": "core-dashboard",
+  "routes": [
+    "dashboard"
+  ],
+  "title": "Dashboard",
+  "purpose": "See the work waiting for your laboratory roles, including your tickets, and the client organizations added most recently.",
+  "summary": "The work waiting for your roles, grouped by area (your tickets, clients and more), and the client organizations added most recently.",
+  "tasks": [
+    {
+      "title": "Start on the work that is waiting",
+      "steps": [
+        "Find the line for your area under Your work queues.",
+        "Select a queue's label to open the list of those items. Queues showing 0 have no link."
+      ]
+    },
+    {
+      "title": "Start on your tickets",
+      "steps": [
+        "Under Service desk, select My open tickets to see what is assigned to you.",
+        "Select Unassigned in my teams to find work to take or assign."
+      ]
+    },
+    {
+      "title": "Add a client organization",
+      "steps": [
+        "Select [[New organization]]. It is offered to account managers and client services staff."
+      ]
+    },
+    {
+      "title": "Open a recently added organization",
+      "steps": [
+        "Under Recently added organizations, select the name. Select [[All client organizations]] for the complete list."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Counts are live: each is the number of records the linked list shows with the same filter.",
+    "Ticket queues count only tickets you may read. Restricted categories count for their team's members and supervisors.",
+    "The colour of a line only marks its area. The status and icon tell you the state.",
+    "Complaints awaiting my review is shown to supervisors only, and counts only complaints you may review independently.",
+    "Announcements cannot be dismissed. They disappear when they end or are withdrawn."
+  ],
+  "sections": [
+    {
+      "title": "Actions and sections",
+      "items": [
+        {
+          "label": "Announcements",
+          "description": "Current notices the laboratory's administrators posted for staff appear first, newest first, each marked Notice or Important with a title and a plain-text message. They are the same for every staff role, cannot be dismissed, and disappear when they end or are withdrawn. Nothing appears when none is current. Announcements for the sign-in page or the client portal are not repeated here unless they were also posted for staff. Administrators manage them under Setup, Announcements."
+        },
+        {
+          "label": "New organization",
+          "description": "Opens the form for a new client organization. Offered to account managers and client services staff, including the admin role's operational access."
+        },
+        {
+          "label": "Your work queues",
+          "description": "Your queues, grouped into lines by area of work. Each line shows its area's total, and the header shows how many items wait in all your queues together. The panel appears only when one of your roles has a queue. A queue's label opens the corresponding filtered list when its count is nonzero. Empty queues stay on their line with a muted label and 0, without a link. “Nothing is waiting for you right now” means all your displayed queues are zero. The Service desk line holds the ticket queues; it appears for every staff role."
+        },
+        {
+          "label": "Recently added organizations / All client organizations",
+          "description": "Shows the eight most recently added client organizations, active or not, with account code, status, city and state. The name opens the organization; All client organizations opens the complete list. There are no search, sorting or paging controls here."
+        }
+      ]
+    },
+    {
+      "title": "Each queue on a line",
+      "items": [
+        {
+          "label": "Queue",
+          "description": "The type of work, with a note about what to do. Opens the filtered list while the count is above zero."
+        },
+        {
+          "label": "Status",
+          "description": "Shown while work waits, with the matching tone and icon. The line colours only mark the area; they never mean a status."
+        },
+        {
+          "label": "Oldest",
+          "description": "Age of the earliest relevant timestamp when that queue supplies one. Hover over it for the exact time. The ticket queues use the time the oldest ticket was logged; the client organization queue supplies none."
+        },
+        {
+          "label": "Count",
+          "description": "Computed number of records matching that queue's filters."
+        }
+      ]
+    },
+    {
+      "title": "Queue rules",
+      "items": [
+        {
+          "label": "Active organizations without an active contact",
+          "description": "Client organizations that are Active and have no active contact. Status Incomplete. It opens the client list filtered to Active organizations with No active contact, and it is shown to account managers and client services staff. Add a contact on the organization's page to clear it."
+        },
+        {
+          "label": "My open tickets",
+          "description": "Tickets assigned to you whose status is Open, Waiting on client or Waiting on third party. Shown to every staff role. Status Waiting. Opens the Tickets list on My open. Note: Assigned to you."
+        },
+        {
+          "label": "Unassigned in my teams",
+          "description": "Open or waiting tickets in teams you belong to that nobody is assigned to. Shown to every staff role; the count is 0 when you belong to no team. Status Needs attention. Opens the Tickets list on Unassigned in my teams. Take one or assign it."
+        },
+        {
+          "label": "Overdue tickets",
+          "description": "Open or waiting tickets with a service clock past due, among those you may read. Shown to every staff role. Status Overdue. Service clocks exist when service targets are configured; a ticket with no clock is not counted. Opens the Tickets list on Overdue."
+        },
+        {
+          "label": "Complaints awaiting my review",
+          "description": "Complaints that have a recorded decision, are not reviewed or closed, and that you may review: you are a supervisor (the admin role counts), you did not record the decision and you have never been assigned the ticket. Shown to supervisors only. Status In review. Opens the Tickets list on Complaints awaiting review with the Awaiting review complaint filter, so the list and the count agree."
+        }
+      ]
+    },
+    {
+      "title": "Access and records",
+      "paragraphs": [
+        "Active internal users see queues for their effective roles; admin includes the other staff roles. The sidebar offers destinations for your roles and combines them when you hold several. Client-linked users are redirected to their own portal home. Dashboard counts are live queries over the records, not saved tasks. The ticket queues start from the tickets you may read, so a restricted ticket outside your team is never counted."
+      ]
+    }
+  ],
+  "sources": [
+    "core/views.py",
+    "templates/core/dashboard.html",
+    "accounts/roles.py",
+    "clients/permissions.py",
+    "clients/views.py",
+    "core/announcements.py",
+    "core/templatetags/announcements.py",
+    "templates/includes/announcements.html",
+    "core/templatetags/navigation.py",
+    "templates/includes/nav_staff.html",
+    "desk/lists.py",
+    "desk/selectors.py",
+    "desk/permissions.py",
+    "desk/views.py"
+  ]
+}

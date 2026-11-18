@@ -1,0 +1,10 @@
+{% load ui %}{% comment %}
+What's new, a global utility in the staff top bar: a link to the What's new page. When entries
+are newer than the ones this user saw last, a count badge shows and the accessible name and
+tooltip say "What's new: N new changes". Rendered only by the {% whats_new_button %} tag
+(core/templatetags/whats_new.py), which decides whether to show it and counts the unread entries.
+{% endcomment %}{% if show %}
+<a class="btn btn-sm vr-topbar-btn vr-whats-new" href="{{ url }}"{% if current %} aria-current="page"{% endif %}{% if count %} aria-label="What's new: {{ count }} new change{{ count|pluralize }}" title="What's new: {{ count }} new change{{ count|pluralize }}" data-vr-unread="{{ count }}"{% else %} aria-label="What's new" title="What's new"{% endif %}>
+  {% icon name="stars" %}<span class="d-none d-xl-inline">What's new</span>{% if count %}<span class="vr-topbar-count" aria-hidden="true">{{ badge }}</span>{% endif %}
+</a>
+{% endif %}

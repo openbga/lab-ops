@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Find by patient key (L3): an exact search by a patient, participant or donor key, POST only, for
+holders of view_patient_information (others get a notice; a POST is refused). Each search is recorded (with a keyed digest, never the
+key). The key is not written back into the page. Context: form (PersonSearchForm), results (None
+before a search; else the requests the reader may read that carry the key).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Exact match on the source system's key. Every search is recorded.</p>{% endblock %}
+{% block content %}
+{% if not allowed %}
+{% notice tone="neutral" label="Permission needed" %}Searching by a patient, participant or donor key needs the “Can view patient information” permission, which an administrator grants in Accounts &amp; roles. No role includes it.{% endnotice %}
+{% else %}
+{% form_page form=form submit_label="Search" no_required_note=True cancel_url=None %}{% endform_page %}
+{% endif %}
+{% if results is not None %}
+{% panel title="Tickets carrying this key" count=results|length table=True class="mt-3" %}
+  {% list_results items=results empty_title="No tickets carry this key" empty_body="Only exact matches count, and only tickets you may read are listed." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Ticket</th><th scope="col">Subject</th><th scope="col">Organization</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for found in results %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{{ found.url }}">{{ found.number }}</a></th>
+          <td>{{ found.subject }}</td>
+          <td>{{ found.client.name|default:"—" }}</td>
+          <td>{{ found.get_status_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endif %}
+{% endblock %}

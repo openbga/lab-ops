@@ -1,0 +1,106 @@
+{
+  "id": "desk-request-status",
+  "routes": [
+    "desk:request-status"
+  ],
+  "title": "Change status",
+  "purpose": "Move a ticket to another status: waiting, resolved with a summary, reopened with a reason, or closed.",
+  "summary": "Set the ticket's status. Resolving needs a resolution summary, reopening a resolved ticket needs a reason, and closing only follows resolving.",
+  "tasks": [
+    {
+      "title": "Wait on the client or a third party",
+      "steps": [
+        "Choose [[Waiting on client]] or [[Waiting on third party]] under [[New status]] and select [[Change status]]."
+      ]
+    },
+    {
+      "title": "Resolve a ticket",
+      "steps": [
+        "Choose [[Resolved]] under [[New status]].",
+        "Write what was done in [[Resolution summary]], then select [[Change status]]. The summary is internal."
+      ]
+    },
+    {
+      "title": "Close a resolved ticket",
+      "steps": [
+        "Choose [[Closed]] under [[New status]] and select [[Change status]]. To close several at once, use the Tickets list."
+      ]
+    },
+    {
+      "title": "Reopen a resolved ticket",
+      "steps": [
+        "Choose [[Open (reopen)]], or a waiting status marked (reopen), under [[New status]].",
+        "Write the [[Reason]] and select [[Change status]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Closed is final. A closed ticket cannot change status again, and this page is refused for it.",
+    "A complaint closes only after its independent review. The page refuses the close until a supervisor has reviewed it.",
+    "Closed follows Resolved only. Resolve first; the form offers Closed only on a resolved ticket.",
+    "The client does not see the resolution summary."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from the ticket page, as a dialog or a full page. Any active staff role who may read the ticket may change its status. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload."
+      ],
+      "items": [
+        {
+          "label": "New status",
+          "description": "Required. The choices depend on the current status. From Open or a waiting status: Open or the other waiting status, and Resolved; the current status is not offered, and Closed is not offered. From Resolved: Closed, Open (reopen), Waiting on client (reopen) and Waiting on third party (reopen)."
+        },
+        {
+          "label": "Resolution summary",
+          "description": "Required when you choose Resolved: what was done. Internal; shown on the ticket page as Resolution. Ignored for other statuses."
+        },
+        {
+          "label": "Reason",
+          "description": "Required when reopening a resolved ticket (any status other than Closed chosen from Resolved). Optional in other cases; kept in the audit history."
+        },
+        {
+          "label": "Change status",
+          "description": "Saves and confirms Status changed. The ticket page shows the new status and a timeline event."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Resolved",
+          "description": "Needs a resolution summary. Resolving records the time. A resolved ticket can be closed by staff or reopened with a reason."
+        },
+        {
+          "label": "Closed",
+          "description": "Only a resolved ticket can be closed. A complaint must have its independent review first (\"This complaint closes only after a supervisor has reviewed it.\"). A closed ticket cannot be reopened or changed; raise a new ticket and mention the earlier number."
+        },
+        {
+          "label": "Waiting statuses",
+          "description": "Waiting on client means the client owes an answer or material; Waiting on third party means an outsider owes the next step. The ticket keeps its team and assignee. Whether either pauses a service clock is decided by the laboratory's service targets, when they are configured."
+        },
+        {
+          "label": "From the composer",
+          "description": "The composer on the ticket page can also set Open or a waiting status together with a reply or note; it cannot resolve or close."
+        },
+        {
+          "label": "Client replies",
+          "description": "A client's reply on a ticket that waits on the client, or is resolved, reopens it. That is automatic and not a staff action."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/templates/desk/request_action.html",
+    "docs/product.md"
+  ]
+}

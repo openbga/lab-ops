@@ -1,0 +1,122 @@
+{
+  "id": "request-forms-template-list",
+  "routes": [
+    "request_forms:template-list"
+  ],
+  "title": "Ticket forms",
+  "purpose": "See the laboratory's ticket forms, put them in the order clients and staff see them, and open one to change its fields.",
+  "summary": "The forms for routine tickets, each with its own fields, in the order the portal offers them. Only the admin role can open this page and change the forms.",
+  "tasks": [
+    {
+      "title": "Start with the standard forms",
+      "steps": [
+        "Select [[Load standard forms]], choose your laboratory types and load them.",
+        "Open each form, edit what you need and switch off what you do not."
+      ]
+    },
+    {
+      "title": "Create a ticket form",
+      "steps": [
+        "Select [[New ticket form]], choose the category, name the form and save.",
+        "On the form's page, select [[Add field]] for each detail the ticket needs."
+      ]
+    },
+    {
+      "title": "Change the order of the forms",
+      "steps": [
+        "In the last column of a row, open [[Move]] and select [[Move up]] or [[Move down]].",
+        "The new order is the order on the portal's menu."
+      ]
+    },
+    {
+      "title": "Find a form you switched off",
+      "steps": [
+        "Select [[Show inactive]]. Inactive forms are marked [[Inactive]].",
+        "Open the form and select [[Edit form]] to switch it back on."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A form files its tickets under one category. Several forms can share a category, such as a routine and an urgent pickup.",
+    "Staff only in Client portal means clients are not offered the form: it is off for the portal, or its category is one clients may not raise.",
+    "Inactive forms are hidden by default. A form that tickets were raised with is never deleted, only switched off, and those tickets keep their values.",
+    "A move uses the full order, hidden inactive forms included, so a move next to a hidden form can look like nothing happened."
+  ],
+  "sections": [
+    {
+      "title": "Page actions",
+      "items": [
+        {
+          "label": "Show inactive",
+          "description": "Shown only when at least one form is inactive and the list shows active forms. Adds the inactive forms to the list. Hide inactive returns to active forms only. A line under the table says how many inactive forms are hidden."
+        },
+        {
+          "label": "Catalogs",
+          "description": "Opens the catalogs that item-list fields choose from."
+        },
+        {
+          "label": "Load standard forms",
+          "description": "Opens the page that adds the laboratory's starting forms, fields and catalogs by laboratory type."
+        },
+        {
+          "label": "New ticket form",
+          "description": "Opens the form to create a ticket form. Only the admin role can use these pages. Other staff roles and portal accounts are refused."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "paragraphs": [
+        "Forms are listed in the laboratory's order. That order is the order of the client portal's menu and of the staff form picker. There is no sorting, filtering or paging."
+      ],
+      "items": [
+        {
+          "label": "Form",
+          "description": "The name staff see. It opens the form's page. Inactive forms carry an Inactive mark."
+        },
+        {
+          "label": "Category",
+          "description": "The category the form files tickets under, shown as the category group, a colon and the category. The category routes the ticket to its team and proposes its priority."
+        },
+        {
+          "label": "Client portal",
+          "description": "On the service menu: offered to clients and featured on the portal home. Offered: offered to clients but not featured. Staff only: not offered to clients, either because the form is not marked for the portal or because clients may not raise tickets in its category."
+        },
+        {
+          "label": "Fields",
+          "description": "How many active fields the form has. Inactive fields are not counted."
+        },
+        {
+          "label": "Client label",
+          "description": "The name clients see. Same as name means the form has no separate client label. Hidden first on narrow screens."
+        },
+        {
+          "label": "Move",
+          "description": "Menu at the end of each row with Move up and Move down. The first row has no Move up and the last no Move down. Each move is one step and is recorded in the history. Move swaps with the neighboring form in the full order, including inactive forms that are hidden."
+        }
+      ]
+    },
+    {
+      "title": "States",
+      "items": [
+        {
+          "label": "No ticket forms yet",
+          "description": "Shown when the laboratory has no form at all. It offers Load standard forms."
+        },
+        {
+          "label": "No active ticket forms",
+          "description": "Shown when every form is inactive. Use Show inactive to edit them."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/services.py",
+    "request_forms/models.py",
+    "request_forms/templates/request_forms/template_list.html",
+    "request_forms/tests/test_pages.py",
+    "request_forms/tests/test_setup.py"
+  ]
+}

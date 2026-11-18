@@ -1,0 +1,106 @@
+{
+  "id": "service-levels-calendar-detail",
+  "routes": [
+    "service_levels:calendar-detail"
+  ],
+  "title": "Business calendar",
+  "purpose": "See one calendar's weekly opening hours, holidays, the targets that count in it and its history, and reach the forms to change them.",
+  "summary": "One business calendar: its weekly opening hours, its holidays, the service targets that count in it and the changes made to it. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Add a holiday",
+      "steps": [
+        "Select [[Add holiday]] in the Holidays panel.",
+        "Enter the date and name, then save."
+      ]
+    },
+    {
+      "title": "Remove a holiday",
+      "steps": [
+        "Select the Remove button on the holiday's row.",
+        "Give the reason and select [[Remove holiday]]."
+      ]
+    },
+    {
+      "title": "Change the opening hours",
+      "steps": [
+        "Select [[Edit calendar]], change the hours for each day, give the reason and save."
+      ]
+    },
+    {
+      "title": "See who changed what",
+      "steps": [
+        "Scroll to the history at the bottom. It lists changes to the calendar and its holidays, oldest first."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A holiday closes the whole day. Clocks on this calendar do not run on it.",
+    "A calendar cannot be made inactive while active targets still count in it.",
+    "Removing a holiday does not move due times that were already worked out.",
+    "Hours and holidays are read in the laboratory's time zone."
+  ],
+  "sections": [
+    {
+      "title": "Header",
+      "items": [
+        {
+          "label": "Status, holidays and targets",
+          "description": "The header shows Active or Inactive, the number of holidays and the number of targets counting in this calendar (active and inactive)."
+        },
+        {
+          "label": "Edit calendar",
+          "description": "Opens the calendar form with the current name, hours and Active setting."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "An inactive calendar shows a notice that it is not offered for new targets and that tickets already counting in it keep it."
+        }
+      ]
+    },
+    {
+      "title": "Weekly opening hours",
+      "paragraphs": [
+        "Monday to Sunday, each with its intervals written as HH:MM-HH:MM, or Closed. These are local times of the laboratory. An overnight shift appears as two intervals, one ending at 24:00 and one starting at 00:00 the next day."
+      ]
+    },
+    {
+      "title": "Holidays",
+      "items": [
+        {
+          "label": "Add holiday",
+          "description": "Opens the form to add a date and a name."
+        },
+        {
+          "label": "Date and Holiday",
+          "description": "Each holiday's date, with the weekday, and its name. The list is in date order. No holidays explains that clocks on this calendar then run on every opening day."
+        },
+        {
+          "label": "Remove (holiday name)",
+          "description": "Opens the removal form, which asks for a reason. The holiday is deleted, and the removal stays in the history."
+        }
+      ]
+    },
+    {
+      "title": "Targets counting in this calendar",
+      "paragraphs": [
+        "A table of the service targets that use this calendar: Target (opens its edit form), First response, Resolution and Status. No targets use this calendar means no target counts its times here yet."
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "Every audited change to the calendar (created, updated) and to its holidays (added, removed), with who, when and, where one was given, the reason. Earlier events are never changed."
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/models.py",
+    "service_levels/services.py",
+    "service_levels/business_time.py",
+    "service_levels/templates/service_levels/calendar_detail.html",
+    "service_levels/tests/test_setup.py"
+  ]
+}

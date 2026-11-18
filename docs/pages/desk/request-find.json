@@ -1,0 +1,130 @@
+{
+  "id": "desk-request-find",
+  "routes": [
+    "desk:request-find"
+  ],
+  "title": "Find tickets",
+  "purpose": "Find a ticket or a client organization from one search box: a ticket's number, words in its subject, the organization, contact or caller, a reference, an identifier from a linked record, or an organization's name, account code, email, phone or city.",
+  "summary": "Use the top bar search, Find on the phone navigation bar, or Find on the Tickets list. A ticket number opens the ticket. Other searches list matching tickets and client organizations.",
+  "tasks": [
+    {
+      "title": "Open a ticket by its number",
+      "steps": [
+        "Type the number, such as REQ-000123, in the search box and select [[Find]]. The ticket opens."
+      ]
+    },
+    {
+      "title": "Find a ticket from what a caller said",
+      "steps": [
+        "Type part of an organization or contact name, the caller's name, a subject word or a reference number and select [[Find]].",
+        "Open a ticket with its number in the Results table."
+      ]
+    },
+    {
+      "title": "Find tickets linked to a requisition, order or sample",
+      "steps": [
+        "Type the identifier from the requisition, order or sample and select [[Find]]. Matching tickets show A linked record under Found by."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Typing only digits, such as 123, opens the ticket with that number when you may read it.",
+    "You only find tickets you may read. A restricted ticket never appears for someone outside its team who is not a supervisor.",
+    "Find returns up to 50 tickets and 20 organizations. Enter a more specific term to narrow either list. Use the Tickets list to filter tickets by status, team or assignee."
+  ],
+  "sections": [
+    {
+      "title": "Search",
+      "paragraphs": [
+        "Any active staff role may use this page. Client portal accounts cannot. The page is at the address ending /requests/find/."
+      ],
+      "items": [
+        {
+          "label": "Ticket number, organization, name, reference or identifier",
+          "description": "The search box, up to 200 characters. A ticket number (with or without REQ- and leading zeros) that exists and that you may read opens that ticket directly. Otherwise the text is matched, ignoring case, against the number, subject, organization name and account code, contact name, the caller's name (Reported by) and the reference given. When links to orders, samples and other records exist, a matching identifier lists every ticket that carries the link. Searches by patient, participant or donor keys are for staff with the patient capability only, and are matched exactly."
+        },
+        {
+          "label": "Find",
+          "description": "Runs the search. The address keeps your text, so the result can be bookmarked."
+        },
+        {
+          "label": "Number",
+          "description": "Results column. The ticket number; it opens the ticket."
+        },
+        {
+          "label": "Subject",
+          "description": "Results column. The ticket's subject."
+        },
+        {
+          "label": "Status",
+          "description": "Results column. Open, Waiting on client, Waiting on third party, Resolved or Closed."
+        },
+        {
+          "label": "Organization",
+          "description": "Results column. The client organization, or No organization."
+        },
+        {
+          "label": "Found by",
+          "description": "Results column. A linked record when the match came from an identifier on a link, otherwise Its details."
+        },
+        {
+          "label": "Nothing found",
+          "description": "Shown when nothing matches. Check the number or try part of a name."
+        }
+      ]
+    },
+    {
+      "title": "Client organizations",
+      "paragraphs": [
+        "The Client organizations table matches the search against organization name, account code, email, phone and city."
+      ],
+      "items": [
+        {
+          "label": "Organization",
+          "description": "Opens the matching organization’s record."
+        },
+        {
+          "label": "Account code",
+          "description": "The laboratory’s code for the organization. A dash means there is no recorded code."
+        },
+        {
+          "label": "Status",
+          "description": "Shows whether the organization is active or inactive."
+        },
+        {
+          "label": "City",
+          "description": "The city in the organization’s address. A dash means there is no recorded city."
+        },
+        {
+          "label": "No organization matches",
+          "description": "Try part of the name, account code, email, phone number or city."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Restricted tickets",
+          "description": "Results, the number shortcut and identifier matches all start from the tickets you may read. Tickets in a restricted category are included only for members of the ticket's team and for supervisors. The number of a ticket you may not read does not open it."
+        },
+        {
+          "label": "Result size and order",
+          "description": "Up to 50 tickets appear in order of most recent activity. Up to 20 organizations appear with active organizations first, then by name. Neither table has pagination."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/selectors.py",
+    "desk/lists.py",
+    "desk/templates/desk/find.html",
+    "links/search.py",
+    "docs/workflows.md",
+    "desk/tests/test_find_everything.py",
+    "templates/includes/client_lookup.html",
+    "templates/layouts/document.html"
+  ]
+}

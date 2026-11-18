@@ -1,0 +1,5 @@
+{% comment %}allauth panel element as the shared panel (includes/panel.html); its actions form the shared action row.{% endcomment %}{% load allauth ui %}{% setvar actions_html %}{% for action in slots.actions %}{{ action }}{% endfor %}{% endsetvar %}{% panel class="mb-3" %}
+  {% fill title %}{% slot title %}{% endslot %}{% endfill %}
+    {% slot body %}{% endslot %}
+    {% if actions_html %}{% form_actions no_submit=True %}{{ actions_html }}{% endform_actions %}{% endif %}
+{% endpanel %}

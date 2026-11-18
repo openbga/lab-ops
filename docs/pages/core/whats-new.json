@@ -1,0 +1,95 @@
+{
+  "id": "core-whats-new",
+  "routes": [
+    "whats-new"
+  ],
+  "title": "What's new",
+  "purpose": "See what changed in OpenBGA Lab Ops.",
+  "summary": "Scan up to three highlights for the month. Open the full list for other changes, links and technical notes.",
+  "tasks": [
+    {
+      "title": "Catch up on changes",
+      "steps": [
+        "Open [[What's new]] in the staff top bar. Look for the [[New]] label under [[Highlights]].",
+        "Select the change count below the highlights to see the full month. For a month with one entry, select [[Change details]]."
+      ]
+    },
+    {
+      "title": "Follow up on a change",
+      "steps": [
+        "Find the entry in the full list. Use its Go to link if you want to open the affected page.",
+        "Expand [[Technical notes]] when you need installation or upgrade details."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Opening [[What's new]] clears your unread count across workstations, including changes in the collapsed list.",
+    "Earlier months open automatically when they contain unread changes. Select a month heading to browse it.",
+    "A Go to link appears only when the destination is in your staff menu."
+  ],
+  "sections": [
+    {
+      "title": "Monthly changes",
+      "items": [
+        {
+          "label": "Month",
+          "description": "The latest month is visible. Earlier months are collapsed unless they contain unread changes."
+        },
+        {
+          "label": "Highlights",
+          "description": "Up to three headlines and short summaries. Unread changes take priority, followed by selected highlights. Higher impact and more recent entries come first within each group."
+        },
+        {
+          "label": "All changes / Change details",
+          "description": "Expands the month's complete list, including its highlights. The control shows the total number of changes for months with several entries. It also shows the unread count when more are new than fit in the highlights."
+        },
+        {
+          "label": "High impact / Medium impact / Low impact",
+          "description": "The full list groups changes by impact, with the newest entries first in each group. High covers major workflows, required actions, removals and security fixes. Medium covers noticeable improvements and low covers small fixes and polish."
+        },
+        {
+          "label": "Change type, date and area",
+          "description": "Each entry shows its type (Added, Changed, Fixed, Removed, Deprecated or Security) and date. The area identifies the affected part of the application. A change number identifies the pull request when one is recorded."
+        },
+        {
+          "label": "Go to",
+          "description": "Opens the affected page when the entry links to a destination in your menu."
+        },
+        {
+          "label": "Technical notes",
+          "description": "Expands settings, commands or upgrade steps when the entry has them."
+        },
+        {
+          "label": "No changes recorded yet",
+          "description": "Shown when this release contains no entries."
+        }
+      ]
+    },
+    {
+      "title": "Unread changes and access",
+      "items": [
+        {
+          "label": "What's new",
+          "description": "Available to every signed-in staff account, including staff without a laboratory role. The top bar counts unread changes for your account. A new account starts with the current entries marked as seen."
+        },
+        {
+          "label": "New",
+          "description": "Marks entries that were unread when you opened the page. The count above the months covers every unread entry. A late addition dated within the previous 60 days can also count as new."
+        },
+        {
+          "label": "Release history",
+          "description": "The changes ship with the application and also appear in its CHANGELOG.md file."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "core/views.py",
+    "core/changelog.py",
+    "core/preferences.py",
+    "core/templatetags/whats_new.py",
+    "templates/core/whats_new.html",
+    "templates/includes/whats_new_button.html",
+    "tests/test_changelog.py"
+  ]
+}

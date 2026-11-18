@@ -1,0 +1,49 @@
+{% comment %}
+Table footer: result count, rows per page and pager. Shown even on a single page; omit it in empty
+states. Parameters: page_obj (Django Page), noun (plural, e.g. "organizations"), filtered (truthy when
+filters apply), page_parameter (GET page key; defaults to "page", for independent related tables).
+Keeps every other query parameter; changing rows per page returns to page 1.
+Post mode, for a picker inside a larger POST form (a record picker inside a form): post_name
+(e.g. "ppage") renders the pager as submit buttons name=post_name value=<page> with formnovalidate,
+so the surrounding form keeps its entries; no rows-per-page form (the picker has its own).
+Rows per page is core.grids.PageSizeForm's field ({% page_size_field %}, core/templatetags/ui.py).
+{% endcomment %}
+{% load ui %}{% with paginator=page_obj.paginator page_parameter=page_parameter|default:"page" %}
+<div class="vr-table-footer vr-pagination">
+  <p class="vr-count">
+    Showing <strong>{{ page_obj.start_index|floatformat:"0g" }}–{{ page_obj.end_index|floatformat:"0g" }}</strong>
+    of <strong>{{ paginator.count|floatformat:"0g" }}</strong> {{ noun|default:"records" }}{% if filtered %} matching filters{% endif %}
+  </p>
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    {% if not post_name %}
+    <form class="d-flex align-items-center gap-2" method="get" action="{{ request.path }}">
+      {% for key, values in request.GET.lists %}{% if key != page_parameter and key != "per_page" %}{% for value in values %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}{% endif %}{% endfor %}
+      <label class="vr-count text-nowrap" for="per-page-{{ noun|default:'records'|slugify }}">Rows per page</label>
+      {% page_size_field paginator.per_page noun as page_size %}{{ page_size }}
+      <button class="btn btn-sm btn-outline-secondary" type="submit">Show</button>
+    </form>
+    {% endif %}
+    {% if paginator.num_pages > 1 %}
+    <nav aria-label="{{ noun|default:'Records'|capfirst }} pages">
+      <ul class="pagination pagination-sm mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">{% if post_name %}<button class="page-link" type="submit" name="{{ post_name }}" value="1" formnovalidate{% else %}<a class="page-link" href="{% pagination_query 1 page_parameter %}"{% endif %} aria-label="First page">{% icon name="chevron-double-left" %}{% if post_name %}</button>{% else %}</a>{% endif %}</li>
+        <li class="page-item">{% if post_name %}<button class="page-link" type="submit" name="{{ post_name }}" value="{{ page_obj.previous_page_number }}" formnovalidate{% else %}<a class="page-link" href="{% pagination_query page_obj.previous_page_number page_parameter %}" rel="prev"{% endif %} aria-label="Previous page">{% icon name="chevron-left" %}{% if post_name %}</button>{% else %}</a>{% endif %}</li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link" aria-hidden="true">{% icon name="chevron-double-left" %}</span></li>
+        <li class="page-item disabled"><span class="page-link" aria-hidden="true">{% icon name="chevron-left" %}</span></li>
+        {% endif %}
+        <li class="page-item active" aria-current="page"><span class="page-link">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+        <li class="page-item">{% if post_name %}<button class="page-link" type="submit" name="{{ post_name }}" value="{{ page_obj.next_page_number }}" formnovalidate{% else %}<a class="page-link" href="{% pagination_query page_obj.next_page_number page_parameter %}" rel="next"{% endif %} aria-label="Next page">{% icon name="chevron-right" %}{% if post_name %}</button>{% else %}</a>{% endif %}</li>
+        <li class="page-item">{% if post_name %}<button class="page-link" type="submit" name="{{ post_name }}" value="{{ paginator.num_pages }}" formnovalidate{% else %}<a class="page-link" href="{% pagination_query paginator.num_pages page_parameter %}"{% endif %} aria-label="Last page">{% icon name="chevron-double-right" %}{% if post_name %}</button>{% else %}</a>{% endif %}</li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link" aria-hidden="true">{% icon name="chevron-right" %}</span></li>
+        <li class="page-item disabled"><span class="page-link" aria-hidden="true">{% icon name="chevron-double-right" %}</span></li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endwith %}

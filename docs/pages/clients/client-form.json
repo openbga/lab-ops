@@ -1,0 +1,143 @@
+{
+  "id": "clients-client-form",
+  "routes": [
+    "clients:client-create",
+    "clients:client-edit"
+  ],
+  "title": "Client organization form",
+  "purpose": "Create a client organization or change its name, account code, type, parent organization, account owner, contact details, mailing address and internal notes. Editing also sets whether the organization is active.",
+  "summary": "Create a client organization or change its details, including its type, parent organization and account owner. Editing needs a reason and can mark the organization inactive.",
+  "tasks": [
+    {
+      "title": "Create an organization",
+      "steps": [
+        "Enter the [[Organization name]]; everything else is optional.",
+        "Select [[Create organization]]. The organization's page opens, ready for its sites and contacts."
+      ]
+    },
+    {
+      "title": "Place an organization under its parent",
+      "steps": [
+        "Choose the [[Parent organization]], for example the health system it belongs to, and the [[Organization type]].",
+        "When editing, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Assign who looks after the account",
+      "steps": [
+        "Choose the [[Account owner]] from the laboratory staff, give a reason when editing, and save."
+      ]
+    },
+    {
+      "title": "Change an organization",
+      "steps": [
+        "Change the details, then write the [[Reason for change]].",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Stop working with an organization",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Its records and history stay readable."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only account managers, client services staff and the admin role can open this form.",
+    "An organization cannot sit under itself or under one of its own member organizations. Such a parent is refused.",
+    "The account owner must be an active laboratory staff account. The account code must be unique when given.",
+    "A saved change needs a reason and at least one changed detail. Both go in the organization's history.",
+    "If someone else changed the organization after you opened the form, saving is refused and your input stays. Reload and review first."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "The form is grouped as Organization, Reaching the organization, Mailing address, Notes, Status and Change record. Surrounding spaces are removed from the name, account code, phone, city and ZIP code before saving."
+      ],
+      "items": [
+        {
+          "label": "Organization name",
+          "description": "Required, up to 160 characters."
+        },
+        {
+          "label": "Account code",
+          "description": "Optional, up to 40 characters. The laboratory's short code for this organization. Another organization cannot use the same code."
+        },
+        {
+          "label": "Organization type",
+          "description": "Optional. What kind of organization it is: Healthcare facility or system, Physician practice or clinic, Referring laboratory, Employer or program administrator, Utility or municipality, Engineering or consulting firm, Manufacturer or food producer, Research sponsor or institution, Internal department or Other. Shown on the organization's page and usable as a filter in the client list."
+        },
+        {
+          "label": "Parent organization",
+          "description": "Optional. The health system, utility or sponsor this organization belongs to; choose No parent organization for none. You pick from existing organizations by typing part of a name. An organization cannot be its own parent, and cannot be placed under one of its own member organizations at any depth: saving is refused with a message that the parent would make the organization part of its own group. When editing, the organization itself is not offered. The parent is checked when it is set or changed."
+        },
+        {
+          "label": "Account owner",
+          "description": "Optional. The laboratory staff member who looks after the relationship; choose No account owner for none. It must be an active laboratory staff account (an account with a laboratory role); a client portal account or an inactive account is refused. The owner is checked when it is set or changed."
+        },
+        {
+          "label": "General email",
+          "description": "Optional. The organization's shared address; must be a valid email address."
+        },
+        {
+          "label": "Main phone",
+          "description": "Optional, up to 40 characters, shown as entered."
+        },
+        {
+          "label": "Street address, Suite, building or PO box",
+          "description": "Optional, up to 160 characters each."
+        },
+        {
+          "label": "City, State, ZIP code",
+          "description": "Optional. City takes up to 80 characters, State is chosen from the US states and territories, and ZIP code takes up to 12 characters."
+        },
+        {
+          "label": "Internal notes",
+          "description": "Optional. Notes for laboratory staff; they are not shown to the client."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. Clear it to stop working with the organization. Its records and history stay readable, and its portal accounts keep their own Active setting."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the organization's history."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create organization / Save changes",
+          "description": "Saves and opens the organization's page. Each creation and change is audited with the person, the time and, for changes, the values before and after, including the type, parent and account owner. A submission with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the client list when creating, or to the organization's page when editing, without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the organization changed after you opened the form, saving is refused with a message to reload and review the current record."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored organization is inactive, the edit form shows a notice that its records and history stay readable."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/forms.py",
+    "clients/models.py",
+    "clients/services.py",
+    "clients/permissions.py",
+    "clients/tests/test_organization_structure.py",
+    "core/forms.py",
+    "templates/core/record_form.html",
+    "templates/includes/grouped_fields.html"
+  ]
+}

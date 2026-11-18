@@ -1,0 +1,10 @@
+{% comment %}
+The chosen category's intake guidance and what it proposes (inside desk/_category_section.html).
+Context: category (taxonomy.RequestCategory with default_team, or None).
+{% endcomment %}
+{% if category %}
+<div class="vr-guidance">
+  {% if category.guidance %}<p class="mb-1">{{ category.guidance|linebreaksbr }}</p>{% endif %}
+  <p class="vr-form-note mb-0">Goes to {% if category.default_team %}{{ category.default_team.name }}{% else %}the default team{% endif %} at {{ category.get_default_priority_display|lower }} priority unless you choose otherwise.{% if category.is_complaint %} Tickets in this category are complaints.{% endif %}{% if category.is_restricted %} Restricted: only its team's members and supervisors see these tickets.{% endif %}</p>
+</div>
+{% endif %}

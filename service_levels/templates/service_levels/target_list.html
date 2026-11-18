@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load ui clocks %}
+{% comment %}
+Service targets (S2). Context (core.lists.list_response): page_obj (ServiceTarget), filter_form
+(TargetFilter), q, sort, per_page, active_filters, the toolbar context, precedence (the six
+levels, most specific first). Admin only. Targets have no page of their own: the name opens the
+edit form.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The most specific active target sets each ticket's first-response and resolution times.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'service_levels:calendar-list' %}">Business calendars</a><a class="btn btn-primary" href="{% url 'service_levels:target-create' %}">{% icon name="plus-lg" %}New service target</a>{% endblock %}
+{% block content %}
+{% url 'service_levels:target-create' as create_url %}
+{% panel title="Service targets" table=True hidden_title=True class="mb-3" %}
+  {% grid_toolbar label="Filter service targets" grid="service_levels.targets" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="targets" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path no_results_title="No targets match these filters" empty_title="No service targets yet" empty_body="Tickets have no clocks until a target applies. Presets set none: your laboratory sets its own." action_url=create_url action_label="New service target" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="service_levels.targets" data-vr-grid-version="1">
+      <thead>
+        <tr>
+          {% sort_header label="Target" asc="name" desc="-name" col="name" locked=True %}
+          {% sort_header label="Category" asc="category" desc="-category" col="category" %}
+          {% sort_header label="Priority" asc="priority" desc="-priority" col="priority" %}
+          {% sort_header label="First response" asc="first_response" desc="-first_response" col="first_response" %}
+          {% sort_header label="Resolution" asc="resolution" desc="-resolution" col="resolution" %}
+          {% sort_header label="Calendar" asc="calendar" desc="-calendar" col="calendar" priority="low" %}
+          {% sort_header label="Status" asc="is_active" desc="-is_active" col="is_active" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for target in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'service_levels:target-edit' target.pk %}">{{ target.name }}</a></th>
+          <td>{{ target.category_label }}</td>
+          <td>{{ target.priority_label }}</td>
+          <td class="vr-nowrap">{{ target.first_response_minutes|duration|default:"—" }}</td>
+          <td class="vr-nowrap">{{ target.resolution_minutes|duration|default:"—" }}{% if target.pause_on_third_party %} <span class="vr-muted small">pauses for third party</span>{% endif %}</td>
+          <td>{{ target.calendar.name|default:"Around the clock" }}</td>
+          <td>{% if target.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% panel title="Which target applies" %}
+  <p>A ticket takes the first active target that matches it, in this order:</p>
+  <ol>{% for level in precedence %}<li>{{ level|capfirst }}</li>{% endfor %}</ol>
+  <p class="vr-muted">No match means no clock. Times are worked out when a ticket is created and again when its category or priority changes; a clock that has been met never moves.</p>
+{% endpanel %}
+{% endblock %}

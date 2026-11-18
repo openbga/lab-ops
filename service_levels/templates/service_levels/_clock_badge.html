@@ -1,0 +1,7 @@
+{% comment %}
+One request's clock state in a list row.
+Context: request (desk.ServiceRequest). Annotate the list with
+service_levels.selectors.annotate_clock_state first: the badge then reads clock_state and
+clock_due_at without a query per row. Shows the state in words with its tone glyph, and the
+earliest running due time.
+{% endcomment %}{% load ui clocks %}{% request_clock_state request as clock %}{% if clock.state == "none" %}<span class="vr-muted">No target</span>{% else %}<span class="vr-nowrap">{% status label=clock.label tone=clock.tone plain=True %}</span>{% if request.clock_due_at and clock.state != "met" %} <time class="vr-nowrap vr-muted small" datetime="{{ request.clock_due_at|date:'c' }}">{{ request.clock_due_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endif %}

@@ -1,0 +1,109 @@
+{
+  "id": "dataimport-upload",
+  "routes": [
+    "dataimport:upload"
+  ],
+  "title": "Import organizations, sites, contacts or external identifiers",
+  "purpose": "Upload one CSV file of organizations, sites, contacts or external identifiers, check the preview of what each row would do, and import every row or none.",
+  "summary": "Upload a CSV file, read the preview of each row's action and problems, then import the whole file. Nothing is saved before you import.",
+  "tasks": [
+    {
+      "title": "Check and import a file",
+      "steps": [
+        "Choose the file under [[CSV file (UTF-8)]] and select [[Check file]].",
+        "Read the preview: errors are listed first, then rows with formula-like cells.",
+        "If the file changes existing records, give the [[Reason for changing existing records]].",
+        "Select the Import button. It names the number of rows."
+      ]
+    },
+    {
+      "title": "Fix a file with errors",
+      "steps": [
+        "Correct the rows named in Problems in your spreadsheet.",
+        "Select [[Upload a corrected file]] and check it again. Nothing was saved."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "One error anywhere blocks the whole file; nothing is saved until every row is clean.",
+    "If the file, its name, a record it changes or the organization a code points to changed after the preview, the import is refused and a fresh preview is shown.",
+    "A cell starting with =, +, - or @ is flagged because spreadsheet programs treat it as a formula. It is imported as text, unchanged.",
+    "Every created or changed record keeps the file name and its SHA-256 in its history, and the file adds one summary entry."
+  ],
+  "sections": [
+    {
+      "title": "Upload",
+      "items": [
+        {
+          "label": "CSV file (UTF-8)",
+          "description": "Required. Comma separated, header row first, up to 1024 KiB and 2000 rows. Save it from your spreadsheet as CSV UTF-8; a byte-order mark is fine, other encodings are refused."
+        },
+        {
+          "label": "Check file",
+          "description": "Reads the file and shows the preview. It runs every row through the same checks as the forms, then undoes everything: the preview leaves no record and no history entry."
+        },
+        {
+          "label": "Columns",
+          "description": "Lists every column of this file with whether it is required, its format and its meaning. Key columns identify the record: account_code for organizations; account_code and site_code for sites; account_code and email for contacts, or account_code and name for a contact without an email. A column left out of the file leaves that value alone; a blank cell clears an optional value."
+        }
+      ]
+    },
+    {
+      "title": "Preview",
+      "items": [
+        {
+          "label": "Record",
+          "description": "The record the row names by its keys, such as EXGEN or EXGEN · ED."
+        },
+        {
+          "label": "Line",
+          "description": "The line in the file, counting the header as line 1."
+        },
+        {
+          "label": "Action",
+          "description": "Create, Change, Unchanged or Error."
+        },
+        {
+          "label": "Values (before → after)",
+          "description": "For a new record the values it gets; for a change, each changed value before and after."
+        },
+        {
+          "label": "Problems",
+          "description": "What blocks the row, naming the column; cells flagged as formula-like; values marked Not applied because the record they belong to is already recorded and shared; and notes, such as an existing link being attached."
+        }
+      ]
+    },
+    {
+      "title": "Import",
+      "items": [
+        {
+          "label": "Reason for changing existing records",
+          "description": "Shown and required when the file changes existing records. It is kept in each changed record's history with the file name and SHA-256."
+        },
+        {
+          "label": "Import",
+          "description": "Checks the file and the records it changes again, then saves every row through the same services as the forms, or nothing. Afterwards the client organization list opens with a summary. A file that matches the records already changes nothing."
+        },
+        {
+          "label": "Start over",
+          "description": "Returns to an empty upload form."
+        }
+      ]
+    },
+    {
+      "title": "Rules by file",
+      "paragraphs": [
+        "Organizations: a parent_account_code must name an organization that exists or comes in an earlier row; a loop is refused. A new organization with the name of an existing one is refused; use that organization's account code instead. account_owner is the username of an active laboratory staff account.",
+        "Sites and contacts are always found inside the organization their row names, so a row never moves a site or contact to another organization. site_codes lists sites of that same organization. A contact known only by name gains the email address the row gives it.",
+        "External identifiers: each row links an organization to a record in an external system by the system's key, the record type, an optional identifier scheme and the identifier, in a role (related unless given). An identifier that is already recorded is attached as it is: the import never changes a recorded link's label or address, which other organizations and tickets may share, and lists any difference on the row as Not applied; change it on the link's page instead. Patient, participant and donor identifiers are refused and never shown in the preview: they belong on a ticket, behind the patient-information permission. An address is accepted only when the system has a base address, and must then be https on that host."
+      ]
+    }
+  ],
+  "sources": [
+    "dataimport/views.py",
+    "dataimport/importing.py",
+    "dataimport/forms.py",
+    "dataimport/templates/dataimport/upload.html",
+    "links/services.py"
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "id": "service-levels-calendar-form",
+  "routes": [
+    "service_levels:calendar-create",
+    "service_levels:calendar-edit"
+  ],
+  "title": "Business calendar form",
+  "purpose": "Create a business calendar or change its name, weekly opening hours and whether it is active. Editing needs a reason.",
+  "summary": "Name a calendar and type its opening hours for each weekday. Editing needs a reason. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Create a calendar",
+      "steps": [
+        "Enter the [[Calendar name]].",
+        "Type the opening hours for each weekday, for example 7-19, and leave closed days empty.",
+        "Select [[Create calendar]]. Then add its holidays."
+      ]
+    },
+    {
+      "title": "Change the opening hours",
+      "steps": [
+        "Edit the weekday fields and write the [[Reason for change]].",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Write a night shift",
+      "steps": [
+        "Split it at midnight. Put 22:00-24:00 on the evening's day and 00:00-06:00 on the next day."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Give at least one opening interval. A calendar with no hours at all is refused.",
+    "Typed times can be short: 7-19, 0700-1900 and 07:00-19:00 all mean the same. They are shown as HH:MM after saving.",
+    "A calendar used by active service targets cannot be made inactive. Change those targets first.",
+    "Changed hours apply to tickets created or recalculated afterwards."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Calendar name",
+          "description": "Required, up to 120 characters, unique among calendars. Surrounding spaces are removed."
+        },
+        {
+          "label": "Monday to Sunday",
+          "description": "One field per weekday, up to 200 characters. Empty means closed (the field shows Closed as a hint). Separate several intervals with commas, for example 07:00-12:00, 13:00-17:00."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. An inactive calendar is not offered for new targets. Refused while active targets use the calendar."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the history."
+        }
+      ]
+    },
+    {
+      "title": "How hours are read",
+      "paragraphs": [
+        "Each interval is start-end in 24-hour time. The start and end can be separated with a hyphen, an en or em dash, or the word to. Hours alone (7) and four digits (0700) are accepted, and minutes must be 00 to 59. 24:00 is allowed only as an end.",
+        "An interval must end after it starts, so one cannot run past midnight. Split a night shift at midnight. Intervals on a day must be in time order and must not overlap; they may touch, such as 08:00-12:00 then 12:00-17:00.",
+        "A message beside the weekday field names the part that cannot be read. When any day has a problem, nothing is saved and what you typed stays."
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create calendar / Save changes",
+          "description": "Saving a new calendar opens its page. Saving a change returns to the calendar's page. Each change is audited with the person, time and, for changes, the reason and the values before and after. A save with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the calendar changed after you opened the form, saving is refused with a message to reload and review it."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored calendar is inactive the form says it is not used for new tickets."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Business calendars when creating, or to the calendar's page when editing, without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/forms.py",
+    "service_levels/services.py",
+    "service_levels/models.py",
+    "service_levels/business_time.py",
+    "templates/core/record_form.html",
+    "service_levels/tests/test_setup.py"
+  ]
+}

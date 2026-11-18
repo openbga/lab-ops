@@ -1,0 +1,146 @@
+{
+  "id": "core-lab-profile",
+  "routes": [
+    "lab-profile"
+  ],
+  "title": "Laboratory profile",
+  "purpose": "See the laboratory's identity as staff and clients see it: its name, address, contact details, logo and certificates. The admin laboratory role changes these details here.",
+  "summary": "The laboratory's name, address, contact details, logo and certificates. The admin role changes them here; every staff role can read them.",
+  "tasks": [
+    {
+      "title": "Change the address or contact details",
+      "steps": [
+        "Select [[Edit]], change the details and save. Staff and client portal accounts see them from then on."
+      ]
+    },
+    {
+      "title": "Set the logo",
+      "steps": [
+        "Select [[Upload logo]] or [[Replace logo]] and choose a PNG or JPEG file."
+      ]
+    },
+    {
+      "title": "Record a certificate",
+      "steps": [
+        "Select [[Add certificate]] and enter the issuing authority, the certificate or laboratory ID and any validity dates."
+      ]
+    },
+    {
+      "title": "Check whether a certificate is current",
+      "steps": [
+        "Read the Status column. It is worked out from the recorded dates on today's date."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Client portal accounts see the address, contact details and logo on their portal home. They do not see this page or the certificates.",
+    "Removing the logo or a certificate keeps its details in the history below.",
+    "The application checks nothing against a certificate. It lists what you recorded and makes no accreditation claim.",
+    "The laboratory name is set at installation and cannot be changed here."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Every staff laboratory role can read this page, and the Setup menu lists it for each of them. Only the admin laboratory role sees Edit, Upload logo, Replace logo, Add certificate and the Remove buttons, and the server refuses changes from anyone else. Client portal accounts cannot open this page.",
+        "When the laboratory has not been set up yet, the page shows No laboratory configured and offers no changes. Run the setup_lab command first."
+      ]
+    },
+    {
+      "title": "Laboratory",
+      "items": [
+        {
+          "label": "Laboratory name",
+          "description": "The name set when the application was installed. It is shown here for reference and cannot be changed on this page."
+        },
+        {
+          "label": "Address",
+          "description": "Street address, suite or building, then city, state and ZIP code on one line. Not recorded when no part of the address is entered."
+        },
+        {
+          "label": "Phone, Email, Website",
+          "description": "Contact details for the laboratory. Each shows Not recorded when blank."
+        },
+        {
+          "label": "Edit",
+          "description": "Admin role only. Opens the form for the address and contact details."
+        }
+      ]
+    },
+    {
+      "title": "Logo",
+      "items": [
+        {
+          "label": "Preview, Size and Type",
+          "description": "The current logo, scaled down to fit, with its stored size in pixels and its file type (PNG or JPEG). With no logo, the client portal shows the laboratory name without one."
+        },
+        {
+          "label": "Upload logo / Replace logo",
+          "description": "Admin role only. Opens the upload form. The new logo is shown on the profile and on the client portal home."
+        },
+        {
+          "label": "Remove",
+          "description": "Admin role only, shown when there is a logo. Asks for confirmation, then the client portal shows the laboratory name without a logo. The image stays stored so the history can show it. If someone changed the profile after you opened this page, the removal is refused; reload and try again."
+        }
+      ]
+    },
+    {
+      "title": "Certificates",
+      "paragraphs": [
+        "The certifications and accreditations your laboratory records, in list position order, so staff can quote their identifiers to clients. The application keeps no register of what a certificate covers and checks nothing against a certificate."
+      ],
+      "items": [
+        {
+          "label": "Issuing authority",
+          "description": "The body that issued the certificate. For the admin role it opens the certificate's edit form."
+        },
+        {
+          "label": "Program or scope",
+          "description": "The program or scope the laboratory recorded, or a dash."
+        },
+        {
+          "label": "Certificate or laboratory ID",
+          "description": "The number the authority assigned."
+        },
+        {
+          "label": "Valid from, Valid until",
+          "description": "The recorded validity dates, or a dash when a date is not recorded. A blank date sets no limit on that side."
+        },
+        {
+          "label": "Status",
+          "description": "Worked out for today's date in the laboratory's time zone. Current: today is within the validity dates (both dates count as valid). Not yet valid: Valid from is later than today. Expired: Valid until is earlier than today."
+        },
+        {
+          "label": "Add certificate",
+          "description": "Admin role only. Opens the form to record another certificate. A laboratory can list at most 50."
+        },
+        {
+          "label": "Remove",
+          "description": "Admin role only. Asks for confirmation, then removes the certificate from the list. The audit history keeps what the certificate held. If the certificate changed after you opened this page, the removal is refused; reload and try again."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "Every change is audited with the administrator, the time and the values before and after."
+      ],
+      "items": [
+        {
+          "label": "History",
+          "description": "The newest 20 profile changes, shown oldest first: Lab profile changed (address or contact details), Lab logo changed, Lab logo removed, and Lab certificate added, changed or removed with the certificate's authority and number, each with its time and the administrator who made it."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/lab_profile_views.py",
+    "core/lab_profile.py",
+    "core/models.py",
+    "templates/core/lab_profile.html",
+    "templates/includes/nav_staff.html",
+    "templates/includes/confirm_dialog.html",
+    "clients/portal.py"
+  ]
+}

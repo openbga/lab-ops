@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One action on a request (assign, change status, edit category and priority, mark or unmark a
+complaint, the complaint decision and record): a short form in the shared form dialog
+(core.form_surfaces), a full page without script. Context: req, form, submit_label, cancel_url,
+list_query (carried back to the request page), crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  <input type="hidden" name="list" value="{{ list_query }}">
+  {% block action_intro %}{% endblock %}
+  <fieldset class="vr-form-section">
+    {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
+  </fieldset>
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+{% endform_page %}
+{% endblock %}

@@ -1,0 +1,77 @@
+{
+  "id": "links-attachment-remove",
+  "routes": [
+    "link_records:attachment-remove"
+  ],
+  "title": "Remove link",
+  "purpose": "Remove a link from a ticket or a client organization with a reason, keeping the link's history.",
+  "summary": "Take a link off a ticket or an organization and say why. The link stays listed as removed, with its history. Person-level links can be removed only with the Can view patient information permission.",
+  "tasks": [
+    {
+      "title": "Remove a link",
+      "steps": [
+        "Check the link shown above the field.",
+        "Write the [[Reason for removal]] and select [[Remove link]]."
+      ]
+    },
+    {
+      "title": "Keep the link",
+      "steps": [
+        "Select [[Cancel]] to return without changes."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A reason is required. It is kept with the removal and shown in the removed list.",
+    "Removing takes the link off this ticket or organization only. Other tickets that carry the same record keep it.",
+    "Removal cannot be undone, but the link can be added again.",
+    "For a person-level link, staff without the permission get a not found page, and the page is not cached.",
+    "A link on a closed ticket cannot be removed: the ticket's links are frozen once it is closed."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Link summary",
+          "description": "The link's label, its record type and its role. For a person-level link it reads the record type followed by link, never the label or key."
+        },
+        {
+          "label": "Reason for removal",
+          "description": "Required. Kept with the link's history. The link stays listed as removed. For a person-level link, choose the reason from the list instead (Wrong person, Entered in error, No longer needed, Other); the history and the timeline record only that choice."
+        },
+        {
+          "label": "Remove link",
+          "description": "Marks the link removed, with who, when and why, and returns to the ticket's or organization's Links section. The attachment row is never deleted. On a ticket, a removal event is added to the timeline with the record type and no label or key."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket or organization without removing anything."
+        },
+        {
+          "label": "Already removed",
+          "description": "If the link was already removed, a notice says so and no form is shown. Its history stays on the link's page."
+        },
+        {
+          "label": "Note",
+          "description": "Person-level links only, optional, up to 500 characters. Kept on the removed link's row on the ticket and shown only to staff with the Can view patient information permission. Never written to the history or the timeline."
+        }
+      ]
+    },
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Every staff role can remove a link that is not person-level, on a ticket it can read or on any organization. A ticket you cannot read, or a person-level link without the permission, answers not found. Client portal accounts are refused."
+      ]
+    }
+  ],
+  "sources": [
+    "links/record_urls.py",
+    "links/views.py",
+    "links/forms.py",
+    "links/services.py",
+    "links/templates/links/link_remove.html",
+    "links/tests/test_links.py",
+    "links/tests/test_person_links.py"
+  ]
+}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+The laboratory profile: the laboratory's identity as staff and clients see it. Every staff role
+reads it; change controls are rendered for the admin role only (core.lab_profile.can_manage).
+Context: lab (or None), logo (sha256, content_type, width, height, or None), certificates (list
+order, each with state, state_label, state_tone, label and token (stale-edit token for removing
+it)), can_manage, lab_token (stale-edit token for removing the logo),
+history (AuditEvent newest first; certificate events carry detail).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The address, contact details, logo and certificates of the laboratory.</p>{% endblock %}
+{% block page_actions %}{% if can_manage %}<a class="btn btn-outline-secondary" href="{% url 'lab-profile-edit' %}">Edit</a>{% endif %}{% endblock %}
+{% block content %}
+{% if not lab %}
+{% panel title="Laboratory" heading_id="profile-heading" class="vr-narrow" %}
+    {% empty_state title="No laboratory configured" body="The laboratory is not configured yet, so it has no profile." %}
+{% endpanel %}
+{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    {% panel title="Laboratory" heading_id="profile-heading" class="h-100" %}
+        {% fill footer %}<p class="vr-muted small mb-0">The laboratory name is set when the application is installed and is not changed here.</p>{% endfill %}
+        <dl class="vr-facts">
+          {% fact label="Laboratory name" value=lab.name %}
+          {% fact label="Address" wide=True empty="Not recorded" %}{% for line in lab.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
+          {% fact label="Phone" value=lab.phone empty="Not recorded" class="vr-nowrap" %}
+          {% fact label="Email" value=lab.email empty="Not recorded" %}
+          {% fact label="Website" value=lab.website empty="Not recorded" %}
+        </dl>
+    {% endpanel %}
+  </div>
+  <div class="col-lg-5">
+    {% panel title="Logo" heading_id="logo-heading" class="h-100" %}
+        {% fill actions %}{% if can_manage %}{% if logo %}<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#remove-logo">Remove<span class="visually-hidden"> logo</span></button>{% endif %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'lab-logo-edit' %}">{% if logo %}Replace logo{% else %}Upload logo{% endif %}</a>{% endif %}{% endfill %}
+        {% if logo %}
+        <img class="vr-lab-logo" src="{% url 'lab-logo-image' logo.sha256 %}" alt="Laboratory logo" width="{{ logo.width }}" height="{{ logo.height }}">
+        <dl class="vr-facts">
+          {% fact label="Size" class="vr-nowrap" %}{{ logo.width }} × {{ logo.height }} pixels{% endfact %}
+          {% fact label="Type" %}{% if logo.content_type == "image/png" %}PNG{% elif logo.content_type == "image/jpeg" %}JPEG{% else %}{{ logo.content_type }}{% endif %}{% endfact %}
+        </dl>
+        {% else %}
+        {% empty_state title="No logo" body="The client portal shows the laboratory name without a logo." %}
+        {% endif %}
+    {% endpanel %}
+  </div>
+</div>
+
+{% if can_manage %}{% url 'lab-certificate-create' as create_url %}{% endif %}
+{% panel title="Certificates" heading_id="certificates-heading" count=certificates|length table=True flush=True class="mb-3" %}
+  {% fill actions %}{% if create_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ create_url }}">Add certificate</a>{% endif %}{% endfill %}
+  {% list_results items=certificates empty_title="No certificates recorded" empty_body="Record the certifications and accreditations the laboratory holds, with their identifiers." action_url=create_url action_label="Add certificate" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="certificates-heading">
+      <thead><tr>
+        <th scope="col">Issuing authority</th>
+        <th scope="col">Program or scope</th>
+        <th scope="col">Certificate or laboratory ID</th>
+        <th scope="col">Valid from</th>
+        <th scope="col">Valid until</th>
+        <th scope="col">Status</th>
+        {% if can_manage %}<th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {% for c in certificates %}
+        <tr>
+          <th scope="row">{% if can_manage %}<a class="vr-row-link" href="{% url 'lab-certificate-edit' c.pk %}">{{ c.authority }}</a>{% else %}{{ c.authority }}{% endif %}</th>
+          <td class="vr-wrap">{% if c.program %}{{ c.program }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td><span class="vr-id">{{ c.number }}</span></td>
+          <td class="vr-nowrap">{% if c.valid_from %}<time datetime="{{ c.valid_from|date:'Y-m-d' }}">{{ c.valid_from|date:"Y-m-d" }}</time>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td class="vr-nowrap">{% if c.valid_until %}<time datetime="{{ c.valid_until|date:'Y-m-d' }}">{{ c.valid_until|date:"Y-m-d" }}</time>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td>{% status label=c.state_label tone=c.state_tone plain=True %}</td>
+          {% if can_manage %}<td class="text-end vr-nowrap"><button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#remove-certificate-{{ c.pk }}">Remove<span class="visually-hidden"> {{ c.label }}</span></button></td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+
+{% panel title="How these details are used" heading_id="rules-heading" class="mb-3" %}
+    <ul>
+      <li>Staff read the whole profile. Client portal accounts see the address, contact details and logo on their portal home.</li>
+      <li>A certificate's status is worked out from its recorded dates on today's date. Both dates are included, and a blank date sets no limit.</li>
+      <li>The application keeps no register of what a certificate covers and checks nothing against any certificate.</li>
+    </ul>
+{% endpanel %}
+
+{% history_panel events=history newest_first=True empty_title="No changes recorded" empty_body="Changes to the address, contact details, logo and certificates are listed here." %}{% endhistory_panel %}
+
+{% if can_manage %}
+{% if logo %}{% url 'lab-logo-remove' as remove_logo_url %}{% confirm_dialog id="remove-logo" label="Remove logo" action=remove_logo_url body="The client portal shows the laboratory name without a logo. The image stays stored for the profile history." hidden_name="original_state" hidden_value=lab_token %}{% endif %}
+{% for c in certificates %}
+{% url 'lab-certificate-remove' c.pk as remove_url %}
+{% with pk_text=c.pk|stringformat:"s" %}{% with dialog_id="remove-certificate-"|add:pk_text %}{% confirm_dialog id=dialog_id label="Remove certificate" object=c.label action=remove_url body="It is no longer listed. Its details stay in the profile history." hidden_name="original_state" hidden_value=c.token %}{% endwith %}{% endwith %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endblock %}

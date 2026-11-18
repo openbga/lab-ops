@@ -1,0 +1,6 @@
+{% extends "desk/request_action.html" %}
+{% comment %}
+Withdraw a reply from client view (supervisor): the reply's text, then the reason.
+Context: as desk/request_action.html.
+{% endcomment %}
+{% block action_intro %}<p class="vr-form-note">The client stops seeing this reply in the portal. Staff keep seeing it, labelled as withdrawn, with your reason. Nothing is deleted.</p>{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load ui desk %}
+{% comment %}
+Find requests: one search box. A request number opens the request; otherwise the requests whose
+number, subject, organization, contact, caller or reference match, and those carrying a link whose
+identifier matches (links.search). Context: q, results (at most 50, newest activity first),
+identifier_ids (requests found through a link), organizations (client organizations whose
+name, account code, email, phone or city match, at most 20).
+{% endcomment %}
+{% block content %}
+{# form: filter #}
+<form class="vr-find" method="get" role="search" aria-label="Find tickets">
+  {% grid_search value=q id="find-q" label="Ticket number, organization, name, reference or identifier" name="q" placeholder="REQ-000123, organization, order or sample number" %}
+  <button class="btn btn-primary" type="submit">{% icon name="search" %}Find</button>
+</form>
+{% if q %}
+{% panel title="Results" count=results|length table=True class="mt-3" %}
+  {% list_results items=results empty_title="Nothing found" empty_body="Check the number or try part of a name. Patient keys are searched only by staff with the patient permission." %}
+  <div class="vr-table-wrap"><table class="table table-hover vr-table">
+    <thead><tr><th scope="col">Number</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Organization</th><th scope="col">Found by</th></tr></thead>
+    <tbody>
+      {% for req in results %}
+      <tr>
+        <th scope="row"><a class="vr-row-link vr-id" href="{% url 'desk:request-detail' req.pk %}">{{ req.number }}</a></th>
+        <td>{{ req.subject }}</td>
+        <td>{% status label=req.get_status_display tone=req.status|status_tone plain=True %}</td>
+        <td>{{ req.client.name|default:"No organization" }}</td>
+        <td>{% if req.pk in identifier_ids %}A linked record{% else %}Its details{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% panel title="Client organizations" count=organizations|length table=True class="mt-3" %}
+  {% list_results items=organizations empty_title="No organization matches" empty_body="Organizations match by name, account code, email, phone or city." %}
+  <div class="vr-table-wrap"><table class="table table-hover vr-table">
+    <thead><tr><th scope="col">Organization</th><th scope="col">Account code</th><th scope="col">Status</th><th scope="col">City</th></tr></thead>
+    <tbody>
+      {% for org in organizations %}
+      <tr>
+        <th scope="row"><a class="vr-row-link" href="{% url 'clients:client-detail' org.pk %}">{{ org.name }}</a></th>
+        <td class="vr-id">{{ org.account_number|default:"—" }}</td>
+        <td>{% if org.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        <td>{{ org.city|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endif %}
+{% endblock %}

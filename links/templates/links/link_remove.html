@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Remove a link from a request or organization, with a reason (L2). Context: form (RemoveLinkForm:
+free text for an ordinary link; for a person-level link a reason from a fixed list and an optional
+note seen only with the capability),
+attachment, what (the link's label, or "Patient link" for a person-level one), crumbs,
+cancel_url, removed (already removed: nothing to do). The attachment row stays, marked removed.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% if removed %}
+{% notice tone="neutral" label="Already removed" %}This link was already removed. Its history stays on the link's page.{% endnotice %}
+{% else %}
+{% form_page form=form cancel_url=cancel_url submit_label="Remove link" destructive=True %}
+  <fieldset class="vr-form-section">
+    <p>{{ what }} · {{ attachment.link.get_record_type_display }} · {{ attachment.get_role_display }}</p>
+    {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
+  </fieldset>
+{% endform_page %}
+{% endif %}
+{% endblock %}

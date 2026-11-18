@@ -1,0 +1,9 @@
+{% load ui %}{% comment %}
+The portal home's service menu (F5), rendered by {% portal_service_menu %} (request_forms
+templatetags). Context: templates (the featured forms this account may use, in the laboratory's
+order: request_forms.selectors.portal_menu), has_more (further forms are offered), choose_url (every
+form), other_url (the generic raise form). Without featured forms it still offers "Something else".
+{% endcomment %}{% panel title="How can we help?" heading_id="service-menu-heading" class="mb-3 vr-service-menu" %}
+  {% fill actions %}{% if has_more %}<a class="btn btn-sm btn-outline-secondary" href="{{ choose_url }}">All services</a>{% endif %}{% endfill %}
+  {% include "request_forms/_service_grid.html" with templates=templates other_url=other_url heading_id="service-menu-heading" only %}
+{% endpanel %}

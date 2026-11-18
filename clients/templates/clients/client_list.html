@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Client organizations. Context (core.lists.list_response): page_obj (Client), filter_form
+(ClientFilter), q, sort, per_page, active_filters and the toolbar context (inline, more, more_open,
+active, placeholder). can_manage_clients comes from the workspace context processor.
+{% endcomment %}
+{% block page_actions %}{% if can_manage_clients %}<a class="btn btn-primary" href="{% url 'clients:client-create' %}">{% icon name="plus-lg" %}New organization</a>{% endif %}{% endblock %}
+{% block content %}
+{% if can_manage_clients %}{% url 'clients:client-create' as create_url %}{% endif %}
+{% panel title="Client organizations" table=True hidden_title=True %}
+  {% grid_toolbar label="Filter client organizations" grid="clients.clients" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="organizations" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No organizations are hidden by an invalid filter." no_results_title="No organizations match these filters" empty_title="No client organizations yet" empty_body="Add the organizations your laboratory serves, then their contacts and portal accounts." action_url=create_url action_label="New organization" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="clients.clients" data-vr-grid-version="2" aria-labelledby="clients-heading">
+      <thead>
+        <tr>
+          {% sort_header label="Organization" asc="name" desc="-name" col="name" locked=True %}
+          {% sort_header label="Account code" asc="account_number" desc="-account_number" col="account_number" %}
+          {% sort_header label="Type" asc="organization_type" desc="-organization_type" col="organization_type" priority="low" %}
+          {% sort_header label="Status" asc="is_active" desc="-is_active" col="is_active" %}
+          {% sort_header label="Email" asc="email" desc="-email" col="email" %}
+          {% sort_header label="Phone" asc="phone" desc="-phone" col="phone" %}
+          {% sort_header label="City" asc="city" desc="-city" col="city" %}
+          {% sort_header label="State" asc="state" desc="-state" col="state" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'clients:client-detail' client.pk %}">{{ client.name }}</a></th>
+          <td class="vr-id">{{ client.account_number|default:"—" }}</td>
+          <td>{{ client.get_organization_type_display|default:"—" }}{% if client.parent %}<br><span class="vr-muted small">Part of {{ client.parent.name }}</span>{% endif %}</td>
+          <td>{% if client.is_active == False %}{% status label="Inactive" tone="neutral" plain=True %}{% else %}{% status label="Active" tone="success" plain=True %}{% endif %}</td>
+          <td>{% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% else %}—{% endif %}</td>
+          <td class="vr-nowrap">{{ client.phone|default:"—" }}</td>
+          <td>{{ client.city|default:"—" }}</td>
+          <td>{{ client.state|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

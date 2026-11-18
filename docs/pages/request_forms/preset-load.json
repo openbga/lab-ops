@@ -1,0 +1,113 @@
+{
+  "id": "request-forms-preset-load",
+  "routes": [
+    "request_forms:preset-load"
+  ],
+  "title": "Load standard forms",
+  "purpose": "Add starting ticket forms, their fields and catalogs for the laboratory types you choose. Loading adds only what is missing.",
+  "summary": "Add the starting ticket forms, fields and catalogs for your kind of laboratory. Loading only adds what is missing, so you can load again safely. Only the admin role can use this page.",
+  "tasks": [
+    {
+      "title": "Load the starting forms",
+      "steps": [
+        "Under [[Laboratory types]], tick the types of work your laboratory does. All laboratories is always loaded.",
+        "Select [[Load standard forms]]. The ticket forms list opens with a message saying what was added."
+      ]
+    },
+    {
+      "title": "Check what is still missing",
+      "steps": [
+        "Read the table [[What each preset adds]]: [[Not here yet]] counts forms that are not in your list, and [[Category missing]] counts those whose category is not set up."
+      ]
+    },
+    {
+      "title": "Fix forms that were skipped",
+      "steps": [
+        "Set up the ticket categories first, by loading the category presets.",
+        "Return here, choose the same types and select [[Load standard forms]] again."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Loading is additive and repeatable. It never renames, edits or reactivates a form, field or item you already have.",
+    "A form is created only when its ticket category exists. Forms without their category are skipped and counted in the message.",
+    "Fields that would hold patient information arrive inactive. Switch one on only if the laboratory decided it needs it.",
+    "The forms are starting points. Rename, reorder, edit and switch off what you do not need."
+  ],
+  "sections": [
+    {
+      "title": "What each preset adds",
+      "paragraphs": [
+        "A table lists every preset, so you can see what loading would do before you do it. It is read-only."
+      ],
+      "items": [
+        {
+          "label": "Preset",
+          "description": "The laboratory type, such as All laboratories or a kind of laboratory."
+        },
+        {
+          "label": "Forms",
+          "description": "The names of the forms the preset brings, using the client label when it has one."
+        },
+        {
+          "label": "Not here yet",
+          "description": "How many of the preset's forms are not yet in your list, matched by their key. All here when none are missing."
+        },
+        {
+          "label": "Category missing",
+          "description": "How many of those forms cannot be created because their ticket category is not set up. A dash when none."
+        }
+      ]
+    },
+    {
+      "title": "Loading",
+      "items": [
+        {
+          "label": "Laboratory types",
+          "description": "The types to load. The note says All laboratories is always loaded. You can choose none beyond it."
+        },
+        {
+          "label": "Load standard forms",
+          "description": "Loads All laboratories first, then the chosen types. It adds forms, their fields, catalogs and catalog items that are not there, and records one entry in the audit history, with each added form, field, catalog and item recorded with the preset's name as its reason. It then shows how many were added, or Nothing new when everything is already here, and how many forms were skipped because their category is not set up."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket forms list without loading."
+        }
+      ]
+    },
+    {
+      "title": "What loading does and does not do",
+      "items": [
+        {
+          "label": "Matching",
+          "description": "Forms are matched by key, fields by key within the form, catalogs by key (or by name) and catalog items by name within the catalog. Anything already there is left exactly as it is, even if you changed it. A preset may add its extra fields to a form that is already here. A form is also skipped when another form already has its name."
+        },
+        {
+          "label": "Portal settings",
+          "description": "A new form is offered in the portal only when its category is one clients may raise, and featured on the portal menu only then. New forms and fields are active, except as below."
+        },
+        {
+          "label": "Patient information",
+          "description": "A field that would hold patient information is added inactive. Switch it on only if the laboratory decided it needs it."
+        },
+        {
+          "label": "Catalogs",
+          "description": "A field that orders from a catalog is skipped when its catalog cannot be found under the preset's key. The catalogs a preset brings are loaded with it."
+        },
+        {
+          "label": "Order and permissions",
+          "description": "New forms, fields and items go at the end of their lists. Only the admin role can load presets."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/forms.py",
+    "request_forms/presets.py",
+    "request_forms/templates/request_forms/preset_form.html",
+    "request_forms/tests/test_setup.py"
+  ]
+}

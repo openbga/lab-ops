@@ -1,0 +1,104 @@
+{
+  "id": "admin-lab-form",
+  "routes": [
+    "admin:core_lab_change"
+  ],
+  "title": "Laboratory retention statement",
+  "purpose": "Record or clear the laboratory’s own electronic record-retention statement with a reason.",
+  "summary": "Record, change or clear the laboratory's electronic record-retention statement, with a reason.",
+  "tasks": [
+    {
+      "title": "Change the retention statement",
+      "steps": [
+        "Edit [[Record retention statement]]. Leave it blank to clear it.",
+        "Explain the change in [[Reason]].",
+        "Select [[Save]]."
+      ]
+    },
+    {
+      "title": "Check earlier changes",
+      "steps": [
+        "Select [[History]]. The full reason and before/after text are in the audit history."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The statement does not delete any records automatically.",
+    "If someone else saved first, the save is refused. Reload and review their statement.",
+    "The statement must actually change, and the reason is required.",
+    "The address, contact details, logo and certificates are changed in Setup → Laboratory profile."
+  ],
+  "sections": [
+    {
+      "title": "Access and fields",
+      "paragraphs": [
+        "Requires an active staff superuser with the laboratory admin role.",
+        "This maintenance form changes only the retention statement. The address, contact details, logo and certificates are changed on the Laboratory profile page under Setup."
+      ],
+      "items": [
+        {
+          "label": "Name",
+          "description": "Read-only configured laboratory name."
+        },
+        {
+          "label": "Timezone",
+          "description": "Read-only recorded setup timezone. New input parsing uses the deployment TIME_ZONE, not an editable override here."
+        },
+        {
+          "label": "Record retention statement",
+          "description": "Optional maximum 8000-character statement; whitespace is trimmed. Blank clears it to Not recorded. It configures no automatic electronic deletion."
+        },
+        {
+          "label": "Reason",
+          "description": "Required nonblank explanation, maximum 2000 characters; retained with actor and before/after evidence."
+        },
+        {
+          "label": "Revision check",
+          "description": "Hidden expected revision, prefilled from the opened record. The current record is locked and rechecked; a stale save requires reloading and reviewing the new statement."
+        }
+      ]
+    },
+    {
+      "title": "Saving rules",
+      "paragraphs": [
+        "The statement must actually change after trimming. Statement, incremented revision and attributed retention audit event commit together. Validation failures keep the form open. Lab name/timezone cannot be edited here, and lab creation/deletion are unavailable."
+      ]
+    },
+    {
+      "title": "Actions",
+      "items": [
+        {
+          "label": "Save",
+          "description": "Saves a valid changed statement and returns to the lab list."
+        },
+        {
+          "label": "Save and continue editing",
+          "description": "Saves and reopens the lab form with its new revision."
+        },
+        {
+          "label": "History",
+          "description": "Opens the separate Django administration log; the full retention reason and before/after statement are in the domain audit event."
+        },
+        {
+          "label": "Save and add another / Delete",
+          "description": "Not offered: adding and deleting laboratories are disabled."
+        },
+        {
+          "label": "Home / Core / Labs / View site",
+          "description": "Breadcrumbs return through maintenance; View site returns to the operational application."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "accounts/admin.py",
+    "accounts/models.py",
+    "accounts/roles.py",
+    "core/admin.py",
+    "config/settings.py",
+    "uv.lock",
+    "core/models.py",
+    "core/retention.py",
+    "core/lab_profile_views.py"
+  ]
+}

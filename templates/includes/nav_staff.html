@@ -1,0 +1,19 @@
+{% load navigation %}{% comment %}
+Staff work destinations and their visibility are declared in core/templatetags/navigation.py.
+Empty sections disappear. Views and domain services continue to enforce every permission.
+{% endcomment %}
+{% staff_nav_sections as sections %}
+{% for section in sections %}
+{% if section.label %}
+<div class="vr-nav-section">
+  <p class="vr-nav-heading" id="vr-nav-{{ section.key }}">{{ section.label }}</p>
+  <ul class="vr-nav-list" aria-labelledby="vr-nav-{{ section.key }}">
+    {% for key in section.items %}{% nav_item key %}{% endfor %}
+  </ul>
+</div>
+{% else %}
+<ul class="vr-nav-list">
+  {% for key in section.items %}{% nav_item key %}{% endfor %}
+</ul>
+{% endif %}
+{% endfor %}

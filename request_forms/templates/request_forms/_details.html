@@ -1,0 +1,20 @@
+{% load ui %}{% comment %}
+A request's form details (F4, F6), rendered by {% request_form_details service_request %}
+(request_forms templatetags) on the staff and the portal request pages. Context: details
+(request_forms.selectors.FormDetails: template_label, rows of label, lines, hidden, staff_only,
+patient, corrected, retired, reveal_id (a patient-information value this person may reveal: a
+POST to request_details:reveal, audited, answered with an HTMX fragment and no-store), wide (long text or a list: the whole row); missing: labels of required fields with no value; can_edit), staff
+(the page is a staff page), embedded (inside another panel, as on the staff request page: a
+headed block instead of a panel of its own), edit_url, again_url (portal only: "Request again" with this form,
+while the form is still offered to the account; empty otherwise). Staff see every value, with a placeholder for patient
+information unless they hold “Can view patient information”; a client sees only the values of
+fields shown to clients. Nothing here is a link to another record.
+{% endcomment %}{% if details %}{% if embedded %}
+<div class="vr-form-details" role="group" aria-labelledby="form-details-heading">
+  <div class="vr-form-heading vr-form-details-head"><p class="vr-form-heading-title" id="form-details-heading" role="heading" aria-level="3">Form details</p>{% if staff and details.can_edit %}<a class="btn btn-sm btn-outline-secondary" href="{{ edit_url }}">Edit form details</a>{% elif again_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ again_url }}">Request again</a>{% endif %}</div>
+  {% include "request_forms/_details_body.html" %}
+</div>
+{% else %}{% panel title="Form details" heading_id="form-details-heading" class="mb-3" %}
+  {% fill actions %}{% if staff and details.can_edit %}<a class="btn btn-sm btn-outline-secondary" href="{{ edit_url }}">Edit form details</a>{% elif again_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ again_url }}">Request again</a>{% endif %}{% endfill %}
+  {% include "request_forms/_details_body.html" %}
+{% endpanel %}{% endif %}{% endif %}

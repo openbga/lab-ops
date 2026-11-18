@@ -1,0 +1,77 @@
+{% extends "layouts/portal.html" %}
+{% load announcements request_forms ui %}
+{% comment %}
+Client portal home (requirement P4): the account's open requests with the count waiting for it,
+its own organization as the laboratory has it on file, and how to reach the laboratory. Context
+(clients.portal.home): open_requests (up to ten, from desk.portal_scope.portal_requests, annotated
+with client_status_label and client_status_tone), open_count, waiting_count (both from the same
+scope, so they match the request list), client (the account's own organization, never another),
+contacts (its active contacts), logo (the laboratory's current logo facts, or None); lab from the
+workspace context. The service menu ({% portal_service_menu %}, request_forms) offers the forms the
+laboratory features and "Something else"; New request opens every form (request_forms chooser).
+{% endcomment %}
+{% block page_meta %}{% page_meta %}{% if waiting_count %}<li>{% status label=waiting_count|stringformat:"d"|add:" waiting for you" tone="warning" plain=True %}</li>{% endif %}<li>{{ open_count }} open ticket{{ open_count|pluralize }}</li>{% if client.account_number %}<li>Account <span class="vr-id">{{ client.account_number }}</span></li>{% endif %}{% endpage_meta %}{% endblock %}
+{% block page_actions %}{% portal_new_request_url as new_request_url %}<a class="btn btn-primary" href="{{ new_request_url }}">{% icon name="plus-lg" %}New ticket</a>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">What {{ lab.name|default:"the laboratory" }} has on file for your organization.</p>{% endblock %}
+{% block content %}
+{% announcements %}
+{% if waiting_count %}{% url 'portal:request-list' as list_url %}
+{% notice tone="warning" label="Waiting for you" %}The laboratory is waiting for information from you on {{ waiting_count }} ticket{{ waiting_count|pluralize }}. <a href="{{ list_url }}?status=waiting_client">Show {{ waiting_count|pluralize:"it,them" }}</a>.{% endnotice %}
+{% endif %}
+{% portal_service_menu %}
+{% url 'portal:request-list' as all_url %}{% portal_new_request_url as create_url %}
+{% panel title="Open tickets" heading_id="portal-requests-heading" count=open_count table=True class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{{ all_url }}">All tickets</a>{% endfill %}
+  {% list_results items=open_requests empty_title="No open tickets" empty_body="Start a new ticket when you need something from the laboratory." action_url=create_url action_label="New ticket" %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table">
+      <thead><tr><th scope="col">Ticket</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Last update</th></tr></thead>
+      <tbody>
+        {% for item in open_requests %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}">{{ item.number }}</a></th>
+          <td>{{ item.subject }}</td>
+          <td class="vr-nowrap">{% status label=item.client_status_label tone=item.client_status_tone plain=True %}</td>
+          <td class="vr-nowrap"><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:"Y-m-d H:i" }}</time></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+  {% if open_count > open_requests|length %}<p class="vr-muted small">Showing the {{ open_requests|length }} most recent of {{ open_count }}. <a href="{{ all_url }}?status=active">Show all open tickets</a>.</p>{% endif %}
+{% endpanel %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    {% panel title="Your organization" heading_id="portal-organization-heading" class="mb-3" %}
+      <dl class="vr-facts">
+        {% fact label="Organization" value=client.name %}
+        {% fact label="General email" value=client.email %}
+        {% fact label="Main phone" value=client.phone class="vr-nowrap" %}
+        {% fact label="Mailing address" wide=True empty="Not recorded" %}{% for line in client.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
+      </dl>
+    {% endpanel %}
+    {% panel title="Contacts on file" heading_id="portal-contacts-heading" count=contacts|length table=True %}
+      {% list_results items=contacts empty_title="No contacts on file" empty_body="Ask the laboratory to add the people it should contact at your organization." %}
+        <div class="vr-table-wrap"><table class="table vr-table">
+          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
+          <tbody>
+            {% for contact in contacts %}
+            <tr><th scope="row">{{ contact.name }}</th><td>{{ contact.role|default:"—" }}</td><td>{{ contact.email|default:"—" }}</td><td class="vr-nowrap">{{ contact.phone|default:"—" }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table></div>
+      {% endlist_results %}
+    {% endpanel %}
+  </div>
+  <div class="col-lg-5">
+    {% panel title="Your laboratory" heading_id="portal-lab-heading" %}
+      {% if logo %}<img class="vr-lab-logo" src="{% url 'lab-logo-image' logo.sha256 %}" alt="{{ lab.name }} logo" width="{{ logo.width }}" height="{{ logo.height }}">{% endif %}
+      <dl class="vr-facts">
+        {% fact label="Laboratory" value=lab.name %}
+        {% fact label="Phone" value=lab.phone class="vr-nowrap" %}
+        {% fact label="Email" value=lab.email %}
+        {% fact label="Address" wide=True empty="Not recorded" %}{% for line in lab.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
+      </dl>
+    {% endpanel %}
+  </div>
+</div>
+{% endblock %}

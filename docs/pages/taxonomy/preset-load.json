@@ -1,0 +1,106 @@
+{
+  "id": "taxonomy-preset-load",
+  "routes": [
+    "taxonomy:preset-load"
+  ],
+  "title": "Load presets",
+  "purpose": "Add starting groups and categories for the laboratory's type of work, and the teams they route to, without changing anything already there.",
+  "summary": "Add starting ticket categories for your kind of laboratory. Loading only adds what is missing, so you can load again later. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Load starting categories",
+      "steps": [
+        "Read [[What each preset adds]] and tick the matching [[Laboratory types]].",
+        "Select [[Load presets]]. The list opens with a message that says what was added."
+      ]
+    },
+    {
+      "title": "Check what is still missing",
+      "steps": [
+        "Look at the [[Not here yet]] column. All here means every category of that preset already exists."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The set for all laboratories is always loaded, even when you tick nothing.",
+    "Loading never renames, moves or reactivates a category, never changes its rules, and sets no service targets.",
+    "Missing teams are created. A team that already exists under the same name, or the same short name, is reused.",
+    "Presets are starting points. Rename, reorder, reassign and deactivate the categories afterwards.",
+    "Loading also adds the standard ticket forms of the same presets, with their fields and catalogs, but only what is missing. Fields that would hold patient information arrive inactive."
+  ],
+  "sections": [
+    {
+      "title": "What each preset adds",
+      "paragraphs": [
+        "A table lists every preset, including All laboratories: its name, a description, how many categories it holds (Categories) and how many are not in the list yet (Not here yet). Not here yet is matched by key. A preset with nothing missing shows All here."
+      ],
+      "items": [
+        {
+          "label": "All laboratories",
+          "description": "Categories every laboratory's client-services desk handles. Always loaded. It is not a checkbox."
+        },
+        {
+          "label": "Clinical (including molecular and pathology)",
+          "description": "Requisitions, critical-result follow-up, patient billing, privacy requests and pathology material."
+        },
+        {
+          "label": "Toxicology",
+          "description": "Requisitions, custody and control forms, and medical review officer routing."
+        },
+        {
+          "label": "Environmental",
+          "description": "Chain of custody, bottle kits, project scope and electronic deliverables."
+        },
+        {
+          "label": "Food and manufacturing quality control",
+          "description": "Chain of custody, batch and specification queries, and certificates of analysis."
+        },
+        {
+          "label": "Biorepository",
+          "description": "Deposits and distributions, access approvals and shipments."
+        }
+      ]
+    },
+    {
+      "title": "Loading",
+      "items": [
+        {
+          "label": "Laboratory types",
+          "description": "Check boxes for the presets above, except All laboratories, which is always loaded with them. Tick none to load only the all-laboratories set."
+        },
+        {
+          "label": "Load presets",
+          "description": "Adds the groups, categories and teams that are missing, in one step, and records one audit event for the load. A message gives the counts of groups, categories and teams added, or says nothing new was added."
+        },
+        {
+          "label": "What loading does",
+          "description": "Categories are matched by key, or by name within the same group. Presets that share a category load it once. Preset categories start as active, in the order of the preset, after existing ones in the group."
+        },
+        {
+          "label": "Teams created",
+          "description": "Client services, Accessioning, Technical, Billing, Logistics, Interfaces and IT, and Quality are created when missing. Each creation is recorded with the reason that a preset created it."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Ticket categories without loading."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Two administrators loading at the same moment are made to take turns, so the same category is not created twice. The starting rules of a preset category (default team, priority, whether clients may raise it, complaint and restricted) are set when it is created and can be changed afterwards on the edit form. The laboratory chooses its own categories, teams and service targets."
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/presets.py",
+    "taxonomy/forms.py",
+    "taxonomy/presets.py",
+    "taxonomy/services.py",
+    "taxonomy/templates/taxonomy/preset_form.html",
+    "taxonomy/tests/test_taxonomy.py",
+    "taxonomy/urls.py",
+    "taxonomy/views.py"
+  ]
+}

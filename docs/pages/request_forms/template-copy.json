@@ -1,0 +1,60 @@
+{
+  "id": "request-forms-template-copy",
+  "routes": [
+    "request_forms:template-copy"
+  ],
+  "title": "Copy a ticket form",
+  "purpose": "Create a new ticket form from an existing one, with all its fields, to make a variant without building it again.",
+  "summary": "Give the copy a name and, if you like, a key. It starts with every field of the original, is offered like the original but not on the service menu, and has its own tickets and history.",
+  "tasks": [
+    {
+      "title": "Make a variant of a form",
+      "steps": [
+        "On the form's page select [[Copy form]].",
+        "Type the [[Name of the copy]] and, if you want a particular one, the [[Key]].",
+        "Select [[Copy form]], then edit the copy's fields and portal settings."
+      ]
+    },
+    {
+      "title": "Leave without copying",
+      "steps": [
+        "Select [[Cancel]] to return to the original form."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The copy keeps the field keys, labels, types, rules and order of the original, inactive fields included.",
+    "The copy's client label starts empty, so the portal shows its name until you set one.",
+    "Changing the copy never changes the original or the tickets raised with it.",
+    "Only administrators can copy forms."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Name of the copy",
+          "description": "Required. What staff see, and what clients see until you give the copy a client label. It must differ from every other form's name."
+        },
+        {
+          "label": "Key",
+          "description": "A stable code that never changes after creation. Leave it empty to make one from the name. It must differ from every other form's key."
+        },
+        {
+          "label": "Copy form",
+          "description": "Creates the copy and opens its page. The change is recorded in each copied item's history."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the original form without copying."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/views.py",
+    "request_forms/forms.py",
+    "request_forms/services.py",
+    "request_forms/tests/test_additions.py"
+  ]
+}

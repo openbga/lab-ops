@@ -1,0 +1,72 @@
+{
+  "id": "core-lab-logo-form",
+  "routes": [
+    "lab-logo-edit"
+  ],
+  "title": "Upload logo",
+  "purpose": "Upload the laboratory's logo, or replace the current one. The title reads Replace logo when a logo is already set. The logo is shown on the profile and on the client portal home.",
+  "summary": "Upload the laboratory's logo, or replace the current one. It is shown on the profile and the client portal home.",
+  "tasks": [
+    {
+      "title": "Upload the logo",
+      "steps": [
+        "Choose the file in [[Logo image]]: PNG or JPEG, at most 512 KiB, 32 to 2000 pixels a side.",
+        "Select [[Upload logo]]."
+      ]
+    },
+    {
+      "title": "Replace the logo",
+      "steps": [
+        "Choose the new file and select [[Replace logo]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A replaced logo stays stored, so the profile history can show it.",
+    "CMYK images, damaged files and sizes out of range are refused with the reason, and nothing changes.",
+    "The file type is read from the image itself, not its name."
+  ],
+  "sections": [
+    {
+      "title": "Field",
+      "paragraphs": [
+        "Only the admin laboratory role can open or submit this form."
+      ],
+      "items": [
+        {
+          "label": "Logo image",
+          "description": "Required. A PNG or JPEG file of at most 512 KiB, each side between 32 and 2000 pixels, in RGB or greyscale colour. The file is checked by reading the whole image; its type comes from the image itself, not from the file name. A file that cannot be read, is too large, has sides out of range or uses another colour mode (for example CMYK) is refused with the reason, and nothing changes. So is an image whose pixels or orientation data are damaged. An accepted file is kept exactly as uploaded; the size shown on the Laboratory profile is the displayed size, after any rotation the file's own orientation data asks for."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Upload logo / Replace logo",
+          "description": "Makes the image the logo and returns to the Laboratory profile. The change is audited. Uploading the image that is already the logo returns with No changes to save. Uploading an image used before reuses the stored copy."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Laboratory profile without changing the logo."
+        },
+        {
+          "label": "Earlier logos",
+          "description": "A replaced logo stays stored, so the profile history can still show it."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the profile changed after you opened the form, the upload is refused; choose the file again after reloading."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/lab_profile_views.py",
+    "core/lab_profile_forms.py",
+    "core/lab_profile.py",
+    "core/models.py",
+    "templates/core/lab_profile_form.html"
+  ]
+}

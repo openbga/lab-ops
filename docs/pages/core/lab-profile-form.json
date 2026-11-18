@@ -1,0 +1,91 @@
+{
+  "id": "core-lab-profile-form",
+  "routes": [
+    "lab-profile-edit"
+  ],
+  "title": "Edit laboratory profile",
+  "purpose": "Change the address and contact details of the laboratory, which staff see on the profile and client portal accounts see on their portal home.",
+  "summary": "Change the laboratory's address and contact details, shown to staff and on the client portal home.",
+  "tasks": [
+    {
+      "title": "Update the address",
+      "steps": [
+        "Change the address lines, city, state or ZIP code.",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Update the contact details",
+      "steps": [
+        "Change [[Phone]], [[Email]] or [[Website]].",
+        "Select [[Save changes]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A blank detail is simply not shown.",
+    "The website must start with https:// or http://.",
+    "The laboratory name is set when the application is installed and is not changed here.",
+    "If the profile or logo changed after you opened the form, saving is refused. Reload and compare first."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "Only the admin laboratory role can open or submit this form. Every field is optional; surrounding spaces are removed."
+      ],
+      "items": [
+        {
+          "label": "Street address",
+          "description": "Up to 160 characters, the first address line."
+        },
+        {
+          "label": "Suite, building or PO box",
+          "description": "Up to 160 characters, the second address line."
+        },
+        {
+          "label": "City, State, ZIP code",
+          "description": "Shown together on the last address line, for example Testville, NY 10000. State is chosen from the US states and territories; ZIP code takes up to 12 characters."
+        },
+        {
+          "label": "Phone",
+          "description": "Up to 40 characters, shown as entered."
+        },
+        {
+          "label": "Email",
+          "description": "Must be a valid email address."
+        },
+        {
+          "label": "Website",
+          "description": "Must be a full web address starting with https:// or http://."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Save changes",
+          "description": "Saves and returns to the Laboratory profile. The change is audited with the administrator, the time and the values before and after. An unchanged submission returns with No changes to save and records nothing."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Laboratory profile without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the profile changed after you opened the form (including a logo change), saving is refused and your input stays on the form; reload and compare the current values before saving again."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/lab_profile_views.py",
+    "core/lab_profile_forms.py",
+    "core/lab_profile.py",
+    "core/models.py",
+    "core/concurrency.py",
+    "templates/core/lab_profile_form.html"
+  ]
+}

@@ -1,0 +1,27 @@
+{% extends "layouts/portal.html" %}
+{% load ui %}
+{% comment %}
+New request (F5): every request form the laboratory offers this portal account, in its order, and
+"Something else" for the generic raise form. Context: templates (request_forms.selectors.
+portal_templates), groups (more than seven forms: dicts of heading, forms, heading_id under their category groups'
+client labels, in the taxonomy's order; else None). One tap opens a form.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'portal:request-list' as list_url %}{% breadcrumbs section="Tickets" section_url=list_url current="New ticket" %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Choose the service you need.</p>{% endblock %}
+{% block content %}
+{% url 'portal:request-create' as other_url %}
+{% if groups %}
+{% for group in groups %}
+{% panel title=group.heading heading_id=group.heading_id class="mb-3 vr-service-menu" %}
+  {% include "request_forms/_service_grid.html" with templates=group.forms other_url=None heading_id=group.heading_id only %}
+{% endpanel %}
+{% endfor %}
+{% panel title="Anything else" heading_id="forms-other" class="vr-service-menu" %}
+  {% include "request_forms/_service_grid.html" with templates=None other_url=other_url heading_id="forms-other" only %}
+{% endpanel %}
+{% else %}
+{% panel title="Ticket forms" heading_id="forms-heading" hidden_title=True class="vr-service-menu" %}
+  {% include "request_forms/_service_grid.html" with templates=templates other_url=other_url heading_id="page-title" only %}
+{% endpanel %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Reveal key without JavaScript (L3): the same content as the HTMX fragment on a page of its own.
+The title names the record type, never the key. Context: link, attachment, back, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% panel title="Key" %}
+  <dl class="vr-facts">
+    {% fact label="Label" value=link.display_label %}
+    {% fact label="System" value=link.system.name %}
+    {% fact label="Key" %}<span data-vr-forget-cell data-vr-forget-text="Hidden after leaving the page. Reveal it again from the ticket.">{% include "links/_revealed_key.html" %}</span>{% endfact %}
+  </dl>
+  <p><a href="{{ back }}#links">Back to the ticket</a></p>
+{% endpanel %}
+{% endblock %}

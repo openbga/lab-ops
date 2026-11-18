@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Remove a holiday from a business calendar (S1), with a reason. Context: form (HolidayRemoveForm),
+holiday, crumbs, cancel_url. Admin only. Clocks already worked out keep their due times.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label="Remove holiday" destructive=True %}
+  <fieldset class="vr-form-section">
+    <p>{{ holiday.name }}, <time datetime="{{ holiday.date|date:'Y-m-d' }}">{{ holiday.date|date:"Y-m-d" }}</time>. Due times already worked out do not move.</p>
+    {{ form.reason.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

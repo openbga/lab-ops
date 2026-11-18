@@ -1,0 +1,192 @@
+{
+  "id": "clients-client-list",
+  "routes": [
+    "clients:client-list"
+  ],
+  "title": "Client organizations",
+  "purpose": "Find the organizations the laboratory serves and open their contact details, contacts and portal accounts.",
+  "summary": "The organizations the laboratory serves. Open one to see its contacts and portal accounts.",
+  "tasks": [
+    {
+      "title": "Find an organization",
+      "steps": [
+        "Type a name, account code, email, phone or city in [[Search]] and select [[Apply]].",
+        "Select the organization's name to open its page."
+      ]
+    },
+    {
+      "title": "Add an organization",
+      "steps": [
+        "Select [[New organization]], enter at least the name, and save. Then add its contacts."
+      ]
+    },
+    {
+      "title": "Find organizations nobody can be reached at",
+      "steps": [
+        "Set [[Status]] to Active, open [[More filters]], choose [[No active contact]] in [[Contacts]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "List organizations in one state",
+      "steps": [
+        "Open [[More filters]], choose the [[State]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "List organizations of one type",
+      "steps": [
+        "Open [[More filters]], choose the [[Organization type]] and select [[Apply]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role can read this list. Only account managers and client services staff, and the admin role, add and change organizations.",
+    "An inactive organization stays in the list and keeps its records and history.",
+    "Search does not look at contacts' names, the mailing address lines or internal notes.",
+    "Organization type is a filter only. It is not a column of this list; the organization's page shows it.",
+    "Selecting an email address opens your email application. Nothing is sent from here."
+  ],
+  "sections": [
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the organization name, account code, general email, main phone or city, ignoring case. It does not search contacts, street address lines, ZIP code or notes."
+        },
+        {
+          "label": "Status",
+          "description": "All statuses and All include active and inactive organizations. Active or Inactive filters on the organization's Active setting."
+        },
+        {
+          "label": "Organization type",
+          "description": "More filters: Any type or one organization type (Healthcare facility or system, Physician practice or clinic, Referring laboratory, Employer or program administrator, Utility or municipality, Engineering or consulting firm, Manufacturer or food producer, Research sponsor or institution, Internal department, Other). Organizations with no recorded type do not match a chosen type."
+        },
+        {
+          "label": "State",
+          "description": "More filters: Any state or one state of the organization's mailing address (the 50 states, the District of Columbia and the territories, shown by name). Organizations with no recorded state do not match a chosen state."
+        },
+        {
+          "label": "Contacts",
+          "description": "More filters: Any contacts, or No active contact, which keeps only organizations without an active contact. The dashboard queue Active organizations without an active contact opens this list with that filter."
+        },
+        {
+          "label": "New organization",
+          "description": "Account managers, client services staff and the admin role create an organization here. Hidden from other staff roles; the server refuses their requests too."
+        },
+        {
+          "label": "Organization row link",
+          "description": "Opens the organization's page for any staff role."
+        },
+        {
+          "label": "Email link",
+          "description": "Opens your email application; this page does not send an email."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Organization",
+          "description": "The organization's name; default sort is name ascending. Always shown."
+        },
+        {
+          "label": "Account code",
+          "description": "The laboratory's short code for the organization, or a dash. Sortable."
+        },
+        {
+          "label": "Status",
+          "description": "Active or Inactive. Sortable."
+        },
+        {
+          "label": "Email",
+          "description": "The general email address, or a dash. Sortable."
+        },
+        {
+          "label": "Phone",
+          "description": "The main phone, or a dash. Sortable."
+        },
+        {
+          "label": "City, State",
+          "description": "Mailing address city and state, or a dash. Each is sortable."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "paragraphs": [
+        "Active staff can read this list; client portal accounts cannot. Invalid filters show errors and no rows until corrected or cleared. Invalid page sizes are refused. No-match and no-record empty states give different next steps. Inactive organizations remain part of searches."
+      ],
+      "items": [
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, filters, Apply, Clear all, Columns and the sort links are behind one Filter and sort button, so the rows come first. The button shows how many filters are active, and a line under it summarizes the filters and the current sort. Removable filter chips are not shown on a phone; Clear all is in the sheet. Wider screens show the toolbar as usual."
+        },
+        {
+          "label": "Apply",
+          "description": "Combines the search and the selected filters across the complete record set and returns to page 1."
+        },
+        {
+          "label": "More filters",
+          "description": "Opens the Organization type, State and Contacts filters and stays open while any of them is active or invalid."
+        },
+        {
+          "label": "Clear all / filter chips",
+          "description": "Clear all restores the unfiltered address and default sort. Removing one chip clears that criterion, keeps the others and returns to page 1."
+        },
+        {
+          "label": "Column headings",
+          "description": "Linked headings sort all matching records, not just this page. Unsupported sort values use the default."
+        },
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns. The Organization column stays visible. The preference is saved for your account; it does not change data, search or sort. Reset columns restores the defaults."
+        },
+        {
+          "label": "Rows per page",
+          "description": "25 by default; choose 25, 50 or 100. Changing the size returns to page 1. Use Show when automatic submission is unavailable."
+        },
+        {
+          "label": "Pagination",
+          "description": "First, Previous, Next and Last keep the filters and sort. The footer gives the visible range and the total matching count."
+        }
+      ]
+    },
+    {
+      "title": "Column layout dialog",
+      "items": [
+        {
+          "label": "Column checkboxes",
+          "description": "Changes apply immediately. Check to show a column or uncheck to hide it. Columns marked Always shown are fixed."
+        },
+        {
+          "label": "Move column up / down",
+          "description": "Moves a column within the displayed order. You can also drag movable table headers."
+        },
+        {
+          "label": "Reset columns",
+          "description": "Restores this table's default order and visibility for your account."
+        },
+        {
+          "label": "Done / Close",
+          "description": "Closes the dialog; layout changes have already been applied and saved. No record is changed."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/models.py",
+    "clients/forms.py",
+    "clients/permissions.py",
+    "core/lists.py",
+    "core/grids.py",
+    "core/forms.py",
+    "clients/templates/clients/client_list.html",
+    "templates/includes/grid_columns_dialog.html",
+    "static/js/grid.js",
+    "clients/tests/test_organization_structure.py"
+  ]
+}

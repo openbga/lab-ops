@@ -1,0 +1,11 @@
+{% load ui %}{% load static %}{% comment %}
+Brand lock-up: the mark, "OpenBGA" over "Lab Ops". Read in order it is the written
+product name, "OpenBGA Lab Ops" (titles, footer, help). Parameters:
+  href     link target; without it the brand is plain text (the 500 page, which has no request)
+  name     replaces the lock-up text with this single line (the portal passes the lab's name)
+  variant  "entrance" for the larger lock-up above entrance and error panels; default is the top bar
+Usage: {% brand href=dashboard_url|default:"/" %}
+{% endcomment %}{% with size=variant|yesno:"32,24" css=variant|yesno:"vr-entrance-brand,vr-brand" %}{% if href %}<a class="{{ css }}" href="{{ href }}">{% else %}<p class="{{ css }}">{% endif %}
+  <img src="{% static 'img/mark.svg' %}" alt="" width="{{ size }}" height="{{ size }}">
+  {% if name %}<span>{{ name }}</span>{% else %}<span class="vr-wordmark"><span class="vr-wordmark-parent">OpenBGA</span> <span class="vr-wordmark-name">Lab Ops</span></span>{% endif %}
+{% if href %}</a>{% else %}</p>{% endif %}{% endwith %}

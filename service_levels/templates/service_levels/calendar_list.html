@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Business calendars (S1). Context (core.lists.list_response): page_obj (BusinessCalendar annotated
+with holiday_count and target_count, the active targets using it), filter_form, q, sort,
+per_page, active_filters and the toolbar context. Admin only.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Opening hours and holidays that service targets count in.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'service_levels:target-list' %}">Service targets</a><a class="btn btn-primary" href="{% url 'service_levels:calendar-create' %}">{% icon name="plus-lg" %}New business calendar</a>{% endblock %}
+{% block content %}
+{% url 'service_levels:calendar-create' as create_url %}
+{% panel title="Business calendars" table=True hidden_title=True %}
+  {% grid_toolbar label="Filter business calendars" grid="service_levels.calendars" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="calendars" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path no_results_title="No calendars match these filters" empty_title="No business calendars yet" empty_body="Without a calendar a target runs around the clock. Add one with your opening hours and holidays." action_url=create_url action_label="New business calendar" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="service_levels.calendars" data-vr-grid-version="1">
+      <thead>
+        <tr>
+          {% sort_header label="Calendar" asc="name" desc="-name" col="name" locked=True %}
+          <th scope="col" data-vr-col="hours">Opening hours</th>
+          <th scope="col" data-vr-col="holidays" class="text-end">Holidays</th>
+          <th scope="col" data-vr-col="targets" class="text-end">Active targets</th>
+          {% sort_header label="Status" asc="is_active" desc="-is_active" col="is_active" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for calendar in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'service_levels:calendar-detail' calendar.pk %}">{{ calendar.name }}</a></th>
+          <td>{% for day, hours in calendar.weekly_hours %}{% if hours %}<span class="vr-nowrap">{{ day|slice:":3" }} {{ hours }}</span>{% if not forloop.last %}; {% endif %}{% endif %}{% endfor %}</td>
+          <td class="text-end">{{ calendar.holiday_count }}</td>
+          <td class="text-end">{{ calendar.target_count }}</td>
+          <td>{% if calendar.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

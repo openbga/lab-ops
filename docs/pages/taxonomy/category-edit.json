@@ -1,0 +1,136 @@
+{
+  "id": "taxonomy-category-edit",
+  "routes": [
+    "taxonomy:category-edit"
+  ],
+  "title": "Edit ticket category or group",
+  "purpose": "Change a group's or a category's name, client label, routing and rules, or retire it, with a reason that is kept in its history.",
+  "summary": "Change a group or a category and say why. Retiring one stops it being offered for new tickets. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Change a category",
+      "steps": [
+        "Change the details, then write the [[Reason for change]].",
+        "Select [[Save changes]]. The list opens at the group."
+      ]
+    },
+    {
+      "title": "Retire a category or group",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Existing tickets keep it."
+      ]
+    },
+    {
+      "title": "Change the complaint or restricted rule",
+      "steps": [
+        "Change [[Complaint: tickets follow the complaint rules]] or [[Restricted: visible only to the team's members and supervisors]].",
+        "Explain the change in [[Reason for change]] and save."
+      ]
+    },
+    {
+      "title": "Rename a group",
+      "steps": [
+        "Open the group from [[Edit group]], change the [[Group name]] or [[Client label]], give the reason and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A reason is needed for every change. A save with nothing changed is refused.",
+    "A change to the complaint or restricted rule is recorded as its own kind of change in the history.",
+    "A group has fewer fields than a category: no group, guidance, team, priority or rules.",
+    "If someone else changed it after you opened the form, saving is refused and your input stays. Reload and review first."
+  ],
+  "sections": [
+    {
+      "title": "Group form and category form",
+      "paragraphs": [
+        "One page serves both. A group (opened from Edit group) has Group name, Client label, Active and Reason for change. A category (opened from its name) also has Group, Intake guidance, Default team, Default priority and the three rules. The key is not shown and never changes."
+      ]
+    },
+    {
+      "title": "Fields on both",
+      "items": [
+        {
+          "label": "Group name / Category name",
+          "description": "Required, up to 120 characters. A category name must be unique within its group, ignoring case. Surrounding spaces are removed."
+        },
+        {
+          "label": "Client label",
+          "description": "Optional, up to 120 characters. The wording for client portal users; empty means the staff name."
+        },
+        {
+          "label": "Active",
+          "description": "Clear to stop offering it for new tickets. Existing tickets keep it. An inactive group is hidden from the default list and its categories are no longer offered."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Required. Kept with the change in the history."
+        }
+      ]
+    },
+    {
+      "title": "Fields on a category only",
+      "items": [
+        {
+          "label": "Group",
+          "description": "Required. The active groups, plus the category's current group even if it is inactive. Choosing another group moves the category there. A category can only be in a group."
+        },
+        {
+          "label": "Intake guidance",
+          "description": "Optional text kept with the category for staff who log a ticket in it."
+        },
+        {
+          "label": "Default team",
+          "description": "Optional. Active teams, plus the current one even if it is inactive. Empty means the laboratory's default team. A newly chosen team must be active."
+        },
+        {
+          "label": "Default priority",
+          "description": "Low, Normal, High or Urgent. Used for a new ticket in this category when none is given."
+        },
+        {
+          "label": "Clients may raise it in the portal",
+          "description": "When on, client portal users can choose this category."
+        },
+        {
+          "label": "Complaint: tickets follow the complaint rules",
+          "description": "When on, tickets created in this category are marked as complaints. Tickets that already exist keep what they had."
+        },
+        {
+          "label": "Restricted: visible only to the team's members and supervisors",
+          "description": "When on, tickets in this category are visible only to members of their team and to supervisors."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Save changes",
+          "description": "Saves and returns to the list at the group. The change is audited with the person, time, reason and the values before and after. If a complaint or restricted rule changed it is recorded as a flag change; otherwise as an update. A save with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the record changed after you opened the form, saving is refused with a message to reload and review the current record."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored record is inactive the form shows a notice that it is not offered for new tickets and that existing tickets keep it."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Ticket categories without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "taxonomy/urls.py",
+    "taxonomy/views.py",
+    "taxonomy/forms.py",
+    "taxonomy/services.py",
+    "taxonomy/models.py",
+    "desk/services.py",
+    "templates/core/record_form.html",
+    "taxonomy/tests/test_taxonomy.py"
+  ]
+}

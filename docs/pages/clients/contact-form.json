@@ -1,0 +1,120 @@
+{
+  "id": "clients-contact-form",
+  "routes": [
+    "clients:contact-create",
+    "clients:contact-edit"
+  ],
+  "title": "Client contact",
+  "purpose": "Add a person the laboratory deals with at a client organization, or change one already recorded, including what that person is responsible for. A contact is a record the laboratory keeps; it does not create a portal account.",
+  "summary": "Add or change a person the laboratory deals with at a client organization. It does not create a sign-in account.",
+  "tasks": [
+    {
+      "title": "Add a contact",
+      "steps": [
+        "Enter the [[Name]] and an [[Email]] or a [[Phone]], and optionally choose the [[Role]] and tick the [[Responsibilities]].",
+        "Select [[Add contact]]."
+      ]
+    },
+    {
+      "title": "Record what a contact deals with",
+      "steps": [
+        "Tick one or more [[Responsibilities]], such as Billing or Results and reports.",
+        "When editing, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Change a contact",
+      "steps": [
+        "Change the details, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Retire a contact who has left",
+      "steps": [
+        "Clear [[Active]], give the reason and save. The record and its history are kept."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only account managers, client services staff and the admin role can open this form.",
+    "A contact needs an email address or a phone number, or both.",
+    "Responsibilities help route work. They do not record that a person is authorized to receive results.",
+    "Role is free text. Choose Other to type wording your laboratory uses.",
+    "To let a person sign in to the client portal, a superuser adds a portal account from the organization's page."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "Surrounding spaces are removed before saving."
+      ],
+      "items": [
+        {
+          "label": "Name",
+          "description": "Required, up to 160 characters."
+        },
+        {
+          "label": "Role",
+          "description": "Optional, up to 80 characters. What the laboratory contacts this person about. Suggested roles are Primary contact, Billing, Results and reports, Ordering and requisitions, and Technical or quality; Other accepts any wording. Role is free wording; Responsibilities are a fixed list."
+        },
+        {
+          "label": "Email",
+          "description": "Must be a valid email address when given. Give an email address or a phone number."
+        },
+        {
+          "label": "Phone",
+          "description": "Up to 40 characters, shown as entered."
+        },
+        {
+          "label": "Responsibilities",
+          "description": "Optional checkboxes: Ordering, Results and reports, Billing, Supplies and pickups, Quality, Technical and General; tick any number. They record what this person deals with so work can be routed to them. They do not record authority to receive results, which stays in the laboratory's own procedures. They are saved in this fixed order whatever order you tick them, and any other value is refused. They show in the Responsibilities column of the organization's Contacts table."
+        },
+        {
+          "label": "Sites served",
+          "description": "The sites of this organization the contact serves. Leave all clear when the contact serves the whole organization. Only this organization's active sites are offered, plus any inactive site the contact already serves; the field is absent while the organization has no sites. Shown in the Sites served column of the Contacts panel."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. Clear it for a contact who has left. Inactive contacts stay on the organization's page, marked Inactive, and no longer count as an active contact."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the contact's history."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Add contact / Save changes",
+          "description": "Saves and returns to the organization's page. Each addition and change is audited. A submission with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the organization's page without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the contact changed after you opened the form, saving is refused with a message to reload and review the current record."
+        },
+        {
+          "label": "Contact history",
+          "description": "When editing, the changes recorded for this contact are listed below the form, oldest first, with the reason for each."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/forms.py",
+    "clients/models.py",
+    "clients/services.py",
+    "clients/permissions.py",
+    "clients/templates/clients/contact_form.html",
+    "core/widgets.py",
+    "clients/tests/test_organization_structure.py",
+    "clients/templates/clients/client_detail.html"
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "id": "taxonomy-category-list",
+  "routes": [
+    "taxonomy:category-list"
+  ],
+  "title": "Ticket categories",
+  "purpose": "See the groups and categories tickets are filed under, set their order, and reach the forms to add or change them.",
+  "summary": "The groups and categories staff and clients choose from when a ticket is filed, in the order they are offered. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Start from the presets",
+      "steps": [
+        "Select [[Load presets]], tick the laboratory types that fit your work and load them.",
+        "Rename, reorder or deactivate what you do not need."
+      ]
+    },
+    {
+      "title": "Add a category",
+      "steps": [
+        "Select [[Add category]] on the group, or [[New category]] at the top.",
+        "Fill in the form and save. The category appears at the end of its group."
+      ]
+    },
+    {
+      "title": "Change the order",
+      "steps": [
+        "Open the [[Move]] menu on the category row, or [[Move group]] on the group heading.",
+        "Choose [[Move up]] or [[Move down]]. The change is one step at a time."
+      ]
+    },
+    {
+      "title": "Change or retire a category",
+      "steps": [
+        "Select the category name, or [[Edit group]] for a group.",
+        "Give the reason, clear [[Active]] to retire it, and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Inactive groups and categories are hidden until you select [[Show inactive]]. They keep their tickets and history.",
+    "A ticket takes a category, never a group. Inactive ones are not offered for new tickets.",
+    "Moving a group or category changes the order people see. It does not need a reason.",
+    "Every other staff role gets a refusal on this page. The server checks the role, not the buttons."
+  ],
+  "sections": [
+    {
+      "title": "Page actions",
+      "items": [
+        {
+          "label": "Show inactive / Hide inactive",
+          "description": "Switches between active-only (the default) and all groups and categories. Inactive ones are marked Inactive. In the active-only view a group that has hidden inactive categories says how many are hidden, and an inactive group is not listed at all."
+        },
+        {
+          "label": "Load presets",
+          "description": "Opens the Load presets page, which adds starting categories for your type of laboratory."
+        },
+        {
+          "label": "New group",
+          "description": "Opens the form for a first-level group."
+        },
+        {
+          "label": "New category",
+          "description": "Opens the form for a category. Shown once at least one active group is listed."
+        }
+      ]
+    },
+    {
+      "title": "Group headings",
+      "paragraphs": [
+        "Each group is its own table. The heading shows the group name, an Inactive mark when it is inactive and the number of categories shown."
+      ],
+      "items": [
+        {
+          "label": "Move group",
+          "description": "Menu with Move up and Move down, which swap the group with its neighbour among the groups listed above or below it. The first group has no Move up and the last has no Move down."
+        },
+        {
+          "label": "Edit group",
+          "description": "Opens the group form: name, client label, active and the reason for the change."
+        },
+        {
+          "label": "Add category",
+          "description": "Opens the category form with this group already chosen. Not offered for an inactive group."
+        }
+      ]
+    },
+    {
+      "title": "Category columns",
+      "items": [
+        {
+          "label": "Category",
+          "description": "The category name, which opens its edit form. Inactive categories carry an Inactive mark."
+        },
+        {
+          "label": "Default team",
+          "description": "The team new tickets in this category are proposed to. It reads Default team when none is set; the laboratory's default team is then used."
+        },
+        {
+          "label": "Priority",
+          "description": "The category's default priority: Low, Normal, High or Urgent."
+        },
+        {
+          "label": "In the portal",
+          "description": "Clients may raise means client portal users can choose this category. Staff only means they cannot."
+        },
+        {
+          "label": "Rules",
+          "description": "Complaint when tickets in it follow the complaint rules. Restricted when tickets in it are visible only to the team's members and to supervisors. A dash means neither rule is set."
+        },
+        {
+          "label": "Client label",
+          "description": "The wording clients see, or Same as name when none is set. Hidden first on narrow screens."
+        },
+        {
+          "label": "Order (Move)",
+          "description": "Menu with Move up and Move down within the group. A category moves only among the categories of its own group; it never changes group this way."
+        }
+      ]
+    },
+    {
+      "title": "Rules and states",
+      "paragraphs": [
+        "Move up and Move down send a POST from the menu. At the first or last position the move is refused with a notice that it is already the first or last. Each move is written to the audit history with the new order, and the sibling positions are renumbered so equal positions cannot stall a move.",
+        "No ticket categories yet means nothing has been created: load presets or add a group. No active groups means every group is inactive: select Show inactive. No categories in this group means the group is empty or all its categories are hidden.",
+        "A move swaps with the neighbour including inactive ones that are hidden, so in the active-only view one move can look as if nothing happened. The categories a new ticket may take are ordered by group position, then category position, then name."
+      ]
+    }
+  ],
+  "sources": [
+    "taxonomy/urls.py",
+    "taxonomy/views.py",
+    "taxonomy/services.py",
+    "taxonomy/models.py",
+    "taxonomy/templates/taxonomy/category_list.html",
+    "taxonomy/tests/test_taxonomy.py"
+  ]
+}

@@ -1,0 +1,71 @@
+/* Entrance scene palette: the --sc-* colours for morning (light) and evening (dark), and the
+   classes the scene's shapes use. build.py embeds one theme's block plus the classes in each SVG.
+   Damson: lavender hills, an apricot sky low on the horizon, olive trees, a plum laboratory,
+   kraft cartons and a courier van. */
+
+/* theme: light */
+svg {
+  --sc-sky-top: #ece4ee; --sc-sky-mid: #f4edf1; --sc-sky-low: #f9e3d2; --sc-glow: #f8c9a4; --sc-sun: #fff2e4;
+  --sc-cloud: #fdf8fa; --sc-cloud-o: 0.85; --sc-day: 1; --sc-night: 0;
+  --sc-ridge1: #ddd0e0; --sc-ridge2: #cdbdd2; --sc-haze: #f3ebf1;
+  --sc-hill1: #b8a6c0; --sc-trees1: #9a8aa5; --sc-hill2: #a491ad;
+  --sc-bldg-far: #d6c9da; --sc-bldg: #f6eff4; --sc-roof: #8b5f8f; --sc-door: #6b3a72; --sc-awning: #e58d58;
+  --sc-band: #c9a2cf; --sc-frame: #8b7590; --sc-chimney: #a690ad; --sc-steam: #fbf6f9;
+  --sc-lab: #fbf7fa; --sc-lab-wing: #efe4ee; --sc-lab-trim: #6b3a72;
+  --sc-emblem: #6b3a72; --sc-flask: #fdf9fd; --sc-flask-fill: #f2a46d; --sc-mast: #6b3a72;
+  --sc-window: #c4b2c9; --sc-window-lit: #a98fb1;
+  --sc-road-line: #f3ebee; --sc-van: #fdf9fc; --sc-tyre: #4a3a50; --sc-hub: #d6c9da;
+  --sc-box: #ddbb95; --sc-box-tape: #c99c70;
+  --sc-street: #b9a8bf; --sc-meadow-far: #b7b48f; --sc-meadow-near: #9c9a71; --sc-path: #eadfd6;
+  --sc-trunk: #6a5446; --sc-leaf1: #6f7650; --sc-leaf2: #858c5f; --sc-leaf3: #a0a676; --sc-grass: #7d7d55;
+  --sc-moon: #f6eef4; --sc-star: #ffffff; --sc-grain-o: 0.14;
+  /* Headline */
+  --sc-headline: #2a1c2c; --sc-subline: #5a4a5c;
+}
+
+/* theme: dark */
+svg {
+  --sc-sky-top: #120c16; --sc-sky-mid: #1b1220; --sc-sky-low: #33202f; --sc-glow: #5a3340; --sc-sun: #f6eef4;
+  --sc-cloud: #2b1f2f; --sc-cloud-o: 0.55; --sc-day: 0; --sc-night: 1;
+  --sc-ridge1: #2a1f2f; --sc-ridge2: #241a29; --sc-haze: #2c2030;
+  --sc-hill1: #1f1724; --sc-trees1: #18111c; --sc-hill2: #1b1420;
+  --sc-bldg-far: #2a2030; --sc-bldg: #3a2c3f; --sc-roof: #574060; --sc-door: #f2a46d; --sc-awning: #9a5a39;
+  --sc-band: #4c3653; --sc-frame: #4a3a50; --sc-chimney: #2e2333; --sc-steam: #3a2e3e;
+  --sc-lab: #43324a; --sc-lab-wing: #3a2b40; --sc-lab-trim: #c69ad0;
+  --sc-emblem: #c69ad0; --sc-flask: #1b1220; --sc-flask-fill: #f2a46d; --sc-mast: #c69ad0;
+  --sc-window: #2a1f2f; --sc-window-lit: #f3b77f;
+  --sc-road-line: #3d2f40; --sc-van: #4d3a55; --sc-tyre: #0f0a12; --sc-hub: #574060;
+  --sc-box: #6e5242; --sc-box-tape: #57402f;
+  --sc-street: #261c2a; --sc-meadow-far: #1f1d18; --sc-meadow-near: #171612; --sc-path: #2c2427;
+  --sc-trunk: #15100f; --sc-leaf1: #1a1c14; --sc-leaf2: #22251a; --sc-leaf3: #2c3021; --sc-grass: #2f3122;
+  --sc-moon: #f6eef4; --sc-star: #ffffff; --sc-grain-o: 0.18;
+  /* Headline */
+  --sc-headline: #f3ecf4; --sc-subline: #c2b2c6;
+}
+
+/* Fill classes */
+.sc-s-sky-top { stop-color: var(--sc-sky-top); } .sc-s-sky-mid { stop-color: var(--sc-sky-mid); }
+.sc-s-sky-low { stop-color: var(--sc-sky-low); } .sc-s-glow { stop-color: var(--sc-glow); }
+.sc-s-moon { stop-color: var(--sc-moon); } .sc-s-haze { stop-color: var(--sc-haze); }
+.sc-day { opacity: var(--sc-day); } .sc-night { opacity: var(--sc-night); }
+.sc-sun { fill: var(--sc-sun); } .sc-moonface { fill: var(--sc-moon); } .sc-star { fill: var(--sc-star); }
+.sc-cloud { fill: var(--sc-cloud); opacity: var(--sc-cloud-o); }
+.sc-ridge1 { fill: var(--sc-ridge1); } .sc-ridge2 { fill: var(--sc-ridge2); }
+.sc-hill1 { fill: var(--sc-hill1); } .sc-trees1 { fill: var(--sc-trees1); } .sc-hill2 { fill: var(--sc-hill2); }
+.sc-bldg-far { fill: var(--sc-bldg-far); } .sc-bldg { fill: var(--sc-bldg); } .sc-roof { fill: var(--sc-roof); }
+.sc-door { fill: var(--sc-door); } .sc-awning { fill: var(--sc-awning); } .sc-band { fill: var(--sc-band); }
+.sc-frame { stroke: var(--sc-frame); } .sc-chimney { fill: var(--sc-chimney); }
+.sc-steam { fill: var(--sc-steam); opacity: 0.8; }
+.sc-lab { fill: var(--sc-lab); } .sc-lab-wing { fill: var(--sc-lab-wing); } .sc-lab-trim { fill: var(--sc-lab-trim); }
+.sc-emblem { fill: var(--sc-emblem); } .sc-flask { stroke: var(--sc-flask); } .sc-flask-fill { fill: var(--sc-flask-fill); }
+.sc-mast { fill: var(--sc-mast); }
+.sc-window { fill: var(--sc-window); } .sc-window-lit { fill: var(--sc-window-lit); }
+.sc-road-line { stroke: var(--sc-road-line); } .sc-van { fill: var(--sc-van); }
+.sc-tyre { fill: var(--sc-tyre); } .sc-hub { fill: var(--sc-hub); }
+.sc-box { fill: var(--sc-box); } .sc-box-tape { fill: var(--sc-box-tape); }
+.sc-street { fill: var(--sc-street); } .sc-meadow-far { fill: var(--sc-meadow-far); }
+.sc-meadow-near { fill: var(--sc-meadow-near); } .sc-path { fill: var(--sc-path); }
+.sc-trunk { fill: var(--sc-trunk); } .sc-leaf1 { fill: var(--sc-leaf1); } .sc-leaf2 { fill: var(--sc-leaf2); }
+.sc-leaf3 { fill: var(--sc-leaf3); opacity: 0.9; }
+.sc-grass { stroke: var(--sc-grass); stroke-width: 1.2; }
+.sc-grainlayer { opacity: var(--sc-grain-o); mix-blend-mode: soft-light; }

@@ -1,0 +1,108 @@
+{
+  "id": "portal-request-form",
+  "routes": [
+    "portal:request-create"
+  ],
+  "title": "New ticket",
+  "purpose": "Send a ticket to the laboratory, or a follow-up to a ticket that is closed.",
+  "summary": "Tell the laboratory what you need: choose what it is about, say which site if asked, give a subject and description, and send it. A closed ticket takes a follow-up ticket.",
+  "tasks": [
+    {
+      "title": "Open a ticket",
+      "steps": [
+        "Choose the topic in [[What is it about?]] and, if asked, the [[Site]].",
+        "Write the [[Subject]] and the [[Description]]. Add an order, accession or sample number in [[Your reference]].",
+        "Tick [[Urgent]] only if it is urgent, then select [[Send]]."
+      ]
+    },
+    {
+      "title": "Follow up on a closed ticket",
+      "steps": [
+        "Open the closed ticket and select [[New follow-up ticket]].",
+        "Fill in the form and select [[Send]]. The new ticket records the earlier number."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Do not enter patient names or dates of birth, in any field. Use an order, accession or sample number in Your reference instead.",
+    "Urgent asks the laboratory to treat the ticket as urgent. The laboratory confirms the priority.",
+    "You can open a ticket for any topic the laboratory offers in the portal.",
+    "If the laboratory changes a topic while this page is open, sending is refused with a message: check your choice and send again. What you typed stays in the form.",
+    "The ticket starts as With the laboratory. You cannot change its topic or site afterwards."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "A notice at the top reminds you not to enter patient names, dates of birth or other personal health details. The form is one column with Send at the end."
+      ],
+      "items": [
+        {
+          "label": "What is it about?",
+          "description": "Required. Choose a topic from those the laboratory lets clients raise. Each is shown with the wording the laboratory uses for clients, grouped in the laboratory's order."
+        },
+        {
+          "label": "Site",
+          "description": "Shown when your account can use at least one active site. It is required when your account sees only listed sites, or when your organization has more than one active site; otherwise it is optional and its empty choice reads Not about one site. Only the sites your account may use are offered, shown with their code in brackets when they have one. When your organization has no active site the field is not shown. An account whose access the laboratory has not set yet is not asked for a site: its tickets are for the organization as a whole."
+        },
+        {
+          "label": "Subject",
+          "description": "Required, up to 120 characters. A few words you and the laboratory will recognize."
+        },
+        {
+          "label": "Description",
+          "description": "Required. What happened and what you need. It becomes the first message of the conversation."
+        },
+        {
+          "label": "Files",
+          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames; if one is refused, your text stays and you choose the files again. Files are not scanned for viruses."
+        },
+        {
+          "label": "Your reference",
+          "description": "Optional, up to 80 characters. An order, accession or sample number that helps the laboratory find it. Do not enter patient names or dates of birth. You can search the ticket list by this reference."
+        },
+        {
+          "label": "Urgent",
+          "description": "Optional checkbox. Asks the laboratory to treat the ticket as urgent. The laboratory confirms the priority, and the portal never shows the priority."
+        }
+      ]
+    },
+    {
+      "title": "Follow-up ticket",
+      "paragraphs": [
+        "A closed ticket takes no more replies, so its page offers New follow-up ticket, which opens this same form with a note saying that the ticket follows up the earlier number, which is closed. The new ticket records that number and each ticket's page links to the other. A follow-up can be raised only for a closed ticket that your account can see; any other ticket number is not found."
+      ],
+      "items": [
+        {
+          "label": "Page title and breadcrumbs",
+          "description": "The page is titled New follow-up ticket and its breadcrumbs and Cancel lead back to the closed ticket."
+        }
+      ]
+    },
+    {
+      "title": "Sending",
+      "items": [
+        {
+          "label": "Send",
+          "description": "Creates the ticket and opens it with a message that it is now with the laboratory, showing its ticket number. The ticket starts With the laboratory. If something is refused, for example a missing site, the form keeps what you typed and shows the error beside the field."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket list, or to the closed ticket for a follow-up, without sending."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/forms.py",
+    "clients/portal.py",
+    "clients/portal_urls.py",
+    "desk/portal_forms.py",
+    "desk/portal_scope.py",
+    "desk/portal_views.py",
+    "desk/templates/desk/portal/request_form.html",
+    "desk/tests/test_portal.py",
+    "docs/product.md",
+    "docs/workflows.md"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "admin-logout",
+  "routes": [
+    "admin:logout"
+  ],
+  "title": "Administration signed out",
+  "purpose": "Confirm that the administration session has ended.",
+  "summary": "You have signed out of administration.",
+  "tasks": [
+    {
+      "title": "Sign in again",
+      "steps": [
+        "Select [[Log in again]]. You go to the application sign-in page."
+      ]
+    },
+    {
+      "title": "Go to administration home",
+      "steps": [
+        "Select [[Home]] in the breadcrumbs. Signed out, it leads to the sign-in page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Log out signs out at once; there is no confirmation step.",
+    "The sign-out is the same as signing out from the application's account menu.",
+    "The sign-out is recorded in the application logs."
+  ],
+  "sections": [
+    {
+      "title": "State",
+      "paragraphs": [
+        "This is the result of submitting Log out in the administration header. The action signs out immediately; there is no pre-sign-out confirmation. With no Django logout redirect configured, the response displays the stock signed-out page. Direct GET requests to this endpoint are not accepted."
+      ]
+    },
+    {
+      "title": "Navigation",
+      "items": [
+        {
+          "label": "Log in again",
+          "description": "Opens administration home, which sends signed-out visitors to the application sign-in page."
+        },
+        {
+          "label": "Home",
+          "description": "The breadcrumb also returns to administration home/login. No credentials or other editable fields are shown here."
+        }
+      ]
+    },
+    {
+      "title": "Sign-out activity",
+      "paragraphs": [
+        "Ending an authenticated administration session records the same sign-out event as the account menu, with the stored username in the deployment’s application logs. These logs follow the deployment’s retention and survive database resets; they are separate from laboratory record audit history."
+      ]
+    }
+  ],
+  "sources": [
+    "config/settings.py",
+    "config/urls.py",
+    "templates/admin/base_site.html",
+    "uv.lock",
+    "accounts/signin_log.py",
+    "accounts/tests/test_signin_log.py"
+  ]
+}

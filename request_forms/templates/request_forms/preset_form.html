@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Load standard forms (F7). Context: form (FormPresetForm: laboratory types; "All laboratories" is
+always loaded), presets (key, name, count, missing: its forms not here yet by key, no_category: of
+those, how many lack their request category, templates: their client labels), crumbs, cancel_url.
+Admin only.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Starting ticket forms with their fields and catalogs, by laboratory type. Loading adds only what is missing.</p>{% endblock %}
+{% block content %}
+{% panel title="What each preset adds" table=True class="mb-3" %}
+  <div class="vr-table-wrap"><table class="table vr-table">
+    <thead><tr><th scope="col">Preset</th><th scope="col">Forms</th><th scope="col" class="text-end">Not here yet</th><th scope="col" class="text-end">Category missing</th></tr></thead>
+    <tbody>
+      {% for preset in presets %}
+      <tr>
+        <th scope="row">{{ preset.name }}</th>
+        <td>{{ preset.templates|join:", " }}</td>
+        <td class="text-end">{% if preset.missing %}{{ preset.missing }}{% else %}{% status label="All here" tone="success" plain=True %}{% endif %}</td>
+        <td class="text-end">{{ preset.no_category|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+{% endpanel %}
+{% form_page form=form cancel_url=cancel_url submit_label="Load standard forms" no_required_note=True %}
+{% endform_page %}
+{% notice tone="info" label="What loading does" %}Forms are matched by their key; a form is created only when its ticket category exists, so load the category presets first. Loading never renames, edits or reactivates a form, field or item. It may add a preset's extra fields to a form that is already here. Fields that would hold patient information are added inactive: switch one on only if the laboratory decided it needs it.{% endnotice %}
+{% endblock %}

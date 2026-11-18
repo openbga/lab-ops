@@ -1,0 +1,172 @@
+{
+  "id": "portal-forms-raise",
+  "routes": [
+    "portal_forms:raise"
+  ],
+  "title": "New ticket with a form",
+  "purpose": "Send the laboratory a ticket using one of its forms, with the details the laboratory asks for.",
+  "summary": "Fill in the details this form asks for, add a reference if you have one, and send it. The ticket goes to the laboratory and opens with your answers.",
+  "tasks": [
+    {
+      "title": "Send a ticket",
+      "steps": [
+        "Fill in the fields under the form's name. Choose the [[Site]] first if you are asked.",
+        "Add an order, accession or sample number in [[Your reference]], then select [[Send ticket]]."
+      ]
+    },
+    {
+      "title": "Say more than the form asks",
+      "steps": [
+        "Write it in [[Anything else the laboratory should know]]. Add a [[Subject]] if you want your own title."
+      ]
+    },
+    {
+      "title": "Mark a ticket urgent",
+      "steps": [
+        "Tick [[Urgent]] before you send. The laboratory confirms the priority."
+      ]
+    },
+    {
+      "title": "Fix a field that was refused",
+      "steps": [
+        "Read the message beside the field, correct it and select [[Send ticket]] again. Everything else you typed is kept."
+      ]
+    },
+    {
+      "title": "Ask for the same thing again",
+      "steps": [
+        "Open your earlier ticket and select [[Request again]] in its form details.",
+        "Check the copied answers, fill the dates and anything left blank, then select [[Send ticket]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Enter patient details only in a field that asks for them. Everywhere else, use an order, accession or sample number.",
+    "Required fields must be filled before the ticket can be sent. Nothing is sent until the form is valid.",
+    "Leave the subject empty and the form's name is used. Leave the description empty and the ticket points to the form details.",
+    "You cannot change the form, its category or the site after sending. Your answers appear on the ticket page for you and the laboratory.",
+    "If the form changed after you opened it, nothing is sent and it is shown again as it is now, with empty answers. If it was retired or is no longer offered to you, you return to New ticket."
+  ],
+  "sections": [
+    {
+      "title": "Before you send",
+      "items": [
+        {
+          "label": "Before you send",
+          "description": "A notice with the laboratory's instructions for this form. Shown only when the laboratory wrote some."
+        },
+        {
+          "label": "Patient details",
+          "description": "A notice shown when this form has a field that asks for patient information. Enter patient details only in the fields that ask for them. Everywhere else, use an order, accession or sample number. Patient information is shown only to the laboratory staff allowed to see it and to people who may see this ticket."
+        },
+        {
+          "label": "No patient details",
+          "description": "A notice shown when the form asks for no patient information: please do not enter patient names, dates of birth or other personal health details in any field."
+        },
+        {
+          "label": "Copied",
+          "description": "Shown when you started from an earlier ticket with Request again. Answers to the form's fields and the site are copied from it for you to check. Dates, times, confirmations, patient details and order or sample numbers are not copied; your reference, subject, description and the urgent box start empty."
+        }
+      ]
+    },
+    {
+      "title": "The form's fields",
+      "paragraphs": [
+        "The page is titled with the form's name, and a line under the title gives the laboratory's short description, when there is one. The section under the form's name holds the Site and then the laboratory's fields, in the laboratory's order. You fill only fields the laboratory asks clients to fill."
+      ],
+      "items": [
+        {
+          "label": "Site",
+          "description": "Shown when your account can use at least one active site. It is required when your account sees only listed sites, or your organization has more than one active site; otherwise optional, with the empty choice Not about one site. Only your sites are offered."
+        },
+        {
+          "label": "Text fields",
+          "description": "Short text takes up to 200 characters; long text up to 4,000."
+        },
+        {
+          "label": "Number, date, date and time, time of day",
+          "description": "A number may be limited to whole numbers or to a range, stated by the field. A time is in the laboratory's time, for example 14:30 or 2:30 pm."
+        },
+        {
+          "label": "Choices and yes or no",
+          "description": "One choice from up to five options shows as buttons, from more as a list headed Choose one. Several choices show as boxes to tick. Yes or no shows two buttons."
+        },
+        {
+          "label": "Confirmation",
+          "description": "A box you must tick before the ticket can be sent."
+        },
+        {
+          "label": "Items with quantities",
+          "description": "A list of the items offered, each with a quantity box. Leave a box empty or at 0 to skip an item. Each item may show other names, its code, its unit and a limit written as at most a number. Quantities are whole numbers from 1 to 9,999, within the item's limit. When the laboratory offers no items, the list says so."
+        },
+        {
+          "label": "Required fields",
+          "description": "A required field must be filled, and a required item list needs at least one item. A refused field shows its message beside it, such as This field is required."
+        },
+        {
+          "label": "Section headings",
+          "description": "Some forms group their fields under headings, each with a short note. A heading asks nothing."
+        }
+      ]
+    },
+    {
+      "title": "More details",
+      "items": [
+        {
+          "label": "Your reference",
+          "description": "Optional, up to 80 characters. An order, accession or sample number that helps the laboratory find the ticket. Do not enter patient names or dates of birth. You can search your ticket list by it."
+        },
+        {
+          "label": "Subject",
+          "description": "Optional, up to 120 characters. A few words you will recognize. Empty: the form's name."
+        },
+        {
+          "label": "Anything else the laboratory should know",
+          "description": "Optional. Becomes the first message of the conversation. Empty: a line saying the details are in the form."
+        },
+        {
+          "label": "Files",
+          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames; if one is refused, your text stays and you choose the files again. Files are not scanned for viruses."
+        },
+        {
+          "label": "Urgent",
+          "description": "Optional box. Asks the laboratory to treat the ticket as urgent. Left clear, the priority is the one the laboratory set for the category. The laboratory confirms the priority, and the portal never shows it."
+        }
+      ]
+    },
+    {
+      "title": "Sending",
+      "items": [
+        {
+          "label": "Send ticket",
+          "description": "Creates the ticket under the form's category, with your answers, and opens it with a message that it is now with the laboratory and its ticket number. If something is refused, the form keeps what you typed and shows the error beside the field; if the form itself changed, was retired or is no longer offered meanwhile, your answers are not kept (see Good to know)."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to New ticket without sending."
+        }
+      ]
+    },
+    {
+      "title": "Who can open it",
+      "paragraphs": [
+        "Only client portal accounts. Staff accounts are refused. A form that is inactive, not offered to clients, or in a category clients may not raise is not found, as is a form name that does not exist. Answers you give stay with the ticket: later changes to the form never change what you sent."
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/forms.py",
+    "desk/portal_forms.py",
+    "request_forms/forms.py",
+    "request_forms/kinds.py",
+    "request_forms/portal_urls.py",
+    "request_forms/portal_views.py",
+    "request_forms/selectors.py",
+    "request_forms/services.py",
+    "request_forms/templates/request_forms/portal/raise.html",
+    "request_forms/templates/request_forms/widgets/items.html",
+    "request_forms/tests/test_additions.py",
+    "request_forms/tests/test_pages.py",
+    "request_forms/tests/test_values.py"
+  ]
+}

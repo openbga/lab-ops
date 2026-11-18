@@ -1,0 +1,9 @@
+{% comment %}
+Slot: fields that belong to the chosen request type, inside the new-request form, under the
+category's guidance (desk/_category_section.html). Filled by request forms: the form picker and the
+chosen form's fields ({% request_form_intake %}). Context: category (taxonomy.RequestCategory or
+None), data (the submitted values, a QueryDict; empty on a first load or after a category change),
+user, and after a refused submit intake_values (the bound ValuesForm). Its inputs are part of the
+new-request form and are posted with it; desk.views.request_create saves them through
+create_request's on_created.
+{% endcomment %}{% load request_forms %}{% request_form_intake %}

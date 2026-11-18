@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Request categories (T1): one table card per group, its categories in order. Context: groups
+(RequestCategory groups with shown_children and inactive_children), show ("active" or "all"),
+has_any. Admin only (taxonomy.views). Categories have no page of their own: the name opens the
+edit form. Reordering is a POST per row (Move up, Move down).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Groups and the categories inside them, in the order staff and clients see them.</p>{% endblock %}
+{% block page_actions %}
+{% if show == "active" %}<a class="btn btn-outline-secondary" href="?show=all">Show inactive</a>{% else %}<a class="btn btn-outline-secondary" href="?show=active">Hide inactive</a>{% endif %}
+<a class="btn btn-outline-secondary" href="{% url 'taxonomy:preset-load' %}">Load presets</a>
+<a class="btn btn-outline-secondary" href="{% url 'taxonomy:group-create' %}">New group</a>
+{% if groups %}<a class="btn btn-primary" href="{% url 'taxonomy:category-create' %}">{% icon name="plus-lg" %}New category</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% if not groups %}
+{% panel title="Ticket categories" hidden_title=True %}
+  {% url 'taxonomy:preset-load' as preset_url %}
+  {% if has_any %}
+  {% empty_state kind="empty" title="No active groups" body="Every group is inactive. Show inactive groups to edit them." %}
+  {% else %}
+  {% empty_state kind="empty" title="No ticket categories yet" body="Load the presets for your laboratory's work, then rename, reorder and deactivate what you do not need." action_url=preset_url action_label="Load presets" %}
+  {% endif %}
+{% endpanel %}
+{% endif %}
+{% for group in groups %}
+{% panel title=group.name heading_id=group.heading_id id=group.anchor count=group.shown_children|length table=True class="mb-3" %}
+  {% fill title %}{{ group.name }}{% if not group.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}{% endfill %}
+  {% fill actions %}
+    {% url 'taxonomy:category-move' group.pk 'up' as up_url %}{% url 'taxonomy:category-move' group.pk 'down' as down_url %}
+    {% more_actions label="Move group" small=True %}
+      {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
+      {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+    {% endmore_actions %}
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'taxonomy:category-edit' group.pk %}">Edit group</a>
+    {% if group.is_active %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'taxonomy:category-create' %}?group={{ group.pk }}">Add category</a>{% endif %}
+  {% endfill %}
+  {% list_results items=group.shown_children empty_title="No categories in this group" empty_body="Add a category, or show inactive ones." %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="taxonomy.group" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Category</th>
+        <th scope="col">Default team</th>
+        <th scope="col">Priority</th>
+        <th scope="col">In the portal</th>
+        <th scope="col">Rules</th>
+        <th scope="col" data-vr-col-priority="low">Client label</th>
+        <th scope="col"><span class="visually-hidden">Order</span></th>
+      </tr></thead>
+      <tbody>
+        {% for category in group.shown_children %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'taxonomy:category-edit' category.pk %}">{{ category.name }}</a>{% if not category.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td>{{ category.default_team.name|default:"Default team" }}</td>
+          <td>{{ category.get_default_priority_display }}</td>
+          <td>{% if category.client_may_raise %}Clients may raise{% else %}<span class="vr-muted">Staff only</span>{% endif %}</td>
+          <td>{% if category.is_complaint %}{% status label="Complaint" tone="warning" plain=True %} {% endif %}{% if category.is_restricted %}{% status label="Restricted" tone="hold" plain=True %}{% endif %}{% if not category.is_complaint and not category.is_restricted %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td>{{ category.client_label|default:"Same as name" }}</td>
+          <td>
+            {% url 'taxonomy:category-move' category.pk 'up' as up_url %}{% url 'taxonomy:category-move' category.pk 'down' as down_url %}
+            {% more_actions label="Move" small=True %}
+              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
+              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+            {% endmore_actions %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+  {% if show == "active" and group.inactive_children %}<p class="vr-muted small">{{ group.inactive_children }} inactive categor{{ group.inactive_children|pluralize:"y,ies" }} hidden.</p>{% endif %}
+{% endpanel %}
+{% endfor %}
+{% endblock %}

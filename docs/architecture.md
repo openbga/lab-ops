@@ -1,0 +1,125 @@
+# OpenBGA Lab Ops architecture
+
+Each deployment serves one laboratory and its client organizations. A single Django application
+renders the staff workspace and the client portal and stores their records in PostgreSQL. The
+browser uses ordinary URLs and forms, with HTMX for partial updates. The application assumes
+online access. Python dependencies are pinned in [uv.lock](../uv.lock) and browser assets are
+served locally. [Browser dependency versions and licenses](../static/vendor/README.md)
+
+## Application boundaries
+
+| Package | Responsibility |
+| --- | --- |
+| `config` | Runtime settings, URL configuration and logging |
+| `accounts` | User identities, roles, capabilities, authentication and initial setup |
+| `core` | Laboratory profile, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
+| `clients` | Organization directory, sites, contacts and portal access grants |
+| `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
+| `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
+| `service_levels` and `links` | Business calendars and ticket clocks, and references to records in external systems |
+| `request_forms` | Form definitions, offerings, catalogs and captured values |
+| `attachments` | Upload inspection, file metadata, bytes, withdrawal and authorized downloads |
+| `dataimport` | CSV previews and transactional updates for the client directory |
+
+Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
+database constraints and explicit transactions. An action that affects multiple records checks
+its authorization and the current state, makes the changes and records their audit events in
+the same transaction. Row locks and expected revisions protect decisions against concurrent
+changes. The deployment's `TIME_ZONE` defines local input and display. The laboratory profile
+records the zone selected at setup.
+
+## Authorization
+
+Role and capability checks live in [accounts/roles.py](../accounts/roles.py). An admin role
+includes the operational roles. A person or group needs an explicit grant for patient
+information. A superuser can administer accounts. Portal accounts have a client organization
+and cannot hold staff roles or capabilities.
+
+Use the same scoped query in lists, pages, lookups, counts, exports and actions. Staff ticket
+queries start with `staff_requests`. Portal queries start with `portal_requests`, which combines
+organization, site grants, the originating account and the ticket's restriction. Client-visible
+conversation is defined in `desk/visibility.py`. Checking the ticket URL alone is insufficient
+for a file download. It must also pass the visibility rules for the entry and file.
+
+Person-level links have no web address. A staff reveal or an exact-key search needs the
+explicit capability and produces an audit event that omits the key. A non-person link can open
+an HTTPS URL only on the external system's configured host. The application does not fetch
+records from that URL. [Product access rules](product.md#roles-and-capabilities)
+
+## Services and hooks
+
+The ticket service owns the transaction for a new ticket or entry. It checks scope, revision and
+state before writing. Its `on_created` callback lets the forms and attachment services store data
+with the ticket and its opening entry. A callback error rolls back the creation. The service also
+calls the clock and notification hooks. [Ticket services](../desk/services.py)
+
+Clock hooks update a ticket's first-response and resolution times inside that transaction.
+A clock copies the applicable target, and business time uses the deployment zone and calendar.
+Queries use the same clock states for lists and counts. The notification hooks schedule mail
+after commit. An email is built from the ticket number, fixed event text, the laboratory name
+and a sign-in URL. A delivery failure is logged. Durable retries are planned.
+[Service clocks](../service_levels/hooks.py) and [notifications](../desk/notifications.py)
+
+## Ticket forms
+
+A form belongs to a category. Its fields define types, validation, catalog choices and who may
+read or enter a value. A signed token binds the submitted form to the definition that the user
+saw. The services recheck the definition, its availability and the account's permitted fields
+when saving. A change that invalidates the definition requires a fresh form. Exact quantities
+are validated as decimals. [Form definitions](../request_forms/definition.py)
+
+A filled ticket keeps snapshots of field labels, types, audiences and patient marks. A correction
+adds a replacement record with a reason. It preserves the earlier value. Visibility follows the
+stricter of the recorded and current field rules. A staff reveal of a protected answer requires
+a scoped ticket and a current value. It writes an audit event without the answer and returns a
+response marked `no-store`. [Form services](../request_forms/services.py) and
+[value visibility](../request_forms/selectors.py)
+
+## Stored records and files
+
+Operational entries present the conversation and state changes. Audit events record who acted,
+when and why. Database triggers protect history, including audit rows, ticket entries, form
+values and attachment bytes. A withdrawal or correction preserves prior material. Database
+administrators with control of the tables and triggers remain within the deployment's trust
+boundary. [Backup and restore](operations.md)
+
+Logos and attachments live in PostgreSQL with their hashes and metadata, so a database backup
+includes the files. Lists read metadata separately from file contents. Attachment intake checks
+size, count, file extension and type-specific properties of the bytes. That inspection is a
+format check. Downloads pass through a permission check on each request.
+[Attachment inspection](../attachments/inspection.py) and [file access](../attachments/services.py)
+
+The directory import validates CSV rows and presents their proposed changes. On confirmation it
+checks the preview against current records and applies the file atomically with audit history.
+The import does not provision accounts. [Importer](../dataimport/importing.py)
+
+## User experience
+
+Django forms and template components provide the same labels, error feedback and keyboard
+behavior across pages. List filtering, sorting and pagination run on the authorized queryset.
+DataTables manages column presentation. Table layout and other presentation preferences belong
+to individual accounts. [UI standards](ui-standards.md)
+
+Page help is versioned content selected by the authorized page's route and variant. Downloads
+and POST actions are explained on the pages that invoke them. Staff What's new and the generated
+changelog read the same entries from `changelog.d/`.
+[Page help](../docs/pages) and [release notes](../CHANGELOG.md)
+
+## Deployment and recovery
+
+The Docker image runs Gunicorn and serves static assets through WhiteNoise. PostgreSQL holds the
+persistent data. Migrate once before serving a new release, and keep migrations compatible
+with any older instances still serving traffic. Publish subsequent schema changes as new
+migrations. A code rollback does not reverse a migration.
+
+`/health/` checks the process and `/ready/` checks database readiness. The normal deployment and
+the resettable demonstration have separate Blueprints. Only the demonstration enables the reset
+command. A reset checks the database's identity and schema, locks application tables and
+reseeds in one transaction. Operators choose their host, mail delivery, backups, retention,
+recovery objectives and access policy. [Deployment](../README.md) and [operations](operations.md)
+
+## Verification
+
+Run server tests with PostgreSQL, collect static files before testing templates, and exercise
+staff and portal journeys at desktop and phone widths. Use a separate database for restore
+checks. The contributor guide lists the test commands. [Contributing](../CONTRIBUTING.md)

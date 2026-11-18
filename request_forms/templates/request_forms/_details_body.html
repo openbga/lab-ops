@@ -1,0 +1,14 @@
+{% load ui %}{% comment %}
+The body of the form details (request_forms/_details.html): what is still needed (staff), the
+form's name and each value row (see _details.html for the row fields). Included with the caller's
+context: details, staff.
+{% endcomment %}
+  {% if staff and details.missing %}{% notice tone="warning" label="Still needed" %}{{ details.missing|join:", " }}{% endnotice %}{% endif %}
+  <dl class="vr-facts">
+    {% fact label="Form" value=details.template_label %}
+    {% for row in details.rows %}
+    {% fact label=row.label wide=row.wide %}{% if row.hidden %}<span class="vr-muted">Patient information recorded. You do not have permission to view it.</span>{% elif row.reveal_id %}<span id="form-value-{{ row.reveal_id }}" class="d-block"><span class="vr-muted">Patient information recorded.</span> {% url 'request_details:reveal' row.reveal_id as reveal_url %}{# form: button-target #}<form class="d-inline" method="post" action="{{ reveal_url }}" hx-post="{{ reveal_url }}" hx-target="#form-value-{{ row.reveal_id }}" hx-swap="innerHTML">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit">Reveal</button></form></span>{% else %}{% for line in row.lines %}<div>{{ line|linebreaksbr }}</div>{% endfor %}{% endif %}{% if staff %}{% if row.staff_only or row.patient or row.corrected or row.retired %}<div class="vr-muted small">{% if row.staff_only %}Not shown to the client. {% endif %}{% if row.patient %}Patient information. {% endif %}{% if row.corrected %}Corrected. {% endif %}{% if row.retired %}No longer on the form.{% endif %}</div>{% endif %}{% endif %}{% endfact %}
+    {% empty %}
+    {% fact label="Details" value="" empty="None given" %}
+    {% endfor %}
+  </dl>

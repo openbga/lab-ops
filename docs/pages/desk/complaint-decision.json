@@ -1,0 +1,81 @@
+{
+  "id": "desk-complaint-decision",
+  "routes": [
+    "desk:complaint-decision"
+  ],
+  "title": "Investigation decision",
+  "purpose": "Record, or revise before the review, whether a complaint will be investigated and why.",
+  "summary": "Record the decision to investigate a complaint or not, with the rationale. The assignee or a supervisor does this, before the independent review.",
+  "tasks": [
+    {
+      "title": "Record the decision",
+      "steps": [
+        "Choose [[Investigate]] or [[No investigation needed]] under [[Decision]].",
+        "Explain it in [[Rationale]] and select [[Record decision]]."
+      ]
+    },
+    {
+      "title": "Revise a decision before the review",
+      "steps": [
+        "On the complaint section select [[Revise decision]], change the choice or the rationale and select [[Record decision]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only the ticket's assignee or a supervisor can record or revise the decision. Others are refused.",
+    "The person who records the decision cannot review the complaint. Revising it makes you the person who recorded it.",
+    "Once a supervisor has reviewed the complaint, its record can no longer change.",
+    "Only a ticket that is a complaint has this page; for any other ticket it answers Not found."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from the Complaint section of the ticket page, as a dialog or a full page. When a decision already exists the form starts with it. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload."
+      ],
+      "items": [
+        {
+          "label": "Decision",
+          "description": "Required: Investigate or No investigation needed."
+        },
+        {
+          "label": "Rationale",
+          "description": "Required. Why you decided that. Shown on the ticket page and to the reviewer."
+        },
+        {
+          "label": "Record decision",
+          "description": "Saves and confirms Decision recorded. The ticket page shows the decision, who recorded it and when, and a timeline event. Each revision replaces the shown decision; the earlier one stays in the audit history."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may record",
+          "description": "The ticket's assignee, or a supervisor (including the admin role). A ticket with no assignee can be decided by supervisors only."
+        },
+        {
+          "label": "Reviewer independence",
+          "description": "The reviewer must be a supervisor who did not record the decision and has never been the ticket's assignee. The decision's recorder is therefore excluded from reviewing. Plan who records it."
+        },
+        {
+          "label": "After the review",
+          "description": "A reviewed complaint's record is closed: this page refuses with \"This complaint has been reviewed; its record no longer changes.\""
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/permissions.py",
+    "desk/templates/desk/request_detail.html"
+  ]
+}

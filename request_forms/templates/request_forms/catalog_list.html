@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Catalogs (F3): the lists clients order from with an item-list field (supplies, bottle kits).
+Context: catalogs (Catalog with item_count and field_count, the active items and fields using it).
+Admin only.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'request_forms:template-list' as list_url %}{% breadcrumbs section="Ticket forms" section_url=list_url current="Catalogs" %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Items clients choose with quantities on forms such as a supply or bottle kit order. The product records the order; fulfilment stays with the laboratory.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-primary" href="{% url 'request_forms:catalog-create' %}">{% icon name="plus-lg" %}New catalog</a>{% endblock %}
+{% block content %}
+{% url 'request_forms:catalog-create' as create_url %}
+{% panel title="Catalogs" hidden_title=True table=True %}
+  {% list_results items=catalogs empty_title="No catalogs yet" empty_body="Create a catalog, or load the standard forms, which bring a starter supplies catalog." action_url=create_url action_label="New catalog" %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="request_forms.catalogs" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Catalog</th>
+        <th scope="col" class="text-end">Items</th>
+        <th scope="col" class="text-end">Used by fields</th>
+        <th scope="col" data-vr-col-priority="low">Description</th>
+      </tr></thead>
+      <tbody>
+        {% for catalog in catalogs %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'request_forms:catalog-detail' catalog.pk %}">{{ catalog.name }}</a>{% if not catalog.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td class="text-end">{{ catalog.item_count }}</td>
+          <td class="text-end">{{ catalog.field_count }}</td>
+          <td>{{ catalog.description|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

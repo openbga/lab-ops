@@ -1,0 +1,44 @@
+{% extends "layouts/portal.html" %}
+{% load ui %}
+{% comment %}
+Client portal request list (requirement P1): the requests this account may see
+(desk.portal_scope.portal_requests), open first (the Status sort), filterable by status in the client's words.
+Context (core.lists.list_response): page_obj (ServiceRequest annotated with client_status_tone;
+client_status_label is the model's client wording), filter_form (desk.portal_forms.PortalRequestFilter), q, sort and the
+toolbar context. Never shows team, assignee, priority or clocks.
+{% endcomment %}
+{% block page_actions %}<a class="btn btn-primary" href="{% url 'portal:request-create' %}">{% icon name="plus-lg" %}New ticket</a>{% endblock %}
+{% block content %}
+{% url 'portal:request-create' as create_url %}
+{% panel title="Tickets" table=True hidden_title=True %}
+  {% grid_toolbar label="Filter tickets" grid="portal.requests" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="tickets" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match these filters" empty_title="No tickets yet" empty_body="Open a ticket when you need something from the laboratory." action_url=create_url action_label="New ticket" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="portal.requests" data-vr-grid-version="1">
+      <thead>
+        <tr>
+          {% sort_header label="Ticket" asc="number" desc="-number" col="number" locked=True %}
+          {% sort_header label="Subject" asc="subject" desc="-subject" col="subject" %}
+          <th scope="col" data-vr-col="topic" data-vr-col-label="Topic">Topic</th>
+          <th scope="col" data-vr-col="site" data-vr-col-label="Site">Site</th>
+          {% sort_header label="Status" asc="status" desc="-status" col="status" %}
+          {% sort_header label="Last update" asc="updated" desc="-updated" col="updated" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}">{{ item.number }}</a></th>
+          <td>{{ item.subject }}</td>
+          <td>{{ item.category.portal_label }}</td>
+          <td>{{ item.site.name|default:"—" }}</td>
+          <td class="vr-nowrap">{% status label=item.client_status_label tone=item.client_status_tone plain=True %}</td>
+          <td class="vr-nowrap"><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:"Y-m-d H:i" }}</time></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

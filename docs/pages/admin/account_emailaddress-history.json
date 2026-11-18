@@ -1,0 +1,80 @@
+{
+  "id": "admin-account_emailaddress-history",
+  "routes": [
+    "admin:account_emailaddress_history"
+  ],
+  "title": "Email address administration history",
+  "purpose": "Read maintenance actions recorded by Django administration for this email address.",
+  "summary": "Read the maintenance actions Django administration recorded for this email address, oldest first.",
+  "tasks": [
+    {
+      "title": "Read what changed and who changed it",
+      "steps": [
+        "Read Date/time, User and Action for each entry.",
+        "Use the page numbers to move through older or newer entries."
+      ]
+    },
+    {
+      "title": "Go back to the email address",
+      "steps": [
+        "Select the email address in the breadcrumbs."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "This shows only actions taken in Django administration.",
+    "Changes account holders make to their own addresses are not entered here.",
+    "No change history does not mean nothing happened to the record."
+  ],
+  "sections": [
+    {
+      "title": "Access and scope",
+      "paragraphs": [
+        "Requires an active account with both Staff and Superuser status. A laboratory admin role, Staff status alone or individual authenticator or email-address model permissions granted to a user or group do not open this page.",
+        "Shows only this record’s Django administration entries, oldest first, 100 per page. Addresses are read only in administration, so entries normally come from earlier maintenance; changes account holders make themselves are not entered here."
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Date/time",
+          "description": "Administration action timestamp in the display time zone."
+        },
+        {
+          "label": "User",
+          "description": "Acting administrator’s username and full name when present."
+        },
+        {
+          "label": "Action",
+          "description": "Django’s rendered change message. It is not a snapshot of old/new values or a domain reason."
+        }
+      ]
+    },
+    {
+      "title": "Navigation and empty state",
+      "items": [
+        {
+          "label": "Numbered pages",
+          "description": "Move through older-to-newer 100-entry pages with an entry count; no search or sort controls."
+        },
+        {
+          "label": "Home / app / model / object breadcrumbs",
+          "description": "Return through the permitted maintenance hierarchy."
+        },
+        {
+          "label": "No change history",
+          "description": "Explains that this object may not have been added through administration. Absence here does not mean no self-service events exist."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "accounts/admin.py",
+    "accounts/models.py",
+    "accounts/roles.py",
+    "core/admin.py",
+    "config/settings.py",
+    "uv.lock"
+  ]
+}

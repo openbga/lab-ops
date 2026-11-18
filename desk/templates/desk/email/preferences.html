@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Email notices (requirement N1): a staff member's own switch for request notices, reached from the
+user menu. Context (desk.notification_views.email_notices): form (EmailNoticesForm, one checkbox).
+Notices are sent only when the deployment has email configured.
+{% endcomment %}
+{% block content %}
+{% form_page form=form submit_label="Save" no_required_note=True class="vr-narrow" %}
+  {% fill note %}Notices are sent only when the laboratory has set up email.{% endfill %}
+  <fieldset class="vr-form-section">{{ form.enabled.as_field_group }}</fieldset>
+{% endform_page %}
+{% endblock %}

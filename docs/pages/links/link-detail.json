@@ -1,0 +1,120 @@
+{
+  "id": "links-link-detail",
+  "routes": [
+    "link_records:link-detail"
+  ],
+  "title": "External record link",
+  "purpose": "See what one link points to, every ticket and organization that carries it, and its history, and reach the form to correct its label or address.",
+  "summary": "One link to a record in another system, the tickets and organizations that carry it and its history. A person-level link opens only for staff with the Can view patient information permission.",
+  "tasks": [
+    {
+      "title": "Find every ticket that carries a record",
+      "steps": [
+        "Read the [[Carried by]] panel. Select a ticket number to open it."
+      ]
+    },
+    {
+      "title": "Correct a label or address",
+      "steps": [
+        "Select [[Edit link]], change the label or address, give the reason and save."
+      ]
+    },
+    {
+      "title": "Open the record in its own system",
+      "steps": [
+        "Select the Record in link beside Address. It opens in a new tab."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A link is one record. The same order linked from several tickets is one link, so a correction here applies everywhere it is carried.",
+    "You see only tickets you may read. Tickets in a restricted category show only to their team and supervisors.",
+    "A person-level link is titled by its record type, such as Patient link, never by its label or key. Its key is not shown here.",
+    "Staff without the permission get a not found page for a person-level link, as if it did not exist.",
+    "A person-level link's page opens only with the Can view patient information permission and while you can read a ticket that carries it."
+  ],
+  "sections": [
+    {
+      "title": "Header",
+      "items": [
+        {
+          "label": "Title",
+          "description": "The link's label. For a person-level link it is the record type followed by link, so the label and key never appear in the page title or address."
+        },
+        {
+          "label": "Record type, system and identifier",
+          "description": "Shown under the title. The identifier is left out for a person-level link."
+        },
+        {
+          "label": "Edit link",
+          "description": "Opens the form to correct the label or address."
+        }
+      ]
+    },
+    {
+      "title": "Record",
+      "items": [
+        {
+          "label": "Label",
+          "description": "What staff see for the record."
+        },
+        {
+          "label": "Record type",
+          "description": "The kind of record, such as Order or Report."
+        },
+        {
+          "label": "System",
+          "description": "The external system the record lives in."
+        },
+        {
+          "label": "Identifier",
+          "description": "Non-person links only. The identifier as the source system writes it."
+        },
+        {
+          "label": "Identifier scheme",
+          "description": "Non-person links only. The kind of number, or None."
+        },
+        {
+          "label": "Address",
+          "description": "Non-person links only. A Record in link that opens the record in a new tab, while the address is on the system's current host. An address left on a former host is shown as plain text, marked as not on the system's address, and is not opened from here. The application never opens or reads it itself."
+        },
+        {
+          "label": "Key",
+          "description": "Person-level links only. It reads that the key is revealed only from a ticket, and recorded. Reveal key is on the ticket's Links section."
+        },
+        {
+          "label": "Created",
+          "description": "When the link was first added."
+        }
+      ]
+    },
+    {
+      "title": "Carried by",
+      "paragraphs": [
+        "One row for each time the link was attached: the ticket number or organization name (opens it), the Role, when it was Added, and its Status. Status is Current, or Removed with the reason. Removed rows stay. Not on any ticket you can read means no readable ticket carries it. Only tickets you can read are listed, and the history and counts follow the same rule."
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "Audited events for the link and its attachments: created, attached, detached, shown or hidden for the client, corrected and, for person-level links, revealed. Earlier events are never changed. Events never contain a person-level label or key."
+      ]
+    },
+    {
+      "title": "Person-level variant",
+      "paragraphs": [
+        "Only staff with the explicit permission Can view patient information can open a person-level link's page or its edit form. No role, admin included, implies the permission. The page is not cached by the browser. Person-level links are never shown to clients."
+      ]
+    }
+  ],
+  "sources": [
+    "links/record_urls.py",
+    "links/views.py",
+    "links/services.py",
+    "links/access.py",
+    "links/models.py",
+    "links/templates/links/link_detail.html",
+    "links/tests/test_links.py",
+    "links/tests/test_person_links.py"
+  ]
+}

@@ -1,0 +1,72 @@
+{% load ui %}{% comment %}
+The one list toolbar (docs/ui-standards.md section 5, rule 1), inside the list's
+section.card.vr-table-card above the table: search, up to three everyday filters, More filters
+(a Bootstrap collapse), Apply, Clear all when anything is active, Columns at the right, then the
+active filters as removable chips. A GET form: the server filters, sorts and paginates; changing a
+filter returns to page 1. Built from includes/grid_search.html, grid_columns_button.html and
+filter_chips.html.
+On a phone (below 576px) the toolbar collapses behind one "Filter and sort" button with the count of
+active filters and a one-line summary of them (docs/ui-standards.md section 13): the form, with
+"Clear all" and "Columns", opens in a bottom sheet ({% sheet below="sm" %}, includes/sheet.html) with
+a "Sort by" section, and the chips row gives way to the summary. static/js/app.js fills the sheet's
+[data-vr-sort-slot] with copies of the table's sort links and appends "Sorted by <column>" to the
+summary; without script the table's own "Sort by" chips stay. From 576px up the sheet is plain inline
+content and the toolbar looks and works as it always did.
+Parameters:
+  label        accessible name of the form, e.g. "Filter client organizations" (required)
+  q            current search text; placeholder, search_id (default "grid-q") tune the search box
+  no_search    truthy for a list without free-text search
+  inline       up to three bound fields shown in the row (e.g. a list built in the view)
+  more         bound fields behind More filters; omit when there are none
+  more_open    truthy when one of the "more" filters is active; the panel also opens when
+               invalid
+  invalid      the filter form's errors (filter_form.errors); opens More filters
+  chips        the active filters as [{label, value, remove_url}] (active_filters); shown as
+               removable chips under the toolbar
+  active       truthy when any filter or search is active (a default value is not); shows Clear all.
+               chips or q also count
+  clear_url    target of Clear all; default request.path
+  grid         the table's data-vr-grid key: renders the Columns button; omit for entry grids
+  sort         the current sort value, carried when hidden is not given
+  hidden       bound hidden fields to carry; without it sort and rows per page
+               (request.GET.per_page) are carried
+The button's count and the summary of the active filters are derived from chips (or
+active_filters) and q. Documented page reads ({% grid_toolbar %}, core/templatetags/ui.py): q, placeholder, inline, more,
+more_open, active and sort when not passed, and filter_form and active_filters (for invalid and
+chips when those are not passed); the list views put them in the context. The form posts to request.path.
+Usage:
+  {% grid_toolbar label="Filter client organizations" q=q placeholder="Organization, account code or city" inline=inline_fields more=more_fields more_open=more_open invalid=filter_form.errors chips=active_filters sort=sort grid="clients.clients" %}
+{% endcomment %}
+{% firstof grid label "grid" as grid_name %}{% with more_id=grid_name|slugify|add:"-more" sheet_id=grid_name|slugify|add:"-filters" errors=invalid|default:filter_form.errors chip_list=chips|default:active_filters %}
+<div class="vr-grid-filter"{% if grid %} data-vr-filter-grid="{{ grid }}"{% endif %}>
+  <div class="vr-filter-bar">
+    <button class="btn btn-outline-secondary vr-filter-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#{{ sheet_id }}" aria-controls="{{ sheet_id }}" aria-expanded="false" aria-describedby="{{ sheet_id }}-summary">{% icon name="funnel" %}Filter and sort{% if filter_count %}<span class="vr-filter-count">{{ filter_count }}<span class="visually-hidden"> active</span></span>{% endif %}</button>
+    <p class="vr-filter-summary" id="{{ sheet_id }}-summary"><span data-vr-filter-state>{{ filter_summary|default:"No filters" }}</span><span data-vr-sort-state></span></p>
+  </div>
+  {% sheet id=sheet_id title="Filter and sort" below="sm" class="vr-grid-sheet" %}
+<form class="vr-grid-toolbar" method="get" action="{{ request.path }}" role="search" aria-label="{{ label }}" novalidate>
+  {% if not no_search %}{% grid_search value=q id=search_id label="Search" name="q" placeholder=placeholder %}{% endif %}
+  {% for field in inline %}{{ field.as_field_group }}{% endfor %}
+  <div class="vr-filter-actions">
+    {% if more %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ more_id }}" aria-expanded="{% if more_open or errors %}true{% else %}false{% endif %}" aria-controls="{{ more_id }}">{% icon name="funnel" %}More filters</button>{% endif %}
+    <button class="btn btn-outline-secondary" type="submit">Apply</button>
+    {% if active or chip_list or q %}<a class="btn btn-link" href="{% if clear_url %}{{ clear_url }}{% else %}{{ request.path }}{% endif %}">Clear all</a>{% endif %}
+  </div>
+  {% if grid %}<div class="vr-grid-tools">{% grid_columns_button grid=grid %}</div>{% endif %}
+  {% if more %}
+  <div class="vr-grid-more collapse{% if more_open or errors %} show{% endif %}" id="{{ more_id }}">
+    {% for field in more %}{{ field.as_field_group }}{% endfor %}
+  </div>
+  {% endif %}
+  {% if hidden %}{% for field in hidden %}{{ field }}{% endfor %}{% else %}
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  {% if request.GET.per_page %}<input type="hidden" name="per_page" value="{{ request.GET.per_page }}">{% endif %}
+  {% endif %}
+</form>
+<section class="vr-sort-section" aria-labelledby="{{ sheet_id }}-sort-title" data-vr-sort-slot hidden>
+  <h3 class="vr-sheet-section-title" id="{{ sheet_id }}-sort-title">Sort by</h3>
+</section>
+  {% endsheet %}
+  {% filter_chips chips=chip_list %}
+</div>
+{% endwith %}

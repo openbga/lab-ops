@@ -1,0 +1,107 @@
+{
+  "id": "teams-team-form",
+  "routes": [
+    "teams:team-create",
+    "teams:team-edit"
+  ],
+  "title": "Team form",
+  "purpose": "Create a team or change its name, description, default status and whether it is active. Editing needs a reason. The admin role only.",
+  "summary": "Create a team tickets can be routed to, or change one. Editing needs a reason. One team is always the default, and the default team must stay active.",
+  "tasks": [
+    {
+      "title": "Create a team",
+      "steps": [
+        "Enter the [[Name]] and, if useful, a [[Description]].",
+        "Select [[Create team]]. The team's page opens, ready for its members."
+      ]
+    },
+    {
+      "title": "Rename a team or change its description",
+      "steps": [
+        "Open the team and select [[Edit team]], change the details, write the [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Make a team the default",
+      "steps": [
+        "Tick [[Default team]] on that team and save. The previous default team stops being the default."
+      ]
+    },
+    {
+      "title": "Stop routing tickets to a team",
+      "steps": [
+        "Edit the team, clear [[Active]], give the reason and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only the admin role can open this form. Other staff roles can read teams but not change them.",
+    "A team cannot be deleted, only made inactive. Its tickets, members and history stay.",
+    "You cannot clear Default team on the default team, nor make it inactive. Make another team the default first.",
+    "If someone else changed the team after you opened the form, saving is refused and your input stays. Reload and review first."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "Surrounding spaces are removed before saving. After a create the team's page opens (Team created). After an edit you return to the team's page (Changes recorded with their reason). While a team is inactive, the edit form says so: it takes no new tickets."
+      ],
+      "items": [
+        {
+          "label": "Name",
+          "description": "Required, up to 80 characters. Names must be unique, ignoring case (\"Another team already has this name.\"). A team's stable internal key is made when it is created and does not change when you rename it."
+        },
+        {
+          "label": "Description",
+          "description": "Optional. What the team handles. Shown on the team's page."
+        },
+        {
+          "label": "Default team",
+          "description": "Tick to make this the default team, which receives tickets whose category names no team. Making a team the default clears the flag from the current one. On the default team the box cannot be cleared: make another team the default instead."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. Clear it to stop routing new tickets to the team; its tickets, members and history stay. The default team must stay active."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the team's history."
+        },
+        {
+          "label": "Create team / Save changes",
+          "description": "Create team saves a new team. Save changes updates it, and is refused with \"Change at least one detail before saving.\" when nothing changed."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the team list, or to the team's page when editing; nothing is saved."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may",
+          "description": "The admin role. Others are refused."
+        },
+        {
+          "label": "Stale edits",
+          "description": "The form remembers the version of the team you opened. If it changed, saving is refused with \"This team changed. Reload and review the current record.\""
+        },
+        {
+          "label": "Inactive teams",
+          "description": "Inactive teams are not offered when logging or assigning tickets, and are refused if chosen. Members can still be added or removed."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "teams/urls.py",
+    "teams/views.py",
+    "teams/forms.py",
+    "teams/services.py",
+    "teams/models.py",
+    "templates/core/record_form.html",
+    "desk/forms.py"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "id": "request-forms-template-preview",
+  "routes": [
+    "request_forms:template-preview"
+  ],
+  "title": "Preview of a ticket form",
+  "purpose": "See the fields a client fills for a ticket form, without sending anything.",
+  "summary": "The form as a client sees it, empty and read-only. Nothing you do here is saved or sent. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Check what a client is asked",
+      "steps": [
+        "Read the fields in order, with their help text, options and the instructions at the top.",
+        "Select [[Back to the form]] to change a field."
+      ]
+    },
+    {
+      "title": "Find a field that is missing",
+      "steps": [
+        "Open [[Back to the form]] and check the field's [[Who fills it]], whether it is active, and its type."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The preview is for reading. The fields are disabled and no ticket is created.",
+    "Only active fields that clients fill are shown. Fields that staff fill or that are staff only do not appear.",
+    "The portal adds the site, a reference, a subject, a description and the urgent box around these fields. They are not part of the preview."
+  ],
+  "sections": [
+    {
+      "title": "What the preview shows",
+      "items": [
+        {
+          "label": "Instructions",
+          "description": "The form's instructions, when it has any, above the fields."
+        },
+        {
+          "label": "Fields",
+          "description": "Each active field that clients fill, in the form's order, with its label, help text and input: text boxes, number, date and time inputs, options as buttons or a list, yes or no, a confirmation box, or the quantity boxes of an item list. All of them are disabled."
+        },
+        {
+          "label": "No client fields",
+          "description": "Shown when the form has no active field that clients fill. Clients then see only the portal's usual fields for this form."
+        },
+        {
+          "label": "Back to the form",
+          "description": "Returns to the form's page."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/selectors.py",
+    "request_forms/kinds.py",
+    "request_forms/templates/request_forms/template_preview.html",
+    "request_forms/tests/test_pages.py"
+  ]
+}

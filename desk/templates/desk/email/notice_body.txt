@@ -1,0 +1,11 @@
+{% autoescape off %}Ticket {{ number }}
+
+{{ event_phrase }}
+
+Sign in to read it:
+{{ sign_in_url }}
+
+{{ lab_name }}
+
+This notice leaves out the ticket's details on purpose. They are shown only after you sign in.
+{% endautoescape %}

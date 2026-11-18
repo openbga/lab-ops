@@ -1,0 +1,24 @@
+{% comment %}
+The desk's new-request slot (desk/_intake_fields.html), rendered by {% request_form_intake %}:
+the request form picker for the chosen category (only when it has forms), then the chosen form's
+instructions and fields, and "Some required details are not known yet" when it has required
+fields. Context: picker (request_forms.intake.RequestFormPicker or None), template (the chosen
+RequestTemplate as the form's own definition read it, or None: the instructions shown are the
+ones the token signs), form (a ValuesForm, bound with errors after a refused submit, with its
+hidden form_definition, the token of the definition it was drawn from), not_known. A refused
+submit shows the form's own messages (a form changed or retired since the page was opened) above
+its fields. The picker lists the forms offered to the organization chosen when it is drawn.
+Changing the picker re-renders the category section (desk:category-guidance).
+{% endcomment %}{% if picker %}
+<div class="vr-intake">
+  {% if picker.non_field_errors %}{% load ui %}{% notice tone="danger" %}{% for error in picker.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Your entries were kept.{% endnotice %}{% endif %}
+  {{ picker.request_form.as_field_group }}
+  {% if template %}
+  {% if template.instructions %}<p class="form-text">{{ template.instructions|linebreaksbr }}</p>{% endif %}
+  {% if form.errors %}{% load ui %}{% notice tone="danger" %}{% for error in form.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Check the highlighted form details below. Your entries were kept.{% endnotice %}{% endif %}
+  {% include "request_forms/_layout.html" with form=form level=3 only %}
+  {% if not_known %}{{ not_known.as_field_group }}{% endif %}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  {% endif %}
+</div>
+{% endif %}

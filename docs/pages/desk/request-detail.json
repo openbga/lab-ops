@@ -1,0 +1,323 @@
+{
+  "id": "desk-request-detail",
+  "routes": [
+    "desk:request-detail"
+  ],
+  "title": "Ticket",
+  "purpose": "Read one ticket with its conversation, answer the client or add an internal note, log a call, and assign it, change its status or category, or handle it as a complaint.",
+  "summary": "One ticket: who it is from, its status and owner, the conversation, and the composer for a reply, an internal note or a logged contact. Assign, change status or handle a complaint from here.",
+  "tasks": [
+    {
+      "title": "Answer the client",
+      "steps": [
+        "Choose [[Reply]] in the composer. The line above the text says Visible to the client.",
+        "Write the [[Message]], optionally set [[Then set status]], and select [[Send]]. On a phone, the [[Reply]] button in the bottom bar jumps to the composer."
+      ]
+    },
+    {
+      "title": "Add an internal note",
+      "steps": [
+        "Choose [[Note]] in the composer. The line says Internal, not shown to the client.",
+        "Write the [[Message]] and select [[Send]]."
+      ]
+    },
+    {
+      "title": "Log a call or message outside the application",
+      "steps": [
+        "Choose [[Log contact]] and fill in [[Direction]], [[By]], [[With whom]] and [[Outcome]].",
+        "Describe it in [[Message]] and select [[Send]]. It is internal; the client does not see it."
+      ]
+    },
+    {
+      "title": "Take or assign the ticket",
+      "steps": [
+        "Select [[Take it]] to assign it to yourself (team members only).",
+        "Or select [[Assign]], choose a team or a person, add an optional reason and save."
+      ]
+    },
+    {
+      "title": "Resolve or close the ticket",
+      "steps": [
+        "Select [[Status]], choose Resolved and write the resolution summary.",
+        "When nothing more is owed, open [[Status]] again and choose Closed."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only a reply that has not been withdrawn is visible to the client. Notes, logged contacts and events never are. Entries cannot be edited or deleted.",
+    "If a notice says Nobody in the portal sees this ticket, a reply is recorded but reaches nobody. Call the client and log the contact instead.",
+    "If someone changed the ticket after you opened it, your change is refused as stale. Reload, read the latest entries and try again.",
+    "A complaint closes only after a supervisor who did not record the decision, and was never assigned the ticket, has reviewed it.",
+    "A closed ticket cannot be reopened or reassigned; only internal notes can be added. Raise a new ticket for anything more."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list or Find, the page keeps the list's filters so Previous in list and Next in list can step through it.",
+        "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again."
+      ]
+    },
+    {
+      "title": "Header and actions",
+      "items": [
+        {
+          "label": "Heading and badges",
+          "description": "The ticket number and subject, then its status, its priority, a Complaint badge when it is a complaint, and the team with the assignee (or nobody assigned)."
+        },
+        {
+          "label": "Take it",
+          "description": "Shown only when you are a member of the ticket's team, the ticket is not closed and it is not already yours. It assigns the ticket to you at once. Staff outside the team move it to one of their teams first with Assign."
+        },
+        {
+          "label": "Assign",
+          "description": "Opens the assignment form for the ticket (see Assign ticket). Hidden on a closed ticket."
+        },
+        {
+          "label": "Status",
+          "description": "Opens the status form (see Change status). Hidden on a closed ticket."
+        },
+        {
+          "label": "More",
+          "description": "A menu. Edit category and priority opens that form and Mark as a complaint opens the complaint form; both are hidden on a closed ticket. Unmark complaint appears instead of Mark as a complaint on a complaint, for supervisors only. Audit history is for supervisors."
+        },
+        {
+          "label": "Reply",
+          "description": "The main button. It jumps to the composer. On a phone it is in the bar at the bottom of the screen. Hidden on a closed ticket."
+        },
+        {
+          "label": "Previous in list / Next in list",
+          "description": "Shown at the end of the page when you opened the ticket from a list. They step through the list as it was filtered and sorted, among its first 2,000 tickets, and skip tickets you may not read. Neither appears if the ticket is not in that scan."
+        },
+        {
+          "label": "Closed notice",
+          "description": "On a closed ticket: This ticket is closed. Internal notes can still be added; for anything the client needs, log a new ticket."
+        }
+      ]
+    },
+    {
+      "title": "Ticket facts",
+      "items": [
+        {
+          "label": "Organization",
+          "description": "The client organization, as a link to its page, or No organization."
+        },
+        {
+          "label": "Site",
+          "description": "The client site, or No site."
+        },
+        {
+          "label": "Contact",
+          "description": "The contact's name with their phone and email as tap-to-call and tap-to-email links, or No contact."
+        },
+        {
+          "label": "Reported by",
+          "description": "An unknown caller's name and role. Shown only when recorded."
+        },
+        {
+          "label": "Category",
+          "description": "The category's group, then the category."
+        },
+        {
+          "label": "Arrived by",
+          "description": "The channel: Phone, Email, Fax, Client portal, In person, Internal or Other."
+        },
+        {
+          "label": "Logged",
+          "description": "When the ticket was logged and by whom."
+        },
+        {
+          "label": "Reference given",
+          "description": "The order, sample or other number the caller gave, kept as text. Shown only when recorded."
+        },
+        {
+          "label": "Follows up",
+          "description": "The earlier closed ticket this one follows up, when there is one. Follow-up tickets of this ticket are listed in a Follow-up tickets section."
+        },
+        {
+          "label": "Resolution",
+          "description": "The internal resolution summary written when the ticket was resolved. The client does not see it."
+        },
+        {
+          "label": "Form details",
+          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded in the audit history. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
+        },
+        {
+          "label": "Service clock and links",
+          "description": "Below the facts, the ticket's service clocks appear when service targets are configured, and a Links section shows links to orders and other records once they are in use. Neither shows anything otherwise."
+        }
+      ]
+    },
+    {
+      "title": "Composer: Reply or add a note",
+      "paragraphs": [
+        "The kind of entry is chosen first and shown in words next to an icon, not by colour alone. Reply is the default when at least one active portal account can read the ticket; otherwise Note is. The visibility line above the text always says which applies. Staff cannot reply or log a contact on a closed ticket; only a note is accepted there."
+      ],
+      "items": [
+        {
+          "label": "Reply",
+          "description": "Visible to the client. The line shows how many portal accounts can read the ticket. If none can, a notice says the reply reaches nobody."
+        },
+        {
+          "label": "Note",
+          "description": "Internal. Only staff see it."
+        },
+        {
+          "label": "Log contact",
+          "description": "Internal. Records a call or message made outside the application. Shows the group The contact with the four fields below."
+        },
+        {
+          "label": "Message",
+          "description": "Required. The text of the entry. Leading and trailing spaces are removed."
+        },
+        {
+          "label": "Files",
+          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames; a refused file keeps your text and asks you to choose the files again. Files are not scanned for viruses. They go with a reply (the client sees them in the portal) or a note (internal), never with a logged contact."
+        },
+        {
+          "label": "Direction",
+          "description": "Log contact only, required: To the client or From the client."
+        },
+        {
+          "label": "By",
+          "description": "Log contact only, required: Phone, Email, Fax, In person or Other."
+        },
+        {
+          "label": "With whom",
+          "description": "Log contact only, optional, up to 160 characters."
+        },
+        {
+          "label": "Outcome",
+          "description": "Log contact only, required: Spoke with, Message left, No answer or Message delivered. Spoke with and Message delivered are the outcomes that count as reaching the client for a first response when service targets are configured."
+        },
+        {
+          "label": "Then set status",
+          "description": "Optional: Keep the status, Open, Waiting on client or Waiting on third party. It applies together with the entry. Resolve or close from Status instead. Hidden on a closed ticket."
+        },
+        {
+          "label": "Send",
+          "description": "Adds the entry. The page confirms Reply sent, Note added or Contact logged. If the ticket changed meanwhile, the entry is refused with a message to reload; the text you typed stays on the page until you reload."
+        },
+        {
+          "label": "Which accounts see a reply",
+          "description": "What a client can see is one rule: a reply that has not been withdrawn. Nothing else reaches a client. A supervisor can withdraw a reply later; see Withdraw reply."
+        }
+      ]
+    },
+    {
+      "title": "Complaint section",
+      "paragraphs": [
+        "Shown only when the ticket is a complaint, which happens when its category is a complaint category or when someone marked it. The record is built in steps by the assignee or a supervisor and then reviewed independently. After the review the record no longer changes."
+      ],
+      "items": [
+        {
+          "label": "Decision",
+          "description": "Investigate or No investigation needed, with who recorded it and when, or Not recorded yet."
+        },
+        {
+          "label": "Rationale",
+          "description": "Why that decision was made."
+        },
+        {
+          "label": "Findings and actions",
+          "description": "What was found and done, or None recorded."
+        },
+        {
+          "label": "Corrective action",
+          "description": "The number of the corrective action in the laboratory's own quality system, or No reference. The application only stores the number."
+        },
+        {
+          "label": "Outcome communicated",
+          "description": "The date and how the outcome was communicated, or Not yet."
+        },
+        {
+          "label": "Independent review",
+          "description": "Who reviewed the record and when, or Not reviewed. The Review note appears below when given."
+        },
+        {
+          "label": "Record decision / Revise decision",
+          "description": "The assignee or a supervisor records the investigation decision; the same button reads Revise decision once one exists. Offered until the review is done."
+        },
+        {
+          "label": "Findings and outcome",
+          "description": "The assignee or a supervisor records findings, the corrective action reference and when and how the outcome was communicated."
+        },
+        {
+          "label": "Review",
+          "description": "Offered only to a supervisor who may review this complaint now. For everyone else a line starting Review: says why, for example Record the investigation decision first."
+        }
+      ]
+    },
+    {
+      "title": "Conversation",
+      "paragraphs": [
+        "Entries are shown latest first, under a count such as 5 entries, latest first. Entries are never edited or deleted. Each shows its author, the date and time and, for a client's own reply, the word client."
+      ],
+      "items": [
+        {
+          "label": "Reply, visible to the client",
+          "description": "A reply the client can read. A supervisor sees Withdraw from client view under it."
+        },
+        {
+          "label": "Reply, withdrawn from client view",
+          "description": "A reply that was withdrawn. Staff still see it, with who withdrew it, when and why. The client no longer sees it."
+        },
+        {
+          "label": "Internal note",
+          "description": "Staff only."
+        },
+        {
+          "label": "Logged contact, internal",
+          "description": "A call or message outside the application: direction, channel, with whom and outcome, then the text. Staff only."
+        },
+        {
+          "label": "Events",
+          "description": "One-line records of what changed: logged, status changes, assignment (moved to a team, assigned to a person, assignee cleared), category or priority changes, complaint marked or unmarked, the complaint decision, record update and review, and a withdrawn reply. They show who and when."
+        },
+        {
+          "label": "Follow-up tickets",
+          "description": "A section that lists the tickets you may read that follow up this one."
+        }
+      ]
+    },
+    {
+      "title": "On a phone",
+      "paragraphs": [
+        "The sections stack: the ticket's facts, the composer, then the conversation with the latest entry first. The Reply button in the bottom bar jumps to the composer. On a wide screen the facts and the composer sit side by side. Assign, Status and the other actions stay in the page header."
+      ]
+    },
+    {
+      "title": "Files on entries",
+      "items": [
+        {
+          "label": "File list",
+          "description": "Under each reply or note, its files with size and the label Not scanned. The name downloads the file; it is never opened in the application, and the downloaded name is the ticket number and the file's number. Not scanned means no virus scanner has checked the file. Its type was checked from its content (an image must decode, every page or frame of it, a PDF must have a document structure, a Word or Excel file must be a valid package without macros), and it is always downloaded rather than opened here, but it can still carry harmful content. Open it only with up-to-date software, and ask the sender when something looks wrong."
+        },
+        {
+          "label": "Withdraw file",
+          "description": "Supervisors only. Withdraws a file with a reason: clients no longer reach it, staff see it labelled Withdrawn with the reason, and only supervisors can still download it. The timeline says A file was withdrawn, without its name."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "attachments/forms.py",
+    "attachments/services.py",
+    "attachments/templates/attachments/_entry_files.html",
+    "desk/forms.py",
+    "desk/permissions.py",
+    "desk/selectors.py",
+    "desk/services.py",
+    "desk/templates/desk/request_detail.html",
+    "desk/timeline.py",
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/visibility.py",
+    "docs/product.md",
+    "links/templates/links/_request_links.html",
+    "request_forms/selectors.py",
+    "request_forms/templates/request_forms/_details.html",
+    "request_forms/templatetags/request_forms.py",
+    "service_levels/templates/service_levels/_request_clock.html"
+  ]
+}

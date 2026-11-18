@@ -1,0 +1,81 @@
+{
+  "id": "request-forms-catalog-list",
+  "routes": [
+    "request_forms:catalog-list"
+  ],
+  "title": "Catalogs",
+  "purpose": "See the lists of items clients may order with quantities on ticket forms, and open one to manage its items.",
+  "summary": "The catalogs behind item-list fields, such as supplies or bottle kits. The product records what is ordered; the laboratory fills the order. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Create a catalog",
+      "steps": [
+        "Select [[New catalog]], name it and save.",
+        "On the catalog's page, select [[Add item]] for each thing clients may order."
+      ]
+    },
+    {
+      "title": "Find out which forms use a catalog",
+      "steps": [
+        "Read [[Used by fields]] in the table, then open the catalog to see the forms and fields."
+      ]
+    },
+    {
+      "title": "Use a catalog on a form",
+      "steps": [
+        "Open the ticket form, select [[Add field]], choose the type Items with quantities from a catalog and pick the catalog."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The product records the order a client sends. Picking, packing and shipping stay with the laboratory.",
+    "A catalog's counts include only active items and active fields.",
+    "The standard forms bring a starter supplies catalog. Load them from the ticket forms list.",
+    "Catalogs are switched off, not deleted. Tickets that ordered an item keep what was ordered."
+  ],
+  "sections": [
+    {
+      "title": "Page actions",
+      "items": [
+        {
+          "label": "New catalog",
+          "description": "Opens the form to create a catalog. Only the admin role can use these pages. The Ticket forms link in the breadcrumbs returns to the forms list."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "paragraphs": [
+        "Catalogs are listed by name, inactive ones included. There is no filtering or paging."
+      ],
+      "items": [
+        {
+          "label": "Catalog",
+          "description": "The catalog's name. It opens the catalog. Inactive catalogs carry an Inactive mark."
+        },
+        {
+          "label": "Items",
+          "description": "How many active items it holds."
+        },
+        {
+          "label": "Used by fields",
+          "description": "How many active item-list fields use it."
+        },
+        {
+          "label": "Description",
+          "description": "A staff note on what it holds. A dash when empty. Hidden first on narrow screens."
+        },
+        {
+          "label": "No catalogs yet",
+          "description": "Shown when none exists. It offers New catalog and mentions the standard forms."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/models.py",
+    "request_forms/templates/request_forms/catalog_list.html"
+  ]
+}

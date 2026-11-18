@@ -1,0 +1,145 @@
+{% load static ui preferences whats_new %}<!doctype html>
+{% comment %}
+Application document and staff shell. Block contract (docs/ui-standards.md section 4):
+  title          <title>; defaults to "{{ page_title }} · OpenBGA Lab Ops"
+  extra_css      extra <link> tags in <head> (local static only)
+  body_class     classes on <body>
+  body           everything inside <body>; the entrance layout replaces it
+  topbar         top bar; the client portal replaces it
+  sidenav        staff navigation rail; the client portal empties it
+  page_header    whole page header; override only for unusual pages
+  page_dateline  overview pages: {% include "includes/dateline.html" %} under the title
+  breadcrumbs    record, form, action, entry and document pages: {% breadcrumbs %}
+  page_heading   <h1> text; defaults to {{ page_title }}
+  page_meta      optional <ul class="vr-page-meta"> of key facts under the title (record pages)
+  page_intro     optional <p class="vr-page-intro">: at most one sentence under the title
+  page_actions   page buttons, right of the title (at most one .btn-primary, placed last); on
+                 phones the .btn-primary moves into the thumb bar at the bottom of the screen
+  thumbbar       the phone-only bottom bar (menu, Find); the portal empties it
+  content        page body; section tabs ({% section_tabs %}) come first when the page has them
+  record_foot    record pages: {% record_foot identifier=... %}; it
+                 also marks the page as a record, which numbers its panel headings
+  extra_js       extra <script> tags at the end of <body>
+Every page in this shell (staff and client portal) ends <main> with includes/source_footer.html.
+The sidebar and portal items, and which one a page marks, are declared in
+core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for signed-in users.
+{% endcomment %}
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  {# Synchronous on purpose: sets data-bs-theme from the saved choice before the first paint. #}
+  <script src="{% static 'js/theme-init.js' %}"></script>
+  <meta name="htmx-config" content='{"allowEval": false, "includeIndicatorStyles": false, "attributesToSettle": ["class", "width", "height"], "responseHandling": [{"code": "204", "swap": false}, {"code": "[23]..", "swap": true}, {"code": "422", "swap": true}, {"code": "[45]..", "swap": false, "error": true}]}'>
+  <title>{% block title %}{% if page_title %}{{ page_title }} · {% endif %}OpenBGA Lab Ops{% endblock %}</title>
+  <link rel="icon" href="{% static 'img/mark.svg' %}" type="image/svg+xml">
+  <link rel="icon" href="{% static 'img/favicon-32.png' %}" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  {# Link preview: a shared link (usually the sign-in page) shows the lock-up, never page content. #}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OpenBGA Lab Ops">
+  <meta property="og:title" content="OpenBGA Lab Ops">
+  <meta property="og:description" content="Client service tickets, pickups and supply orders for laboratories. Free and open source.">
+  {% if link_preview_image %}
+  <meta property="og:image" content="{{ link_preview_image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="OpenBGA Lab Ops">
+  {% endif %}
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-5.3.8/css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/datatables/colReorder.bootstrap5.min.css' %}">
+  {# Shared form controls (static/js/controls.js): Tom Select for selects and Vanilla Calendar Pro for dates and times, on every page. Themed in app.css. #}
+  <link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.bootstrap5.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/vanilla-calendar-pro-3.4.0/layout.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/documentation.css' %}">
+  {% block extra_css %}{% endblock %}
+  <script src="{% static 'vendor/htmx-2.0.11/htmx.min.js' %}" defer></script>
+  <script src="{% static 'vendor/bootstrap-5.3.8/js/bootstrap.bundle.min.js' %}" defer></script>
+  <script src="{% static 'vendor/datatables/dataTables.min.js' %}" defer></script>
+  <script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}" defer></script>
+  <script src="{% static 'vendor/datatables/dataTables.colReorder.min.js' %}" defer></script>
+  <script src="{% static 'js/app.js' %}" defer></script>
+  <script src="{% static 'js/sidebar.js' %}" defer></script>
+  <script src="{% static 'vendor/tom-select/tom-select.complete.min.js' %}" defer></script>
+  <script src="{% static 'vendor/vanilla-calendar-pro-3.4.0/index.js' %}" defer></script>
+  <script src="{% static 'js/controls.js' %}" defer></script>
+  <script src="{% static 'js/preferences.js' %}" defer></script>
+  <script src="{% static 'js/grid.js' %}" defer></script>
+  <script src="{% static 'js/documentation.js' %}" defer></script>
+  <script src="{% static 'js/form-dialog.js' %}" defer></script>
+</head>
+<body class="{% block body_class %}vr-app{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} data-vr-user="{{ user.pk }}"{% endif %} data-vr-icons="{% static 'img/icons.svg' %}">
+  <a class="visually-hidden-focusable vr-skip" href="#main">Skip to main content</a>
+  {% block body %}
+  {% url 'dashboard' as dashboard_url %}
+  {% block topbar %}
+  <header class="vr-topbar">
+    <button class="btn btn-sm vr-topbar-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>
+    {% brand href=dashboard_url|default:"/" %}
+    {% if lab.name %}<span class="vr-lab-name d-none d-lg-inline">{{ lab.name }}</span>{% endif %}
+    <div class="vr-topbar-end">
+      {% include "includes/client_lookup.html" %}
+      {% whats_new_button %}
+      {% include "documentation/button.html" %}
+      {% include "includes/theme_menu.html" %}
+      {% if user.is_authenticated %}{% include "includes/user_menu.html" %}{% endif %}
+    </div>
+  </header>
+  {% endblock topbar %}
+  {% preference "nav.collapsed" as nav_collapsed %}
+  <div class="vr-shell{% if nav_collapsed %} vr-nav-collapsed{% endif %}">
+    {% block sidenav %}
+    <nav class="vr-sidenav offcanvas-lg offcanvas-start" id="vr-nav" tabindex="-1" aria-label="Primary">
+      <div class="offcanvas-header d-lg-none">
+        <p class="offcanvas-title h5 mb-0">OpenBGA Lab Ops</p>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#vr-nav" aria-label="Close navigation"></button>
+      </div>
+      <div class="offcanvas-body">
+        <button type="button" class="vr-nav-toggle" data-vr-nav-toggle aria-controls="vr-nav" aria-expanded="{% if nav_collapsed %}false{% else %}true{% endif %}" aria-label="{% if nav_collapsed %}Expand menu{% else %}Collapse menu{% endif %}">{% icon name="chevron-double-left" %}<span class="vr-nav-toggle-label">Collapse menu</span></button>
+        {% include "includes/nav_staff.html" %}
+      </div>
+    </nav>
+    {% endblock sidenav %}
+    <main class="vr-main" id="main" tabindex="-1"{% block form_surface_attributes %}{% if form_surface %} data-vr-form-page data-vr-form-url="{{ request.get_full_path }}" data-vr-form-size="{{ form_surface.size }}"{% endif %}{% endblock %}>
+      {% block page_header %}
+      <div class="vr-page-header">
+        {% block breadcrumbs %}{% endblock %}
+        <div class="vr-page-header-row">
+          <div>
+            <h1 class="vr-page-title">{% block page_heading %}{{ page_title }}{% endblock %}</h1>
+            {% block page_dateline %}{% endblock %}
+            {% block page_meta %}{% endblock %}
+            {% block page_intro %}{% endblock %}
+          </div>
+          <div class="vr-page-actions">{% block page_actions %}{% endblock %}</div>
+        </div>
+      </div>
+      {% endblock page_header %}
+      {% include "includes/messages.html" %}
+      {% block content %}{% endblock %}
+      {% block record_foot %}{% endblock %}
+      {% source_footer css="vr-page-only" %}
+    </main>
+  </div>
+  {% block thumbbar %}
+  {% comment %}Phones only (app.css "Phones"): the menu, Find (tickets and client organizations) and, placed beside them by CSS, the page's primary action (the .btn-primary in page_actions), within thumb reach. The portal has no staff menu and leaves it out.{% endcomment %}
+  {% url 'desk:request-find' as find_url %}
+  <nav class="vr-thumbbar" aria-label="Quick actions">
+    <button class="vr-thumbbar-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>
+    {% if find_url %}<a class="vr-thumbbar-btn" href="{{ find_url }}">{% icon name="search" %}<span>Find</span></a>{% endif %}
+  </nav>
+  {% endblock thumbbar %}
+  {% endblock body %}
+  {% block documentation_panel %}{% include "documentation/panel.html" %}{% endblock %}
+  <template id="vr-request-error">{% notice tone="danger" blocking=True dismissible=True hook="vr-request-error" %}<span data-vr-notice-text></span>{% endnotice %}</template>
+  {% include "includes/grid_columns_dialog.html" %}
+  {{ form_route_patterns|json_script:"vr-form-routes" }}
+  {% include "includes/form_dialog.html" %}
+  {% client_preferences %}
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

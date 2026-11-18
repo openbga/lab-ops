@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Spreadsheet import (milestone 2, M2-A): the three files in the order they depend on each other,
+each with its template and its import page. Context (dataimport.views.index): types ([{spec
+(importing.RecordType), position, title}]), max_kib, max_rows. Account managers, client services
+and the admin role only.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Load the laboratory's client list from CSV files: organizations first, then their sites and contacts, then the identifiers other systems use for them. Each file is checked row by row before anything is saved, and is imported completely or not at all.</p>{% endblock %}
+{% block content %}
+{% panel title="Files" heading_id="files-heading" count=types|length table=True class="mb-3" %}
+  <div class="vr-table-wrap"><table class="table table-hover vr-table">
+    <thead><tr><th scope="col">File</th><th scope="col">Step</th><th scope="col">Needs first</th><th scope="col">Template</th></tr></thead>
+    <tbody>
+      {% for item in types %}
+      <tr>
+        <th scope="row"><a class="vr-row-link" href="{% url 'dataimport:upload' item.spec.slug %}">{{ item.title }}</a></th>
+        <td>{{ item.position }}</td>
+        <td class="vr-wrap">{{ item.spec.needs }}</td>
+        <td><a href="{% url 'dataimport:template' item.spec.slug %}" download>{{ item.spec.slug }}-template.csv</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+{% endpanel %}
+{% panel title="Before you import" heading_id="rules-heading" %}
+  <ul>
+    <li>Save each sheet as CSV UTF-8 with the header row first, up to {{ max_kib }} KiB and {{ max_rows }} rows. Each template holds one synthetic example row: replace it.</li>
+    <li>A row whose key matches an existing record changes it; otherwise it creates one. Importing the same file again changes nothing.</li>
+    <li>Keys stay inside one organization: a site or contact row never moves a record to another organization.</li>
+    <li>The import never creates sign-in accounts or portal access, sends nothing, and takes no patient data: patient, participant and donor identifiers are refused.</li>
+  </ul>
+{% endpanel %}
+{% endblock %}

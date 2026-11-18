@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load ui desk %}
+{% comment %}
+One team: its members (with the lead flag) and its history. Admins and supervisors add and remove
+members and set leads; the admin role edits the team. Context: team, members (TeamMembership),
+member_form (teams.forms.MemberForm, or None), each member's open_requests (their requests in
+this team that are not closed; removal returns them to the team's queue), can_manage_members, can_manage_teams, history
+(AuditEvent, oldest first).
+{% endcomment %}
+{% block breadcrumbs %}{% url 'teams:team-list' as list_url %}{% breadcrumbs section="Teams" section_url=list_url current=team.name %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if team.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
+  {% if team.is_default %}<li>Default team</li>{% endif %}
+  <li>{{ members|length }} member{{ members|length|pluralize }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}{% if can_manage_teams %}<a class="btn btn-outline-secondary" href="{% url 'teams:team-edit' team.pk %}">Edit team</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'desk:request-list' %}?view=all&amp;status=active&amp;team={{ team.pk }}">The team's tickets</a>{% endblock %}
+{% block content %}
+{% if team.description %}<p>{{ team.description }}</p>{% endif %}
+{% panel title="Members" heading_id="members-heading" count=members|length table=True class="mb-3" %}
+  {% list_results items=members empty_title="No members yet" empty_body="Add the people who handle this team's tickets." %}
+  <div class="vr-table-wrap"><table class="table vr-table">
+    <thead><tr><th scope="col">Person</th><th scope="col">Lead</th><th scope="col">Open tickets</th>{% if can_manage_members %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
+    <tbody>
+      {% for m in members %}
+      <tr>
+        <th scope="row">{{ m.user|person }}{% if not m.user.is_active %} {% status label="Inactive account" tone="neutral" plain=True %}{% endif %}</th>
+        <td>{% if m.is_lead %}{% status label="Lead" tone="info" plain=True %}{% else %}—{% endif %}</td>
+        <td>{{ m.open_requests }}</td>
+        {% if can_manage_members %}<td class="text-end vr-nowrap">
+          {# form: button-target #}
+          <form method="post" action="{% url 'teams:member-lead' team.pk m.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="is_lead" value="{% if m.is_lead %}0{% else %}1{% endif %}"><button class="btn btn-sm btn-outline-secondary" type="submit">{% if m.is_lead %}Not lead{% else %}Make lead{% endif %}<span class="visually-hidden"> {{ m.user|person }}</span></button></form>
+          <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#remove-member-{{ m.pk }}">Remove<span class="visually-hidden"> {{ m.user|person }}</span></button>
+        </td>{% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% if member_form %}
+{% panel title="Add a member" heading_id="add-member-heading" class="mb-3" %}
+  {% form_page form=member_form submit_label="Add member" no_required_note=True %}{% endform_page %}
+{% endpanel %}
+{% endif %}
+{% for m in members %}{% if can_manage_members %}
+{% url 'teams:member-remove' team.pk m.pk as remove_url %}{% with pk_text=m.pk|stringformat:"s" %}
+{% if m.open_requests %}{% with count=m.open_requests|stringformat:"s" %}{% confirm_dialog id="remove-member-"|add:pk_text label="Remove" object=m.user|person body=count|add:" ticket(s) assigned to them in this team that are not closed return to the team's queue, unassigned. They stop seeing this team's unassigned work in their views." action=remove_url %}{% endwith %}{% else %}{% confirm_dialog id="remove-member-"|add:pk_text label="Remove" object=m.user|person body="They have no open tickets in this team. They stop seeing this team's unassigned work in their views." action=remove_url %}{% endif %}{% endwith %}
+{% endif %}{% endfor %}
+{% history_panel events=history empty_title="No recorded changes" %}{% endhistory_panel %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=team.name %}{% endblock %}

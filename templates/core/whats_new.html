@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block page_intro %}{% if new_count %}<p class="vr-page-intro">{{ new_count }} new change{{ new_count|pluralize }} since your last visit.</p>{% endif %}{% endblock %}
+{% block content %}
+{% for group in groups %}
+{% with heading_id="whats-new-"|add:group.key %}
+{% panel title=group.label heading_id=heading_id class="mb-3 vr-narrow" collapsible=forloop.counter0 open=group.new_count %}
+  <h3 class="vr-section-title">Highlights</h3>
+  <ul class="vr-changes">
+    {% for row in group.highlights %}
+    <li class="vr-change">
+      <div class="vr-change-head">
+        <strong class="vr-change-title">{{ row.entry.title }}</strong>
+        {% if row.new %}{% status label="New" tone="info" %}{% endif %}
+      </div>
+      <div class="vr-change-summary">{{ row.entry.summary|linebreaks }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  <details class="vr-change-list">
+    <summary>{% if group.count == 1 %}Change details{% else %}All {{ group.count }} changes{% endif %}{% if group.new_count > group.highlights|length %} ({{ group.new_count }} new){% endif %}</summary>
+    {% for section in group.sections %}
+    <h3 class="vr-section-title">{{ section.label }}</h3>
+    <ol class="vr-changes">
+      {% for row in section.entries %}{% with entry=row.entry %}
+      <li class="vr-change"{% if row.new %} data-new{% endif %}>
+        <div class="vr-change-head">
+          <span class="vr-change-type">{{ entry.type_label }}</span>
+          <span class="vr-change-title">{{ entry.title }}</span>
+          {% if row.new %}{% status label="New" tone="info" %}{% endif %}
+        </div>
+        <p class="vr-change-meta"><time datetime="{{ entry.date|date:'Y-m-d' }}">{{ entry.date|date:"M j" }}</time>{% if entry.area %} · {{ entry.area }}{% endif %}{% if entry.pr %} · Change #{{ entry.pr }}{% endif %}</p>
+        <div class="vr-change-summary">{{ entry.summary|linebreaks }}</div>
+        {% if row.link or entry.notes %}
+        <div class="vr-change-more">
+          {% if row.link %}<a href="{{ row.link.url }}">Go to {{ row.link.label }}</a>{% endif %}
+          {% if entry.notes %}<details class="vr-change-notes"><summary>Technical notes</summary><div class="vr-change-notes-body">{{ entry.notes|linebreaks }}</div></details>{% endif %}
+        </div>
+        {% endif %}
+      </li>
+      {% endwith %}{% endfor %}
+    </ol>
+    {% endfor %}
+  </details>
+{% endpanel %}
+{% endwith %}
+{% empty %}
+{% panel title="Changes" heading_id="whats-new-heading" class="vr-narrow" %}
+  {% empty_state title="No changes recorded yet" %}
+{% endpanel %}
+{% endfor %}
+{% endblock %}

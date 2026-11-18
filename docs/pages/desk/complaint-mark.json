@@ -1,0 +1,83 @@
+{
+  "id": "desk-complaint-mark",
+  "routes": [
+    "desk:complaint-mark"
+  ],
+  "title": "Mark or unmark a complaint",
+  "purpose": "Mark a ticket as a complaint, or (supervisors only) remove that mark, always with a reason.",
+  "summary": "Mark a ticket as a complaint so it gets a decision, a record and an independent review. Only a supervisor can unmark one. Both need a reason.",
+  "tasks": [
+    {
+      "title": "Mark a ticket as a complaint",
+      "steps": [
+        "From the ticket's [[More]] menu choose [[Mark as a complaint]].",
+        "Write the [[Reason]] and select [[Mark as a complaint]]."
+      ]
+    },
+    {
+      "title": "Unmark a complaint (supervisor)",
+      "steps": [
+        "From the ticket's [[More]] menu choose [[Unmark complaint]].",
+        "Write the [[Reason]] and select [[Unmark complaint]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Any staff role can mark a complaint, but only a supervisor can unmark one. Others are refused, and do not see the menu choice.",
+    "A ticket is also a complaint automatically when its category is a complaint category. Changing the category later does not unmark it.",
+    "A complaint closes only after an independent review by a supervisor who did not record the decision and was never assigned the ticket.",
+    "A closed ticket cannot be marked or unmarked."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "One page serves both actions: it marks when the ticket is not a complaint and unmarks when it is. The heading and the button say which. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload."
+      ],
+      "items": [
+        {
+          "label": "Reason",
+          "description": "Required. Why the ticket is, or is no longer, a complaint. Kept in the audit history and on the timeline event."
+        },
+        {
+          "label": "Mark as a complaint",
+          "description": "Marks the ticket a complaint and confirms Marked as a complaint. A Complaint badge and the Complaint section then appear on the ticket page, and the ticket shows in the Complaints views."
+        },
+        {
+          "label": "Unmark complaint",
+          "description": "Supervisors only. Removes the mark and confirms No longer a complaint. The recorded decision and findings stay in the audit history."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may do what",
+          "description": "Marking: every active staff role who may read the ticket. Unmarking: supervisors, including the admin role. A non-supervisor who opens the unmark page directly is refused."
+        },
+        {
+          "label": "Refusals",
+          "description": "A ticket that is already in the chosen state (\"Nothing to change.\"), for example when someone else marked it first, and a closed ticket (\"A closed ticket cannot change.\")."
+        },
+        {
+          "label": "Category flag",
+          "description": "A category can be flagged as a complaint category by the laboratory. Tickets logged in it start as complaints. Marking by hand is for other categories."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/permissions.py",
+    "desk/templates/desk/request_action.html",
+    "docs/product.md"
+  ]
+}

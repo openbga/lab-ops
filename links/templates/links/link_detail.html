@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One external record link (L2, L5): what it points to, every request and organization that
+carries it (requests limited to those the reader may read), and its history. Context: link,
+attachments (with target_url), history (AuditEvent of the link and its attachments, oldest
+first). A person-level link opens only with view_patient_information (404 otherwise); its title
+is the record type, and its key is shown only through Reveal on a request.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=None current=page_title %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{{ link.get_record_type_display }}</li>
+  <li>{{ link.system.name }}</li>
+  {% if not link.is_person %}<li><span class="vr-id">{{ link.identifier }}</span></li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'link_records:link-edit' link.pk %}">Edit link</a>{% endblock %}
+{% block content %}
+{% panel title="Record" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Label" value=link.display_label %}
+    {% fact label="Record type" value=link.get_record_type_display %}
+    {% fact label="System" value=link.system.name %}
+    {% if link.is_person %}
+    {% fact label="Key" %}<span class="vr-muted">Revealed only from a ticket, and recorded</span>{% endfact %}
+    {% else %}
+    {% fact label="Identifier" value=link.identifier class="vr-id" %}
+    {% fact label="Identifier scheme" value=link.identifier_scheme empty="None" %}
+    {% fact label="Address" %}{% if link.url and url_on_host %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">Record in {{ link.system.name }}<span class="visually-hidden"> (new tab)</span></a>{% elif link.url %}<span class="text-break">{{ link.url }}</span> <span class="vr-muted small">(not on the system's address; not opened from here)</span>{% endif %}{% endfact %}
+    {% endif %}
+    {% fact label="Created" %}<time datetime="{{ link.created_at|date:'c' }}">{{ link.created_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+  </dl>
+{% endpanel %}
+{% panel title="Carried by" count=attachments|length table=True class="mb-3" %}
+  {% list_results items=attachments empty_title="Not on any ticket you can read" empty_body="Tickets in restricted categories are listed only for their team and supervisors." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Ticket or organization</th><th scope="col">Role</th><th scope="col">Added</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for attachment in attachments %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{{ attachment.target_url }}">{% if attachment.request_id %}{{ attachment.request.number }}{% else %}{{ attachment.client.name }}{% endif %}</a></th>
+          <td>{{ attachment.get_role_display }}</td>
+          <td class="vr-nowrap"><time datetime="{{ attachment.added_at|date:'c' }}">{{ attachment.added_at|date:"Y-m-d H:i" }}</time></td>
+          <td>{% if attachment.removed_at %}{% status label="Removed" tone="neutral" plain=True %} <span class="vr-muted small">{{ attachment.removal_reason }}</span>{% else %}{% status label="Current" tone="success" plain=True %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% history_panel events=history empty_title="No recorded changes" %}{% endhistory_panel %}
+{% endblock %}

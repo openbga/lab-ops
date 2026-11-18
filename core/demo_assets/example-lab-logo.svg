@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Example Reference Laboratory (invented demonstration logo)">
+  <rect x="10" y="10" width="220" height="220" rx="48" fill="#ffffff" stroke="#1f5d6b" stroke-width="12"/>
+  <path d="M120 52l52 30v60l-52 30-52-30V82z" fill="none" stroke="#1f5d6b" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M120 112l52-30M120 112v60M120 112L68 82" fill="none" stroke="#3aa0a8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="120" cy="112" r="14" fill="#e0a43a"/>
+  <circle cx="172" cy="82" r="10" fill="#1f5d6b"/><circle cx="68" cy="82" r="10" fill="#1f5d6b"/><circle cx="120" cy="172" r="10" fill="#1f5d6b"/>
+</svg>

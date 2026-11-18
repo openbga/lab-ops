@@ -1,0 +1,41 @@
+{% load ui %}{% comment %}
+A bottom sheet: a panel that slides up from the bottom edge over the page (docs/ui-standards.md
+section 13), for choices a phone user makes with one thumb. It is Bootstrap's own offcanvas
+(offcanvas-bottom), the same component as the navigation drawer, so a scrim, the focus trap,
+Escape to close, and focus returning to the opening button come from Bootstrap. Rendered by the
+{% sheet %} block tag ({% load ui %}); the tag's body is the sheet's content.
+Parameters:
+  id      the sheet's id (required, unique on the page); the opening control names it
+  title   the sheet's title and accessible name (required), e.g. "Filter and sort"
+  below   "sm" for a responsive sheet: below 576px (phones) it is the bottom sheet, from 576px up
+          it is not a sheet at all but plain inline content in place (no header, no scrim), so the
+          page keeps its desktop layout. The list toolbar uses it (includes/grid_toolbar.html).
+          Omit for a sheet at every width: on wider screens it is the same bottom sheet, centred and
+          held to the form width. Offer that only where the phone gesture suits a desktop too; a
+          desktop task that needs input uses the shared form dialog (section 7).
+  class   extra classes on the sheet (the sheet's own surface, not its content)
+Parts ({% fill name %} ... {% endfill %} inside the tag):
+  footer  a sticky action row under the scrolling body (Apply, Assign): buttons only, the
+          primary last. With below="sm" it renders inline after the body from 576px up.
+Opening and closing (declarative; no script of its own):
+  <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas"
+          data-bs-target="#<id>" aria-controls="<id>" aria-expanded="false">...</button>
+  A button inside the sheet closes it with data-bs-dismiss="offcanvas". app.js keeps the opening
+  control's aria-expanded in step with the sheet. Never put the opener inside the sheet.
+Layout: a header (the title and a 44px Close button), a body that scrolls (the sheet is at most
+85% of the screen high) and the optional footer. The sheet sits above the thumb bar and its scrim.
+Usage:
+  <button class="btn btn-outline-secondary" type="button" data-bs-toggle="offcanvas" data-bs-target="#assign-sheet" aria-controls="assign-sheet" aria-expanded="false">Assign</button>
+  {% sheet id="assign-sheet" title="Assign request" %}
+    ...fields...
+    {% fill footer %}<button class="btn btn-primary" type="submit" form="assign-form">Assign</button>{% endfill %}
+  {% endsheet %}
+{% endcomment %}
+<div class="vr-sheet {% if below %}offcanvas-{{ below }}{% else %}offcanvas{% endif %} offcanvas-bottom{% if class %} {{ class }}{% endif %}" id="{{ id }}" tabindex="-1" aria-labelledby="{{ id }}-title">
+  <div class="offcanvas-header vr-sheet-header">
+    <h2 class="offcanvas-title vr-sheet-title" id="{{ id }}-title">{{ title }}</h2>
+    <button type="button" class="btn btn-outline-secondary vr-btn-icon" data-bs-dismiss="offcanvas" data-bs-target="#{{ id }}" aria-label="Close {{ title }}">{% icon name="x-lg" %}</button>
+  </div>
+  <div class="offcanvas-body vr-sheet-body">{{ body }}</div>
+  {% if slots.footer %}<div class="vr-sheet-footer">{{ slots.footer }}</div>{% endif %}
+</div>

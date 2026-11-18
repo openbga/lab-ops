@@ -1,0 +1,17 @@
+{% comment %}
+Django messages (the result of the last action) as dismissible notices (includes/notice.html) at the
+top of the next page. Errors and warnings interrupt (role=alert); others are polite (role=status).
+{% endcomment %}
+{% load ui %}{% if messages %}
+<div class="vr-messages">
+  {% for message in messages %}
+  {% with level=message.level_tag|default:"info" %}
+  {% if level == "error" %}{% notice tone="danger" blocking=True dismissible=True %}{{ message }}{% endnotice %}
+  {% elif level == "warning" %}{% notice tone="warning" blocking=True dismissible=True %}{{ message }}{% endnotice %}
+  {% elif level == "success" %}{% notice tone="success" dismissible=True %}{{ message }}{% endnotice %}
+  {% elif level == "debug" %}{% notice tone="neutral" dismissible=True %}{{ message }}{% endnotice %}
+  {% else %}{% notice tone="info" dismissible=True %}{{ message }}{% endnotice %}{% endif %}
+  {% endwith %}
+  {% endfor %}
+</div>
+{% endif %}

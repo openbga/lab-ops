@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One client organization (requirement C5): who it is and how it fits in its group, how to reach it,
+its open requests and counts by status, its sites, its contacts with tap-to-call and tap-to-email,
+its portal accounts with their access, its links, and its history. Context: client (with parent
+and account_owner), children (organizations whose parent it is), open_requests (up to eight,
+newest update first), open_count, total_requests and status_counts ((code, label, count) per
+status), all read through desk.selectors.staff_requests so restricted requests stay hidden from
+staff who may not read them; new_request_url (the staff intake with the organization filled in;
+blank for an inactive organization or before the desk exists), sites, contacts (with sites),
+portal_users (each with current_access: its portal access for this organization, or None), can_invite (a superuser, who opens
+accounts in the admin console), inactive_notice, history (AuditEvent, newest first; shown oldest
+first), toc (on-this-page anchors). can_manage_clients comes from the workspace context processor.
+Contacts have no page of their own: the name links to the edit form for those who may change it.
+{% endcomment %}
+{% block title %}{{ client.name }} · Client organizations · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% url 'clients:client-list' as list_url %}{% breadcrumbs section="Client organizations" section_url=list_url current=client.name %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if client.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
+  {% if client.account_number %}<li>Account <span class="vr-id">{{ client.account_number }}</span></li>{% endif %}
+  {% if client.organization_type %}<li>{{ client.get_organization_type_display }}</li>{% endif %}
+  <li>{{ contacts|length }} contact{{ contacts|length|pluralize }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'clients:client-timeline' client.pk %}">Timeline</a>{% if can_manage_clients %}<a class="btn btn-outline-secondary" href="{% url 'clients:client-edit' client.pk %}">Edit organization</a>{% endif %}{% if new_request_url %}<a class="btn btn-primary" href="{{ new_request_url }}">{% icon name="plus-lg" %}New ticket for this organization</a>{% endif %}{% endblock %}
+{% block content %}
+{% if not client.is_active %}
+{% notice tone="neutral" label="Inactive" %}{{ inactive_notice }}{% endnotice %}
+{% endif %}
+{% page_toc items=toc %}
+{% record_layout %}
+  {% fill lead %}
+  {% panel title="Organization" heading_id="organization-heading" class="h-100" %}
+    <dl class="vr-facts">
+      {% fact label="Organization type" value=client.get_organization_type_display empty="Not recorded" %}
+      {% fact label="Parent organization" empty="None" %}{% if client.parent %}<a href="{% url 'clients:client-detail' client.parent.pk %}">{{ client.parent.name }}</a>{% endif %}{% endfact %}
+      {% fact label="Member organizations" empty="None" %}{% for child in children %}<a href="{% url 'clients:client-detail' child.pk %}">{{ child.name }}</a>{% if not child.is_active %} <span class="vr-muted">(inactive)</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
+      {% fact label="Account owner" empty="Not assigned" %}{% if client.account_owner %}{{ client.account_owner.get_full_name|default:client.account_owner.get_username }}{% endif %}{% endfact %}
+      {% fact label="General email" %}{% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% endif %}{% endfact %}
+      {% fact label="Main phone" class="vr-nowrap" %}{% if client.phone %}<a href="tel:{{ client.phone|cut:' ' }}">{{ client.phone }}</a>{% endif %}{% endfact %}
+      {% fact label="Mailing address" wide=True empty="Not recorded" %}{% for line in client.address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endfact %}
+      {% fact label="Internal notes" wide=True value=client.notes|linebreaksbr empty="None recorded" %}
+    </dl>
+  {% endpanel %}
+  {% endfill %}
+
+{% panel title="Open tickets" heading_id="requests-heading" count=open_count table=True class="mb-3" %}
+  <p class="vr-muted small">{% for code, label, count in status_counts %}{{ label }}: {{ count }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+  {% list_results items=open_requests empty_title="No open tickets" empty_body="Tickets for this organization that are open or waiting appear here." %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table">
+      <thead><tr><th scope="col">Ticket</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Site</th><th scope="col">Team</th><th scope="col">Last update</th></tr></thead>
+      <tbody>
+        {% for item in open_requests %}
+        <tr>
+          <th scope="row">{% if item.staff_url %}<a class="vr-row-link vr-id" href="{{ item.staff_url }}">{{ item.number }}</a>{% else %}<span class="vr-id">{{ item.number }}</span>{% endif %}</th>
+          <td>{{ item.subject }}</td>
+          <td class="vr-nowrap">{{ item.get_status_display }}</td>
+          <td>{{ item.site.name|default:"—" }}</td>
+          <td>{{ item.team.name }}{% if item.assignee %}<br><span class="vr-muted small">{{ item.assignee.get_full_name|default:item.assignee.get_username }}</span>{% endif %}</td>
+          <td class="vr-nowrap"><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:"Y-m-d H:i" }}</time></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
+{% panel title="Sites" heading_id="sites-heading" count=sites|length table=True class="mb-3" %}
+  {% fill actions %}{% if can_manage_clients %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'clients:site-create' client.pk %}">Add site</a>{% endif %}{% endfill %}
+  {% list_results items=sites empty_title="No sites" empty_body="Add the offices, departments, collection sites, plants or sampling locations of this organization when tickets or portal access need narrowing to them." %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table">
+      <thead><tr><th scope="col">Site</th><th scope="col">Code</th><th scope="col">Kind</th><th scope="col">Phone</th><th scope="col">Address</th></tr></thead>
+      <tbody>
+        {% for site in sites %}
+        <tr>
+          <th scope="row">{% if can_manage_clients %}<a class="vr-row-link" href="{% url 'clients:site-edit' client.pk site.pk %}">{{ site.name }}</a>{% else %}{{ site.name }}{% endif %}{% if not site.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td class="vr-id">{{ site.code|default:"—" }}</td>
+          <td>{{ site.get_kind_display }}</td>
+          <td class="vr-nowrap">{% if site.phone %}<a href="tel:{{ site.phone|cut:' ' }}">{{ site.phone }}</a>{% else %}—{% endif %}</td>
+          <td>{{ site.address_line1|default:"—" }}{% if site.city %}, {{ site.city }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
+{% panel title="Contacts" heading_id="contacts-heading" count=contacts|length table=True class="mb-3" %}
+  {% fill actions %}{% if can_manage_clients %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'clients:contact-create' client.pk %}">Add contact</a>{% endif %}{% endfill %}
+  {% list_results items=contacts empty_title="No contacts yet" empty_body="Add the people at this organization the laboratory deals with." %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table">
+      <thead><tr><th scope="col">Name</th><th scope="col">Responsibilities</th><th scope="col">Sites served</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
+      <tbody>
+        {% for contact in contacts %}
+        <tr>
+          <th scope="row">{% if can_manage_clients %}<a class="vr-row-link" href="{% url 'clients:contact-edit' client.pk contact.pk %}">{{ contact.name }}</a>{% else %}{{ contact.name }}{% endif %}{% if not contact.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}{% if contact.role %}<br><span class="vr-muted small">{{ contact.role }}</span>{% endif %}</th>
+          <td>{{ contact.get_responsibilities_display|join:", "|default:"—" }}</td>
+          <td>{% for site in contact.sites.all %}{{ site.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="vr-muted">Whole organization</span>{% endfor %}</td>
+          <td>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}—{% endif %}</td>
+          <td class="vr-nowrap">{% if contact.phone %}<a href="tel:{{ contact.phone|cut:' ' }}">{{ contact.phone }}</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
+{% panel title="Portal accounts" heading_id="portal-heading" count=portal_users|length table=True class="mb-3" %}
+  {% fill actions %}{% if can_invite %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:accounts_user_add' %}?client={{ client.pk }}">Add portal account</a>{% endif %}{% endfill %}
+  {% list_results items=portal_users empty_title="No portal accounts" empty_body="Nobody at this organization can sign in yet." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Name</th><th scope="col">Sees</th><th scope="col">Linked contact</th><th scope="col">Status</th><th scope="col">Last sign-in</th>{% if can_manage_clients %}<th scope="col">Access</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for account in portal_users %}{% with access=account.current_access %}
+        <tr>
+          <th scope="row">{{ account.get_full_name|default:account.get_username }}{% if account.email %}<br><span class="vr-muted small">{{ account.email }}</span>{% endif %}</th>
+          <td>{% include "clients/_portal_scope.html" with access=access %}</td>
+          <td>{% if access.contact %}{{ access.contact.name }}{% else %}—{% endif %}</td>
+          <td>{% if account.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
+          <td class="vr-nowrap">{% if account.last_login %}<time datetime="{{ account.last_login|date:'c' }}" title="{{ account.last_login|date:'Y-m-d H:i T' }}">{{ account.last_login|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">Never signed in</span>{% endif %}</td>
+          {% if can_manage_clients %}<td><a href="{% url 'clients:portal-access-edit' client.pk account.pk %}">Set access<span class="visually-hidden"> for {{ account.get_full_name|default:account.get_username }}</span></a></td>{% endif %}
+        </tr>
+        {% endwith %}{% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+    <p class="vr-muted small">Portal accounts are opened by an administrator. Each sees only its own organization: the whole organization's tickets, or its listed sites' tickets, and always the tickets it raised itself.</p>
+{% endpanel %}
+
+{% include "links/_client_links.html" with client=client user=user %}
+
+{% history_panel events=history|dictsort:"occurred_at" empty_title="No recorded changes" empty_body="Changes to this organization are listed here with their reasons." %}{% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=client.name %}{% endblock %}

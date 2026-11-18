@@ -1,0 +1,1 @@
+{% comment %}The request link at the end of a timeline item (history_item's extra; renders in the caller's context, item from clients/client_timeline.html's loop).{% endcomment %}{% if item.request_url %}<div>Ticket <a class="vr-id" href="{{ item.request_url }}">{{ item.entry.request.number }}</a></div>{% endif %}

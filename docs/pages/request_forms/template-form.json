@@ -1,0 +1,127 @@
+{
+  "id": "request-forms-template-form",
+  "routes": [
+    "request_forms:template-create",
+    "request_forms:template-edit"
+  ],
+  "title": "Ticket form settings",
+  "purpose": "Create a ticket form or change its name, category, instructions, portal settings and whether it is active. Editing needs a reason.",
+  "summary": "Set what a ticket form is called, which category its tickets are filed under, and whether and how clients are offered it. Only the admin role can use this page.",
+  "tasks": [
+    {
+      "title": "Create a ticket form",
+      "steps": [
+        "Enter the [[Form name]] and choose the [[Category]] the tickets are filed under.",
+        "Select [[Create ticket form]]. The form's page opens so you can add its fields."
+      ]
+    },
+    {
+      "title": "Offer a form in the portal",
+      "steps": [
+        "Tick [[Clients may raise tickets with it in the portal]]. Add a [[Client label]] and a [[Menu description]] if clients need other wording.",
+        "Tick [[Show it on the portal home's service menu]] to feature it, then save."
+      ]
+    },
+    {
+      "title": "Change a form",
+      "steps": [
+        "Change the settings, then write the [[Reason for change]].",
+        "Select [[Save changes]]. The change and its reason go into the form's history."
+      ]
+    },
+    {
+      "title": "Stop using a form",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Tickets raised with the form keep their values."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A category must be chosen, not a group. Several forms can share one category, and the category routes the ticket to its team and proposes its priority.",
+    "A form can be offered in the portal only if clients may raise tickets in its category. A featured form must also be offered in the portal.",
+    "The key is a code that never changes. Leave it empty on a new form and it is made from the name.",
+    "Every change needs a reason and at least one change. If someone else saved first, yours is refused and your input stays: reload and review.",
+    "Renaming or changing a form does not change tickets already raised. They keep the form name and the field labels they were raised with."
+  ],
+  "sections": [
+    {
+      "title": "Form",
+      "items": [
+        {
+          "label": "Form name",
+          "description": "Required, up to 120 characters. What staff see. It must be unique, ignoring capital letters; a duplicate name is refused."
+        },
+        {
+          "label": "Key",
+          "description": "Shown only when creating. A stable code of letters, numbers, hyphens and underscores, up to 60 characters, used by standard forms to recognize the form. Empty: made from the name. It must be unique. It is not shown when editing and never changes."
+        },
+        {
+          "label": "Category",
+          "description": "Required. Lists active categories under active groups, written as the group, a colon and the category. When editing, the form's current category stays in the list even if it is now inactive. A group alone is refused. An active form cannot use an inactive category. Tickets raised with the form are filed under this category, which routes them to its team and proposes its priority."
+        },
+        {
+          "label": "Instructions",
+          "description": "Optional text shown at the top of the form to clients and to staff who fill it. Line breaks are kept."
+        }
+      ]
+    },
+    {
+      "title": "Client portal",
+      "items": [
+        {
+          "label": "Clients may raise tickets with it in the portal",
+          "description": "Ticked by default. Offers the form on the portal's New ticket page. Refused when clients may not raise tickets in the form's category: allow it in the category's setup, or keep the form for staff. A form that is not offered is for staff only."
+        },
+        {
+          "label": "Show it on the portal home's service menu",
+          "description": "Features the form on the portal home's How can we help? menu, in the order of the ticket forms list. Only a form offered in the portal can be featured; otherwise saving is refused."
+        },
+        {
+          "label": "Client label",
+          "description": "Optional, up to 120 characters. The name on the portal menu and on the client's ticket. Empty: the form name."
+        },
+        {
+          "label": "Icon",
+          "description": "The picture on the portal menu tile, chosen from a short list of named icons. Default: Document."
+        },
+        {
+          "label": "Menu description",
+          "description": "Optional, up to 160 characters. One short line under the label on the portal menu."
+        },
+        {
+          "label": "Only for these organizations",
+          "description": "Leave it empty to offer the form to every client organization. Choose organizations by name or account code to offer it only to them, for example a supply order with one client's own items. Staff use it only for those organizations too: the new-ticket page refuses it for a ticket of another organization or of none."
+        }
+      ]
+    },
+    {
+      "title": "Status and change record",
+      "items": [
+        {
+          "label": "Active",
+          "description": "Shown only when editing. Clear it to stop offering the form for new tickets, to clients and to staff. Tickets raised with it keep their values. While the stored form is inactive, a notice says so at the top of the page."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Shown only when editing and required. Kept with the change in the form's history. Creating a form asks for no reason."
+        },
+        {
+          "label": "Save changes",
+          "description": "Records the change, its reason, who made it and when, in one step. It is refused when nothing changed, when the reason is missing, when the form was changed by someone else after you opened it (your input stays), or when a rule above is broken. Cancel returns to the form's page, or to the list when creating."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "core/forms.py",
+    "request_forms/forms.py",
+    "request_forms/models.py",
+    "request_forms/selectors.py",
+    "request_forms/services.py",
+    "request_forms/tests/test_pages.py",
+    "request_forms/tests/test_setup.py",
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "templates/core/record_form.html"
+  ]
+}

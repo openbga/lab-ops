@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Save the request list's current filters as a view, or rename, share or delete a saved view.
+Context: form (desk.forms.SavedViewForm), view (when editing), list_query and filters (the
+filters a new view stores, as label and value pairs), submit_label, cancel_url, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% if not view %}
+{% if filters %}<p>This view keeps these filters: {% for label, value in filters %}<strong>{{ label }}</strong>: {{ value }}{% if not forloop.last %} · {% endif %}{% endfor %}.</p>{% else %}<p>This list has no filters; the view shows every ticket you may read.</p>{% endif %}
+{% endif %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  {% if view %}<input type="hidden" name="expected_revision" value="{{ view.revision }}">{% else %}<input type="hidden" name="list" value="{{ list_query }}">{% endif %}
+  <fieldset class="vr-form-section">{% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}</fieldset>
+{% endform_page %}
+{% if view %}
+<p class="mt-3"><button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#delete-view">Delete view</button></p>
+{% url 'desk:view-delete' view.pk as delete_url %}
+{% confirm_dialog id="delete-view" label="Delete view" object=view.name body="The view's name and filters are removed for everyone it is shared with. No ticket changes." action=delete_url %}
+{# form: button-target #}
+<form method="post" action="{% url 'desk:view-move' view.pk %}" class="mt-2 d-flex gap-2">{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" name="direction" value="up">Move up</button><button class="btn btn-outline-secondary" type="submit" name="direction" value="down">Move down</button></form>
+{% endif %}
+{% endblock %}

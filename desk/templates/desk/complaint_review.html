@@ -1,0 +1,18 @@
+{% extends "desk/request_action.html" %}
+{% comment %}
+The independent review of a complaint: the record under review, then the review note. Only a
+supervisor who did not record the decision and was never the assignee reaches this page.
+Context: as desk/request_action.html; req.complaint_review is the record under review.
+{% endcomment %}
+{% load ui desk %}
+{% block action_intro %}
+{% with review=req.complaint_review %}
+<dl class="vr-facts">
+  {% fact label="Decision" %}{{ review.get_decision_display }} · {{ review.decided_by|person }}{% endfact %}
+  {% fact label="Rationale" wide=True value=review.rationale|linebreaksbr %}
+  {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
+  {% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}
+  {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
+</dl>
+{% endwith %}
+{% endblock %}

@@ -1,0 +1,7 @@
+{% comment %}
+Slot: the request-type values of one request ("details"), in the staff request page's Request
+panel, under its facts: the form details of a request raised with a request form
+({% request_form_details %}), with Reveal for patient information and Edit form details.
+Context: service_request (desk.ServiceRequest, already authorized for user), request (the
+HttpRequest, untouched), user.
+{% endcomment %}{% load request_forms %}{% request_form_details service_request embedded=True %}

@@ -1,0 +1,7 @@
+{% comment %}
+A request form's fields in order with its section headings (request_forms.forms.ValuesMixin.
+layout). Parameters (pass with "only"): form, level (the heading level, 2 on a page whose form has
+no h2 above it, 3 inside a panel). A heading shows its label and its help text as a short note.
+{% endcomment %}{% for kind, item in form.layout %}{% if kind == "heading" %}
+<div class="vr-form-heading"><p class="vr-form-heading-title" role="heading" aria-level="{{ level|default:2 }}">{{ item.label }}</p>{% if item.help_text %}<p class="form-text">{{ item.help_text }}</p>{% endif %}</div>{% else %}
+{{ item.as_field_group }}{% endif %}{% endfor %}

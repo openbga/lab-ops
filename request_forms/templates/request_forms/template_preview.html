@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Preview of a request form as a client sees it in the portal (F1): its instructions and the client
+fields, in order, with nothing filled. It cannot be sent. Context: template, values_form (a
+request_forms.forms.ValuesForm for a stand-in portal account: client fields only), crumbs,
+detail_url. Admin only. Staff-only fields, and the portal's usual site, reference, subject,
+description and urgent fields, are not shown.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">The fields a client fills for “{{ template.portal_label }}”. The portal adds the site, a reference, a subject, a description and the urgent box. Staff-only fields are not shown.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{{ detail_url }}">Back to the form</a>{% endblock %}
+{% block content %}
+{% panel title=template.portal_label heading_id="preview-heading" class="vr-narrow" %}
+  {% if template.instructions %}<p>{{ template.instructions|linebreaksbr }}</p>{% endif %}
+  {% if values_form.fields %}
+  <fieldset class="vr-form-section" disabled>
+    {% include "request_forms/_layout.html" with form=values_form level=3 only %}
+  </fieldset>
+  {% else %}
+  {% empty_state kind="empty" title="No client fields" body="Clients see only the portal's usual fields for this form." %}
+  {% endif %}
+{% endpanel %}
+{% endblock %}

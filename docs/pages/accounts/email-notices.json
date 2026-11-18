@@ -1,0 +1,58 @@
+{
+  "id": "accounts-email-notices",
+  "routes": [
+    "email-notices"
+  ],
+  "title": "Email notices",
+  "purpose": "Turn your own ticket notices on or off. A notice tells you that a ticket was assigned to you or that a client replied on a ticket assigned to you.",
+  "summary": "Choose whether you receive short emails when a ticket is assigned to you or a client replies on one of your tickets.",
+  "tasks": [
+    {
+      "title": "Stop ticket notices",
+      "steps": [
+        "Clear [[Email me ticket notices]].",
+        "Select [[Save]]. The page confirms that notices are turned off."
+      ]
+    },
+    {
+      "title": "Start them again",
+      "steps": [
+        "Tick [[Email me ticket notices]] and select [[Save]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Notices are on until you turn them off.",
+    "A notice names only the ticket number, what happened and the laboratory. Sign in to read the ticket.",
+    "Nothing is sent when the laboratory has not set up email, as in the public demonstration.",
+    "This page is for laboratory staff. Client portal accounts always receive their notices and cannot open it."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Email me ticket notices",
+          "description": "Ticked: you are emailed when someone else assigns a ticket to you, and when a client replies on a ticket assigned to you, provided you can read that ticket. Cleared: you receive neither. Assigning a ticket to yourself never sends a notice."
+        },
+        {
+          "label": "Save",
+          "description": "Stores the choice for your account only and returns to this page with a confirmation."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Notices are sent after the change that causes them is saved; a failed send is logged and does not undo the change. The notice carries a link to the sign-in page, which then opens the ticket. It never contains the subject, messages, organization, site, contact, category or any identifier."
+      ]
+    }
+  ],
+  "sources": [
+    "desk/notification_views.py",
+    "desk/notifications.py",
+    "desk/templates/desk/email/preferences.html",
+    "desk/templates/desk/email/notice_body.txt",
+    "core/preferences.py"
+  ]
+}

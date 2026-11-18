@@ -1,0 +1,35 @@
+{% load ui %}{% comment %}
+The Links panel of a client organization page (L2), rendered by {% client_links client user %}
+into the template links/_client_links.html. Context: client, current and removed
+(links.access.LinkRow), add_url. Organizations carry no person-level links. Every staff role
+adds and removes them.
+{% endcomment %}
+{% panel title="Links" id="links" heading_id="client-links-heading" count=current|length table=True class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{{ add_url }}">Add link</a>{% endfill %}
+  {% list_results items=current empty_title="No links" empty_body="Link this organization's accounts, projects or studies in your other systems." %}
+    <div class="vr-table-wrap"><table class="table vr-table">
+      <thead><tr><th scope="col">Record</th><th scope="col">Type</th><th scope="col">System</th><th scope="col">Role</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        {% for row in current %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'link_records:link-detail' row.link_id %}">{{ row.label }}</a></th>
+          <td>{{ row.record_type_label }}</td>
+          <td>{% if row.url and row.url_on_host %}<a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.system }}<span class="visually-hidden"> (opens the record in a new tab)</span></a>{% else %}{{ row.system }}{% if row.url %} <span class="vr-muted small">(address not on the system's host)</span>{% endif %}{% endif %}</td>
+          <td>{{ row.role_label }}</td>
+          <td><a class="btn btn-sm btn-outline-danger" href="{% url 'link_records:attachment-remove' row.attachment_id %}">Remove</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+  {% if removed %}
+  {% panel_section rule=True %}
+    <details>
+      <summary>Removed links ({{ removed|length }})</summary>
+      <ul class="list-unstyled mb-0 mt-2">
+        {% for row in removed %}<li class="mb-2"><a href="{% url 'link_records:link-detail' row.link_id %}">{{ row.label }}</a> <span class="vr-muted">· {{ row.record_type_label }} · removed by {{ row.removed_by }} <time datetime="{{ row.removed_at|date:'c' }}">{{ row.removed_at|date:"Y-m-d H:i" }}</time>: {{ row.removal_reason }}</span></li>{% endfor %}
+      </ul>
+    </details>
+  {% endpanel_section %}
+  {% endif %}
+{% endpanel %}

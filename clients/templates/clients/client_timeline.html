@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Per-client timeline (requirement C6): newest first, the organization's requests (opened, replies,
+internal notes, logged contacts, status changes) and the changes to the organization, its sites,
+contacts and portal access. Context (clients.views.client_timeline): client, filter_form
+(clients.forms.TimelineFilter: kind and site), active_filters and the toolbar context
+(core.lists.toolbar_context), page_obj (a Page of dicts from clients.timeline.timeline_page: kind,
+at, and either entry with title, text, detail and request_url, or event), record_url. Requests
+come only through desk.selectors.staff_requests, so restricted ones are absent for staff who may
+not read them. Every staff role reads this page.
+{% endcomment %}
+{% block title %}Timeline · {{ client.name }} · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% url 'clients:client-list' as list_url %}{% breadcrumbs section="Client organizations" section_url=list_url record=client.name record_url=record_url current="Timeline" %}{% endblock %}
+{% block content %}
+{% panel title="Filter the timeline" table=True hidden_title=True class="mb-3" %}
+  {% grid_toolbar label="Filter the timeline" no_search=True invalid=filter_form.errors chips=active_filters %}
+  {% if filter_form.errors or not page_obj.object_list %}
+  {% list_results items=page_obj noun="items" filtered=active_filters invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. Nothing is hidden by an invalid filter." no_results_title="Nothing matches these filters" empty_title="Nothing recorded yet" empty_body="Tickets for this organization and changes to its sites, contacts and portal access appear here." %}{% endlist_results %}
+  {% endif %}
+{% endpanel %}
+{% if page_obj.object_list %}
+{% history_panel events=page_obj.object_list title="Timeline, newest first" heading_id="timeline-heading" %}
+  {% for item in page_obj %}
+    {% if item.event %}
+      {% history_item title=item.event.action|action_label at=item.at actor=item.event.actor reason=item.event.reason by=None changes=None detail=None extra=None %}
+    {% else %}
+      {% history_item title=item.title at=item.at actor=item.entry.author reason=item.text detail=item.detail extra="clients/_timeline_link.html" by=None changes=None %}
+    {% endif %}
+  {% endfor %}
+{% endhistory_panel %}
+{% pagination page_obj=page_obj noun="items" filtered=active_filters %}
+{% endif %}
+{% endblock %}

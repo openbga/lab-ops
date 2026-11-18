@@ -1,0 +1,115 @@
+{
+  "id": "clients-portal-access-form",
+  "routes": [
+    "clients:portal-access-edit"
+  ],
+  "title": "Portal access",
+  "purpose": "Set which contact a client portal account belongs to and which of the organization's tickets the account can see in the portal.",
+  "summary": "Set which contact a portal account belongs to and which tickets it sees in the portal: the whole organization's, or only listed sites'. An account always sees the tickets it raised itself.",
+  "tasks": [
+    {
+      "title": "Set access for a new portal account",
+      "steps": [
+        "Choose the [[Linked contact]], if the account belongs to one of the organization's contacts.",
+        "Under [[Tickets this account sees]] choose [[The whole organization]] or [[Listed sites only]].",
+        "Select [[Save access]]."
+      ]
+    },
+    {
+      "title": "Change who an account sees",
+      "steps": [
+        "Change the contact or the scope, write the [[Reason for change]] and select [[Save access]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Until access is saved, an account sees only the tickets it raised. Access not set says so, also after the account moved here from another organization.",
+    "An account always sees the tickets it raised. A ticket in a restricted category is seen by the account that raised it and by nobody else on the account's side.",
+    "Only account managers, client services staff and the admin role can open this form. An account is only found under its own organization.",
+    "Changing access that is already set needs a reason. If it changed since you opened the form, saving is refused and your input stays."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "The form belongs to one portal account of the organization, named in the page title. Only portal accounts take part: a laboratory staff account has no portal access. Access is saved once per account and then changed."
+      ],
+      "items": [
+        {
+          "label": "Linked contact",
+          "description": "Optional; No linked contact leaves it empty. The contact this account belongs to. Only the organization's own contacts are offered: active ones, and the contact already linked even if it is now inactive. A contact of another organization is refused. The account is told about tickets raised for this contact when it can see them."
+        },
+        {
+          "label": "Tickets this account sees",
+          "description": "Required. The whole organization: every ticket of the organization, except restricted ones the account did not raise. Listed sites only: the tickets for the sites ticked under Listed sites. Besides these, the account always sees the tickets it raised itself."
+        },
+        {
+          "label": "Listed sites",
+          "description": "With Listed sites only, tick at least one site. Only this organization's active sites are offered, plus any inactive site already listed. With The whole organization the listed sites are cleared."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Shown only once the account's access has been saved before, and then required. Kept with the change in the access history."
+        }
+      ]
+    },
+    {
+      "title": "What the account sees in the portal",
+      "items": [
+        {
+          "label": "Account without saved access",
+          "description": "Sees only the tickets it raised itself."
+        },
+        {
+          "label": "Account moved from another organization",
+          "description": "Its access is emptied when it moves, however the move is made, and the reset is recorded in the history: no linked contact, no sites, not the whole organization. Moving it back restores nothing. It sees only the tickets it raised here until you set its access. If the account moves while this form is open, saving is refused; reload it on the account's new organization."
+        },
+        {
+          "label": "Restricted tickets",
+          "description": "A ticket in a restricted category is shown only to the portal account that raised it, whatever the scope."
+        },
+        {
+          "label": "Tickets without a site",
+          "description": "Seen by whole-organization accounts and by the account that raised them, not by Listed sites only accounts."
+        },
+        {
+          "label": "Sees column",
+          "description": "The Portal accounts table on the organization's page states the result in words: The whole organization, the listed site names, or Only tickets it raised."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Save access",
+          "description": "Saves and returns to the Portal accounts panel of the organization's page. Each save is audited with the person, the time, the reason and the before and after values (the contact and the scope, as identifiers and flags). A submission that changes nothing is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the organization's page without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the access changed after you opened the form, saving is refused with a message to reload and review the current access, and your input stays."
+        },
+        {
+          "label": "Access history",
+          "description": "Once access exists, the changes recorded for it are listed below the form, oldest first, with the reason for each."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "clients/urls.py",
+    "clients/views.py",
+    "clients/forms.py",
+    "clients/models.py",
+    "clients/services.py",
+    "clients/permissions.py",
+    "clients/tests/test_organization_structure.py",
+    "clients/templates/clients/portal_access_form.html",
+    "clients/templates/clients/_portal_scope.html",
+    "desk/portal_scope.py"
+  ]
+}

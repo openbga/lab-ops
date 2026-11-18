@@ -1,0 +1,113 @@
+{
+  "id": "links-system-list",
+  "routes": [
+    "links:system-list"
+  ],
+  "title": "External systems",
+  "purpose": "See the laboratory's other systems that tickets and client organizations link to, and open one to rename it or change its address.",
+  "summary": "The laboratory's other systems, such as its LIS, LIMS or billing system, that tickets and organizations link to. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Add a system",
+      "steps": [
+        "Select [[New external system]], enter its name and kind, and save."
+      ]
+    },
+    {
+      "title": "Find a system",
+      "steps": [
+        "Type part of its name, key or address in [[Search]] and select [[Apply]].",
+        "Select the system's name to open its edit form."
+      ]
+    },
+    {
+      "title": "Rename the starter system",
+      "steps": [
+        "Open Laboratory information system, change its name and address, give the reason and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A system is set up once. Staff then choose it when they add a link to a ticket or an organization.",
+    "An inactive system takes no new links. Its existing links stay.",
+    "The system's key is a stable code shown beside the name. It cannot be changed.",
+    "The application never opens or reads a system's address itself. It only stores links that staff can follow."
+  ],
+  "sections": [
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the system name, its key or its base address, ignoring case."
+        },
+        {
+          "label": "Status",
+          "description": "All statuses and All show active and inactive systems. Active or Inactive filters on the Active setting."
+        },
+        {
+          "label": "New external system",
+          "description": "Opens the form to add a system."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "System",
+          "description": "The system's name, which opens its edit form, with its key beside it. Always shown; default sort is name."
+        },
+        {
+          "label": "Kind",
+          "description": "The kind of system chosen on the form. Sortable."
+        },
+        {
+          "label": "Base address",
+          "description": "The https address the system's links must be on, or a dash. Sortable; hidden first on narrow screens."
+        },
+        {
+          "label": "Status",
+          "description": "Active or Inactive. Sortable."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, status filter, Apply, Clear all and Columns are behind one Filter and sort button."
+        },
+        {
+          "label": "Apply / Clear all",
+          "description": "Apply combines the search and the status filter and returns to page 1. Clear all restores the unfiltered list."
+        },
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns for your account. The System column stays visible."
+        },
+        {
+          "label": "Empty states",
+          "description": "No external systems yet suggests adding the systems your tickets refer to. No systems match these filters offers to clear the filters."
+        }
+      ]
+    },
+    {
+      "title": "Starter system",
+      "paragraphs": [
+        "A new installation has one system named Laboratory information system, of kind LIS, for the laboratory to rename. It is an ordinary system and can be changed or made inactive."
+      ]
+    }
+  ],
+  "sources": [
+    "links/urls.py",
+    "links/views.py",
+    "links/models.py",
+    "links/migrations/0002_starter_system.py",
+    "links/templates/links/system_list.html",
+    "core/lists.py",
+    "templates/includes/grid_toolbar.html",
+    "links/tests/test_links.py"
+  ]
+}

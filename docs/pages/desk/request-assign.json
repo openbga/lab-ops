@@ -1,0 +1,92 @@
+{
+  "id": "desk-request-assign",
+  "routes": [
+    "desk:request-assign"
+  ],
+  "title": "Assign ticket",
+  "purpose": "Give a ticket to a team and, optionally, to one of its active members, with an optional reason that goes in the ticket's timeline.",
+  "summary": "Choose the team and person who work this ticket. A person is only offered with the team they belong to, so choosing a team on its own leaves the ticket unassigned within it.",
+  "tasks": [
+    {
+      "title": "Assign a ticket to a person",
+      "steps": [
+        "Choose the person under their team in [[Assign to]].",
+        "Add a [[Reason (optional)]] if it helps, then select [[Assign]]."
+      ]
+    },
+    {
+      "title": "Move a ticket to another team",
+      "steps": [
+        "Choose the other team's entry that ends in (nobody yet) in [[Assign to]], then select [[Assign]].",
+        "Or choose a person of that team to move it and assign it in one step."
+      ]
+    },
+    {
+      "title": "Take a ticket yourself",
+      "steps": [
+        "If you belong to its team, select [[Take it]] on the ticket page instead of using this form."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Any staff role who may read the ticket can reassign it. You do not need to be in the team to move it to another.",
+    "Moving a ticket to a team you do not belong to can hide it from you if its category is restricted.",
+    "A closed ticket cannot be reassigned. Choosing what is already set is refused: choose another team or person.",
+    "Every change is a timeline event with who made it and the reason, if you gave one."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from the ticket page, as a dialog or a full page. The form remembers the version of the ticket you opened. If the ticket changed in the meantime, saving is refused with \"This ticket changed. Reload it and review the latest entries.\" Reload the ticket and try again."
+      ],
+      "items": [
+        {
+          "label": "Assign to",
+          "description": "Required. Active teams, each listing Team (nobody yet) followed by the team's active staff members. It starts on the ticket's current team and person. A person is always assigned together with their own team."
+        },
+        {
+          "label": "Reason (optional)",
+          "description": "Why the ticket moved. Kept with the change in the ticket's audit history."
+        },
+        {
+          "label": "Assign",
+          "description": "Saves. Confirms Assignment changed. The ticket's team and assignee change; an assignee who is not a member of the new team is not possible because the person is chosen with their team."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may assign",
+          "description": "Every active staff role, for tickets they may read. Taking a ticket (Take it on the ticket page) is limited to members of its team."
+        },
+        {
+          "label": "Refusals",
+          "description": "A closed ticket (\"A closed ticket cannot be reassigned.\"), an inactive team, a person who is not an active member of the team, and a choice that equals the current team and person (\"Choose another team or person.\")."
+        },
+        {
+          "label": "Restricted categories",
+          "description": "Who may read a restricted ticket depends on team membership. After moving such a ticket to a team you do not belong to you may no longer be able to open it, unless you are a supervisor."
+        },
+        {
+          "label": "History",
+          "description": "The change is recorded as a timeline event and in the audit history, with the old and new team and person and your reason."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/selectors.py",
+    "desk/templates/desk/request_action.html"
+  ]
+}

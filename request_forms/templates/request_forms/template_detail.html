@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One request form (F1): what it files under, how it shows in the portal, and its fields in order.
+Context: template (RequestTemplate with category and category.parent), fields (TemplateField with
+catalog and value_count, in order; inactive ones only with show="all"), show, inactive_count,
+category_usable (the category and its group are active), in_portal (offered and the category is one
+clients may raise), request_count (requests raised with it), history (its AuditEvents, newest
+first). Admin only. Fields have no page of their own: the label opens the edit form.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'request_forms:template-list' as list_url %}{% breadcrumbs section="Ticket forms" section_url=list_url current=template.name %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if template.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</li>
+  <li>{{ template.category.name }}</li>
+  <li>{% if in_portal %}{% if template.featured %}On the service menu{% else %}Offered in the portal{% endif %}{% else %}Staff only{% endif %}</li>
+  <li>{{ request_count }} ticket{{ request_count|pluralize }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:template-copy' template.pk %}">Copy form</a>
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:template-preview' template.pk %}">Preview</a>
+<a class="btn btn-outline-secondary" href="{% url 'request_forms:template-edit' template.pk %}">Edit form</a>
+{% if template.is_active %}<a class="btn btn-primary" href="{% url 'request_forms:field-create' template.pk %}">{% icon name="plus-lg" %}Add field</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% if template.is_active and not category_usable %}
+{% notice tone="warning" label="Not offered" %}Its category, {{ template.category.name }}, or the category's group is inactive, so neither clients nor staff can use this form. Choose another category or reactivate it.{% endnotice %}
+{% elif template.offered_in_portal and not template.category.client_may_raise %}
+{% notice tone="warning" label="Not in the portal" %}Clients may not raise tickets in its category, so the portal does not offer this form.{% endnotice %}
+{% endif %}
+{% record_layout %}
+  {% fill lead %}
+  {% panel title="Form" heading_id="form-heading" class="mb-3" %}
+    <dl class="vr-facts">
+      {% fact label="Category" %}{{ template.category.parent.name }}: {{ template.category.name }}{% endfact %}
+      {% fact label="Client label" value=template.portal_label %}
+      {% fact label="Menu description" value=template.description empty="None" %}
+      {% fact label="Icon" %}{% icon name=template.icon %} {{ template.get_icon_display }}{% endfact %}
+      {% fact label="Instructions" value=template.instructions empty="None" wide=True %}
+      {% fact label="Offered to" wide=True %}{% for client in template.clients.all %}{{ client.name }}{% if not forloop.last %}, {% endif %}{% empty %}Every client organization{% endfor %}{% endfact %}
+      {% fact label="Key" value=template.key class="vr-id" %}
+    </dl>
+  {% endpanel %}
+  {% endfill %}
+{% panel title="Fields" heading_id="fields-heading" count=fields|length table=True class="mb-3" %}
+  {% fill actions %}{% if show == "active" %}{% if inactive_count %}<a class="btn btn-sm btn-outline-secondary" href="?show=all#fields-heading">Show inactive</a>{% endif %}{% else %}<a class="btn btn-sm btn-outline-secondary" href="?show=active#fields-heading">Hide inactive</a>{% endif %}{% endfill %}
+  {% url 'request_forms:field-create' template.pk as add_url %}
+  {% list_results items=fields empty_title="No fields yet" empty_body="Add the fields this ticket needs. Without fields the form asks only for the usual subject, description and reference." action_url=add_url action_label="Add field" %}
+    <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="request_forms.fields" data-vr-grid-version="1">
+      <thead><tr>
+        <th scope="col">Field</th>
+        <th scope="col">Type</th>
+        <th scope="col">Who fills it</th>
+        <th scope="col">Rules</th>
+        <th scope="col" class="text-end" data-vr-col-priority="low">Values</th>
+        <th scope="col"><span class="visually-hidden">Order</span></th>
+      </tr></thead>
+      <tbody>
+        {% for field in fields %}
+        <tr>
+          <th scope="row"><a class="vr-row-link" href="{% url 'request_forms:field-edit' field.pk %}">{{ field.label }}</a>{% if not field.is_active %} {% status label="Inactive" tone="neutral" plain=True %}{% endif %}</th>
+          <td>{{ field.get_kind_display }}{% if field.catalog %}<div class="vr-muted small">{{ field.catalog.name }}{% if not field.catalog.is_active %}: catalog retired, left off new tickets{% endif %}</div>{% elif field.choices %}<div class="vr-muted small">{{ field.choices|length }} option{{ field.choices|length|pluralize }}</div>{% endif %}</td>
+          <td>{{ field.get_audience_display }}</td>
+          <td>{% if field.required %}Required{% else %}<span class="vr-muted">Optional</span>{% endif %}{% if field.holds_patient_information %} {% status label="Patient information" tone="hold" plain=True %}{% endif %}</td>
+          <td class="text-end">{{ field.value_count }}</td>
+          <td>
+            {% url 'request_forms:field-move' field.pk 'up' as up_url %}{% url 'request_forms:field-move' field.pk 'down' as down_url %}
+            {% more_actions label="Move" small=True %}
+              {% if not forloop.first %}<li>{% post_button action=up_url label="Move up" small=True %}</li>{% endif %}
+              {% if not forloop.last %}<li>{% post_button action=down_url label="Move down" small=True %}</li>{% endif %}
+            {% endmore_actions %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% history_panel events=history newest_first=True empty_title="No recorded changes" empty_body="Changes to this form are listed here with their reasons. Changes to its fields are in each field's history in the audit log." %}{% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}

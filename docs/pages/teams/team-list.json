@@ -1,0 +1,76 @@
+{
+  "id": "teams-team-list",
+  "routes": [
+    "teams:team-list"
+  ],
+  "title": "Teams",
+  "purpose": "See the teams tickets are routed to, which one is the default, how many members each has and how many tickets each has open or waiting.",
+  "summary": "The teams the laboratory routes tickets to, with their members and workload. Open a team to see its members. The admin role creates teams.",
+  "tasks": [
+    {
+      "title": "Open a team",
+      "steps": [
+        "Select the team's name to see its members and history."
+      ]
+    },
+    {
+      "title": "See a team's open work",
+      "steps": [
+        "In the Open or waiting tickets column, select the number. The Tickets list opens for that team with the open and waiting tickets."
+      ]
+    },
+    {
+      "title": "Add a team",
+      "steps": [
+        "Select [[New team]] (admin role only), name it and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role can read this page. Only the admin role creates and edits teams; admins and supervisors manage members on the team's page.",
+    "Inactive teams stay in the list, after the active ones. They take no new tickets, and their records and history stay.",
+    "The default team receives tickets whose category names no team.",
+    "The count in Open or waiting tickets includes restricted tickets you may not read. The list it opens shows only those you may."
+  ],
+  "sections": [
+    {
+      "title": "Table and actions",
+      "paragraphs": [
+        "Teams are listed with active teams first, then by name. There is no search, sorting or paging. Teams are deactivated, never deleted."
+      ],
+      "items": [
+        {
+          "label": "New team",
+          "description": "Opens the form for a new team. Shown to the admin role only; the server refuses everyone else."
+        },
+        {
+          "label": "Team",
+          "description": "The team's name, as a link to its page. A Default chip marks the default team."
+        },
+        {
+          "label": "Status",
+          "description": "Active or Inactive."
+        },
+        {
+          "label": "Members",
+          "description": "How many people belong to the team, including inactive accounts that were not removed."
+        },
+        {
+          "label": "Open or waiting tickets",
+          "description": "How many of the team's tickets have status Open, Waiting on client or Waiting on third party. The number links to the Tickets list filtered to that team and those statuses, in the All tickets view."
+        },
+        {
+          "label": "No teams yet",
+          "description": "Shown when no team exists; the admin role can create one from here."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "teams/urls.py",
+    "teams/views.py",
+    "teams/services.py",
+    "teams/models.py",
+    "teams/templates/teams/team_list.html"
+  ]
+}

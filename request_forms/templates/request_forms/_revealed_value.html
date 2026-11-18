@@ -1,0 +1,5 @@
+{% comment %}
+HTMX answer to Reveal on a request's form details (F6): one patient-information value. Sent with
+Cache-Control: no-store; the reveal is recorded in the audit history without the value.
+Context: row (FieldValue), lines (its text lines), back.
+{% endcomment %}<span data-vr-revealed-value>{% for line in lines %}<span class="d-block">{{ line|linebreaksbr }}</span>{% endfor %}</span> <span class="vr-muted small">Reveal recorded.</span>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load ui attachment_files %}
+{% comment %}
+Withdraw a file from a request entry (supervisor, with a reason). Context: form (WithdrawForm),
+attachment, crumbs, cancel_url. The file stays in the request's history; clients no longer reach
+it and only supervisors can still download it.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label="Withdraw file" destructive=True %}
+  <fieldset class="vr-form-section">
+    <p>{{ attachment.original_name }} · {{ attachment.size|file_size }} · attached to a {{ attachment.entry.get_kind_display|lower }}</p>
+    {{ form.reason.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

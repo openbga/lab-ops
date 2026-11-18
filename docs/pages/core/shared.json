@@ -1,0 +1,149 @@
+{
+  "id": "core-shared",
+  "routes": [
+    "documentation:shared"
+  ],
+  "title": "Workspace controls",
+  "purpose": "Common controls used throughout the application.",
+  "sections": [
+    {
+      "title": "Using documentation",
+      "items": [
+        {
+          "label": "Documentation icon",
+          "description": "Opens this page’s guide on the right. Following a menu link or opening a form changes the guide to that page or form; closing a form restores the page guide."
+        },
+        {
+          "label": "Resize documentation",
+          "description": "Drag the panel’s left edge. With the separator focused, Left widens it and Right narrows it; hold Shift for larger steps. Home and End choose the allowed minimum and maximum. Width is limited to keep the panel usable in this window."
+        },
+        {
+          "label": "Close documentation",
+          "description": "Use the close button or Escape while focus is in the panel. The preferred width and open/closed state are remembered for this account in this browser. Different browsers/devices have separate preferences; clearing browser storage resets them. When storage is unavailable the panel still works for the current page."
+        },
+        {
+          "label": "Narrow screens",
+          "description": "The panel retains the preferred width when space allows and is bounded to the window with a small margin on narrow screens. Close it to return to the page; returning to a wider window restores the preferred desktop width."
+        }
+      ]
+    },
+    {
+      "title": "Navigation and appearance",
+      "items": [
+        {
+          "label": "OpenBGA Lab Ops / Find ticket or client",
+          "description": "The brand (the mark, OpenBGA and Lab Ops; the mark alone in the top bar on phones) returns to the workspace home. In the client portal the laboratory name takes its place. On staff pages, Find ticket or client opens Find with what you typed: a ticket number (REQ-000123, or just 123) opens that ticket; otherwise Find lists matching tickets (number, subject, organization, contact, caller, reference or a linked record's identifier) and matching client organizations (name, account code, email, phone or city). Press Enter to search. On wide screens the laboratory name beside the brand identifies this deployment."
+        },
+        {
+          "label": "Menus and section tabs",
+          "description": "Select a menu destination or a section tab to change pages. The current destination is marked when it appears in your menu, and keyboard focus has a visible outline. The staff sidebar shows destinations for the work your roles can perform, combines destinations when you hold several roles, and omits empty sections. Related record links and direct pages retain their existing access checks, so a readable record may have no sidebar destination for your role; no sidebar item is marked on that page. The client portal has a Home destination."
+        },
+        {
+          "label": "On a phone",
+          "description": "On screens narrower than 576px a bar along the bottom of staff pages holds Menu, which opens the navigation drawer, Find, which searches tickets and client organizations, and the page's main action, such as New organization; in the client portal the portal's own links sit there. Tables show each row as a card: the row's name first, then each column's heading beside its value. Sort by, above the cards, sorts the list as the column headings do on a wide screen; filters, Columns and the pager work as usual."
+        },
+        {
+          "label": "Collapse menu / Expand menu",
+          "description": "On wide screens (992px and up) the button at the top of the staff sidebar folds the menu into a rail of icons, leaving more room for tables. In the rail, hover over or focus an icon to see its label; the current destination stays highlighted and section names become short coloured rules. Select Expand menu to restore the full menu. The choice is saved for your account, so it follows you to any workstation and does not affect other people. On narrow screens the menu opens from the Menu button instead and is always full width."
+        },
+        {
+          "label": "What's new",
+          "description": "Opens monthly highlights in the staff workspace. A number counts changes since your last visit. Opening the page clears that count for your account on every workstation."
+        },
+        {
+          "label": "Theme",
+          "description": "The Theme menu offers Light, Dark and System. System follows the device preference. The chosen appearance is saved in this browser. After choosing an appearance, focus returns to the Theme button."
+        },
+        {
+          "label": "Account menu",
+          "description": "Shows the signed-in name and staff roles or client organization. Change password and Two-factor authentication open account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those two links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
+        },
+        {
+          "label": "Forms",
+          "description": "Required fields are marked. Validation errors identify fields or the reason an action is blocked. After a failed page submission, focus moves to the first invalid field or the error summary when no field is invalid. Some forms open in a dialog; close/cancel leaves the underlying page. A direct form link opens the same dialog with its title as the page heading; Cancel returns to the related page or list. Sticky action buttons stay at the bottom while long forms scroll. Save applies the form only when server checks pass. A stale-edit message requires refreshing and checking current values before retrying."
+        },
+        {
+          "label": "Footer / Source code",
+          "description": "Every staff, client portal, sign-in and error page ends with the product name, a Source code link and the AGPL-3.0-only licence. Source code opens the published source of the software this deployment runs, which the licence requires to be offered to its users; a deployment running modified code points it at its own source. It opens an external site and changes no records."
+        }
+      ]
+    },
+    {
+      "title": "Staff sidebar destinations",
+      "items": [
+        {
+          "label": "Every staff role",
+          "description": "Dashboard, Client organizations and Laboratory profile are available to every active staff role. Client organizations and the profile are read-only unless your role also changes them."
+        },
+        {
+          "label": "Account manager and client services",
+          "description": "May add and change client organizations and their contacts, which every other staff role can only read."
+        },
+        {
+          "label": "Supervisor and technical staff",
+          "description": "Read client organizations and the laboratory profile. They have no further destinations yet."
+        },
+        {
+          "label": "Admin",
+          "description": "Admin includes the work of the other four staff roles, plus Record retention, Announcements and changing the Laboratory profile. The admin role does not grant any capability, such as viewing patient information."
+        },
+        {
+          "label": "Accounts & roles",
+          "description": "Available only to an active internal account with both Django staff and superuser status. The laboratory admin role alone does not grant account administration."
+        }
+      ]
+    },
+    {
+      "title": "Tables where these controls appear",
+      "items": [
+        {
+          "label": "Search and filters",
+          "description": "Apply narrows the server query, not only visible rows. The page-specific sections describe the searchable fields and implicit exclusions. Removing a filter chip clears that filter; Clear all resets the filter selection."
+        },
+        {
+          "label": "Sort and pages",
+          "description": "Linked column headings change server-side ordering. Pagination moves through the filtered result set; the count describes that set. Choose Rows per page, then select Show to apply that page size and return to page 1 while keeping the other filters. Changing the selection alone does not reload the page. Your sort and rows per page are saved for your account on each list: opening the list again, on any workstation, uses them until you choose others. Clear all removes filters only."
+        },
+        {
+          "label": "Columns",
+          "description": "Opens column visibility and order preferences. Use the controls to show/hide or move supported columns, or Reset columns to restore the defaults. Columns marked Always shown are locked. These preferences are saved for your account, on any workstation, and do not change permissions or the underlying records."
+        }
+      ]
+    },
+    {
+      "title": "Submission size",
+      "paragraphs": [
+        "The deployment limits the total size of a form submission, including files and form fields. The default limit is 12 MiB, leaving room for a supported 10 MiB upload and form overhead. A larger declared request is rejected with Request body is too large before the form is processed. Reduce the upload or submitted data and try again. Unsaved input may need to be entered again. Individual upload limits still apply."
+      ]
+    }
+  ],
+  "sources": [
+    "templates/includes/brand.html",
+    "templates/layouts/document.html",
+    "core/grids.py",
+    "static/js/grid.js",
+    "static/js/app.js",
+    "static/js/form-dialog.js",
+    "templates/includes/pagination.html",
+    "static/css/app.css",
+    "e2e/test_keyboard_focus.py",
+    "templates/includes/user_menu.html",
+    "templates/includes/theme_menu.html",
+    "templates/includes/whats_new_button.html",
+    "static/js/documentation.js",
+    "templates/includes/source_footer.html",
+    "core/templatetags/source_code.py",
+    "core/request_limits.py",
+    "tests/test_core_request_limits.py",
+    "accounts/middleware.py",
+    "accounts/adapter.py",
+    "accounts/tests/test_locked_credentials.py",
+    "accounts/roles.py",
+    "core/templatetags/navigation.py",
+    "templates/includes/nav_staff.html",
+    "tests/test_navigation.py",
+    "static/js/sidebar.js",
+    "static/js/preferences.js",
+    "core/preferences.py"
+  ]
+}

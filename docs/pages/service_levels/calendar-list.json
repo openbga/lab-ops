@@ -1,0 +1,118 @@
+{
+  "id": "service-levels-calendar-list",
+  "routes": [
+    "service_levels:calendar-list"
+  ],
+  "title": "Business calendars",
+  "purpose": "Find the opening hours and holidays that service targets count their times in, and open a calendar to see or change them.",
+  "summary": "The opening hours and holidays that service targets count in. A target without a calendar runs around the clock. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Find a calendar",
+      "steps": [
+        "Type part of the name in [[Search]] and select [[Apply]].",
+        "Select the calendar's name to open it."
+      ]
+    },
+    {
+      "title": "Add a calendar",
+      "steps": [
+        "Select [[New business calendar]], name it and enter the opening hours for each day.",
+        "Save, then add the holidays on the calendar's page."
+      ]
+    },
+    {
+      "title": "See which targets use a calendar",
+      "steps": [
+        "Read the [[Active targets]] column, or open the calendar to list them."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Without a calendar a target runs around the clock, so nights and holidays count.",
+    "A calendar that active targets use cannot be made inactive until those targets are changed.",
+    "Hours and holidays are in the laboratory's time zone.",
+    "Changes to a calendar apply to tickets created or recalculated afterwards."
+  ],
+  "sections": [
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches the calendar name, ignoring case."
+        },
+        {
+          "label": "Status",
+          "description": "All statuses and All show active and inactive calendars. Active or Inactive filters on the Active setting."
+        },
+        {
+          "label": "New business calendar",
+          "description": "Opens the form to add a calendar."
+        },
+        {
+          "label": "Service targets",
+          "description": "Opens the list of service targets."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Calendar",
+          "description": "The calendar's name, which opens its page. Always shown; default sort is name."
+        },
+        {
+          "label": "Opening hours",
+          "description": "The days that have hours, abbreviated, with their intervals, for example Mon 07:00-19:00. Closed days are left out."
+        },
+        {
+          "label": "Holidays",
+          "description": "How many holidays the calendar has."
+        },
+        {
+          "label": "Active targets",
+          "description": "How many active service targets count their times in this calendar."
+        },
+        {
+          "label": "Status",
+          "description": "Active or Inactive. Sortable."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, status filter, Apply, Clear all and Columns are behind one Filter and sort button."
+        },
+        {
+          "label": "Apply / Clear all",
+          "description": "Apply combines the search and the status filter and returns to page 1. Clear all restores the unfiltered list."
+        },
+        {
+          "label": "Column headings",
+          "description": "The Calendar and Status headings sort all matching calendars."
+        },
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns for your account. The Calendar column stays visible."
+        },
+        {
+          "label": "Empty states",
+          "description": "No business calendars yet explains that targets then run around the clock. No calendars match these filters offers to clear the filters."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/models.py",
+    "service_levels/templates/service_levels/calendar_list.html",
+    "core/lists.py",
+    "templates/includes/grid_toolbar.html"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "id": "desk-complaint-review",
+  "routes": [
+    "desk:complaint-review"
+  ],
+  "title": "Review complaint",
+  "purpose": "Approve a complaint's record as an independent reviewer so the ticket can be closed.",
+  "summary": "Read the complaint's decision and record, then approve the review with a note. Only a supervisor who did not record the decision and was never assigned the ticket may review.",
+  "tasks": [
+    {
+      "title": "Review a complaint",
+      "steps": [
+        "Read the decision, rationale, findings and outcome shown above the form.",
+        "Write what you checked and your conclusion in [[Review note]] and select [[Approve review]]."
+      ]
+    },
+    {
+      "title": "Find complaints waiting for you",
+      "steps": [
+        "On the Tickets list choose the Complaints awaiting review view, or on the dashboard open Complaints awaiting my review."
+      ]
+    },
+    {
+      "title": "Close the ticket after the review",
+      "steps": [
+        "Once the complaint is resolved, open the ticket, select [[Status]] and choose Closed."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "You are refused if you recorded the decision, have ever been assigned the ticket, or are not a supervisor. The message tells you which.",
+    "Approving does not close or resolve the ticket. Close it afterwards from its page.",
+    "A review cannot be undone or repeated, and the complaint's record no longer changes after it.",
+    "The Review button appears on the ticket only when you may review it. Otherwise a line starting Review: gives the reason."
+  ],
+  "sections": [
+    {
+      "title": "What you see and do",
+      "paragraphs": [
+        "Opens from the Complaint section of the ticket page, as a dialog or a full page. The page shows the record under review, read-only, above the form. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload.",
+        "Anyone who has ever recorded or revised the decision, and anyone who has ever been the ticket's assignee, cannot review it. Independence is per account."
+      ],
+      "items": [
+        {
+          "label": "Decision, Rationale, Findings and actions, Corrective action, Outcome communicated",
+          "description": "The complaint's record as it stands. You cannot change it here."
+        },
+        {
+          "label": "Review note",
+          "description": "Required. What you checked and your conclusion. Kept with the record and shown on the ticket page."
+        },
+        {
+          "label": "Approve review",
+          "description": "Records you as the independent reviewer with the time and confirms Complaint reviewed. The ticket can now be closed. Adds a timeline event and an audit event."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Who may review",
+      "paragraphs": [
+        "The product's default reading of an uninvolved reviewer is applied by the server on every ticket. The laboratory's own procedure may be stricter."
+      ],
+      "items": [
+        {
+          "label": "A supervisor",
+          "description": "Including the admin role. Others are refused with \"Only a supervisor reviews a complaint.\""
+        },
+        {
+          "label": "A decision is recorded",
+          "description": "Otherwise \"Record the investigation decision first.\""
+        },
+        {
+          "label": "Not the person who recorded the decision",
+          "description": "Refused with \"You recorded the decision, so another supervisor must review it.\" This is whoever last recorded or revised the decision."
+        },
+        {
+          "label": "Never the ticket's assignee",
+          "description": "Refused with \"You have been assigned this ticket, so another supervisor must review it.\" This counts the person it was first assigned to at logging and everyone assigned since, as well as the current assignee."
+        },
+        {
+          "label": "Not already reviewed",
+          "description": "Otherwise \"This complaint has been reviewed.\""
+        }
+      ]
+    },
+    {
+      "title": "Where complaints awaiting review appear",
+      "items": [
+        {
+          "label": "Complaints awaiting review (view)",
+          "description": "On the Tickets list: every complaint that is not reviewed or closed, including those you may not review."
+        },
+        {
+          "label": "Complaints filter: Awaiting review",
+          "description": "Only the complaints you may review under the rules above."
+        },
+        {
+          "label": "Dashboard: Complaints awaiting my review",
+          "description": "Shown to supervisors (and the admin role). It counts the same complaints as the filter."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/lists.py",
+    "desk/templates/desk/complaint_review.html",
+    "desk/templates/desk/request_detail.html",
+    "core/views.py",
+    "docs/product.md"
+  ]
+}

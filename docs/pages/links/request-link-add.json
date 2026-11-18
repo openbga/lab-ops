@@ -1,0 +1,193 @@
+{
+  "id": "links-request-link-add",
+  "routes": [
+    "link_records:request-link-add"
+  ],
+  "title": "Add link to a ticket",
+  "purpose": "Link a ticket to a record in another system by typing its identifier, and choose whether the client sees the link. Staff with the patient information permission can also link a person.",
+  "summary": "Link a ticket to an order, sample, report or other record in another system. Every staff role can add these links. Person-level links need the Can view patient information permission.",
+  "tasks": [
+    {
+      "title": "Link an order or sample",
+      "steps": [
+        "Choose the [[System]] and [[Record type]], then type the [[Identifier]] as that system writes it.",
+        "Select [[Add link]]. The ticket's Links section opens."
+      ]
+    },
+    {
+      "title": "Turn the client's reference into a link",
+      "steps": [
+        "On the ticket, select [[Make a link]] beside the client reference. The identifier is filled in.",
+        "Choose the system and record type, then select [[Add link]]."
+      ]
+    },
+    {
+      "title": "Show a link to the client",
+      "steps": [
+        "Tick [[Show to client]] before saving. The client sees only the label and record type."
+      ]
+    },
+    {
+      "title": "Link a patient, participant or donor",
+      "steps": [
+        "Choose the person-level record type and type only the source system's key as the [[Identifier]].",
+        "Leave [[Label]] empty for a masked label, or type an alias, then select [[Add link]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "If the same record is already linked from another ticket, that link is reused and any label or address you type here is ignored.",
+    "Person-level types appear only for staff with the Can view patient information permission. No role, admin included, implies it.",
+    "A ticket can have one person-level link at a time. A person-level link is never shown to clients.",
+    "The identifier is stored as typed and is not checked against the other system. The application never opens or fetches the address.",
+    "A closed ticket's links can no longer be added, removed or shown to the client."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "System",
+          "description": "Required. An active external system. An inactive system is not offered and a request for it is refused."
+        },
+        {
+          "label": "Record type",
+          "description": "Order, Accession, Requisition, Sample, Custody form, Report, Invoice, Shipment, Project, Lot or batch, Study or Other. Holders of the patient information permission also see Patient (person-level), Research participant (person-level) and Donor (person-level)."
+        },
+        {
+          "label": "Identifier",
+          "description": "Required, up to 200 characters, as the source system writes it. Surrounding spaces are removed. Control and invisible characters are refused. It is never read as a number."
+        },
+        {
+          "label": "Identifier scheme",
+          "description": "Optional, up to 40 characters. Use it when the system has several kinds of number, such as accession or placer order. The same identifier under another scheme is a different record."
+        },
+        {
+          "label": "Label",
+          "description": "Optional for most record types, up to 120 characters. What staff see; empty means the identifier. For a person-level type see the rules below."
+        },
+        {
+          "label": "Role",
+          "description": "Primary, Related (the default), Original, or Replacement or corrected. The same record cannot be on the ticket twice in the same role."
+        },
+        {
+          "label": "Address",
+          "description": "Optional https link to the record, up to 500 characters, with no user name or password. Only for a system with a base address, and on that host. Never for a patient, participant or donor link."
+        },
+        {
+          "label": "Show to client",
+          "description": "Off by default. When on, the client sees the label and record type in the portal. Refused for person-level links."
+        }
+      ]
+    },
+    {
+      "title": "Person-level links",
+      "paragraphs": [
+        "Only staff with the explicit permission Can view patient information can add, see, reveal, remove or search person-level links. The permission is a setting on the account or one of its groups. No role, including admin, and no superuser status implies it. Staff without it see only Patient linked on the ticket.",
+        "A warning above the form reminds you to type the source system's key only, never a name, date of birth or contact detail, and that the label is masked.",
+        "The label is masked. Left empty, it is made from the record type and four dots followed by the last four characters of the key, when the key has at least eight characters. A shorter key needs an alias that you type. A label is refused if it contains the whole key (also when punctuation or capitals differ), an email address, or more than eight digits in a row.",
+        "A ticket carries at most one person-level link at a time. To link another person, remove the current link first. Person-level links belong on tickets, never on client organizations.",
+        "A person-level link has no web address, because an address can carry the key into browser history. Removing or correcting one takes a reason from a list: Wrong person, Entered in error, No longer needed or Other. An optional note is kept on the link's row on the ticket and shown only to staff with the permission; the history and the timeline record the reason only. Staff without the permission see only Patient linked, even for a removed link."
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Reused links",
+          "description": "A link is one record per system, record type, scheme and identifier. Adding it again from another ticket or organization reuses it, and the message says so. Changing the shared label or address is done on the link's own page."
+        },
+        {
+          "label": "Access",
+          "description": "You must be able to read the ticket. A ticket you cannot read, such as one in a restricted category of another team, answers not found. Client portal accounts are refused."
+        },
+        {
+          "label": "History",
+          "description": "Adding a link is audited with the person and time, and an event appears on the ticket's timeline. For a person-level link the event holds only the record type, never the label or key."
+        },
+        {
+          "label": "Refusals",
+          "description": "An unreadable identifier, a wrong or non-https address, an inactive system, a label that breaks a rule, the same link in the same role, or a second person-level link is refused on the form, and what you typed stays."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Add link",
+          "description": "Adds the link and returns to the ticket's Links section with a confirmation."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without saving."
+        },
+        {
+          "label": "Pages with person-level types",
+          "description": "For a holder of the permission the page is not cached by the browser."
+        }
+      ]
+    },
+    {
+      "title": "In the ticket's Links section",
+      "items": [
+        {
+          "label": "Add link / Make a link",
+          "description": "Add link opens this form. Make a link appears beside a client reference that has not yet been linked and fills Identifier with it."
+        },
+        {
+          "label": "Record, Type, System, Role",
+          "description": "The label (opens the link's page), the record type with its scheme, the system (opens the record in a new tab when an address is set and still on the system's host; otherwise the address is not offered and the row says it is not on the system's host) and the role."
+        },
+        {
+          "label": "Client sees it",
+          "description": "Shown when the client can see the link, No when not, and Never for a person-level link."
+        },
+        {
+          "label": "Reveal key",
+          "description": "Person-level links, for holders of the permission. A POST that replaces the button with the full key. Person-level links have no address: open the person in the source system yourself. A removed person link cannot be revealed. Every reveal is recorded in the audit history, and the key is never in the page until then. The key is hidden again as soon as you leave the page, and it does not come back with Back or Forward: reveal it again, which is recorded again."
+        },
+        {
+          "label": "Show to client / Hide from client",
+          "description": "In the row's Actions menu, for links that are not person-level. A POST that changes whether the client sees the link and records it. Only a current link on a ticket can be changed."
+        },
+        {
+          "label": "Remove link",
+          "description": "In the Actions menu. Opens the removal form."
+        },
+        {
+          "label": "Patient linked",
+          "description": "What staff without the permission see in place of a person-level link: the record type and nothing else, with no label, key, address or actions."
+        },
+        {
+          "label": "Removed links",
+          "description": "A collapsed list of removed links with who removed them, when and why. Removed links are never deleted."
+        },
+        {
+          "label": "Find by patient key",
+          "description": "Shown in the Links section only to staff with the Can view patient information permission. Opens the exact, recorded search by a patient, participant or donor key."
+        },
+        {
+          "label": "Closed tickets",
+          "description": "Once a ticket is closed its links are frozen: no Add link, Make a link, Remove link, Show to client or Hide from client, for any kind of link. Reveal key still works. A resolved ticket can still change its links."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "links/record_urls.py",
+    "links/views.py",
+    "links/forms.py",
+    "links/services.py",
+    "links/access.py",
+    "links/masking.py",
+    "links/identifiers.py",
+    "links/models.py",
+    "links/templatetags/record_links.py",
+    "links/templates/links/link_form.html",
+    "links/templates/links/request_links_panel.html",
+    "links/templates/links/_revealed_key.html",
+    "links/tests/test_links.py",
+    "links/tests/test_person_links.py"
+  ]
+}

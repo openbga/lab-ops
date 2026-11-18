@@ -1,0 +1,119 @@
+{
+  "id": "taxonomy-category-create",
+  "routes": [
+    "taxonomy:category-create"
+  ],
+  "title": "New category",
+  "purpose": "Add a category inside a group, with its default team and priority, whether clients may raise it, and its complaint and restricted rules.",
+  "summary": "Add a category tickets can be filed under. Choose its group, name it and set how new tickets in it are routed. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Add a category",
+      "steps": [
+        "Choose the [[Group]] and enter the [[Category name]].",
+        "Set [[Default team]] and [[Default priority]] if the defaults do not fit.",
+        "Select [[Create category]]. The list opens at the group."
+      ]
+    },
+    {
+      "title": "Let clients raise a category",
+      "steps": [
+        "Tick [[Clients may raise it in the portal]] and save.",
+        "Add a [[Client label]] if clients should see different wording."
+      ]
+    },
+    {
+      "title": "Mark a category as a complaint or restricted",
+      "steps": [
+        "Tick [[Complaint: tickets follow the complaint rules]] or [[Restricted: visible only to the team's members and supervisors]].",
+        "Select [[Create category]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The key is a stable code. It cannot be changed after the category is created, so choose it with care or leave it empty.",
+    "A category name must be unique within its group, ignoring capital letters.",
+    "Only active groups are offered, and a category sits in a group, never in another category.",
+    "Changing the complaint or restricted rule later needs a reason and is recorded as its own kind of change."
+  ],
+  "sections": [
+    {
+      "title": "Category",
+      "items": [
+        {
+          "label": "Group",
+          "description": "Required. One of the active groups, in list order. When you came from Add category on a group, that group is chosen. A category can only be in a group, which has no group of its own."
+        },
+        {
+          "label": "Category name",
+          "description": "Required, up to 120 characters. What staff see. Unique within the group, ignoring case; surrounding spaces are removed."
+        },
+        {
+          "label": "Key",
+          "description": "Optional, letters, numbers, hyphens and underscores, up to 60 characters. Leave empty to make one from the name. It must be unused by any other category or group. Presets and reports find a category by its key, so it never changes after creation."
+        },
+        {
+          "label": "Client label",
+          "description": "Optional, up to 120 characters. The wording for client portal users. Empty means the staff name is used."
+        },
+        {
+          "label": "Intake guidance",
+          "description": "Optional text kept with the category for staff who log a ticket in it."
+        }
+      ]
+    },
+    {
+      "title": "Routing and rules",
+      "items": [
+        {
+          "label": "Default team",
+          "description": "Optional, an active team. Empty means the laboratory's default team. Proposed for new tickets in this category."
+        },
+        {
+          "label": "Default priority",
+          "description": "Low, Normal, High or Urgent; Normal unless changed. Used for a new ticket in this category when none is given."
+        },
+        {
+          "label": "Clients may raise it in the portal",
+          "description": "Off by default. When off, the category is staff only and a portal account cannot file a ticket in it."
+        },
+        {
+          "label": "Complaint: tickets follow the complaint rules",
+          "description": "Off by default. Tickets created in the category are marked as complaints."
+        },
+        {
+          "label": "Restricted: visible only to the team's members and supervisors",
+          "description": "Off by default. Tickets in the category are visible only to members of their team and to supervisors."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create category",
+          "description": "Saves the category at the end of its group and records who created it. The list opens at the group with a confirmation. A new category is active; there is no Active or reason field on creation."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Ticket categories without saving."
+        },
+        {
+          "label": "Refusals",
+          "description": "A key already in use, a name already in the group, or an inactive team is refused with a message beside the field, and what you typed stays."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "taxonomy/urls.py",
+    "taxonomy/views.py",
+    "taxonomy/forms.py",
+    "taxonomy/services.py",
+    "taxonomy/models.py",
+    "taxonomy/choices.py",
+    "desk/services.py",
+    "templates/core/record_form.html",
+    "taxonomy/tests/test_taxonomy.py"
+  ]
+}

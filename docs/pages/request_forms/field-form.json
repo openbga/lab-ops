@@ -1,0 +1,151 @@
+{
+  "id": "request-forms-field-form",
+  "routes": [
+    "request_forms:field-create",
+    "request_forms:field-edit"
+  ],
+  "title": "Ticket form field",
+  "purpose": "Add a field to a ticket form or change its label, type, who fills it, rules, patient information mark and whether it is active. Editing needs a reason.",
+  "summary": "Define one detail a ticket form asks for: its type, who fills it, whether it is required and whether it holds patient information. Only the admin role can use this page.",
+  "tasks": [
+    {
+      "title": "Add a field",
+      "steps": [
+        "Enter the [[Label]], choose the [[Type]] and [[Who fills it]].",
+        "Fill the type's settings, such as [[Options]] or [[Catalog]], then select [[Add field]]."
+      ]
+    },
+    {
+      "title": "Make clients answer a question",
+      "steps": [
+        "Choose [[Client fills it; staff see it]] in [[Who fills it]] and tick [[Required]]. Clients cannot send the ticket without it."
+      ]
+    },
+    {
+      "title": "Record a detail only staff know",
+      "steps": [
+        "Choose [[Staff fill it; the client sees it]], for example for a tracking number, or [[Staff only]] to keep it from clients."
+      ]
+    },
+    {
+      "title": "Retire a field",
+      "steps": [
+        "Open the field, clear [[Active]], write the [[Reason for change]] and select [[Save changes]]. Tickets that hold a value keep it."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Once tickets hold values of a field, its type cannot change. Add a new field and make this one inactive.",
+    "The patient information mark cannot be cleared once tickets hold values of the field. Prefer an order, accession or sample number.",
+    "Clients fill only client fields. Staff fill every field, but staff without Can view patient information cannot fill or correct patient information fields.",
+    "Required means clients must fill it. Staff must too, unless they tick Some required details are not known yet when logging a call. A confirmation is always required.",
+    "Tickets keep the label, type and settings a value was entered with. Editing a field never rewrites old values."
+  ],
+  "sections": [
+    {
+      "title": "Field",
+      "items": [
+        {
+          "label": "Label",
+          "description": "Required, up to 160 characters. The question or name shown on the form, on the ticket page and in the Fields table."
+        },
+        {
+          "label": "Key",
+          "description": "Shown only when creating. A stable code within the form, up to 60 characters, unique in the form. Empty: made from the label. It never changes and is not shown when editing."
+        },
+        {
+          "label": "Type",
+          "description": "Short text (up to 200 characters), Long text (up to 4,000), Number, Date, Date and time, Time of day (laboratory time, for example 14:30 or 2:30 pm), One choice from a list, Several choices from a list, Yes or no, Confirmation to tick, or Items with quantities from a catalog. Locked once tickets hold values of the field, with a note saying so. Section heading asks nothing: it shows its label as a heading over the fields after it, with its help text as a short note, so a longer form reads in groups on a phone. A heading is never required and holds no value."
+        },
+        {
+          "label": "Who fills it",
+          "description": "Client fills it; staff see it: asked in the portal and shown on the client's ticket. Staff fill it; the client sees it: for answers such as a tracking number. Staff only: never shown to clients. Only client fields are asked in the portal."
+        },
+        {
+          "label": "Help text",
+          "description": "Optional, up to 300 characters, shown under the field."
+        },
+        {
+          "label": "Required",
+          "description": "The client must fill it to send the ticket. Staff must too, unless they tick Some required details are not known yet while logging a call; the ticket page then lists what is missing. A confirmation is always required, whatever you set here. When staff later correct a ticket, a required field may be left empty."
+        }
+      ]
+    },
+    {
+      "title": "Type settings",
+      "paragraphs": [
+        "Each setting applies to one type. A setting for another type is cleared when you save."
+      ],
+      "items": [
+        {
+          "label": "Options",
+          "description": "For one choice or several choices: one option per line, in the order shown, each up to 120 characters, at most 40. Blank lines and repeats are dropped. One choice needs at least two options; several choices need at least one. One choice from up to five options shows as buttons, from more as a list. Required for those types."
+        },
+        {
+          "label": "Catalog",
+          "description": "For an item list: the catalog clients pick items from. Required for an item list, and the catalog must be active. Only active catalogs are offered, plus the field's current one when editing. Clients give a quantity for each active item."
+        },
+        {
+          "label": "Whole numbers only",
+          "description": "For a number. Ticked by default. Clear it to allow up to four decimal places."
+        },
+        {
+          "label": "Lowest value",
+          "description": "For a number. Empty: no limit. It may not be above the highest value."
+        },
+        {
+          "label": "Highest value",
+          "description": "For a number. Empty: no limit."
+        },
+        {
+          "label": "Copy the answer when a client chooses Request again",
+          "description": "On by default. When a client starts a new ticket from an earlier one with Request again, this field's answer is copied into the new form for the client to check. Clear it for a number that belongs to one order or sample. Dates, times, confirmations and patient information are never copied, whatever this says."
+        }
+      ]
+    },
+    {
+      "title": "Patient information",
+      "items": [
+        {
+          "label": "This field holds patient information",
+          "description": "Tick only if the laboratory decided this field needs patient information. Its values are revealed one at a time, with an audit entry, to staff who hold Can view patient information, and shown to the client who raised or may see the ticket, when the field is one clients see. They never appear in email, lists, search, exports, logs or the audit history. Staff without that permission cannot fill, reveal or correct them and see only that patient information was recorded. The mark also protects values already entered. Once tickets hold values of the field, the mark cannot be cleared; add a new field instead. Prefer an order, accession or sample number: the product's stance is minimal patient data."
+        }
+      ]
+    },
+    {
+      "title": "Status and change record",
+      "items": [
+        {
+          "label": "Active",
+          "description": "Shown only when editing. Clear it to take the field off the form. Tickets that hold a value keep it. A field is never deleted. While the stored field is inactive, a notice says so at the top. An item list cannot be active with an inactive catalog."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Shown only when editing and required. Kept with the change in the field's audit history. Adding a field asks for no reason."
+        },
+        {
+          "label": "Save changes",
+          "description": "Records the change, its reason, who made it and when, together. It is refused when nothing changed, when the reason is missing, or when the field was changed by someone else after you opened it (your input stays). Cancel returns to the form's page."
+        }
+      ]
+    },
+    {
+      "title": "Who sees a value later",
+      "paragraphs": [
+        "Each value keeps a copy of the field's label, type, audience and patient information mark from when it was entered. A client sees a value only when both the copy and the field as it is now say clients see it. A value counts as patient information when either says so. So making a field staff only, or marking it as patient information, protects values already entered, while opening a field later does not expose older values."
+      ]
+    }
+  ],
+  "sources": [
+    "request_forms/urls.py",
+    "request_forms/views.py",
+    "request_forms/forms.py",
+    "request_forms/services.py",
+    "request_forms/kinds.py",
+    "request_forms/models.py",
+    "request_forms/selectors.py",
+    "templates/core/record_form.html",
+    "request_forms/tests/test_setup.py",
+    "request_forms/tests/test_pages.py"
+  ]
+}

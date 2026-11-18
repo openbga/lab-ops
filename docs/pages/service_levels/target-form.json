@@ -1,0 +1,144 @@
+{
+  "id": "service-levels-target-form",
+  "routes": [
+    "service_levels:target-create",
+    "service_levels:target-edit"
+  ],
+  "title": "Service target form",
+  "purpose": "Create a service target or change what it covers, its first-response and resolution times, its calendar and whether it is active. Editing needs a reason.",
+  "summary": "Set the first-response and resolution times for a category or group and a priority. Editing needs a reason. Only the admin role can open this form.",
+  "tasks": [
+    {
+      "title": "Add a target",
+      "steps": [
+        "Enter the [[Target name]], then choose the [[Category or group]] and [[Priority]] it covers, or leave them on any.",
+        "Enter a [[First-response time]], a [[Resolution time]], or both, with their units.",
+        "Choose a [[Calendar]] to count only opening hours, then select [[Create target]]."
+      ]
+    },
+    {
+      "title": "Change a target",
+      "steps": [
+        "Change the details and write the [[Reason for change]].",
+        "Select [[Save changes]]. Tickets created or recalculated afterwards use the new values."
+      ]
+    },
+    {
+      "title": "Pause the clock for third parties",
+      "steps": [
+        "Tick [[Pause while waiting on a third party]] and save. Waiting on the client always pauses it."
+      ]
+    },
+    {
+      "title": "Retire a target",
+      "steps": [
+        "Clear [[Active]], give the reason and save. Tickets keep the times they were given."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only one active target can cover a category and priority. Change the existing one, or deactivate it first.",
+    "Give at least one time. A target with only a first-response time, or only a resolution time, is fine.",
+    "Changing a target never moves tickets that already have their times. Retiring one means new and recalculated tickets use the next most specific target.",
+    "If someone else changed the target after you opened the form, saving is refused and your input stays."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Target name",
+          "description": "Required, up to 120 characters. What staff see, such as Urgent tickets."
+        },
+        {
+          "label": "Category or group",
+          "description": "Any category, or one active category (shown as Group: Category), or a whole group (shown with (whole group)). A group covers every category in it. A more specific choice beats a broader one."
+        },
+        {
+          "label": "Priority",
+          "description": "Any priority, or Low, Normal, High or Urgent."
+        },
+        {
+          "label": "First-response time",
+          "description": "Optional whole number greater than zero. How long a ticket may wait for a first reply."
+        },
+        {
+          "label": "Resolution time",
+          "description": "Optional whole number greater than zero. How long a ticket may stay unresolved, not counting paused time."
+        },
+        {
+          "label": "Unit",
+          "description": "Minutes or hours, one for each time; hours by default. When editing, a time that is a whole number of hours is shown in hours, otherwise in minutes."
+        },
+        {
+          "label": "Calendar",
+          "description": "An active business calendar, or Around the clock. Times count only the calendar's opening hours, less its holidays."
+        },
+        {
+          "label": "Pause while waiting on a third party",
+          "description": "Off by default. When on, the resolution clock also pauses while the ticket is Waiting on third party. It always pauses while Waiting on client."
+        },
+        {
+          "label": "Active",
+          "description": "Edit only. An inactive target is not used for new tickets. Tickets keep the times they were given; new and recalculated tickets use the next most specific target."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Edit only, required. Kept with the change in the history."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "One active target per scope",
+          "description": "A second active target for the same category and priority is refused with a message to change that one or deactivate it first. Any category and any priority count as values of their own."
+        },
+        {
+          "label": "At least one time",
+          "description": "A form with neither time is refused. A time of zero, a negative number or text is refused beside the field."
+        },
+        {
+          "label": "Inactive choices",
+          "description": "A new target cannot use an inactive category, group or calendar. When editing, the one already chosen stays selectable even if it is now inactive."
+        },
+        {
+          "label": "When it takes effect",
+          "description": "A new target is used by tickets created after it, and by tickets whose category or priority changes after it. The success message says so."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Create target / Save changes",
+          "description": "Saves and returns to Service targets. Each creation and change is audited with the person and time and, for changes, the reason and the values before and after. A save with no change is refused with Change at least one detail before saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the target changed after you opened the form, saving is refused with a message to reload and review it."
+        },
+        {
+          "label": "Inactive notice",
+          "description": "While the stored target is inactive the form says it is not used for new tickets."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Service targets without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "service_levels/urls.py",
+    "service_levels/views.py",
+    "service_levels/forms.py",
+    "service_levels/services.py",
+    "service_levels/models.py",
+    "service_levels/rules.py",
+    "templates/core/record_form.html",
+    "service_levels/tests/test_setup.py"
+  ]
+}

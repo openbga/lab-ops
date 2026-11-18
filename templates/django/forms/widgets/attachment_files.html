@@ -1,0 +1,13 @@
+{% comment %}
+AttachmentsField's control (attachments/forms.py): a native multiple file input that
+static/js/attachments.js turns into a picker listing the chosen files with name and size, and
+checks type, size and count before sending. On a phone the system picker offers the camera, the
+photo library and files. Without JavaScript the native input works alone; the server checks
+every file again by its content.
+{% endcomment %}{% load ui static %}<div class="vr-file-field vr-files" data-vr-files-field>
+<input type="file" name="{{ widget.name }}" multiple class="form-control vr-file-native vr-files-native"{% include "django/forms/widgets/attrs.html" %}>
+<label class="vr-drop vr-files-drop"{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %}>{% icon name="file-earmark-arrow-up" %}<span class="vr-drop-title">Add photos or files</span> <span class="vr-drop-text">camera, photo library or files</span><span class="vr-drop-hint">{{ widget.allowed }}. Up to {{ widget.max_files }} files, {{ widget.max_total }} together. Files are not scanned for viruses.</span></label>
+<ul class="vr-files-list list-unstyled" data-vr-files-list aria-live="polite"></ul>
+<p class="vr-files-problem" data-vr-files-problem role="alert" hidden></p>
+</div>
+<script src="{% static 'js/attachments.js' %}" defer></script>

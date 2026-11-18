@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+New request (staff): category first, then who it is from, the request itself and the routing.
+Context: form (desk.forms.RequestCreateForm), category and data (for the section after the
+category), submit_label, cancel_url, crumbs. Choosing a category re-renders #category-section
+from desk:category-guidance (HTMX): its guidance and the slot for the request type's own fields
+(desk/_category_section.html).
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label multipart=True %}
+  {% with sections=form.grouped %}{% for legend, fields in sections %}
+  <fieldset class="vr-form-section">
+    <legend>{{ legend }}</legend>
+    <div class="row g-3">
+      {% for field, css in fields %}<div class="{{ css }}">{{ field.as_field_group }}</div>{% endfor %}
+    </div>
+    {% if forloop.first %}<div id="category-section" aria-live="polite">{% include "desk/_category_section.html" %}</div>{% endif %}
+  </fieldset>
+  {% endfor %}{% endwith %}
+{% endform_page %}
+{% endblock %}

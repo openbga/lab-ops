@@ -1,0 +1,86 @@
+{
+  "id": "links-link-edit",
+  "routes": [
+    "link_records:link-edit"
+  ],
+  "title": "Edit external record link",
+  "purpose": "Correct a link's label or address, with a reason that is kept in its history.",
+  "summary": "Correct the label or address of a link and say why. The system, record type and identifier cannot change. A person-level link can be edited only with the Can view patient information permission.",
+  "tasks": [
+    {
+      "title": "Correct a label",
+      "steps": [
+        "Change the [[Label]] and write the [[Reason for change]].",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Add or fix the address",
+      "steps": [
+        "Enter an https link in [[Address]], give the reason and save."
+      ]
+    },
+    {
+      "title": "Fix a wrong identifier",
+      "steps": [
+        "Remove the link from the ticket with a reason, then add the link again with the correct identifier."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The label and address are shared by every ticket and organization that carries this link.",
+    "A reason is needed, and a save with no change is refused. For a person-level link it is chosen from a list.",
+    "A person-level label must still not contain the whole key, an email address or more than eight digits in a row.",
+    "If someone else changed the link after you opened the form, saving is refused and your input stays."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Label",
+          "description": "Required, up to 120 characters. What staff see. For a person-level link it must pass the masked label rules: no whole key, no email address, no more than eight digits in a row."
+        },
+        {
+          "label": "Address",
+          "description": "Optional https link to the record, up to 500 characters, with no user name or password. Only for a system with a base address, and on that host. Never for a patient, participant or donor link. Not shown for a person-level link."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Required. Kept with the change in the history. For a person-level link the reason is chosen from a list (Wrong person, Entered in error, No longer needed, Other) and the history records only that choice."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Save changes",
+          "description": "Saves and returns to the link's page. The change is audited with the person, time, reason and the values before and after. For a person-level link the history names which fields changed and never their values."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the link changed after you opened the form, saving is refused with a message to reload and review it."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the link's page without saving."
+        },
+        {
+          "label": "Access",
+          "description": "Every staff role can edit a link that is not person-level. A person-level link needs the Can view patient information permission, and answers not found without it. The page of a person-level link is not cached."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "links/record_urls.py",
+    "links/views.py",
+    "links/forms.py",
+    "links/services.py",
+    "links/masking.py",
+    "templates/core/record_form.html",
+    "links/tests/test_links.py",
+    "links/tests/test_person_links.py"
+  ]
+}

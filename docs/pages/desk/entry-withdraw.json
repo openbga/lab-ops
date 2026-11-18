@@ -1,0 +1,84 @@
+{
+  "id": "desk-entry-withdraw",
+  "routes": [
+    "desk:entry-withdraw"
+  ],
+  "title": "Withdraw reply",
+  "purpose": "Withdraw a reply from client view, for example one posted on the wrong ticket. A supervisor does this, with a reason.",
+  "summary": "Stop the client seeing a reply in the portal. Staff still see it, labelled as withdrawn, with your reason. Nothing is deleted. Supervisors only.",
+  "tasks": [
+    {
+      "title": "Withdraw a reply posted by mistake",
+      "steps": [
+        "On the ticket, select [[Withdraw from client view]] under the reply.",
+        "Write the reason in [[Why withdraw this reply]] and select [[Withdraw from client view]]."
+      ]
+    },
+    {
+      "title": "Check that a reply was withdrawn",
+      "steps": [
+        "Open the ticket and find the reply marked Reply, withdrawn from client view.",
+        "Under it, staff see who withdrew it, when and why."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only a supervisor can withdraw a reply; the link is not shown to other roles and the server refuses them.",
+    "Withdrawing cannot be undone, and withdrawing twice is not possible. The reply stays on the ticket, labelled Reply, withdrawn from client view.",
+    "Only replies can be withdrawn. Notes and logged contacts are already internal.",
+    "The reason you give is shown to staff under the withdrawn reply, with your name and the time."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from the link under a reply in the conversation, as a dialog or a full page. The page explains that the client stops seeing the reply, that staff keep seeing it with your reason and that nothing is deleted.",
+        "If the ticket changed after you opened this form, withdrawing is refused. Reload the ticket, check the reply is still the one to withdraw, and try again."
+      ],
+      "items": [
+        {
+          "label": "Why withdraw this reply",
+          "description": "Required. Shown to staff under the withdrawn reply with who withdrew it and when, and kept in the audit history."
+        },
+        {
+          "label": "Withdraw from client view",
+          "description": "Withdraws the reply and confirms Reply withdrawn from client view. Adds a timeline event, A reply was withdrawn from client view, and an audit event with your reason."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may withdraw",
+          "description": "Supervisors, including the admin role, for tickets they may read. Everyone else is refused."
+        },
+        {
+          "label": "Already withdrawn",
+          "description": "Opening the page for a reply that is already withdrawn returns you to the ticket."
+        },
+        {
+          "label": "What the client sees",
+          "description": "Clients see a reply that has not been withdrawn, and nothing else. After withdrawal the reply is no longer among them."
+        },
+        {
+          "label": "Closed tickets",
+          "description": "A reply can still be withdrawn from a closed ticket."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/forms.py",
+    "desk/services.py",
+    "desk/visibility.py",
+    "desk/templates/desk/entry_withdraw.html",
+    "desk/templates/desk/request_detail.html"
+  ]
+}
