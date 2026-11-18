@@ -70,3 +70,25 @@ def test_the_https_redirect_of_an_off_module_address_is_that_of_an_unknown_addre
     unknown = client.get("/unknown-closing-address/")
     assert off.status_code == unknown.status_code == 301
     assert off.get("Cache-Control") == unknown.get("Cache-Control")
+
+
+# SO-01 (sign-off): the findings form, like the decision form, says the ticket changed once.
+
+
+def test_a_stale_findings_form_says_the_ticket_changed_once(client, complaint, agent, lead):
+    client.force_login(agent)
+    drawn = complaint.revision
+    desk_services.add_entry(
+        actor=lead, request=complaint, kind="note", body="Meanwhile", expected_revision=drawn
+    )
+    url = reverse("desk:complaint-record", args=[complaint.pk])
+    for data in (
+        {"expected_revision": drawn, "findings": "Complete draft"},
+        {"expected_revision": drawn, "findings": "Draft", "outcome_communicated_on": "not a date"},
+    ):
+        response = client.post(url, data)
+        assert response.status_code == 200
+        errors = response.context["form"].non_field_errors()
+        assert (
+            list(errors).count("This ticket changed. Reload it and review the latest entries.") == 1
+        )

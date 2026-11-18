@@ -683,11 +683,17 @@ def _action_form(
                 return redirect("desk:request-list")
             return redirect(record_url)
     if request.method == "POST":
-        if form.is_bound and form.errors and _posted_earlier(request, request_obj):
-            # Completing the fields alone cannot make a form drawn from an earlier reading saveable.
-            form.add_error(None, "This ticket changed. Reload it and review the latest entries.")
         # Scope again before the refused form shows anything about the request.
         request_obj = reread() if reread else _request_or_404(request.user, request_obj.pk)
+        # Decided on the reading the page is drawn from, once: completing the fields alone cannot
+        # make a form drawn from an earlier reading saveable.
+        if (
+            form.is_bound
+            and form.errors
+            and _posted_earlier(request, request_obj)
+            and STALE_TICKET not in form.non_field_errors()
+        ):
+            form.add_error(None, STALE_TICKET)
     response = render(
         request,
         template or "desk/request_action.html",
@@ -869,6 +875,9 @@ def _complaint_or_404(request, pk):
     if not request_obj.is_complaint and not _posted_earlier(request, request_obj):
         raise Http404("This ticket is not a complaint.")
     return request_obj, getattr(request_obj, "complaint_review", None)
+
+
+STALE_TICKET = "This ticket changed. Reload it and review the latest entries."
 
 
 def _still_staff(user):

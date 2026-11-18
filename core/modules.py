@@ -21,7 +21,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
 from django.db import connection, transaction
 from django.http import Http404
-from django.urls import Resolver404, resolve
+from django.urls import Resolver404, URLResolver, resolve
 from django.utils.cache import add_never_cache_headers
 
 from accounts.roles import has_role, require_role
@@ -151,6 +151,25 @@ def _module_key_for(path, root=None):
 _URLCONFS = {}
 
 
+def _patterns_without(patterns, namespaces):
+    """`patterns` without the includes in `namespaces`, at any depth (the project's addresses
+    may themselves be included beneath a prefix)."""
+    kept = []
+    for pattern in patterns:
+        if isinstance(pattern, URLResolver):
+            if pattern.namespace in namespaces:
+                continue
+            pattern = URLResolver(
+                pattern.pattern,
+                _patterns_without(pattern.url_patterns, namespaces),
+                pattern.default_kwargs,
+                app_name=pattern.app_name,
+                namespace=pattern.namespace,
+            )
+        kept.append(pattern)
+    return kept
+
+
 def _urlconf_without(disabled, root=None):
     """The address list of `root` (the configured one by default) without the addresses of the
     modules in `disabled`, cached per root and set (its error handlers are that root's)."""
@@ -160,11 +179,7 @@ def _urlconf_without(disabled, root=None):
         base = import_module(root) if isinstance(root, str) else root
         namespaces = {MODULE_NAMESPACES[module] for module in key[1]}
         urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key[1]))}")
-        urlconf.urlpatterns = [
-            pattern
-            for pattern in base.urlpatterns
-            if getattr(pattern, "namespace", None) not in namespaces
-        ]
+        urlconf.urlpatterns = _patterns_without(base.urlpatterns, namespaces)
         for handler in ("handler400", "handler403", "handler404", "handler500"):
             if hasattr(base, handler):
                 setattr(urlconf, handler, getattr(base, handler))
