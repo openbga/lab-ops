@@ -46,8 +46,9 @@ def _known(key):
         raise ValueError(f"Unknown module {key!r}.")
 
 
-# The URL namespace under which each module's addresses are included (config/urls.py).
-MODULE_NAMESPACES = {"nonconformance": "nonconformance"}
+# The address list (URLconf module) of each module, included in config/urls.py. A module that is
+# off is left out by this identity, not by a namespace name another part of a site could reuse.
+MODULE_URLCONFS = {"nonconformance": "nonconformance.urls"}
 
 # This request's one reading of the switches ({key: on}), set by ModuleAddressMiddleware or the
 # first states_for() of the request, so the menu, the pages and the selectors of one response
@@ -151,17 +152,18 @@ def _module_key_for(path, root=None):
 _URLCONFS = {}
 
 
-def _patterns_without(patterns, namespaces):
-    """`patterns` without the includes in `namespaces`, at any depth (the project's addresses
-    may themselves be included beneath a prefix)."""
+def _patterns_without(patterns, urlconfs):
+    """`patterns` without the includes of the address lists named in `urlconfs`, at any depth
+    (the project's addresses may themselves be included beneath a prefix)."""
     kept = []
     for pattern in patterns:
         if isinstance(pattern, URLResolver):
-            if pattern.namespace in namespaces:
+            name = getattr(pattern.urlconf_name, "__name__", pattern.urlconf_name)
+            if isinstance(name, str) and name in urlconfs:
                 continue
             pattern = URLResolver(
                 pattern.pattern,
-                _patterns_without(pattern.url_patterns, namespaces),
+                _patterns_without(pattern.url_patterns, urlconfs),
                 pattern.default_kwargs,
                 app_name=pattern.app_name,
                 namespace=pattern.namespace,
@@ -177,9 +179,9 @@ def _urlconf_without(disabled, root=None):
     key = (root, frozenset(disabled))
     if key not in _URLCONFS:
         base = import_module(root) if isinstance(root, str) else root
-        namespaces = {MODULE_NAMESPACES[module] for module in key[1]}
+        urlconfs = {MODULE_URLCONFS[module] for module in key[1]}
         urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key[1]))}")
-        urlconf.urlpatterns = _patterns_without(base.urlpatterns, namespaces)
+        urlconf.urlpatterns = _patterns_without(base.urlpatterns, urlconfs)
         for handler in ("handler400", "handler403", "handler404", "handler500"):
             if hasattr(base, handler):
                 setattr(urlconf, handler, getattr(base, handler))
