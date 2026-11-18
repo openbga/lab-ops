@@ -11,7 +11,7 @@
       "title": "Correct the details",
       "steps": [
         "Change [[Title]], [[What happened]], [[Source]], [[Severity]] or [[Area or section]].",
-        "Optionally say why in [[Reason (optional)]] and select [[Save changes]]."
+        "Say why in [[Reason]] and select [[Save changes]]."
       ]
     },
     {
@@ -24,7 +24,7 @@
   "good_to_know": [
     "A record opened from a complaint stays linked to it, whatever source you choose.",
     "Saving is refused unless at least one detail changed.",
-    "A reason, when given, is kept with the change in the record's history.",
+    "A correction needs a reason. It is kept with the change in the record's history.",
     "If someone changed the record after you opened this form, saving is refused and your input kept. Reload the record and review it."
   ],
   "sections": [
@@ -61,8 +61,8 @@
           "description": "Optional, up to 80 characters."
         },
         {
-          "label": "Reason (optional)",
-          "description": "Kept with the change in the record's history."
+          "label": "Reason",
+          "description": "Required. Why the details are corrected. Kept with the change in the record's history: A reason is required."
         },
         {
           "label": "Save changes",

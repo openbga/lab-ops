@@ -10,13 +10,18 @@ switching the module off waits for writes already under way and a write that sta
 finds the module off.
 """
 
+import contextvars
+import types
 from functools import wraps
+from importlib import import_module
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
 from django.db import connection, transaction
 from django.http import Http404
+from django.urls import Resolver404, resolve
 from django.utils.cache import add_never_cache_headers
 
 from accounts.roles import has_role, require_role
@@ -41,8 +46,26 @@ def _known(key):
         raise ValueError(f"Unknown module {key!r}.")
 
 
+# The URL namespace under which each module's addresses are included (config/urls.py).
+MODULE_NAMESPACES = {"nonconformance": "nonconformance"}
+
+# This request's one reading of the switches ({key: on}), set by ModuleAddressMiddleware or the
+# first states_for() of the request, so the menu, the pages and the selectors of one response
+# agree. Writes do not use it: they lock the switch (lock_enabled).
+_reading = contextvars.ContextVar("vr_module_reading", default=None)
+
+
+def _read_states():
+    rows = dict(LabModule.objects.filter(key__in=MODULES).values_list("key", "is_enabled"))
+    return {key: bool(rows.get(key)) for key in MODULES}
+
+
 def is_enabled(key):
+    """Whether `key` is on: in this request's reading when there is one, else read now."""
     _known(key)
+    reading = _reading.get()
+    if reading is not None:
+        return reading[key]
     return LabModule.objects.filter(key=key, is_enabled=True).exists()
 
 
@@ -57,10 +80,20 @@ def require_enabled(key):
         raise ModuleOff("This module is not in use.")
 
 
+def _found_off(request, key):
+    """A write found the module off (lock_enabled): the rest of this response says so too."""
+    reading = _reading.get()
+    if reading is not None:
+        reading[key] = False
+    states = getattr(request, "_vr_module_states", None)
+    if states is not None:
+        states[key] = False
+
+
 def module_view(key):
     """Decorator for every view of a module: while the module is off it does not exist, for
-    every audience (404 before sign-in or role checks), and nothing it answers is stored by the
-    browser or a proxy, its refusals included (record text and typed input)."""
+    every audience, and nothing it answers is stored by the browser or a proxy, its refusals
+    included (record text and typed input)."""
 
     def decorator(view):
         @wraps(view)
@@ -69,6 +102,8 @@ def module_view(key):
                 require_enabled(key)
                 response = view(request, *args, **kwargs)
             except (Http404, PermissionDenied) as exc:
+                if isinstance(exc, ModuleOff):
+                    _found_off(request, key)
                 response = response_for_exception(request, exc)
             add_never_cache_headers(response)
             return response
@@ -84,8 +119,9 @@ def states_for(request):
     and every page part of one response show the same reading of the switches."""
     cached = getattr(request, "_vr_module_states", None)
     if cached is None:
-        rows = dict(LabModule.objects.filter(key__in=MODULES).values_list("key", "is_enabled"))
-        cached = {key: bool(rows.get(key)) for key in MODULES}
+        cached = _reading.get()
+        if cached is None:
+            cached = _read_states()
         if request is not None:
             request._vr_module_states = cached
     return cached
@@ -97,34 +133,68 @@ def enabled_for(request, key):
     return states_for(request)[key]
 
 
+def _module_key_for(path):
+    """The module whose view `path` (or `path` with a slash) is, from the full address list; no
+    database read."""
+    for candidate in (path, path if path.endswith("/") else path + "/"):
+        try:
+            match = resolve(candidate)
+        except Resolver404:
+            continue
+        return getattr(match.func, "module_key", None)
+    return None
+
+
+_URLCONFS = {}
+
+
+def _urlconf_without(disabled):
+    """The address list without the addresses of the modules in `disabled` (cached per set)."""
+    key = frozenset(disabled)
+    if key not in _URLCONFS:
+        base = import_module(settings.ROOT_URLCONF)
+        namespaces = {MODULE_NAMESPACES[module] for module in key}
+        urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key))}")
+        urlconf.urlpatterns = [
+            pattern
+            for pattern in base.urlpatterns
+            if getattr(pattern, "namespace", None) not in namespaces
+        ]
+        for handler in ("handler400", "handler403", "handler404", "handler500"):
+            if hasattr(base, handler):
+                setattr(urlconf, handler, getattr(base, handler))
+        _URLCONFS[key] = urlconf
+    return _URLCONFS[key]
+
+
 class ModuleAddressMiddleware:
-    """Placed before CsrfViewMiddleware (config/settings.py). For a view of an optional module
-    (core.modules.module_view): while the module is off the address is Not found for every method,
-    before the CSRF check or any sign-in and role check, the same answer as an unknown address;
-    and every response of a module address, refusals of any middleware included, is marked never
-    to be stored."""
+    """Before CommonMiddleware and the CSRF check (config/settings.py). A request to an address
+    of a module reads the switches once for the whole response. While the module is off, the
+    request is resolved against the address list without it, so the address does not exist: for
+    every method the answer is exactly that of an unknown address (no slash redirect, no CSRF
+    step, no page help). While it is on, every response of the address, a refusal by any later
+    middleware included, is marked never to be stored. Other requests read nothing here."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
-        if _module_of(request) is not None and not getattr(request, "_vr_module_off", False):
+        key = _module_key_for(request.path_info)
+        if key is None:
+            return self.get_response(request)
+        states = states_for(request)
+        token = _reading.set(states)
+        try:
+            disabled = [module for module, on in states.items() if not on]
+            if not states[key]:
+                request.urlconf = _urlconf_without(disabled)
+                return self.get_response(request)
+            response = self.get_response(request)
+        finally:
+            _reading.reset(token)
+        if states.get(key):
             add_never_cache_headers(response)
         return response
-
-    def process_view(self, request, view_func, view_args, view_kwargs):
-        key = getattr(view_func, "module_key", None)
-        if key is not None and not enabled_for(request, key):
-            # Exactly the answer to an unknown address: the same page and headers.
-            request._vr_module_off = True
-            return response_for_exception(request, Http404("No such page."))
-        return None
-
-
-def _module_of(request):
-    match = getattr(request, "resolver_match", None)
-    return getattr(getattr(match, "func", None), "module_key", None) if match else None
 
 
 def lock_enabled(key):

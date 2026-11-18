@@ -121,7 +121,9 @@ class NonconformanceCreateForm(DetailsFields):
 
 
 class DetailsForm(DetailsFields, RevisionForm):
-    reason = _optional_reason()
+    reason = _reason(
+        help_text="Why the details are corrected. Kept with the change in the history."
+    )
 
 
 class OwnerForm(RevisionForm):

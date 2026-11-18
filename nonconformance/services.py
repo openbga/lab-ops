@@ -328,17 +328,18 @@ def open_from_complaint(
 
 @transaction.atomic
 def update_details(
-    *, actor, nc, expected_revision, title, description, source, severity, area="", reason=""
+    *, actor, nc, expected_revision, title, description, source, severity, area="", reason
 ):
     nc, actor = _work(actor, nc, expected_revision)
     details = _details(title, description, source, severity, area)
+    reason = _reason(reason)  # a correction records why (AGENTS.md)
     before = snapshot(nc)
     for name, value in details.items():
         setattr(nc, name, value)
     if snapshot(nc) == before:
         raise ValidationError("Change at least one detail before saving.")
     _save(nc)
-    _audit(actor, "nonconformance.updated", nc, before, _reason(reason, required=False))
+    _audit(actor, "nonconformance.updated", nc, before, reason)
     return nc
 
 

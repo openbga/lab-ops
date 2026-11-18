@@ -232,6 +232,12 @@ def _apply_bulk(request, form):
             )
         else:
             count = services.bulk_close(actor=request.user, selected=selected)
+    except ServiceRequest.DoesNotExist:
+        # A selected ticket left the actor's scope while the change waited for its locks.
+        form.add_error(
+            None,
+            "A selected ticket is no longer open to you. Nothing was changed; reload the list.",
+        )
     except (ValidationError, PermissionDenied, ValueError) as exc:
         form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
     else:
@@ -617,7 +623,9 @@ def request_entry(request, pk):
     # scope while the form was validated.
     request_obj = _request_or_404(request.user, pk)
     context = _detail_context(request, request_obj, composer=form)
-    return render(request, "desk/request_detail.html", context, status=400)
+    response = render(request, "desk/request_detail.html", context, status=400)
+    patch_cache_control(response, private=True)  # like the page (request_detail)
+    return response
 
 
 @login_required

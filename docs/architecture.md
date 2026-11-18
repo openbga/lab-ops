@@ -26,7 +26,10 @@ Views and forms handle HTTP input, display and validation. Domain services use t
 database constraints and explicit transactions. An action that affects multiple records checks
 its authorization and the current state, makes the changes and records their audit events in
 the same transaction. Row locks and expected revisions protect decisions against concurrent
-changes. The deployment's `TIME_ZONE` defines local input and display. The laboratory profile
+changes. A form posted with an earlier revision of its record is shown again, to anyone who may
+still read the record, with what was typed and the reason it cannot be saved: nothing is written.
+After its last lock a change reads the acting account and its scope again before it writes. The
+deployment's `TIME_ZONE` defines local input and display. The laboratory profile
 records the zone selected at setup.
 
 ## Authorization

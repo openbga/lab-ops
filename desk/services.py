@@ -374,7 +374,9 @@ def add_entry(*, actor, request, kind, body, expected_revision, contact=None, ne
     if not portal:
         require_staff(actor)
     request = _locked_request(actor, request.pk, portal=portal)
-    if not portal:
+    if portal:
+        settle_portal(actor, request)
+    else:
         settle(actor, request)
     if request.revision != expected_revision:
         raise ValidationError("This ticket changed. Reload it and review the latest entries.")
@@ -454,6 +456,18 @@ def settle(actor, request):
     return current
 
 
+def settle_portal(actor, request):
+    """For a client portal account after the ticket's lock: the account read again (active, of a
+    client organization) and `request` still in its portal scope (a site grant or the ticket's
+    restriction can change without the ticket's lock)."""
+    from accounts.models import User
+
+    current = User.objects.filter(pk=actor.pk, is_active=True, client__isnull=False).first()
+    if current is None or not portal_requests(current).filter(pk=request.pk).exists():
+        raise ServiceRequest.DoesNotExist("No such ticket.")
+    return current
+
+
 def _staff_request(actor, request, expected_revision):
     """The request locked for a staff change, after the revision check and a fresh check that
     the actor is still an active staff account who may open it."""
@@ -492,9 +506,13 @@ def _assign(request, actor, team, assignee, reason):
     anything changed. Called with the request locked."""
     if request.status == Status.CLOSED:
         raise ValidationError("A closed ticket cannot be reassigned.")
-    team = _current_team(team)
-    if assignee is not None:
-        assignee = _current_assignee(assignee, team)
+    try:
+        team = _current_team(team)
+        if assignee is not None:
+            assignee = _current_assignee(assignee, team)
+    except ValidationError:
+        settle(actor, request)  # who asks is decided before what is wrong with the choice
+        raise
     settle(actor, request)  # the team and person locks came after the ticket's
     old_team_id, old_assignee_id = request.team_id, request.assignee_id
     if team.pk == old_team_id and (assignee.pk if assignee else None) == old_assignee_id:

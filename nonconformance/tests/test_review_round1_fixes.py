@@ -65,6 +65,7 @@ SERVICES = {
         actor=agent, title="T", description="D", source="internal", severity="minor"
     ),
     "details": lambda nc, agent, complaint, lead: services.update_details(
+        reason="Synthetic correction",
         actor=agent,
         nc=nc,
         expected_revision=nc.revision,

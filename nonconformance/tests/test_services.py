@@ -182,6 +182,7 @@ def _rev(c, rev):
 
 def _details(c, actor, rev=None):
     return services.update_details(
+        reason="Synthetic correction",
         actor=actor,
         nc=c.nc,
         expected_revision=_rev(c, rev),
@@ -1051,6 +1052,7 @@ def test_update_details_without_a_change_is_refused(ctx):
     nc = current(ctx)
     with pytest.raises(ValidationError):
         services.update_details(
+            reason="Synthetic correction",
             actor=ctx.agent,
             nc=nc,
             expected_revision=nc.revision,
@@ -1067,6 +1069,7 @@ def test_a_record_opened_from_a_complaint_can_change_its_source_and_stays_its_re
     source would tell a reader who may not open the complaint that it exists)."""
     nc = _open_from_complaint(ctx, ctx.agent)
     nc = services.update_details(
+        reason="Synthetic correction",
         actor=ctx.lead,
         nc=nc,
         expected_revision=nc.revision,
