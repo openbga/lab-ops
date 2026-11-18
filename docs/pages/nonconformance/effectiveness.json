@@ -1,0 +1,91 @@
+{
+  "id": "nonconformance-effectiveness",
+  "routes": [
+    "nonconformance:effectiveness"
+  ],
+  "title": "Record effectiveness",
+  "purpose": "Record whether a nonconformance's actions worked, once the record is in Verification.",
+  "summary": "Record whether the actions on a nonconformance worked, once it is in Verification. Effective or No corrective action needed lets a supervisor close it.",
+  "tasks": [
+    {
+      "title": "Record the effectiveness check",
+      "steps": [
+        "Choose the [[Result]], describe [[What was checked]] and select [[Record effectiveness]]."
+      ]
+    },
+    {
+      "title": "When the actions did not work",
+      "steps": [
+        "Choose [[Not effective]] and describe what was checked.",
+        "Then add actions on the record, or move it back with [[Change status]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only a record in Verification can be checked. Leaving Verification later clears the check; the history keeps it.",
+    "Effective is refused while any action is still open. Mark them done or cancel them first.",
+    "Not effective keeps the record open: add actions or move it back.",
+    "A new check replaces the one shown on the record."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Record effectiveness on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "The form opens with the note Effective needs every action done or cancelled. Not effective keeps the record open: add actions or move it back."
+      ],
+      "items": [
+        {
+          "label": "Result",
+          "description": "Required: Effective, Not effective, or No corrective action needed. Effective and No corrective action needed allow a supervisor to close the record; Not effective does not."
+        },
+        {
+          "label": "What was checked",
+          "description": "Required, up to 4,000 characters. What was checked and what it showed."
+        },
+        {
+          "label": "Record effectiveness",
+          "description": "Saves, records you and the time as Checked, and confirms Effectiveness check recorded. The history records Effectiveness check recorded with the result before and after."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Verification only",
+          "description": "Outside Verification saving is refused: Move it to Verification before checking effectiveness."
+        },
+        {
+          "label": "Open actions",
+          "description": "Effective while an action is open is refused: Finish or cancel the open actions before recording them effective. No corrective action needed and Not effective are accepted, but closing still needs every action done or cancelled."
+        },
+        {
+          "label": "Cleared later",
+          "description": "Moving the record out of Verification, or reopening it after closing, clears the result, the note and who checked it. The history keeps the earlier check."
+        },
+        {
+          "label": "Refusals",
+          "description": "A closed record: A closed nonconformance does not change. A supervisor can reopen it. A stale form: This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/action_form.html"
+  ]
+}

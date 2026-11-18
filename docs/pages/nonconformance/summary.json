@@ -1,0 +1,65 @@
+{
+  "id": "nonconformance-summary",
+  "routes": [
+    "nonconformance:summary"
+  ],
+  "title": "Nonconformance summary",
+  "purpose": "Count the nonconformances raised in each of the last twelve months by source, and over the same months by area.",
+  "summary": "How many nonconformances were raised each month and where they came from, for the last twelve months, with the same records counted by area.",
+  "tasks": [
+    {
+      "title": "See where problems came from this year",
+      "steps": [
+        "Read the [[By month and source]] table. Each row is a month, newest first, and each column a source.",
+        "The [[Twelve months]] row adds up each source. Select a total to open those records in the Nonconformances list."
+      ]
+    },
+    {
+      "title": "See which areas raise the most records",
+      "steps": [
+        "Read the [[By area]] table. Areas are listed with the most records first."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A record counts in the month it was raised, in the laboratory's time zone, whatever its status now. Closed records still count.",
+    "Areas are typed on each record. Spellings that differ only in capitals or spaces count together.",
+    "The page shows counts only. It sets no target and makes no judgement about them.",
+    "A total opens the list with Show set to All, so it may include records raised before these twelve months."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "This page exists only while the optional nonconformance module is on; otherwise it answers Not found. Every staff role can open it. It is the Summary tab next to Nonconformances and Corrective actions, under Quality in the sidebar."
+      ]
+    },
+    {
+      "title": "Tables",
+      "items": [
+        {
+          "label": "By month and source",
+          "description": "One row for each of the last twelve calendar months, the current month first, and one column for each source: Complaint, Found internally, Audit finding, Proficiency testing, Equipment, External assessment, Preventive action or improvement and Other. Total adds up the row. A month without records shows zeros."
+        },
+        {
+          "label": "Twelve months",
+          "description": "The last row adds up each source over the twelve months. A total above zero opens the Nonconformances list showing all records from that source."
+        },
+        {
+          "label": "By area",
+          "description": "The records raised in the same twelve months, counted by their area or section, most first. Records without an area are counted as No area recorded."
+        },
+        {
+          "label": "Empty state",
+          "description": "No nonconformances in the last twelve months when none was raised in that period."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/summary.py",
+    "nonconformance/summary_views.py",
+    "nonconformance/templates/nonconformance/summary.html",
+    "nonconformance/selectors.py"
+  ]
+}

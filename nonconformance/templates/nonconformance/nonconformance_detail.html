@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load ui nonconformance desk %}
+{% comment %}
+One nonconformance (docs/ui-standards.md section 6). Everything here comes from one reading of the
+record (nonconformance.views.nonconformance_detail); its related rows are read after it, so a form
+opened from this page posts a revision no newer than what the page shows. Context: nc, actions
+(each with can_change: the owner or a supervisor on an open action of an open record, and
+can_finish: also its assignee), open_count, overdue_count, overdue_label ("2 overdue actions";
+"" when none or closed), today, links (linked tickets the reader
+may open now, each with can_remove), opened_from (the complaint ticket it was opened from, only
+when the reader may open it), can_work, is_supervisor, is_closed, in_verification, close_refusal
+(why this supervisor may not close it now; "" when they may or are no supervisor), next_step
+(reopen | close | effectiveness | status | ""), has_own_actions, history (items: title, at,
+actor, reason, changes, detail; coded values only, never the stored text), toc.
+Controls a role can never use are not rendered; one unavailable in the current state is disabled
+with the reason beside it. The server checks every change again.
+{% endcomment %}
+{% block title %}{{ nc.number }} · Nonconformances · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% url 'nonconformance:list' as list_url %}{% breadcrumbs section="Nonconformances" section_url=list_url current=nc.number %}{% endblock %}
+{% block page_heading %}<span class="vr-id">{{ nc.number }}</span> {{ nc.title }}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% status label=nc.get_status_display tone=nc.status|nc_status_tone %}</li>
+  <li>{% status label=nc.get_severity_display|add:" severity" tone=nc.severity|severity_tone plain=True %}</li>
+  <li>{% if nc.owner %}Owner {{ nc.owner|person }}{% else %}<span class="vr-muted">No owner yet</span>{% endif %}</li>
+  {% if overdue_label %}<li>{% status label=overdue_label tone="danger" plain=True %}</li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+{% if can_work %}<a class="btn btn-outline-secondary" href="{% url 'nonconformance:edit' nc.pk %}">Edit details</a>{% endif %}
+{% more_actions %}
+  {% if is_supervisor and not is_closed %}<li><a class="dropdown-item" href="{% url 'nonconformance:owner' nc.pk %}">{% if nc.owner_id %}Change owner{% else %}Choose owner{% endif %}</a></li>{% endif %}
+  {% if can_work and next_step != "status" %}<li><a class="dropdown-item" href="{% url 'nonconformance:status' nc.pk %}">Change status</a></li>{% endif %}
+  {% if can_work and in_verification and next_step != "effectiveness" %}<li><a class="dropdown-item" href="{% url 'nonconformance:effectiveness' nc.pk %}">Record effectiveness</a></li>{% endif %}
+{% endmore_actions %}
+{% if next_step == "reopen" %}<a class="btn btn-primary" href="{% url 'nonconformance:reopen' nc.pk %}">Reopen nonconformance</a>
+{% elif next_step == "close" %}<a class="btn btn-primary" href="{% url 'nonconformance:close' nc.pk %}">Close nonconformance</a>
+{% elif next_step == "effectiveness" %}<a class="btn btn-primary" href="{% url 'nonconformance:effectiveness' nc.pk %}">Record effectiveness</a>
+{% elif next_step == "status" %}<a class="btn btn-primary" href="{% url 'nonconformance:status' nc.pk %}">Change status</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% page_toc items=toc %}
+{% if is_closed %}{% notice tone="neutral" label="Closed" %}This nonconformance is closed and does not change. A supervisor can reopen it with a reason.{% endnotice %}
+{% elif not can_work %}{% notice tone="info" label="Read only" %}Its owner or a supervisor works this nonconformance.{% if has_own_actions %} You can mark done the actions assigned to you.{% endif %}{% endnotice %}{% endif %}
+{% if overdue_label %}{% notice tone="danger" label="Overdue" %}{{ overdue_label|capfirst }} on this nonconformance: see the Due column under Actions.{% endnotice %}{% endif %}
+{% record_layout %}
+  {% fill lead %}
+  {% panel title="Details" heading_id="details-heading" %}
+    <dl class="vr-facts">
+      {% fact label="Source" value=nc.get_source_display %}
+      {% fact label="Severity" value=nc.get_severity_display %}
+      {% fact label="Area or section" value=nc.area empty="Not recorded" %}
+      {% fact label="Raised" %}<time datetime="{{ nc.raised_at|date:'c' }}">{{ nc.raised_at|date:"Y-m-d H:i" }}</time> by {{ nc.raised_by|person }}{% endfact %}
+      {% fact label="Owner" value=nc.owner|person empty="No owner yet" %}
+      {% if opened_from %}{% fact label="Opened from" %}<a class="vr-id" href="{% url 'desk:request-detail' opened_from.pk %}">{{ opened_from.number }}</a>{% endfact %}{% endif %}
+      {% fact label="What happened" wide=True value=nc.description|linebreaksbr %}
+    </dl>
+  {% endpanel %}
+  {% endfill %}
+
+  {% panel title="Investigation" heading_id="investigation-heading" class="mb-3" %}
+    {% fill actions %}{% if can_work %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:investigation' nc.pk %}">Record investigation</a>{% endif %}{% endfill %}
+    <dl class="vr-facts">
+      {% fact label="Containment" wide=True value=nc.containment|linebreaksbr empty="Not recorded" %}
+      {% fact label="Root cause" wide=True value=nc.root_cause|linebreaksbr empty="Not recorded" %}
+      {% fact label="Similar cases" wide=True value=nc.similar_cases|linebreaksbr empty="Not recorded" %}
+    </dl>
+  {% endpanel %}
+
+  {% panel title="Impact on reported results" heading_id="impact-heading" class="mb-3" %}
+    {% fill actions %}{% if can_work %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:impact' nc.pk %}">Record impact</a>{% endif %}{% endfill %}
+    {% if nc.impact == "affected" and not nc.client_notice %}{% notice tone="warning" label="Client not recorded" %}Reported results are affected: record whether the client was told.{% endnotice %}{% endif %}
+    <dl class="vr-facts">
+      {% fact label="Decision" empty="Not recorded yet" %}{% if nc.impact %}{{ nc.get_impact_display }}{% endif %}{% endfact %}
+      {% if nc.impact %}{% fact label="Recorded" %}<time datetime="{{ nc.impact_recorded_at|date:'c' }}">{{ nc.impact_recorded_at|date:"Y-m-d H:i" }}</time> by {{ nc.impact_recorded_by|person }}{% endfact %}{% endif %}
+      {% fact label="What was reviewed" wide=True value=nc.impact_assessment|linebreaksbr empty="Not recorded" %}
+      {% fact label="Client told" wide=True empty="Not recorded" %}{% if nc.client_notice == "told" %}Told on <time datetime="{{ nc.client_told_on|date:'Y-m-d' }}">{{ nc.client_told_on|date:"Y-m-d" }}</time>, {{ nc.client_told_how }}, by {{ nc.client_told_by|person }}{% elif nc.client_notice %}{{ nc.get_client_notice_display }}{% endif %}{% endfact %}
+    </dl>
+  {% endpanel %}
+
+  {% panel title="Actions" heading_id="actions-heading" count=actions|length table=True flush=True class="mb-3" %}
+    {% fill actions %}{% if can_work %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:action-add' nc.pk %}">Add action</a>{% endif %}{% endfill %}
+    {% list_results items=actions empty_title="No actions yet" empty_body="Add what is to be done, with a person and a due date." %}
+    <div class="vr-table-wrap">
+      <table class="table vr-table" aria-labelledby="actions-heading">
+        <thead><tr>
+          <th scope="col">Action</th>
+          <th scope="col">Person</th>
+          <th scope="col">Due</th>
+          <th scope="col">Status</th>
+          <th scope="col" data-vr-col-priority="low">Finished</th>
+          <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th>
+        </tr></thead>
+        <tbody>
+          {% for action in actions %}
+          <tr>
+            <th scope="row" class="vr-wrap">{{ action.description|linebreaksbr }}</th>
+            <td>{{ action.assignee|person }}</td>
+            <td class="vr-nowrap"><time datetime="{{ action.due_on|date:'Y-m-d' }}">{{ action.due_on|date:"Y-m-d" }}</time>{% if action.status == "open" and not is_closed %} {% due_pill due=action.due_on today=today plain=True %}{% endif %}</td>
+            <td>{% status label=action.get_status_display tone=action.status|action_tone plain=True %}</td>
+            <td class="vr-wrap">{% if action.finished_at %}<time datetime="{{ action.finished_at|date:'c' }}">{{ action.finished_at|date:"Y-m-d" }}</time> by {{ action.finished_by|person }}{% if action.finish_note %}<br><span class="vr-muted small">{{ action.finish_note|linebreaksbr }}</span>{% endif %}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+            <td class="text-end vr-nowrap">
+              {% if action.can_change %}
+              {% more_actions label="Actions" small=True %}
+                <li><a class="dropdown-item" href="{% url 'nonconformance:action-done' nc.pk action.pk %}">Mark done</a></li>
+                <li><a class="dropdown-item" href="{% url 'nonconformance:action-edit' nc.pk action.pk %}">Edit action</a></li>
+                <li><a class="dropdown-item" href="{% url 'nonconformance:action-cancel' nc.pk action.pk %}">Cancel action</a></li>
+              {% endmore_actions %}
+              {% elif action.can_finish %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:action-done' nc.pk action.pk %}">Mark done</a>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endlist_results %}
+  {% endpanel %}
+
+  {% panel title="Linked tickets" heading_id="tickets-heading" count=links|length table=True flush=True class="mb-3" %}
+    {% fill actions %}{% if can_work %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:ticket-link' nc.pk %}">Add ticket</a>{% endif %}{% endfill %}
+    {% list_results items=links empty_title="No linked tickets" empty_body="Link the tickets this nonconformance concerns. Only tickets you can open are listed." %}
+    <div class="vr-table-wrap">
+      <table class="table vr-table" aria-labelledby="tickets-heading">
+        <thead><tr>
+          <th scope="col">Ticket</th>
+          <th scope="col">Subject</th>
+          <th scope="col">Status</th>
+          <th scope="col" data-vr-col-priority="low">Linked</th>
+          <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th>
+        </tr></thead>
+        <tbody>
+          {% for link in links %}
+          <tr>
+            <th scope="row"><a class="vr-row-link vr-id" href="{% url 'desk:request-detail' link.request.pk %}">{{ link.request.number }}</a></th>
+            <td class="vr-wrap">{{ link.request.subject }}{% if link.request_id == nc.source_request_id %}<br><span class="vr-muted small">Opened from this complaint</span>{% endif %}</td>
+            <td>{% status label=link.request.get_status_display tone=link.request.status|status_tone plain=True %}</td>
+            <td class="vr-nowrap"><time datetime="{{ link.added_at|date:'c' }}">{{ link.added_at|date:"Y-m-d" }}</time> by {{ link.added_by|person }}</td>
+            <td class="text-end vr-nowrap">{% if link.can_remove %}<a class="btn btn-sm btn-outline-danger" href="{% url 'nonconformance:ticket-unlink' nc.pk link.pk %}">Remove<span class="visually-hidden"> {{ link.request.number }}</span></a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endlist_results %}
+  {% endpanel %}
+
+  {% panel title="Effectiveness check" heading_id="effectiveness-heading" class="mb-3" %}
+    {% fill actions %}{% if can_work %}{% if in_verification %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:effectiveness' nc.pk %}">Record effectiveness</a>{% else %}<button class="btn btn-sm btn-outline-secondary" type="button" disabled aria-describedby="effectiveness-unavailable">Record effectiveness</button>{% endif %}{% endif %}{% endfill %}
+    {% if can_work and not in_verification %}<p class="vr-form-note" id="effectiveness-unavailable">Record effectiveness: move it to Verification first.</p>{% endif %}
+    <dl class="vr-facts">
+      {% fact label="Result" empty="Not checked yet" %}{% if nc.effectiveness %}{{ nc.get_effectiveness_display }}{% endif %}{% endfact %}
+      {% if nc.effectiveness %}{% fact label="Checked" %}<time datetime="{{ nc.effectiveness_checked_at|date:'c' }}">{{ nc.effectiveness_checked_at|date:"Y-m-d H:i" }}</time> by {{ nc.effectiveness_checked_by|person }}{% endfact %}
+      {% fact label="What was checked" wide=True value=nc.effectiveness_note|linebreaksbr %}{% endif %}
+    </dl>
+  {% endpanel %}
+
+  {% panel title="Closing" heading_id="closing-heading" class="mb-3" %}
+    {% fill actions %}{% if close_refusal %}<button class="btn btn-sm btn-outline-secondary" type="button" disabled aria-describedby="close-unavailable">Close nonconformance</button>{% endif %}{% endfill %}
+    {% if is_closed %}
+    <dl class="vr-facts">
+      {% fact label="Closed" %}<time datetime="{{ nc.closed_at|date:'c' }}">{{ nc.closed_at|date:"Y-m-d H:i" }}</time> by {{ nc.closed_by|person }}{% endfact %}
+      {% fact label="Closing note" wide=True value=nc.closure_note|linebreaksbr %}
+    </dl>
+    {% elif close_refusal %}<p class="vr-form-note" id="close-unavailable">Not ready to close: {{ close_refusal }}</p>
+    {% elif is_supervisor %}<p class="vr-form-note">Ready to close: use Close nonconformance at the top of the page.</p>
+    {% else %}<p class="vr-form-note">A supervisor who is not its owner closes it once it is in Verification, with the decision on reported results, every action done or cancelled, and an effectiveness check that allows closing.</p>
+    {% endif %}
+  {% endpanel %}
+{% endrecord_layout %}
+{% history_panel events=history heading_id="history-heading" empty_title="No recorded changes" %}{% for event in history %}
+  {% history_item title=event.title at=event.at actor=event.actor reason=event.reason changes=event.changes detail=event.detail %}
+{% endfor %}{% endhistory_panel %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=nc.number %}{% endblock %}

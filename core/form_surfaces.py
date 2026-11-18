@@ -53,6 +53,24 @@ FORM_SURFACES = {
     "link_records:link-edit": "lg",
     # Attachments (M2-B)
     "attachments:withdraw": "lg",
+    # Optional modules
+    "lab-module": "lg",
+    "nonconformance:create": "lg",
+    "nonconformance:from-ticket": "lg",
+    "nonconformance:edit": "lg",
+    "nonconformance:owner": "lg",
+    "nonconformance:status": "lg",
+    "nonconformance:investigation": "lg",
+    "nonconformance:impact": "lg",
+    "nonconformance:effectiveness": "lg",
+    "nonconformance:close": "lg",
+    "nonconformance:reopen": "lg",
+    "nonconformance:action-add": "lg",
+    "nonconformance:action-edit": "lg",
+    "nonconformance:action-done": "lg",
+    "nonconformance:action-cancel": "lg",
+    "nonconformance:ticket-link": "lg",
+    "nonconformance:ticket-unlink": "lg",
 }
 
 

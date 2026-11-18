@@ -45,11 +45,16 @@ INSTALLED_APPS = [
     "request_forms",
     "dataimport",
     "attachments",
+    "nonconformance",
 ]
 MIDDLEWARE = [
     "core.security_headers.SecurityHeadersMiddleware",
     "core.request_logging.RequestLogMiddleware",
     "core.request_limits.RequestBodyLimitMiddleware",
+    # Before the HTTPS redirect, CommonMiddleware and the CSRF check: while an optional module is
+    # off its addresses do not exist, and every answer of one that is on is never stored
+    # (core.modules).
+    "core.modules.ModuleAddressMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

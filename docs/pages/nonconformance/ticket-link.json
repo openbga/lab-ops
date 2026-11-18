@@ -1,0 +1,88 @@
+{
+  "id": "nonconformance-ticket-link",
+  "routes": [
+    "nonconformance:ticket-link"
+  ],
+  "title": "Add ticket",
+  "purpose": "Link a ticket that a nonconformance concerns, by its ticket number.",
+  "summary": "Link a ticket this nonconformance concerns, by its number. Only a ticket you can open can be linked. The owner or a supervisor does this.",
+  "tasks": [
+    {
+      "title": "Link a ticket",
+      "steps": [
+        "On the record select [[Add ticket]] under Linked tickets.",
+        "Type the [[Ticket number]], such as REQ-000123, and select [[Add ticket]]."
+      ]
+    },
+    {
+      "title": "Undo a link added by mistake",
+      "steps": [
+        "On the record select [[Remove]] beside the ticket and give a reason."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A number you cannot open gets the same answer as one that does not exist: No ticket with that number you can open.",
+    "The ticket's timeline records the link, and the ticket's page lists this nonconformance.",
+    "You can type the number as REQ-000123, req-123 or just 123.",
+    "People who cannot open the ticket do not see it among the record's linked tickets."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Add ticket under Linked tickets on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Ticket number",
+          "description": "Required, up to 40 characters. The ticket's number, with or without the REQ- prefix and leading zeros. Any ticket you may open now can be linked, a complaint or not, open or closed."
+        },
+        {
+          "label": "Add ticket",
+          "description": "Links the ticket and confirms Ticket linked. The record's history records Ticket linked; the ticket's timeline records Linked to nonconformance NC-000123, and its Nonconformances section lists the record."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without linking anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Tickets you cannot open",
+          "description": "A number that does not exist, and one for a ticket you may not open, such as one in a restricted category, get the same answer: No ticket with that number you can open."
+        },
+        {
+          "label": "Already linked",
+          "description": "A ticket already linked to this record is refused: This ticket is already linked. A ticket whose link was removed can be linked again."
+        },
+        {
+          "label": "Versions",
+          "description": "Linking advances the version of the record and of the ticket, so forms opened earlier on either are refused as stale and must be reloaded. If the record changed after you opened this form: This nonconformance changed after you opened it. Reload it and review the latest details."
+        },
+        {
+          "label": "Closed record",
+          "description": "A closed nonconformance does not change. A supervisor can reopen it."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/selectors.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "desk/services.py",
+    "desk/timeline.py",
+    "desk/templates/desk/request_detail.html"
+  ]
+}

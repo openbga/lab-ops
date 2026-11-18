@@ -58,6 +58,7 @@ ships, move it to Built in the same change.
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
 | Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
+| Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 
 ## Why this order
 
@@ -68,10 +69,9 @@ inactivity, opening a ticket or downloading a file leaves no record, sign-ins ar
 server log, and nobody can review activity across records. Each of these answers a safeguard the
 HIPAA Security Rule names, and none needs anything unbuilt.
 
-Nonconformance and corrective action comes first among the quality modules. Every regime's rules ask
-for it, it joins the complaint review the desk already has, and it builds the module switch the
-others reuse. Scheduled jobs follow, because reminders, retries and sealed audit records all need
-them. Controlled documents come before training, because an acknowledgement and a training record
+Nonconformance and corrective action, the first of the quality modules, is built, with the module
+switch the others reuse. Scheduled jobs follow, because reminders, retries and sealed audit records
+all need them. Controlled documents come before training, because an acknowledgement and a training record
 point at a document version.
 
 The privacy records, encryption inside the application and tamper-evident audit records complete the
@@ -216,27 +216,6 @@ matter once a laboratory uses the desk every day, so they come last.
 - **Depends on:** access records for sensitive reads; audit review workspace.
 - **Leaves out:** access while the application is unavailable, which belongs to the laboratory's
   contingency plan, and emergency access for portal accounts.
-
-### Nonconformance and corrective action
-
-- **Delivers:** a record (`NC-000123`) with its source (complaint, internal, audit finding,
-  proficiency failure, equipment, external assessment, preventive action or improvement, other),
-  severity, area and linked tickets, orders or reports; five statuses (Open, Investigating,
-  Corrective action, Verification, Closed); containment; the decision on impact on results already
-  reported, with the orders reviewed as links, and whether, when, how and by whom the client was
-  told; root cause; action items with a person and a due date; an effectiveness check with its
-  result; closing by someone other than the owner; reopening with a reason. A complaint review opens
-  one and stores its number in place of today's free-text reference. Lists of open records, overdue
-  actions and "mine", and counts by area and source per month. An optional module: this item builds
-  the module switch that later modules reuse.
-- **Basis:** 42 CFR §493.1282(a)-(b), §493.1239(b)-(c), §493.1289(b)-(c) and §493.1291(k); ISO
-  15189:2022 §7.5 and §8.7; ISO/IEC 17025:2017 §7.10 and §8.7; TNI 2016 Volume 1 Module 2 §4.9 and
-  §4.11. No source read says who closes a record. Closing by someone other than the owner is a
-  product choice.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** a configurable workflow, risk scoring, 8D or FMEA templates, automatic escalation,
-  holding or releasing work, supplier corrective action, and files on a record until controlled
-  documents extend file storage.
 
 ### Scheduled jobs and the notification outbox
 

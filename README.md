@@ -17,6 +17,7 @@ sites. Each deployment serves one laboratory.
 | Service desk | Route tickets to teams and staff. Record calls, send client-visible replies, attach files and keep internal notes. Filter work queues, save views and review complaints. |
 | Service requests | Offer pickup, supply order and other forms through the portal. Configure required fields and orderable items. |
 | Targets and references | Measure first response and resolution on the lab's business calendar. Link tickets to orders, samples and reports in existing systems. |
+| Quality records | Optionally record nonconformances with containment, impact on reported results, root cause, actions, an effectiveness check and independent closing. Open one from a complaint. |
 | Administration | Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history. |
 
 ## Hosted demo

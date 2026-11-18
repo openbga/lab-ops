@@ -1,0 +1,19 @@
+{% extends "nonconformance/action_form.html" %}
+{% comment %}
+The decision on reported results and whether the client was told: two sections of the action
+form. Context: as nonconformance/action_form.html; form is nonconformance.forms.ImpactForm.
+{% endcomment %}
+{% block fields %}
+<fieldset class="vr-form-section">
+  <legend>Reported results</legend>
+  {{ form.impact.as_field_group }}
+  {{ form.impact_assessment.as_field_group }}
+</fieldset>
+<fieldset class="vr-form-section">
+  <legend>The client</legend>
+  {{ form.client_notice.as_field_group }}
+  {{ form.client_told_on.as_field_group }}
+  {{ form.client_told_how.as_field_group }}
+  {{ form.client_told_by.as_field_group }}
+</fieldset>
+{% endblock %}

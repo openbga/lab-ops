@@ -1,0 +1,113 @@
+{
+  "id": "nonconformance-impact",
+  "routes": [
+    "nonconformance:impact"
+  ],
+  "title": "Record impact",
+  "purpose": "Record the decision on results the laboratory already reported, what was reviewed to reach it, and whether the client was told.",
+  "summary": "Record whether results the laboratory already reported are affected, what you reviewed to decide, and whether, when, how and by whom the client was told.",
+  "tasks": [
+    {
+      "title": "Record the decision on reported results",
+      "steps": [
+        "Choose the [[Decision on reported results]] and describe [[What was reviewed]].",
+        "Select [[Save impact]]."
+      ]
+    },
+    {
+      "title": "Record that the client was told",
+      "steps": [
+        "Under [[Client told]] choose [[Client told]].",
+        "Fill in [[Told on]], [[How]] and [[Told by]], then select [[Save impact]]."
+      ]
+    },
+    {
+      "title": "Record that no client needs telling",
+      "steps": [
+        "Under [[Client told]] choose [[No need to tell a client]] and select [[Save impact]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "When reported results are affected, you must record whether the client was told. The record cannot close without it.",
+    "Choosing anything but Client told clears the date, how and who recorded before.",
+    "The date the client was told cannot be in the future.",
+    "Refer to an order, sample or ticket number. Do not enter patient names or identifiers."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Record impact on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found. The form starts with what is recorded."
+      ]
+    },
+    {
+      "title": "Reported results",
+      "items": [
+        {
+          "label": "Decision on reported results",
+          "description": "Required: No reported results affected, Reported results affected, or Does not concern results."
+        },
+        {
+          "label": "What was reviewed",
+          "description": "Required, up to 4,000 characters. The orders and reports reviewed and the conclusion."
+        }
+      ]
+    },
+    {
+      "title": "The client",
+      "items": [
+        {
+          "label": "Client told",
+          "description": "Not recorded, Client told, or No need to tell a client. Required when Reported results affected is chosen: Reported results are affected: record whether the client was told."
+        },
+        {
+          "label": "Told on",
+          "description": "Required with Client told. The date the client was told; it cannot be in the future."
+        },
+        {
+          "label": "How",
+          "description": "Required with Client told, up to 160 characters. For example a phone call to the practice manager."
+        },
+        {
+          "label": "Told by",
+          "description": "Required with Client told. The staff member who told the client; it must be an active staff account."
+        },
+        {
+          "label": "Save impact",
+          "description": "Saves, records you and the time as Recorded, and confirms Impact on reported results saved. The history records Impact on reported results recorded, with the decision and client told before and after. With any choice other than Client told, the date, how and who are cleared."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "Nothing changed: Change at least one detail before saving. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form."
+        },
+        {
+          "label": "Closing",
+          "description": "A supervisor can close the record only once a decision is recorded and, when results are affected, whether the client was told."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/impact_form.html",
+    "nonconformance/templates/nonconformance/action_form.html"
+  ]
+}

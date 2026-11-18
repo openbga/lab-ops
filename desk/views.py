@@ -12,11 +12,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.cache import add_never_cache_headers
+from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -232,7 +232,17 @@ def _apply_bulk(request, form):
             )
         else:
             count = services.bulk_close(actor=request.user, selected=selected)
-    except (ValidationError, PermissionDenied, ValueError) as exc:
+    except ServiceRequest.DoesNotExist:
+        # A selected ticket left the actor's scope while the change waited for its locks.
+        form.add_error(
+            None,
+            "A selected ticket is no longer open to you. Nothing was changed; reload the list.",
+        )
+    except PermissionDenied as exc:
+        if not _still_staff(request.user):
+            raise  # no longer staff: 403, no list drawn again
+        form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
+    except (ValidationError, ValueError) as exc:
         form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
     else:
         messages.success(request, f"{count} ticket{'s' if count != 1 else ''} changed.")
@@ -502,6 +512,9 @@ def _detail_context(request, request_obj, composer=None):
     )
     audience = portal_audience(request_obj)
     review = getattr(request_obj, "complaint_review", None)
+    # One decision on the review's independence for the whole page: its notice, the Review action
+    # and the record's controls agree.
+    counts = services.review_counts(request_obj, review)
     previous, following = _neighbours(user, request_obj, list_query)
     closed = request_obj.status == Status.CLOSED
     if composer is None:
@@ -514,19 +527,21 @@ def _detail_context(request, request_obj, composer=None):
         )
     supervisor = is_supervisor(user)
     return {
+        **_nonconformance_context(request, request_obj),
         "page_title": f"{request_obj.number} {request_obj.subject}",
         "req": request_obj,
         "entries": entries,
         "audience": audience,
         "composer": composer,
         "review": review,
-        "review_counts": services.review_counts(request_obj, review),
-        "review_refusal": services.review_refusal(user, request_obj, review)
+        "review_counts": counts,
+        "review_refusal": services.review_refusal(user, request_obj, review, counts=counts)
         if request_obj.is_complaint
         else "",
+        # The record can change until a review that still counts (desk.services._complaint_record).
         "can_record_complaint": request_obj.is_complaint
         and (supervisor or user.pk == request_obj.assignee_id)
-        and not (review and review.is_reviewed),
+        and not counts,
         "is_supervisor": supervisor,
         "is_member": request_obj.team.memberships.filter(user=user).exists(),
         "is_closed": closed,
@@ -544,10 +559,40 @@ def _detail_context(request, request_obj, composer=None):
     }
 
 
+def _nonconformance_context(request, request_obj):
+    """The optional nonconformance module on a ticket's pages, from one check of the switch.
+
+    The record opened from a complaint is part of the complaint's record, so its number shows
+    whether the module is on or off (as a link only while it is on); opening it advances the
+    ticket's revision, so a form drawn before cannot save over it. The records linked to the
+    ticket, the Open nonconformance action and every link show only while the module is on."""
+    # Imported here: the desk works with every optional module off (core.modules).
+    from nonconformance import selectors as nonconformance_selectors
+    from nonconformance.models import Nonconformance
+
+    module_on = nonconformance_selectors.module_on_for(request.user, request)
+    opened = (
+        Nonconformance.objects.filter(source_request=request_obj).first()
+        if request_obj.is_complaint
+        else None
+    )
+    return {
+        "nonconformance_module": module_on,
+        "nonconformance_opened": opened,
+        "nonconformances": (
+            list(nonconformance_selectors.linked_records(request_obj)) if module_on else []
+        ),
+    }
+
+
 @login_required
 def request_detail(request, pk):
     request_obj = _request_or_404(request.user, pk)
-    return render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    response = render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    # Never kept by a shared cache. Not no-store: the browser restores the page from its history,
+    # scrubbing a revealed key (static/js, e2e/test_links_journey.py).
+    patch_cache_control(response, private=True)
+    return response
 
 
 @login_required
@@ -582,7 +627,9 @@ def request_entry(request, pk):
     # scope while the form was validated.
     request_obj = _request_or_404(request.user, pk)
     context = _detail_context(request, request_obj, composer=form)
-    return render(request, "desk/request_detail.html", context, status=400)
+    response = render(request, "desk/request_detail.html", context, status=400)
+    patch_cache_control(response, private=True)  # like the page (request_detail)
+    return response
 
 
 @login_required
@@ -604,8 +651,22 @@ def request_take(request, pk):
     return redirect(_record_url(request_obj, _back(request)))
 
 
-def _action_form(request, request_obj, form, *, title, submit_label, apply, template=None):
-    """Render and handle one of the request page's action forms (the shared form dialog)."""
+def _action_form(
+    request,
+    request_obj,
+    form,
+    *,
+    title,
+    submit_label,
+    apply,
+    template=None,
+    extra=None,
+    reread=None,
+):
+    """Render and handle one of the request page's action forms (the shared form dialog).
+    `extra` adds to the template's context. `reread` reads the request again for a refused form
+    (default: _request_or_404), so a page that draws more than the ticket (a complaint and its
+    record) draws it all from that one new reading."""
     record_url = _record_url(request_obj, _back(request))
     if request.method == "POST" and form.is_valid():
         try:
@@ -623,8 +684,17 @@ def _action_form(request, request_obj, form, *, title, submit_label, apply, temp
             return redirect(record_url)
     if request.method == "POST":
         # Scope again before the refused form shows anything about the request.
-        request_obj = _request_or_404(request.user, request_obj.pk)
-    return render(
+        request_obj = reread() if reread else _request_or_404(request.user, request_obj.pk)
+        # Decided on the reading the page is drawn from, once: completing the fields alone cannot
+        # make a form drawn from an earlier reading saveable.
+        if (
+            form.is_bound
+            and form.errors
+            and _posted_earlier(request, request_obj)
+            and STALE_TICKET not in form.non_field_errors()
+        ):
+            form.add_error(None, STALE_TICKET)
+    response = render(
         request,
         template or "desk/request_action.html",
         {
@@ -639,8 +709,11 @@ def _action_form(request, request_obj, form, *, title, submit_label, apply, temp
                 (request_obj.number, record_url),
                 (title, None),
             ],
+            **(extra or {}),
         },
     )
+    add_never_cache_headers(response)  # a refused form shows what was typed again
+    return response
 
 
 def _revision(request_obj):
@@ -769,10 +842,60 @@ def request_complaint_mark(request, pk):
 
 
 def _complaint_or_404(request, pk):
-    request_obj = _request_or_404(request.user, pk)
-    if not request_obj.is_complaint:
+    """The complaint, its record and the number of the nonconformance opened from it, read in one
+    statement: the revision a complaint form posts and everything it draws come from the same
+    moment (opening a nonconformance advances the ticket's revision)."""
+    from nonconformance.models import Nonconformance
+
+    try:
+        request_obj = (
+            staff_requests(request.user)
+            .select_related(
+                "client",
+                "site",
+                "contact",
+                "category__parent",
+                "team",
+                "assignee",
+                "created_by",
+                "complaint_review",
+            )
+            .annotate(
+                opened_number=Subquery(
+                    Nonconformance.objects.filter(source_request=OuterRef("pk")).values("number")[
+                        :1
+                    ]
+                )
+            )
+            .get(pk=pk)
+        )
+    except ServiceRequest.DoesNotExist:
+        raise Http404("No such ticket.") from None
+    # A form drawn while it was a complaint is answered by the service (stale), its draft kept.
+    if not request_obj.is_complaint and not _posted_earlier(request, request_obj):
         raise Http404("This ticket is not a complaint.")
     return request_obj, getattr(request_obj, "complaint_review", None)
+
+
+STALE_TICKET = "This ticket changed. Reload it and review the latest entries."
+
+
+def _still_staff(user):
+    try:
+        services.current_staff(user)
+    except PermissionDenied:
+        return False
+    return True
+
+
+def _posted_earlier(request, request_obj):
+    """Whether a POST carries a revision of an earlier reading of the ticket (a whole number below
+    the current one). Such a form is answered by the service as stale, with its input kept, even
+    if this reading no longer lets the poster make the change; anything else is decided here."""
+    if request.method != "POST":
+        return False
+    posted = whole_number(request.POST.get("expected_revision"))
+    return posted is not None and 1 <= posted < request_obj.revision  # revisions start at 1
 
 
 @login_required
@@ -798,6 +921,7 @@ def complaint_decision(request, pk):
         request_obj,
         form,
         title="Investigation decision",
+        reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Record decision",
         apply=apply,
     )
@@ -815,6 +939,13 @@ def complaint_record(request, pk):
             outcome_communicated_how=review.outcome_communicated_how,
         )
     form = ComplaintRecordForm(request.POST or None, initial=initial)
+    posted_reference = request.method == "POST" and "corrective_action_reference" in request.POST
+    if request_obj.opened_number and not posted_reference:
+        # The nonconformance opened from the complaint takes the place of a free-text reference
+        # (a stored one stays as it is). A form drawn before it was opened still posts the field:
+        # it stays, so the service refuses the save (stale, or a changed reference) with the
+        # typed reference kept, rather than saving the rest without it.
+        del form.fields["corrective_action_reference"]
 
     def apply(data):
         values = dict(data)
@@ -829,6 +960,7 @@ def complaint_record(request, pk):
         request_obj,
         form,
         title="Findings and outcome",
+        reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Save record",
         apply=apply,
     )
@@ -837,7 +969,9 @@ def complaint_record(request, pk):
 @login_required
 def complaint_review(request, pk):
     request_obj, review = _complaint_or_404(request, pk)
-    if refusal := services.review_refusal(request.user, request_obj, review):
+    if (refusal := services.review_refusal(request.user, request_obj, review)) and not (
+        _posted_earlier(request, request_obj)
+    ):
         raise PermissionDenied(refusal)
     form = ComplaintReviewForm(request.POST or None, initial=_revision(request_obj))
 
@@ -858,6 +992,7 @@ def complaint_review(request, pk):
         submit_label="Approve review",
         apply=apply,
         template="desk/complaint_review.html",
+        reread=lambda: _complaint_or_404(request, pk)[0],
     )
 
 
@@ -869,9 +1004,15 @@ def _guarded(request, request_obj, form, **kwargs):
         try:
             return apply(data)
         except PermissionDenied as exc:
+            if not _still_staff(request.user):
+                raise  # no longer staff: 403, nothing of the ticket drawn again
             raise ValidationError(str(exc)) from exc
 
-    if not (is_supervisor(request.user) or request.user.pk == request_obj.assignee_id):
+    if not (
+        is_supervisor(request.user)
+        or request.user.pk == request_obj.assignee_id
+        or _posted_earlier(request, request_obj)
+    ):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     return _action_form(request, request_obj, form, apply=checked, **kwargs)
 

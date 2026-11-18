@@ -6,15 +6,18 @@ reads it; change controls are rendered for the admin role only (core.lab_profile
 Context: lab (or None), logo (sha256, content_type, width, height, or None), certificates (list
 order, each with state, state_label, state_tone, label and token (stale-edit token for removing
 it)), can_manage, lab_token (stale-edit token for removing the logo),
-history (AuditEvent newest first; certificate events carry detail).
+history (AuditEvent newest first; certificate and module events carry detail), modules
+(core.modules.states(): key, name, description, is_enabled) and can_manage_modules (the admin
+role, core.modules.can_manage: renders Turn on / Turn off, which open core/lab_module_form.html).
 {% endcomment %}
-{% block page_intro %}<p class="vr-page-intro">The address, contact details, logo and certificates of the laboratory.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">The address, contact details, logo, certificates and optional modules of the laboratory.</p>{% endblock %}
 {% block page_actions %}{% if can_manage %}<a class="btn btn-outline-secondary" href="{% url 'lab-profile-edit' %}">Edit</a>{% endif %}{% endblock %}
 {% block content %}
 {% if not lab %}
-{% panel title="Laboratory" heading_id="profile-heading" class="vr-narrow" %}
+{% panel title="Laboratory" heading_id="profile-heading" class="vr-narrow mb-3" %}
     {% empty_state title="No laboratory configured" body="The laboratory is not configured yet, so it has no profile." %}
 {% endpanel %}
+{% include "core/_modules_panel.html" %}
 {% else %}
 <div class="row g-3 mb-3">
   <div class="col-lg-7">
@@ -86,7 +89,9 @@ history (AuditEvent newest first; certificate events carry detail).
     </ul>
 {% endpanel %}
 
-{% history_panel events=history newest_first=True empty_title="No changes recorded" empty_body="Changes to the address, contact details, logo and certificates are listed here." %}{% endhistory_panel %}
+{% include "core/_modules_panel.html" %}
+
+{% history_panel events=history newest_first=True empty_title="No changes recorded" empty_body="Changes to the address, contact details, logo, certificates and optional modules are listed here." %}{% endhistory_panel %}
 
 {% if can_manage %}
 {% if logo %}{% url 'lab-logo-remove' as remove_logo_url %}{% confirm_dialog id="remove-logo" label="Remove logo" action=remove_logo_url body="The client portal shows the laboratory name without a logo. The image stays stored for the profile history." hidden_name="original_state" hidden_value=lab_token %}{% endif %}

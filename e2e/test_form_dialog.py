@@ -361,6 +361,90 @@ def _desk_records():
     return made, complaint, review_target, reply, view, Team.objects.get(is_default=True)
 
 
+def nonconformance_surfaces():
+    """Form surfaces of the optional nonconformance module (on in the demo), each on a record whose
+    state offers that form to the administrator (a supervisor who owns none of them)."""
+    from accounts.models import User
+    from core.modules import MODULES
+    from desk.services import create_request
+    from nonconformance import services
+    from nonconformance.models import ActionStatus, CorrectiveAction, Nonconformance, Status
+    from taxonomy.models import RequestCategory
+
+    admin = User.objects.get(username="demo_admin")
+    agent = User.objects.get(username="demo_client_services")
+    unowned = Nonconformance.objects.get(status=Status.OPEN, owner__isnull=True)
+    closed = Nonconformance.objects.filter(status=Status.CLOSED).first()
+    action = CorrectiveAction.objects.filter(status=ActionStatus.OPEN).first()
+    ticket = create_request(
+        actor=agent,
+        category=RequestCategory.objects.get(key="complaint"),
+        subject="E2E surface complaint",
+        first_entry_kind="note",
+        first_entry_body="Synthetic.",
+        channel="phone",
+    )
+    link = services.link_ticket(
+        actor=admin, nc=unowned, expected_revision=unowned.revision, request=ticket
+    )
+    ready = services.raise_nonconformance(
+        actor=admin,
+        owner=agent,
+        title="E2E surface record",
+        description="Synthetic.",
+        source="internal",
+        severity="minor",
+    )
+    ready = services.change_status(
+        actor=agent, nc=ready, expected_revision=ready.revision, status=Status.VERIFICATION
+    )
+    ready = services.record_impact(
+        actor=agent,
+        nc=ready,
+        expected_revision=ready.revision,
+        impact="not_applicable",
+        impact_assessment="Synthetic.",
+    )
+    ready = services.record_effectiveness(
+        actor=agent,
+        nc=ready,
+        expected_revision=ready.revision,
+        result="no_action_needed",
+        note="Synthetic.",
+    )
+    assert closed is not None and action is not None
+    record = unowned.pk
+    on = {
+        "edit": record,
+        "owner": record,
+        "status": record,
+        "investigation": record,
+        "impact": record,
+        "action-add": record,
+        "ticket-link": record,
+        "effectiveness": ready.pk,
+        "close": ready.pk,
+        "reopen": closed.pk,
+    }
+    surfaces = {
+        f"nonconformance:{name}": reverse(f"nonconformance:{name}", args=[pk])
+        for name, pk in on.items()
+    }
+    for name in ("action-edit", "action-done", "action-cancel"):
+        surfaces[f"nonconformance:{name}"] = reverse(
+            f"nonconformance:{name}", args=[action.nonconformance_id, action.pk]
+        )
+    return {
+        **surfaces,
+        "nonconformance:create": reverse("nonconformance:create"),
+        "nonconformance:from-ticket": reverse("nonconformance:from-ticket", args=[ticket.pk]),
+        "nonconformance:ticket-unlink": reverse(
+            "nonconformance:ticket-unlink", args=[record, link.pk]
+        ),
+        "lab-module": reverse("lab-module", args=[next(iter(MODULES))]),
+    }
+
+
 def setup_and_link_surfaces(client):
     """Form surfaces of setup and links, on records the demo seed made."""
     from accounts.models import User
@@ -459,6 +543,7 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
         "teams:team-create": reverse("teams:team-create"),
         "teams:team-edit": reverse("teams:team-edit", args=[team.pk]),
         **setup_and_link_surfaces(client),
+        **nonconformance_surfaces(),
     }
     assert set(paths) == set(FORM_SURFACES), "A form route was added or removed: update this test."
     dialog = page.locator("#vr-form-dialog")
