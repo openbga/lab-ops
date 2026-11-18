@@ -23,6 +23,7 @@ from django.utils.cache import add_never_cache_headers
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
+from core.modules import ModuleOff
 from desk import services as desk_services
 from desk.forms import person_name
 from desk.models import NUMBER_PREFIX as TICKET_PREFIX
@@ -158,13 +159,17 @@ def _form_response(
     opening it returns to the record with that reason (a POST is still decided by the service).
 
     `allowed` is whether the reader may make this change on this reading; otherwise `refusal` is
-    the 403's reason. A form posted from an earlier reading of the record (its revision differs)
-    is shown again with the stale-record message and the input kept, even when this reading no
-    longer allows the change: whoever drew it may have been the owner then. `gone` is the message
-    when the service finds what the form concerns no longer there for the reader (a linked ticket
-    out of reach): the form is shown again with that message and nothing of it."""
+    the 403's reason. A form posted from an earlier reading of the record (a revision below this
+    one) is shown again with the stale-record message and the input kept, even when this reading
+    no longer allows the change: whoever drew it may have been the owner then. Any other posted
+    revision (none, not a number, a later one) is decided here. `gone` is the message when the
+    service finds what the form concerns no longer there for the reader (a linked ticket out of
+    reach): the form is shown again with that message and nothing of it. `extra` may be a
+    callable, evaluated when the form is drawn, so a refusal draws only what the reader may still
+    read. A service refusing the reader as a staff member (deactivated, no role left) answers 403;
+    the module switched off answers 404."""
     if not allowed:
-        if request.method == "POST" and _posted_revision(request) != nc.revision:
+        if _posted_earlier(request, nc.revision):
             form.is_valid()
             form.add_error(None, services.STALE)
             return _render_form(
@@ -180,7 +185,11 @@ def _form_response(
         except ValidationError as exc:
             _errors(form, exc)
         except PermissionDenied as exc:  # the record changed hands since the page was drawn
+            if not _still_staff(request.user):
+                raise
             form.add_error(None, str(exc))
+        except ModuleOff:
+            raise
         except Http404:
             if not gone:
                 raise
@@ -194,11 +203,26 @@ def _form_response(
     return _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra)
 
 
-def _posted_revision(request):
-    return whole_number(request.POST.get("expected_revision"))
+def _posted_earlier(request, current):
+    """Whether a POST carries the revision of an earlier reading: a whole number below `current`."""
+    if request.method != "POST":
+        return False
+    posted = whole_number(request.POST.get("expected_revision"))
+    return posted is not None and posted < current
+
+
+def _still_staff(user):
+    """Whether the account, read now, is still an active staff account with a role."""
+    from accounts.models import User
+    from accounts.roles import ROLES, has_role
+
+    current = User.objects.filter(pk=user.pk, is_active=True, client__isnull=True).first()
+    return current is not None and has_role(current, *ROLES)
 
 
 def _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra):
+    if callable(extra):
+        extra = extra()
     response = render(
         request,
         template,
@@ -581,12 +605,13 @@ def from_ticket(request, pk):
     user = request.user
     records = selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
     ticket = staff_requests(user).filter(pk=pk).first()
-    if ticket is None or not ticket.is_complaint:
-        raise Http404("No such complaint.")
     posted = request.method == "POST"
-    # A form posted from an earlier reading of the ticket is answered by the service (stale,
-    # already opened, no longer yours) with the input kept; this reading decides only the rest.
-    stale = posted and whole_number(request.POST.get("expected_revision")) != ticket.revision
+    # A form posted from an earlier reading of the ticket (a lower revision) is answered by the
+    # service (stale, already opened, no longer a complaint, no longer yours) with the input kept,
+    # while the reader may still open the ticket; this reading decides only the rest.
+    stale = ticket is not None and _posted_earlier(request, ticket.revision)
+    if ticket is None or not (ticket.is_complaint or stale):
+        raise Http404("No such complaint.")
     if not (is_supervisor(user) or user.pk == ticket.assignee_id or stale):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     ticket_url = reverse("desk:request-detail", args=[ticket.pk])
@@ -1031,6 +1056,8 @@ def ticket_link(request, pk):
             services.link_ticket(
                 actor=user, nc=nc, expected_revision=data["expected_revision"], request=ticket
             )
+        except ModuleOff:
+            raise
         except Http404:  # left the reader's reach since it was found
             raise ValidationError({"ticket": NO_TICKET}) from None
 
@@ -1054,12 +1081,11 @@ def ticket_unlink(request, pk, link_pk):
     user = request.user
     selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
     # The link and its record in one statement: the form's revision and the ticket it names come
-    # from the same moment, and only a ticket the reader may open now.
+    # from the same moment, and only a ticket the reader may open now. A link removed since a
+    # form was drawn is still found for that form's POST, so its reason is kept with a message.
+    links = selectors.linked_tickets(user, pk, include_removed=request.method == "POST")
     link = (
-        selectors.linked_tickets(user, pk)
-        .filter(pk=link_pk)
-        .select_related("nonconformance", "nonconformance__owner")
-        .first()
+        links.filter(pk=link_pk).select_related("nonconformance", "nonconformance__owner").first()
     )
     if link is None:
         raise Http404("No such linked ticket.")
@@ -1067,7 +1093,14 @@ def ticket_unlink(request, pk, link_pk):
     form = ReasonForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
+        if link.removed_at is not None:
+            raise ValidationError("This ticket is no longer linked to this record.")
         services.unlink_ticket(actor=user, nc=nc, link=link, **data)
+
+    def preview():
+        # Drawn again only while the reader may still open the ticket.
+        readable = selectors.linked_tickets(user, pk, include_removed=True).filter(pk=link_pk)
+        return {"link": link} if readable.exists() else {}
 
     return _form_response(
         request,
@@ -1082,7 +1115,7 @@ def ticket_unlink(request, pk, link_pk):
         success="Linked ticket removed.",
         destructive=True,
         notes=("The link stays in the history with your reason.",),
-        extra={"link": link},
+        extra=preview,
         unavailable=_closed(nc)
         or (
             "The complaint it was opened from stays linked."

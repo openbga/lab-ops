@@ -25,7 +25,7 @@
   "good_to_know": [
     "Nothing is copied from the ticket. Every staff role reads the record while the ticket may be restricted, so write it without patient names or identifiers.",
     "A complaint has at most one nonconformance. If it already has one, this page takes you to it.",
-    "Once the complaint has been reviewed, opening one here is refused. Raise a nonconformance from the list and link the ticket instead.",
+    "While a review of the complaint counts, opening one here is refused. Raise a nonconformance from the list and link the ticket instead.",
     "The record starts without an owner, even when a supervisor opens it.",
     "The complaint's ticket stays linked to the record and cannot be removed from it."
   ],

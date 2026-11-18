@@ -128,7 +128,7 @@ class DetailsForm(DetailsFields, RevisionForm):
         if from_complaint:
             # A record opened from a complaint keeps that source (services.update_details).
             self.fields["source"].choices = [(Source.COMPLAINT, Source.COMPLAINT.label)]
-            self.fields["source"].help_text = "Opened from a complaint: the source stays Complaint."
+            self.fields["source"].help_text = "The source of this record stays Complaint."
 
 
 class OwnerForm(RevisionForm):

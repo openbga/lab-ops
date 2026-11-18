@@ -146,6 +146,19 @@ def _current_actor(actor):
     return current
 
 
+WORK = "The owner or a supervisor works this nonconformance."
+
+
+def _recheck(actor, allowed, message):
+    """After a change's last lock (a person, an action, a ticket, the complaint record): the
+    acting account read again and the rule applied to that reading, so an account deactivated or
+    a role removed while the change waited for its locks is refused."""
+    actor = _current_actor(actor)
+    if not allowed(actor):
+        raise PermissionDenied(message)
+    return actor
+
+
 def _lock(actor, nc, expected_revision):
     """(record, actor): the record locked for a change and the acting account read after the lock,
     once the module, the account and the revision are checked."""
@@ -166,7 +179,7 @@ def _work(actor, nc, expected_revision):
     if locked.status == Status.CLOSED:
         raise ValidationError(CLOSED)
     if not can_work(actor, locked):
-        raise PermissionDenied("The owner or a supervisor works this nonconformance.")
+        raise PermissionDenied(WORK)
     return locked, actor
 
 
@@ -256,6 +269,7 @@ def raise_nonconformance(
         if not is_supervisor(actor):
             raise PermissionDenied("A supervisor chooses the owner.")
         owner = _staff_account(owner, "owner", "the owner")
+        actor = _recheck(actor, is_supervisor, "A supervisor chooses the owner.")
     return _create(actor, owner=owner, containment=containment, **details)
 
 
@@ -279,6 +293,11 @@ def open_from_complaint(
     if not (actor.pk == ticket.assignee_id or is_supervisor(actor)):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     review = ComplaintReview.objects.select_for_update().filter(request=ticket).first()
+    actor = _recheck(
+        actor,
+        lambda current: current.pk == ticket.assignee_id or is_supervisor(current),
+        "The assignee or a supervisor records the complaint.",
+    )
     if desk_services.review_counts(ticket, review):
         raise ValidationError(
             "This complaint has been reviewed; its record no longer changes. Raise a "
@@ -330,6 +349,7 @@ def set_owner(*, actor, nc, expected_revision, owner, reason=""):
     if not is_supervisor(actor):
         raise PermissionDenied("A supervisor chooses the owner.")
     owner = _staff_account(owner, "owner", "the owner")
+    actor = _recheck(actor, is_supervisor, "A supervisor chooses the owner.")
     if owner.pk == nc.owner_id:
         raise ValidationError({"owner": "This person already owns it."})
     before = {"owner": nc.owner_id}
@@ -409,6 +429,7 @@ def record_impact(
             raise ValidationError(errors)
         nc.client_told_on, nc.client_told_how = client_told_on, how
         nc.client_told_by = _staff_account(client_told_by, "client_told_by", "who told the client")
+        actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
     else:
         nc.client_told_on, nc.client_told_how, nc.client_told_by = None, "", None
     if snapshot(nc) == before:
@@ -440,12 +461,20 @@ def change_status(*, actor, nc, expected_revision, status, reason=""):
     return nc
 
 
-def _work_changed(actor, nc):
+def _work_changed(nc):
     """An action added or changed: a recorded effectiveness check no longer covers the work, so it
-    is cleared (the history keeps it) and must be recorded again before closing."""
-    if nc.effectiveness:
-        before = snapshot(nc)
-        _clear_effectiveness(nc)
+    is cleared (the history keeps it) and must be recorded again before closing. Returns the
+    record's values before, for the audit event the caller writes once the revision has advanced
+    (_cleared_event), or None when there was no check."""
+    if not nc.effectiveness:
+        return None
+    before = snapshot(nc)
+    _clear_effectiveness(nc)
+    return before
+
+
+def _cleared_event(actor, nc, before):
+    if before is not None:
         _audit(actor, "nonconformance.effectiveness_cleared", nc, before)
 
 
@@ -548,7 +577,8 @@ def _locked_action(nc, action):
 def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
     nc, actor = _work(actor, nc, expected_revision)
     description, assignee, due_on = _action_values(description, assignee, due_on)
-    _work_changed(actor, nc)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
+    cleared = _work_changed(nc)
     action = CorrectiveAction.objects.create(
         nonconformance=nc,
         description=description,
@@ -558,6 +588,7 @@ def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
     )
     record_event(actor=actor, action="corrective_action.added", obj=action, after=snapshot(action))
     _save(nc)
+    _cleared_event(actor, nc, cleared)
     return action
 
 
@@ -572,11 +603,12 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
     description, assignee, due_on = _action_values(
         description, assignee, due_on, check_date=due_on != action.due_on
     )
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
     before = snapshot(action)
     action.description, action.assignee, action.due_on = description, assignee, due_on
     if snapshot(action) == before:
         raise ValidationError("Change at least one detail before saving.")
-    _work_changed(actor, nc)
+    cleared = _work_changed(nc)
     action.save()
     record_event(
         actor=actor,
@@ -587,6 +619,7 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
         reason=_reason(reason),
     )
     _save(nc)
+    _cleared_event(actor, nc, cleared)
     return action
 
 
@@ -598,6 +631,7 @@ def finish_action(*, actor, nc, expected_revision, action, done, note):
     if nc.status == Status.CLOSED:
         raise ValidationError(CLOSED)
     action = _locked_action(nc, action)
+    actor = _current_actor(actor)
     if done and not can_finish_action(actor, nc, action):
         raise PermissionDenied("Its assignee, the owner or a supervisor marks an action done.")
     if not done and not can_work(actor, nc):
@@ -628,6 +662,7 @@ def link_ticket(*, actor, nc, expected_revision, request):
     """Link a ticket the actor may read. The ticket's timeline records it."""
     nc, actor = _work(actor, nc, expected_revision)
     ticket = _locked_ticket(actor, request.pk)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
     link = _link(actor, nc, ticket)
     _ticket_event(actor, ticket, "nonconformance_linked", nc)
     _save(nc)
@@ -647,6 +682,7 @@ def unlink_ticket(*, actor, nc, expected_revision, link, reason):
     if link is None:
         raise Http404("No such linked ticket.")
     ticket = _locked_ticket(actor, link.request_id)
+    actor = _recheck(actor, lambda current: can_work(current, nc), WORK)
     if ticket.pk == nc.source_request_id:
         raise ValidationError("The complaint it was opened from stays linked.")
     link.removed_by, link.removed_at = actor, timezone.now()

@@ -37,7 +37,8 @@
     "An action has no page of its own. Mark it done, edit it or cancel it on its nonconformance's page.",
     "The list opens on Open, which hides done and cancelled actions. Choose All in Show to include them.",
     "The person an action is assigned to may mark it done. Editing and cancelling are for the record's owner or a supervisor.",
-    "Overdue means an open action whose due date is before today. An action due today is not overdue yet."
+    "Overdue means an open action whose due date is before today. An action due today is not overdue yet.",
+    "Search words go into the page address, so a search can be bookmarked. Search by number, not by any patient detail."
   ],
   "sections": [
     {

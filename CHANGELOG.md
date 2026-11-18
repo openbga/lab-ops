@@ -18,7 +18,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
-- **Added:** Record nonconformances and corrective actions (2026-11-18, Nonconformances)
+- **Added:** Record nonconformances and corrective actions (2026-11-18, Nonconformances, [#4](https://github.com/openbga/lab-ops/pull/4))
 
   Track a problem from containment to an effectiveness check, with dated actions and closing by another supervisor. Administrators switch the module on in the laboratory profile.
 

@@ -14,8 +14,12 @@ from functools import wraps
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.handlers.exception import response_for_exception
 from django.db import connection, transaction
 from django.http import Http404
+from django.urls import include
+from django.urls.resolvers import Resolver404, RoutePattern, URLResolver
+from django.utils.cache import add_never_cache_headers
 
 from accounts.roles import has_role, require_role
 
@@ -44,25 +48,64 @@ def is_enabled(key):
     return LabModule.objects.filter(key=key, is_enabled=True).exists()
 
 
+class ModuleOff(Http404):
+    """The module is off: its addresses do not exist. A view that turns a 404 of something else
+    (a ticket out of reach) into a message on its form lets this one through."""
+
+
 def require_enabled(key):
     """404 for a page of a module that is off: its pages do not exist while it is off."""
     if not is_enabled(key):
-        raise Http404("This module is not in use.")
+        raise ModuleOff("This module is not in use.")
 
 
 def module_view(key):
-    """Decorator for every address of a module: while the module is off it does not exist, for
-    every audience (404 before sign-in or role checks)."""
+    """Decorator for every view of a module: while the module is off it does not exist, for
+    every audience (404 before sign-in or role checks), and nothing it answers is stored by the
+    browser or a proxy, its refusals included (record text and typed input)."""
 
     def decorator(view):
         @wraps(view)
         def wrapped(request, *args, **kwargs):
-            require_enabled(key)
-            return view(request, *args, **kwargs)
+            try:
+                require_enabled(key)
+                response = view(request, *args, **kwargs)
+            except (Http404, PermissionDenied) as exc:
+                response = response_for_exception(request, exc)
+            add_never_cache_headers(response)
+            return response
 
         return wrapped
 
     return decorator
+
+
+class ModuleURLResolver(URLResolver):
+    """The addresses of a module, included under one prefix: while the module is off they do not
+    resolve, so every request to them, of any method, is Not found before any middleware (the
+    CSRF check included) or view runs."""
+
+    def __init__(self, *args, module, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.module = module
+
+    def resolve(self, path):
+        if self.pattern.match(str(path)) and not is_enabled(self.module):
+            raise Resolver404({"path": path, "tried": []})
+        return super().resolve(path)
+
+
+def module_urls(route, urlconf, *, module):
+    """`path(route, include(urlconf))` for an optional module's addresses (config/urls.py)."""
+    _known(module)
+    urlconf_module, app_name, namespace = include(urlconf)
+    return ModuleURLResolver(
+        RoutePattern(route, is_endpoint=False),
+        urlconf_module,
+        app_name=app_name,
+        namespace=namespace,
+        module=module,
+    )
 
 
 def lock_enabled(key):
@@ -77,7 +120,7 @@ def lock_enabled(key):
         )
         row = cursor.fetchone()
     if not (row and row[0]):
-        raise Http404("This module is not in use.")
+        raise ModuleOff("This module is not in use.")
 
 
 def can_manage(user):

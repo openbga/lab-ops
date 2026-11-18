@@ -59,11 +59,14 @@ def active(records):
     return records.filter(status__in=ACTIVE_STATUSES)
 
 
-def linked_tickets(user, nc):
-    """The record's current ticket links that `user` may read now, oldest first."""
+def linked_tickets(user, nc, include_removed=False):
+    """The record's current ticket links that `user` may read now, oldest first (with removed
+    ones too when `include_removed`)."""
+    links = TicketLink.objects.filter(nonconformance=nc)
+    if not include_removed:
+        links = links.filter(removed_at__isnull=True)
     return (
-        TicketLink.objects.filter(nonconformance=nc, removed_at__isnull=True)
-        .filter(request__in=staff_requests(user).values("pk"))
+        links.filter(request__in=staff_requests(user).values("pk"))
         .select_related("request", "added_by")
         .order_by("added_at", "pk")
     )
@@ -72,6 +75,18 @@ def linked_tickets(user, nc):
 def module_on_for(user):
     """Whether pages outside the module (a ticket, the menu) show its records to `user`."""
     return has_role(user, *ROLES) and is_enabled(MODULE)
+
+
+def linked_records(request):
+    """The records currently linked to a ticket, oldest first. The caller has authorized the
+    ticket and checked the module's switch once for its page."""
+    return (
+        Nonconformance.objects.filter(
+            ticket_links__request=request, ticket_links__removed_at__isnull=True
+        )
+        .distinct()
+        .order_by("raised_at", "pk")
+    )
 
 
 def for_ticket(user, request):

@@ -35,9 +35,11 @@ def counts(records, today=None, months=MONTHS):
     first, starts = period(today, months)
     zone = timezone.get_current_timezone()
     since = timezone.make_aware(datetime.combine(first, time.min), zone)
-    # One statement for both tables, so they count the same records.
+    # The period ends where the month after this one begins, from the same `today`, so both tables
+    # count the same months; one statement for both, so they count the same records.
+    until = timezone.make_aware(datetime.combine(_month_start(starts[-1], -1), time.min), zone)
     rows = (
-        records.filter(raised_at__gte=since)
+        records.filter(raised_at__gte=since, raised_at__lt=until)
         .annotate(month=TruncMonth("raised_at", tzinfo=zone), key=Lower(Trim("area")))
         .values("month", "source", "key")
         .annotate(n=Count("pk"), label=Min(Trim("area")))

@@ -6,6 +6,7 @@ title: Record nonconformances and corrective actions
 area: Nonconformances
 link: nonconformance:list
 highlight: true
+pr: 4
 ---
 Track a problem from containment to an effectiveness check, with dated actions and closing by another supervisor. Administrators switch the module on in the laboratory profile.
 

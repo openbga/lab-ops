@@ -39,7 +39,8 @@
     "Every staff role reads every nonconformance and can raise one. Only the record's owner or a supervisor works it.",
     "The list opens on Open, which leaves out closed records. Choose All or Closed in Show to see them.",
     "A record shows No owner yet until a supervisor chooses its owner. Until then only supervisors can work it.",
-    "If your laboratory turns the optional nonconformance module off, this page answers Not found. The records are kept and come back when it is turned on again."
+    "If your laboratory turns the optional nonconformance module off, this page answers Not found. The records are kept and come back when it is turned on again.",
+    "Search words go into the page address, so a search can be bookmarked. Search by number, not by any patient detail."
   ],
   "sections": [
     {

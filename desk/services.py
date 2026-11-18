@@ -429,10 +429,25 @@ def _reason(reason, required=True):
     return reason
 
 
+def current_staff(actor):
+    """The acting staff account as it stands now, read after the change's locks: an account
+    deactivated, moved to the portal or left without a staff role while its request waited is
+    refused. Role checks made afterwards use this reading."""
+    from accounts.models import User
+    from accounts.roles import ROLES, has_role
+
+    current = User.objects.filter(pk=actor.pk, is_active=True, client__isnull=True).first()
+    if current is None or not has_role(current, *ROLES):
+        raise PermissionDenied("Your account no longer has a staff role.")
+    return current
+
+
 def _staff_request(actor, request, expected_revision):
-    """The request locked for a staff change, after the revision check."""
+    """The request locked for a staff change, after the revision check and a fresh check that
+    the actor is still an active staff account."""
     require_staff(actor)
     locked = _locked_request(actor, request.pk, portal=False)
+    current_staff(actor)
     if expected_revision is None or locked.revision != expected_revision:
         raise ValidationError("This ticket changed. Reload it and review the latest entries.")
     return locked
@@ -677,15 +692,16 @@ def review_counts(request, review):
     )
 
 
-def review_refusal(user, request, review):
+def review_refusal(user, request, review, counts=None):
     """Why `user` may not review this complaint now, or "" when they may. Independence is per
     account: anyone who ever recorded or revised the decision, and anyone who has ever been the
-    request's assignee, is refused."""
+    request's assignee, is refused. `counts` is review_counts(request, review) when the caller
+    has already decided it, so one page shows one decision."""
     if not is_supervisor(user):
         return "Only a supervisor reviews a complaint."
     if review is None or not review.decision:
         return "Record the investigation decision first."
-    if review_counts(request, review):
+    if review_counts(request, review) if counts is None else counts:
         return "This complaint has been reviewed."
     if user.pk in decision_author_ids(request, review):
         return "You recorded the decision, so another supervisor must review it."
@@ -695,21 +711,26 @@ def review_refusal(user, request, review):
 
 
 def _complaint_record(request, actor):
+    """(record, actor): the complaint record locked and the actor read again after that lock,
+    once it is checked that they record the complaint and the record can still change."""
     if not request.is_complaint:
         raise ValidationError("This ticket is not a complaint.")
     if not (actor.pk == request.assignee_id or is_supervisor(actor)):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     review, _ = ComplaintReview.objects.select_for_update().get_or_create(request=request)
+    actor = current_staff(actor)
+    if not (actor.pk == request.assignee_id or is_supervisor(actor)):
+        raise PermissionDenied("The assignee or a supervisor records the complaint.")
     if review_counts(request, review):
         raise ValidationError("This complaint has been reviewed; its record no longer changes.")
-    return review
+    return review, actor
 
 
 @transaction.atomic
 def decide_complaint(*, actor, request, expected_revision, decision, rationale):
     """Record (or revise, before the review) the investigation decision and its rationale."""
     request = _staff_request(actor, request, expected_revision)
-    review = _complaint_record(request, actor)
+    review, actor = _complaint_record(request, actor)
     if decision not in ComplaintDecision.values:
         raise ValidationError({"decision": "Choose whether to investigate."})
     before = snapshot(review)
@@ -739,7 +760,7 @@ def update_complaint(*, actor, request, expected_revision, **data):
     """Record findings and actions, the corrective action reference and how the outcome was
     communicated."""
     request = _staff_request(actor, request, expected_revision)
-    review = _complaint_record(request, actor)
+    review, actor = _complaint_record(request, actor)
     if (
         "corrective_action_reference" in data
         and (data["corrective_action_reference"] or "").strip()
@@ -777,9 +798,11 @@ def review_complaint(*, actor, request, expected_revision, note):
     if not request.is_complaint:
         raise ValidationError("This ticket is not a complaint.")
     review = ComplaintReview.objects.select_for_update().filter(request=request).first()
+    actor = current_staff(actor)
     if refusal := review_refusal(actor, request, review):
         raise PermissionDenied(refusal)
     previous_reviewer = review.reviewed_by_id  # set when an earlier review no longer counts
+    previous_note = review.review_note
     review.review_note = _text(note, "note", "A review note")
     review.reviewed_by, review.reviewed_at = actor, timezone.now()
     review.revision += 1
@@ -789,8 +812,16 @@ def review_complaint(*, actor, request, expected_revision, note):
         actor=actor,
         action="complaint.reviewed",
         obj=review,
-        before={"reviewed_by": previous_reviewer} if previous_reviewer else None,
-        after={"reviewed_by": actor.pk, "decision": review.decision},
+        # A second review (the first no longer counts) replaces the record's note; the history
+        # keeps each signed conclusion.
+        before={"reviewed_by": previous_reviewer, "review_note": previous_note}
+        if previous_reviewer
+        else None,
+        after={
+            "reviewed_by": actor.pk,
+            "decision": review.decision,
+            "review_note": review.review_note,
+        },
     )
     _save(request)
     return review

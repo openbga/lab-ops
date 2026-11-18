@@ -159,7 +159,9 @@ ticket. Raise records about restricted tickets with care: every staff member rea
 
 Refer to orders, samples and reports by their numbers. Do not enter patient names or
 identifiers in a nonconformance. Its text is shown to all staff and kept in its history.
-A summary page counts records by month raised, source and area.
+A summary page counts records by month raised, source and area. As on every list, the words
+typed in a list's search box go into the page's address, so a search can be bookmarked; the
+application's request log records the page only, without its search.
 
 ## Roles and capabilities
 

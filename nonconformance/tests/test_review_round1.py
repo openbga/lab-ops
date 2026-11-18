@@ -434,7 +434,8 @@ def test_a_form_drawn_before_a_record_was_opened_cannot_change_the_reference(
     )
     refused = client.post(url, {**drawn, "corrective_action_reference": "CA-SYN-0099"})
     assert refused.status_code == 200
-    assert "corrective_action_reference" not in form_values(refused)
+    # The typed reference is kept on the refused form (verification V-05), and not saved.
+    assert form_values(refused)["corrective_action_reference"] == "CA-SYN-0099"
     review = ComplaintReview.objects.get(request=decided)
     assert review.corrective_action_reference == "CA-SYN-0042"
     decided.refresh_from_db()
@@ -685,7 +686,9 @@ def test_summary_tables_count_the_same_records(owned, lead):
         "list",
         "action-list",
         "summary",
-        "ticket",
+        # The ticket page is left out by design: it is restored from the browser's back-forward
+        # cache, which scrubs a revealed patient key (e2e/test_links_journey.py); a no-store page
+        # would not be. The planned item on sessions marks every signed-in page.
         "complaint-record",
         "complaint-review",
         "lab-module",

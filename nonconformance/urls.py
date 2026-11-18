@@ -1,8 +1,9 @@
-"""Pages of the nonconformance module, mounted at quality/ (config/urls.py). Every address answers
-404 while the module is off, before any sign-in or role check (core.modules.module_view)."""
+"""Pages of the nonconformance module, mounted at quality/ (config/urls.py through
+core.modules.module_urls): while the module is off its addresses do not resolve, so every request
+is Not found before any middleware or view runs, and each view checks the switch again
+(core.modules.module_view)."""
 
 from django.urls import path as django_path
-from django.views.decorators.cache import never_cache
 
 from core.modules import module_view
 
@@ -13,9 +14,10 @@ RECORD = "nonconformances/<int:pk>/"
 
 
 def path(route, view, name):
-    """A module address: 404 for everyone while the module is off, and never stored by the
-    browser or a proxy (record text and typed input)."""
-    return django_path(route, module_view("nonconformance")(never_cache(view)), name=name)
+    """A module address: 404 for everyone while the module is off (also when it is switched off
+    between resolving the address and running the view), and never stored by the browser or a
+    proxy, refusals included (record text and typed input)."""
+    return django_path(route, module_view("nonconformance")(view), name=name)
 
 
 urlpatterns = [

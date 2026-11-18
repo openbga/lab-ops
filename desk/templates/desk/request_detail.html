@@ -104,7 +104,7 @@ the thumb bar's primary action is Reply, which jumps to the composer.
       {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
       {% if nonconformance_opened %}{% fact label="Corrective action" %}{% if nonconformance_module %}<a class="vr-id" href="{% url 'nonconformance:detail' nonconformance_opened.pk %}">{{ nonconformance_opened.number }}</a> · {{ nonconformance_opened.get_status_display }}{% else %}<span class="vr-id">{{ nonconformance_opened.number }}</span>{% endif %}{% if review.corrective_action_reference %}<br><span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
       {% else %}{% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}{% endif %}
-      {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
+      {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {% endif %}{% endif %}{{ review.outcome_communicated_how }}{% endfact %}
       {% fact label="Independent review" empty="Not reviewed" %}{% if review.is_reviewed %}{{ review.reviewed_by|person }}, <time datetime="{{ review.reviewed_at|date:'c' }}">{{ review.reviewed_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
       {% if review.review_note %}{% fact label="Review note" wide=True value=review.review_note|linebreaksbr %}{% endif %}
     </dl>

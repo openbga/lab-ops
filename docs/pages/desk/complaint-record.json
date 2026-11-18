@@ -17,7 +17,7 @@
       "title": "Record the corrective action",
       "steps": [
         "Type its number in the laboratory's quality system in [[Corrective action reference]] and select [[Save record]].",
-        "If your laboratory uses the optional nonconformance module, this field is not shown. Select [[Open nonconformance]] on the ticket instead."
+        "With the optional nonconformance module, you can instead select [[Open nonconformance]] on the ticket. Once one is opened, this field is no longer on the form."
       ]
     },
     {

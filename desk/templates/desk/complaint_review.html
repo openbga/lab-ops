@@ -3,8 +3,9 @@
 The independent review of a complaint: the record under review, then the review note. Only a
 supervisor who did not record the decision and was never the assignee reaches this page.
 Context: as desk/request_action.html; req.complaint_review is the record under review;
-nonconformance_opened as on the ticket page (desk.views._nonconformance_context): its number only,
-which never changes once opened (opening it advances the revision this form posts).
+nonconformance_opened_number, the number of the nonconformance opened from the complaint, read
+with the ticket and its record in one statement (desk.views._complaint_or_404): it never changes
+once opened, and opening it advances the revision this form posts.
 {% endcomment %}
 {% load ui desk %}
 {% block action_intro %}
@@ -13,9 +14,9 @@ which never changes once opened (opening it advances the revision this form post
   {% fact label="Decision" %}{{ review.get_decision_display }} · {{ review.decided_by|person }}{% endfact %}
   {% fact label="Rationale" wide=True value=review.rationale|linebreaksbr %}
   {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
-  {% if nonconformance_opened %}{% fact label="Corrective action" %}<span class="vr-id">{{ nonconformance_opened.number }}</span>{% if review.corrective_action_reference %}<br><span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
+  {% if nonconformance_opened_number %}{% fact label="Corrective action" %}<span class="vr-id">{{ nonconformance_opened_number }}</span>{% if review.corrective_action_reference %}<br><span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
   {% else %}{% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}{% endif %}
-  {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
+  {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {% endif %}{% endif %}{{ review.outcome_communicated_how }}{% endfact %}
 </dl>
 {% endwith %}
 {% endblock %}
