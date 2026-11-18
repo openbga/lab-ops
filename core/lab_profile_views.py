@@ -101,10 +101,12 @@ def contact_label(event):
     label = dict(LabContact.Kind.choices).get(after.get("kind") or before.get("kind", ""), "")
     old, new = before.get("name", ""), after.get("name", "")
     if old and not new:
-        return f"{label}: {old}, cleared"
-    if old and new and old != new:
-        return f"{label}: {old}, now {new}"
-    return f"{label}: {new}" if new else label
+        names = f"{old}, cleared"
+    elif old and new and old != new:
+        names = f"{old}, now {new}"
+    else:
+        names = new
+    return ": ".join(part for part in (label, names) if part)
 
 
 def contact_history(limit=HISTORY_LIMIT):

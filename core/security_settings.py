@@ -164,7 +164,7 @@ def _failed_sign_ins():
         from allauth.core.internal.ratelimit import parse_rates
 
         rates = parse_rates(rule)
-    except ImportError, ValueError, TypeError:
+    except ImportError, ValueError, TypeError, AttributeError:
         return "Set but unreadable", "The configured limit could not be read, so it is not shown."
     if not rates:
         return "No limit", ""
