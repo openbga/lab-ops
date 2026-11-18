@@ -12,7 +12,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | --- | --- |
 | `config` | Runtime settings, URL configuration and logging |
 | `accounts` | User identities, roles, capabilities, authentication and initial setup |
-| `core` | Laboratory profile, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
+| `core` | Laboratory profile, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
 | `clients` | Organization directory, sites, contacts and portal access grants |
 | `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
 | `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
@@ -20,6 +20,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `request_forms` | Form definitions, offerings, catalogs and captured values |
 | `attachments` | Upload inspection, file metadata, bytes, withdrawal and authorized downloads |
 | `dataimport` | CSV previews and transactional updates for the client directory |
+| `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -45,6 +46,13 @@ Person-level links have no web address. A staff reveal or an exact-key search ne
 explicit capability and produces an audit event that omits the key. A non-person link can open
 an HTTPS URL only on the external system's configured host. The application does not fetch
 records from that URL. [Product access rules](product.md#roles-and-capabilities)
+
+## Optional modules
+
+An optional module's switch lives in `core.modules`. Its pages and reads start from selectors
+that answer 404 while it is off, and menu and page links check the same switch. Each write holds
+a shared lock on the switch, so turning a module off waits for writes already under way. A
+module's records stay in place while it is off. [Optional modules](../core/modules.py)
 
 ## Services and hooks
 

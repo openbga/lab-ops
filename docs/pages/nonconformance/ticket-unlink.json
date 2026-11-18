@@ -1,0 +1,87 @@
+{
+  "id": "nonconformance-ticket-unlink",
+  "routes": [
+    "nonconformance:ticket-unlink"
+  ],
+  "title": "Remove linked ticket",
+  "purpose": "Remove a ticket from a nonconformance's linked tickets, with a reason.",
+  "summary": "Remove a ticket from a nonconformance's linked tickets, with a reason. The link stays in the history. The owner or a supervisor does this.",
+  "tasks": [
+    {
+      "title": "Remove a linked ticket",
+      "steps": [
+        "Under Linked tickets on the record select [[Remove]] beside the ticket.",
+        "Check the [[Ticket]] and [[Subject]] shown, explain in [[Reason]] and select [[Remove ticket]]."
+      ]
+    },
+    {
+      "title": "Link it again later",
+      "steps": [
+        "On the record select [[Add ticket]] and type its number."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The complaint the record was opened from stays linked and has no Remove button.",
+    "The link stays in the history with your reason.",
+    "The ticket's timeline records that it is no longer linked to the nonconformance.",
+    "If the link was removed meanwhile or you can no longer open the ticket, saving is refused: This ticket is no longer linked or no longer open to you."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Remove beside a linked ticket on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it, and only for a current link to a ticket you may open now; otherwise it answers Not found or is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Ticket, Subject",
+          "description": "The linked ticket you are removing."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 4,000 characters. Kept with the removal in the record's history."
+        },
+        {
+          "label": "Remove ticket",
+          "description": "Removes the ticket from Linked tickets and confirms Linked ticket removed. The record's history records Linked ticket removed with your reason; the ticket's timeline records No longer linked to nonconformance NC-000123. The link itself is kept with who removed it and when."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record and keeps the link."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Complaint it was opened from",
+          "description": "That ticket stays linked: The complaint it was opened from stays linked."
+        },
+        {
+          "label": "Versions",
+          "description": "Removing advances the version of the record and of the ticket. If the record changed after you opened this form: This nonconformance changed after you opened it. Reload it and review the latest details."
+        },
+        {
+          "label": "Closed record",
+          "description": "A closed nonconformance does not change. A supervisor can reopen it."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/selectors.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html",
+    "desk/timeline.py"
+  ]
+}

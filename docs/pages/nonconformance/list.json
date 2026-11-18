@@ -1,0 +1,162 @@
+{
+  "id": "nonconformance-list",
+  "routes": [
+    "nonconformance:list"
+  ],
+  "title": "Nonconformances",
+  "purpose": "Find the laboratory's nonconformance records, filter them by status, severity and source, and raise a new one.",
+  "summary": "Every nonconformance the laboratory has raised. The list opens on the records not yet closed. Find a record, check its owner and overdue actions, or raise a new one.",
+  "tasks": [
+    {
+      "title": "Find a nonconformance",
+      "steps": [
+        "Type a number such as NC-000123, a title or an area in [[Search]] and select [[Apply]].",
+        "To include closed records, set [[Show]] to [[All]] or [[Closed]] first.",
+        "Select a record's number to open it."
+      ]
+    },
+    {
+      "title": "Raise a nonconformance",
+      "steps": [
+        "Select [[New nonconformance]], describe what happened, choose the source and severity, and select [[Raise nonconformance]]."
+      ]
+    },
+    {
+      "title": "See the records you work on",
+      "steps": [
+        "Set [[Show]] to [[Mine]] and select [[Apply]]. It lists the open records you own or hold an open action on."
+      ]
+    },
+    {
+      "title": "Find overdue work",
+      "steps": [
+        "Select the [[Action due]] heading to bring records with an overdue action to the top.",
+        "Or open the [[Corrective actions]] tab and set [[Show]] to [[Overdue]] to list the actions themselves."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role reads every nonconformance and can raise one. Only the record's owner or a supervisor works it.",
+    "The list opens on Open, which leaves out closed records. Choose All or Closed in Show to see them.",
+    "A record shows No owner yet until a supervisor chooses its owner. Until then only supervisors can work it.",
+    "If your laboratory turns the optional nonconformance module off, this page answers Not found. The records are kept and come back when it is turned on again."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "This page exists only while the optional nonconformance module is on. Every staff role can open it; the sidebar lists it as Nonconformances under Quality. Accounts without a staff role and client portal accounts cannot open it.",
+        "While the module is off, the menu entry is gone, this address answers Not found, and every record is kept unchanged until the module is turned on again.",
+        "Two tabs sit above the list: Nonconformances (this list) and Corrective actions (the actions of every record)."
+      ]
+    },
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "New nonconformance",
+          "description": "Every staff role. Opens the form to raise a record (see New nonconformance)."
+        },
+        {
+          "label": "Search",
+          "description": "Matches the record number, the title or the area or section, ignoring case. It does not search what happened, the investigation or the actions."
+        },
+        {
+          "label": "Show",
+          "description": "Open (the default): records that are not closed, that is in Open, Investigating, Corrective action or Verification. Mine: open records you own or on which you hold an open action. Closed: closed records only. All: every record."
+        },
+        {
+          "label": "Status",
+          "description": "Any status, or one of Open, Investigating, Corrective action, Verification or Closed. It narrows the Show choice, so Show Open with Status Closed lists nothing."
+        },
+        {
+          "label": "Severity",
+          "description": "Any severity, Minor, Major or Critical. The levels are the laboratory's own grading; its procedures say what each means."
+        },
+        {
+          "label": "Source",
+          "description": "More filters: Any source, or Complaint, Found internally, Audit finding, Proficiency testing, Equipment, External assessment, Preventive action or improvement, or Other."
+        },
+        {
+          "label": "Apply, Clear all and filter chips",
+          "description": "Apply combines the search and filters across every record and returns to page 1. Clear all restores the unfiltered list and default sort. Removing a chip clears one criterion."
+        },
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, filters, Apply, Clear all, Columns and the sort choices are behind one Filter and sort button, which shows how many filters are active."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "paragraphs": [
+        "The list is sorted by Raised, newest first, unless you sort another column. Status sorts in workflow order (Open, Investigating, Corrective action, Verification, Closed) and Severity from Minor to Critical. Sorting covers every matching record, not just the visible page."
+      ],
+      "items": [
+        {
+          "label": "Number",
+          "description": "NC- and six digits, for example NC-000123. It opens the record and always stays visible. The number means nothing beyond its order."
+        },
+        {
+          "label": "Title",
+          "description": "The record's title, with the area or section below it when recorded."
+        },
+        {
+          "label": "Status",
+          "description": "Open, Investigating, Corrective action, Verification or Closed."
+        },
+        {
+          "label": "Severity",
+          "description": "Minor, Major or Critical, as recorded."
+        },
+        {
+          "label": "Source",
+          "description": "Where the record came from, for example Complaint or Audit finding."
+        },
+        {
+          "label": "Owner",
+          "description": "The person who works the record, or No owner yet."
+        },
+        {
+          "label": "Raised",
+          "description": "The date and time the record was raised."
+        },
+        {
+          "label": "Action due",
+          "description": "Overdue action when at least one open action is past its due date (before today's date in the laboratory), Open actions when actions are open and none is overdue, otherwise a dash. Sorting it puts the records with an overdue action first or last."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns. Number always stays. The preference is saved for your account and changes no data."
+        },
+        {
+          "label": "Rows per page and pagination",
+          "description": "25 rows by default; choose 25, 50 or 100. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total."
+        },
+        {
+          "label": "Empty states",
+          "description": "No nonconformances yet when none has been raised, with New nonconformance. No nonconformances match when the search and filters hide every record; Show All includes closed records. An invalid filter shows an error and no rows."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/models.py",
+    "nonconformance/selectors.py",
+    "nonconformance/templates/nonconformance/nonconformance_list.html",
+    "core/modules.py",
+    "core/lists.py",
+    "core/grids.py",
+    "core/templatetags/navigation.py",
+    "templates/includes/grid_toolbar.html"
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "id": "nonconformance-action-list",
+  "routes": [
+    "nonconformance:action-list"
+  ],
+  "title": "Corrective actions",
+  "purpose": "See the actions of every nonconformance with the person who does each one and its due date, and find your own or overdue actions.",
+  "summary": "Every action on every nonconformance, with who does it and when it is due. Find your own or overdue actions, then open the nonconformance to work them.",
+  "tasks": [
+    {
+      "title": "See your open actions",
+      "steps": [
+        "Set [[Show]] to [[Mine]] and select [[Apply]].",
+        "Select the nonconformance number to open the record, where you mark the action done."
+      ]
+    },
+    {
+      "title": "Find overdue actions",
+      "steps": [
+        "Set [[Show]] to [[Overdue]] and select [[Apply]]. It lists open actions whose due date has passed."
+      ]
+    },
+    {
+      "title": "Find the actions of one record",
+      "steps": [
+        "Type the nonconformance number, such as NC-000123, or words from the action in [[Search]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Add an action",
+      "steps": [
+        "Open the nonconformance and select [[Add action]]. Actions are added only on the record's page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "An action has no page of its own. Mark it done, edit it or cancel it on its nonconformance's page.",
+    "The list opens on Open, which hides done and cancelled actions. Choose All in Show to include them.",
+    "The person an action is assigned to may mark it done. Editing and cancelling are for the record's owner or a supervisor.",
+    "Overdue means an open action whose due date is before today. An action due today is not overdue yet."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "This page exists only while the optional nonconformance module is on; otherwise it answers Not found. Every staff role can open it and sees the actions of every record. It is the Corrective actions tab next to Nonconformances, under Quality in the sidebar."
+      ]
+    },
+    {
+      "title": "Search and actions",
+      "items": [
+        {
+          "label": "New nonconformance",
+          "description": "Every staff role. Opens the form to raise a record (see New nonconformance)."
+        },
+        {
+          "label": "Search",
+          "description": "Matches the nonconformance number or the action's text, ignoring case."
+        },
+        {
+          "label": "Show",
+          "description": "Open (the default): actions still open. Mine: open actions assigned to you. Overdue: open actions whose due date is before today's date in the laboratory. All: every action, including done and cancelled ones."
+        },
+        {
+          "label": "Status",
+          "description": "Any status, Open, Done or Cancelled. It narrows the Show choice, so Show Open with Status Done lists nothing."
+        },
+        {
+          "label": "Apply, Clear all and filter chips",
+          "description": "Apply combines the search and filters across every action and returns to page 1. Clear all restores the unfiltered list and default sort. Removing a chip clears one criterion."
+        },
+        {
+          "label": "Filter and sort (phones)",
+          "description": "On a phone the search, filters, Apply, Clear all, Columns and the sort choices are behind one Filter and sort button."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "paragraphs": [
+        "The list is sorted by Due, earliest first, unless you sort another column. Sorting covers every matching action, not just the visible page."
+      ],
+      "items": [
+        {
+          "label": "Nonconformance",
+          "description": "The number of the record the action belongs to, for example NC-000123. It opens the record and always stays visible."
+        },
+        {
+          "label": "Action",
+          "description": "What is to be done, shortened to 160 characters. The full text is on the record."
+        },
+        {
+          "label": "Person",
+          "description": "The person who does the action."
+        },
+        {
+          "label": "Due",
+          "description": "The due date. An open action also shows Overdue with the number of days, Due today, Due in a number of days (within 30 days), or Scheduled."
+        },
+        {
+          "label": "Status",
+          "description": "Open, Done or Cancelled."
+        }
+      ]
+    },
+    {
+      "title": "Table controls",
+      "items": [
+        {
+          "label": "Columns",
+          "description": "Show, hide or reorder columns. Nonconformance always stays. The preference is saved for your account and changes no data."
+        },
+        {
+          "label": "Rows per page and pagination",
+          "description": "25 rows by default; choose 25, 50 or 100. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total."
+        },
+        {
+          "label": "Empty states",
+          "description": "No corrective actions yet when no record has an action. No actions match when the search and filters hide every action; Show All includes done and cancelled actions. An invalid filter shows an error and no rows."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/models.py",
+    "nonconformance/selectors.py",
+    "nonconformance/templates/nonconformance/action_list.html",
+    "core/due.py",
+    "core/lists.py",
+    "core/grids.py",
+    "core/modules.py",
+    "core/templatetags/navigation.py"
+  ]
+}

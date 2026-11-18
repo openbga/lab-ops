@@ -4,8 +4,8 @@
     "desk:complaint-record"
   ],
   "title": "Complaint findings and outcome",
-  "purpose": "Record a complaint's findings and actions, its corrective action reference, and when and how the outcome was communicated.",
-  "summary": "Keep the complaint record up to date: what was found and done, the corrective action number from the laboratory's quality system, and how the outcome was communicated.",
+  "purpose": "Record a complaint's findings and actions, its corrective action reference (unless the optional nonconformance module is on), and when and how the outcome was communicated.",
+  "summary": "Keep the complaint record up to date: what was found and done, the corrective action reference, and how the outcome was communicated. With the optional nonconformance module, a nonconformance replaces the reference.",
   "tasks": [
     {
       "title": "Record findings and actions",
@@ -16,7 +16,8 @@
     {
       "title": "Record the corrective action",
       "steps": [
-        "Type its number in the laboratory's quality system in [[Corrective action reference]] and select [[Save record]]."
+        "Type its number in the laboratory's quality system in [[Corrective action reference]] and select [[Save record]].",
+        "If your laboratory uses the optional nonconformance module, this field is not shown. Select [[Open nonconformance]] on the ticket instead."
       ]
     },
     {
@@ -28,15 +29,17 @@
   ],
   "good_to_know": [
     "Only the assignee or a supervisor can change the record. You can save as often as needed until the review is done.",
-    "The application stores the corrective action number only. The action itself lives in the laboratory's own quality system.",
+    "Without the optional nonconformance module, the application stores only the corrective action number. The action itself lives in the laboratory's own quality system.",
     "Save is refused unless at least one detail changed.",
-    "After a supervisor reviews the complaint, the record can no longer change."
+    "After a supervisor reviews the complaint, the record can no longer change.",
+    "If your laboratory uses the optional nonconformance module, a reference saved earlier is kept and still shown on the ticket, under the nonconformance."
   ],
   "sections": [
     {
       "title": "Fields and actions",
       "paragraphs": [
-        "Opens from the Complaint section of the ticket page, as a dialog or a full page. Every field is optional, and the form starts with what is recorded. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload. A ticket that is not a complaint answers Not found."
+        "Opens from the Complaint section of the ticket page, as a dialog or a full page. Every field is optional, and the form starts with what is recorded. The form remembers the version of the ticket you opened; if it changed since, saving is refused and you reload. A ticket that is not a complaint answers Not found.",
+        "If your laboratory uses the optional nonconformance module, the Corrective action reference field is not on the form: the nonconformance opened from the complaint takes its place. A reference stored earlier is kept unchanged and still shown on the ticket as Reference recorded earlier."
       ],
       "items": [
         {
@@ -45,7 +48,7 @@
         },
         {
           "label": "Corrective action reference",
-          "description": "Optional, up to 120 characters. Its number in the laboratory's quality system."
+          "description": "Optional, up to 120 characters. Its number in the laboratory's quality system. Not on the form if your laboratory uses the optional nonconformance module; saving the form then leaves any stored reference as it is."
         },
         {
           "label": "Outcome communicated on",
@@ -88,6 +91,8 @@
     "desk/views.py",
     "desk/forms.py",
     "desk/services.py",
-    "desk/templates/desk/request_detail.html"
+    "desk/templates/desk/request_detail.html",
+    "nonconformance/selectors.py",
+    "nonconformance/views.py"
   ]
 }

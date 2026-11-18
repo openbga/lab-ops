@@ -1,0 +1,112 @@
+{
+  "id": "nonconformance-close",
+  "routes": [
+    "nonconformance:close"
+  ],
+  "title": "Close nonconformance",
+  "purpose": "Close a nonconformance once it is in Verification with its impact decided, its actions finished and an effectiveness check that allows closing.",
+  "summary": "Close a nonconformance once its work is done and checked. Only a supervisor who is not the record's owner can close it.",
+  "tasks": [
+    {
+      "title": "Close the record",
+      "steps": [
+        "On the record select [[Close nonconformance]].",
+        "Explain why it can close in [[Closing note]] and select [[Close nonconformance]]."
+      ]
+    },
+    {
+      "title": "Find out why it cannot close yet",
+      "steps": [
+        "Read the [[Not ready to close]] notice on this form, or the Closing section on the record. It names the next thing to do."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Closing needs Verification, the decision on reported results, no open actions and an Effective or No corrective action needed check.",
+    "If reported results are affected, whether the client was told must be recorded first.",
+    "The owner cannot close their own record, even as a supervisor. Another supervisor closes it.",
+    "A closed record does not change. A supervisor can reopen it with a reason."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only a supervisor (the admin role included) may open this form; anyone else is refused. It opens from Close nonconformance at the top of the record, as a dialog or a full page. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Not ready to close",
+          "description": "A warning at the top of the form when the record cannot close now, with the reason."
+        },
+        {
+          "label": "Closing note",
+          "description": "Required, up to 4,000 characters. Why the record can close. Shown in the record's Closing section."
+        },
+        {
+          "label": "Close nonconformance",
+          "description": "Closes the record, records you and the time, and confirms Nonconformance closed. The history records Closed with the status before and after."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Conditions",
+      "paragraphs": [
+        "Every condition is checked again when you save, in this order. The first one not met is the reason shown."
+      ],
+      "items": [
+        {
+          "label": "This nonconformance is closed.",
+          "description": "It is already closed."
+        },
+        {
+          "label": "Choose its owner first.",
+          "description": "The record has no owner yet."
+        },
+        {
+          "label": "You own this nonconformance, so another supervisor closes it.",
+          "description": "The owner never closes their own record."
+        },
+        {
+          "label": "Move it to Verification first.",
+          "description": "Its status must be Verification."
+        },
+        {
+          "label": "Record the decision on reported results first.",
+          "description": "The decision on reported results must be recorded."
+        },
+        {
+          "label": "Record whether the client was told first.",
+          "description": "When reported results are affected, Client told must be Client told or No need to tell a client."
+        },
+        {
+          "label": "Finish or cancel its open actions first.",
+          "description": "Every action must be done or cancelled."
+        },
+        {
+          "label": "Record an effectiveness check that allows closing first.",
+          "description": "The effectiveness result must be Effective or No corrective action needed."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your note is kept on the form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html"
+  ]
+}

@@ -206,9 +206,16 @@
       ]
     },
     {
+      "title": "Nonconformances section",
+      "paragraphs": [
+        "Only if your laboratory uses the optional nonconformance module, and only when at least one nonconformance is linked to this ticket. It lists each linked record with its number (opening the record), title and status, oldest first. Every staff role can read these records. With the module off the section never appears, and the linked records are kept."
+      ]
+    },
+    {
       "title": "Complaint section",
       "paragraphs": [
-        "Shown only when the ticket is a complaint, which happens when its category is a complaint category or when someone marked it. The record is built in steps by the assignee or a supervisor and then reviewed independently. After the review the record no longer changes."
+        "Shown only when the ticket is a complaint, which happens when its category is a complaint category or when someone marked it. The record is built in steps by the assignee or a supervisor and then reviewed independently. After the review the record no longer changes.",
+        "If your laboratory uses the optional nonconformance module, the complaint's corrective action is a nonconformance record opened from this section, and the Corrective action fact shows it. With the module off, none of the nonconformance parts below appear."
       ],
       "items": [
         {
@@ -225,7 +232,7 @@
         },
         {
           "label": "Corrective action",
-          "description": "The number of the corrective action in the laboratory's own quality system, or No reference. The application only stores the number."
+          "description": "Without the optional nonconformance module: the number of the corrective action in the laboratory's own quality system, or No reference. The application only stores the number. If your laboratory uses the module: the nonconformance opened from this complaint as its number and status, for example NC-000123 · Investigating, linking to the record, or No nonconformance yet; a reference recorded earlier still shows below it as Reference recorded earlier."
         },
         {
           "label": "Outcome communicated",
@@ -241,7 +248,11 @@
         },
         {
           "label": "Findings and outcome",
-          "description": "The assignee or a supervisor records findings, the corrective action reference and when and how the outcome was communicated."
+          "description": "The assignee or a supervisor records findings, the corrective action reference and when and how the outcome was communicated. If your laboratory uses the optional nonconformance module, the form has no corrective action reference."
+        },
+        {
+          "label": "Open nonconformance",
+          "description": "Only if your laboratory uses the optional nonconformance module. Offered to the assignee or a supervisor until the complaint is reviewed, while no nonconformance has been opened from it. Opens the form to open one, with source Complaint and this ticket linked (see Open nonconformance)."
         },
         {
           "label": "Review",
@@ -273,7 +284,7 @@
         },
         {
           "label": "Events",
-          "description": "One-line records of what changed: logged, status changes, assignment (moved to a team, assigned to a person, assignee cleared), category or priority changes, complaint marked or unmarked, the complaint decision, record update and review, and a withdrawn reply. They show who and when."
+          "description": "One-line records of what changed: logged, status changes, assignment (moved to a team, assigned to a person, assignee cleared), category or priority changes, complaint marked or unmarked, the complaint decision, record update and review, a withdrawn reply, and, with the optional nonconformance module, a nonconformance opened from this complaint, linked to the ticket or no longer linked. They show who and when."
         },
         {
           "label": "Follow-up tickets",
@@ -321,6 +332,8 @@
     "request_forms/templates/request_forms/_details.html",
     "request_forms/templatetags/request_forms.py",
     "service_levels/templates/service_levels/_request_clock.html",
-    "static/js/ticket-draft.js"
+    "static/js/ticket-draft.js",
+    "nonconformance/selectors.py",
+    "nonconformance/views.py"
   ]
 }

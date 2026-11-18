@@ -104,14 +104,68 @@ client, and while waiting on a third party if the target allows that pause. Time
 is excluded if the ticket reopens. Changing category or priority recalculates outstanding clocks.
 Editing a target alone does not move existing due times.
 
+## Optional modules
+
+An administrator switches optional modules on or off on the laboratory profile, with a reason.
+The change is recorded in the profile's history. A module that is off shows no page, menu entry
+or link, and its addresses do not exist. Its records are kept and reappear when it is switched on
+again. The desk works with every module off. A new installation starts with every module off.
+
+### Nonconformance and corrective action
+
+A nonconformance records a problem in the laboratory's work. It has a permanent number such as
+`NC-000123`, a title, what happened, a source (a complaint, an internal finding, an audit finding,
+proficiency testing, equipment, an external assessment, a preventive action or improvement, or
+other), a severity of minor, major or critical as the laboratory's procedures define them, and an
+optional area. Every staff role can raise one and read every record. A supervisor chooses its
+owner. The owner or a supervisor works it.
+
+| Status | What happens |
+| --- | --- |
+| Open | Raised. A supervisor chooses the owner. |
+| Investigating | Containment, root cause and whether similar cases exist are recorded. |
+| Corrective action | Actions are carried out, each with a person and a due date. |
+| Verification | The owner or a supervisor checks whether the actions worked. |
+| Closed | A supervisor who is not the owner has closed it. |
+
+The record holds the decision on results the laboratory has already reported: none affected,
+some affected, or not about results, with the orders and reports that were reviewed. When
+reported results are affected, it records whether the client was told and, if so, when, how and
+by whom. Containment, root cause, similar cases and this decision can be revised while the
+record is open. Each revision is kept in the history.
+
+An action's assignee, the owner or a supervisor marks it done with what was done. The owner or a
+supervisor changes an open action with a reason, or cancels it with a reason. An action is
+overdue after its due date. Lists show open records, records the reader owns or holds an open
+action on, and open or overdue actions.
+
+The effectiveness check is recorded in Verification: effective, not effective, or no corrective
+action needed. Effective needs every action finished. Moving a record out of Verification clears
+its check, and the history keeps it. A supervisor who is not the owner closes the record once it
+is in Verification with the decision on reported results recorded, the client notice recorded
+when results are affected, no open action and a check of effective or no corrective action
+needed. A supervisor can reopen a closed record with a reason. It returns to Investigating
+without its closing or check.
+
+The assignee or a supervisor can open a nonconformance from a complaint's record while the
+complaint can still change. The complaint then shows the record's number in place of a
+free-text corrective action reference. A reference recorded earlier stays as it was. A record can
+also be linked to other tickets. Linking, unlinking and opening from a complaint add an event to
+the ticket's timeline. A linked ticket shows on the record only to staff who may open that
+ticket. Raise records about restricted tickets with care: every staff member reads every record.
+
+Refer to orders, samples and reports by their numbers. Do not enter patient names or
+identifiers in a nonconformance. Its text is shown to all staff and kept in its history.
+A summary page counts records by month raised, source and area.
+
 ## Roles and capabilities
 
 | Account or grant | Access |
 | --- | --- |
 | Any staff role | Read and work authorized tickets. Log contact, assign tickets, manage non-person links, fill form details and save personal views. |
 | Client services or account manager | Maintain client organizations, sites, contacts and portal access. Import organization data. |
-| Supervisor | Read restricted tickets across teams, review eligible complaints, withdraw replies or files, read ticket audit history, share saved views and manage team membership. |
-| Administrator role | All operational roles plus laboratory settings, teams, taxonomy, forms, catalogs, external systems, business calendars and targets. |
+| Supervisor | Read restricted tickets across teams, review eligible complaints, withdraw replies or files, read ticket audit history, share saved views and manage team membership. Choose the owner of a nonconformance, close one they do not own and reopen one. |
+| Administrator role | All operational roles plus laboratory settings, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars and targets. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
@@ -138,9 +192,20 @@ The laboratory sets its own targets, retention policy and procedures. The softwa
 actions and changes with an actor and time. Ticket history, recorded answers, complaints and
 uploaded files can contain sensitive information. The demonstration uses synthetic records.
 
-Two US references explain design decisions in this release, checked November 18, 2026.
+These US references explain design decisions in this release, checked November 18, 2026.
 Complaint records provide space to document a reported problem and a decision on investigation.
 [42 CFR §493.1233, General Laboratory Systems](https://www.govinfo.gov/content/pkg/CFR-2024-title42-vol5/pdf/CFR-2024-title42-vol5-part493-subpartK.pdf)
+
+The nonconformance record provides space for the elements that US laboratory rules and
+laboratory standards describe for corrective action: what was done, an evaluation of results
+already reported, telling the client, the cause, the actions and a review of their
+effectiveness. It does not decide what a laboratory must record or when.
+[42 CFR §493.1282, Corrective actions](https://www.ecfr.gov/current/title-42/part-493/section-493.1282),
+[42 CFR §493.1239, General laboratory systems quality assessment](https://www.ecfr.gov/current/title-42/part-493/section-493.1239)
+and [42 CFR §493.1291(k), Test report](https://www.ecfr.gov/current/title-42/part-493/section-493.1291),
+read November 17, 2026. Laboratories accredited to ISO 15189 or ISO/IEC 17025 will find the
+corresponding elements in their clauses on nonconforming work and corrective action. No source
+names who closes a record. Closing by someone other than the owner is this product's choice.
 
 For a US deployment that handles protected health information, assess the role of the hosting,
 backup and other service providers and which business associate agreements are needed.

@@ -226,7 +226,7 @@ STORY = (
                 600,
                 AGENT,
                 "Courier pickup moved later in the day; results missed the evening run.",
-                "CA-TEST-0007",
+                "",  # its nonconformance takes the reference's place (nonconformance.seed)
             ),
             (
                 "reply",

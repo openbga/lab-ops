@@ -114,6 +114,12 @@ class Nonconformance(models.Model):
 
     containment = models.TextField(blank=True, max_length=4000)
     root_cause = models.TextField(blank=True, max_length=4000)
+    similar_cases = models.TextField(
+        "similar cases",
+        blank=True,
+        max_length=4000,
+        help_text="Whether similar nonconformities exist or could occur, and what was checked.",
+    )
 
     impact = models.CharField(max_length=20, choices=Impact.choices, blank=True)
     impact_assessment = models.TextField("orders and reports reviewed", blank=True, max_length=4000)

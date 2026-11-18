@@ -22,6 +22,8 @@ SEED_APPS = (
     "desk",
     "service_levels",
     "links",
+    # After desk: its records concern the story's complaints (ctx.created["requests"]).
+    "nonconformance",
 )
 PHASES = ("seed_setup", "seed_records")
 

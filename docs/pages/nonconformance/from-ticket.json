@@ -1,0 +1,109 @@
+{
+  "id": "nonconformance-from-ticket",
+  "routes": [
+    "nonconformance:from-ticket"
+  ],
+  "title": "Open nonconformance",
+  "purpose": "Open the nonconformance of a complaint ticket: a new record with Complaint as its source, linked to the ticket.",
+  "summary": "Open a nonconformance for a complaint, from its ticket. The record gets Complaint as its source and stays linked to the ticket. The ticket's assignee or a supervisor does this.",
+  "tasks": [
+    {
+      "title": "Open a nonconformance for a complaint",
+      "steps": [
+        "On the complaint's ticket, select [[Open nonconformance]] in the Complaint section.",
+        "Write a [[Title]] and [[What happened]] in your own words and choose the [[Severity]].",
+        "Add the [[Area or section]] and any [[Containment]], then select [[Open nonconformance]]."
+      ]
+    },
+    {
+      "title": "Get the new record worked",
+      "steps": [
+        "The record opens after saving. A supervisor chooses its owner there with [[Choose owner]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Nothing is copied from the ticket. Every staff role reads the record while the ticket may be restricted, so write it without patient names or identifiers.",
+    "A complaint has at most one nonconformance. If it already has one, this page takes you to it.",
+    "Once the complaint has been reviewed, opening one here is refused. Raise a nonconformance from the list and link the ticket instead.",
+    "The record starts without an owner, even when a supervisor opens it.",
+    "The complaint's ticket stays linked to the record and cannot be removed from it."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "This page exists only if your laboratory uses the optional nonconformance module; otherwise it answers Not found. The ticket must be one you may open and must be a complaint, otherwise the page answers Not found. Only the ticket's assignee or a supervisor (the admin role included) may open a nonconformance from it; anyone else is refused. It opens from the Complaint section of the ticket page, as a dialog or a full page."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "A No patient data notice heads the form, followed by a line naming the complaint, for example Opened from complaint REQ-000123. Its source is Complaint, and the ticket is linked to the new record. Nothing is copied from the ticket. There is no Source or Owner field."
+      ],
+      "items": [
+        {
+          "label": "Title",
+          "description": "Required, up to 160 characters."
+        },
+        {
+          "label": "What happened",
+          "description": "Required, up to 4,000 characters. What was found, where and when."
+        },
+        {
+          "label": "Severity",
+          "description": "Required: Minor, Major or Critical. The laboratory's own grading."
+        },
+        {
+          "label": "Area or section",
+          "description": "Optional, up to 80 characters."
+        },
+        {
+          "label": "Containment",
+          "description": "Optional, up to 4,000 characters. What was done at once to limit the problem."
+        },
+        {
+          "label": "Open nonconformance",
+          "description": "Creates the record in status Open with source Complaint and no owner, links the ticket, adds Nonconformance NC-000123 opened from this complaint to the ticket's timeline, confirms Nonconformance NC-000123 opened. and opens the record."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket without opening anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Ticket version",
+          "description": "The form carries the version of the ticket you opened it from. If the ticket changed meanwhile, saving is refused with your input kept: This ticket changed. Reload it and review the latest entries. Opening the record also advances the ticket's version, so other forms open on that ticket must be reloaded."
+        },
+        {
+          "label": "After the review",
+          "description": "When the complaint's review counts, saving is refused: This complaint has been reviewed; its record no longer changes. Raise a nonconformance and link the ticket instead."
+        },
+        {
+          "label": "One per complaint",
+          "description": "If the complaint already has a nonconformance, opening this page goes to that record with This complaint already has a nonconformance. A save that meets one opened at the same moment is refused the same way."
+        },
+        {
+          "label": "On the ticket",
+          "description": "Once the record exists, the ticket's Complaint section shows it as the corrective action, for example NC-000123 · Open, and the Open nonconformance button is no longer offered."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/nonconformance_form.html",
+    "desk/views.py",
+    "desk/services.py",
+    "desk/timeline.py",
+    "desk/templates/desk/request_detail.html"
+  ]
+}

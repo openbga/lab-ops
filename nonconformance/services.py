@@ -325,12 +325,16 @@ def set_owner(*, actor, nc, expected_revision, owner, reason=""):
 
 
 @transaction.atomic
-def record_investigation(*, actor, nc, expected_revision, containment, root_cause):
-    """Containment (what was done at once) and the root cause."""
+def record_investigation(
+    *, actor, nc, expected_revision, containment, root_cause, similar_cases=""
+):
+    """Containment (what was done at once), the root cause, and whether similar
+    nonconformities exist or could occur."""
     nc = _work(actor, nc, expected_revision)
     before = snapshot(nc)
     nc.containment = _text(containment, "containment", "Containment", required=False)
     nc.root_cause = _text(root_cause, "root_cause", "The root cause", required=False)
+    nc.similar_cases = _text(similar_cases, "similar_cases", "Similar cases", required=False)
     if snapshot(nc) == before:
         raise ValidationError("Change at least one detail before saving.")
     _save(nc)

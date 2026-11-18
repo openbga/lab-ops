@@ -7,6 +7,7 @@ the user may not read answers 404 on every route. Every change goes through desk
 
 from urllib.parse import urlencode
 
+from django import forms
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -514,6 +515,7 @@ def _detail_context(request, request_obj, composer=None):
         )
     supervisor = is_supervisor(user)
     return {
+        **_nonconformance_context(user, request_obj),
         "page_title": f"{request_obj.number} {request_obj.subject}",
         "req": request_obj,
         "entries": entries,
@@ -541,6 +543,28 @@ def _detail_context(request, request_obj, composer=None):
         "follow_up_of": staff_requests(user).filter(pk=request_obj.follow_up_of_id).first()
         if request_obj.follow_up_of_id
         else None,
+    }
+
+
+def _nonconformance_context(user, request_obj):
+    """The optional nonconformance module on the ticket page: the record opened from this
+    complaint and the records linked to the ticket. Nothing while the module is off."""
+    # Imported here: the desk works with every optional module off (core.modules).
+    from nonconformance import selectors as nonconformance_selectors
+
+    if not nonconformance_selectors.module_on_for(user):
+        return {"nonconformance_module": False}
+    opened = None
+    if request_obj.is_complaint:
+        opened = (
+            nonconformance_selectors.staff_nonconformances(user)
+            .filter(source_request=request_obj)
+            .first()
+        )
+    return {
+        "nonconformance_module": True,
+        "nonconformance_opened": opened,
+        "nonconformances": list(nonconformance_selectors.for_ticket(user, request_obj)),
     }
 
 
@@ -604,8 +628,11 @@ def request_take(request, pk):
     return redirect(_record_url(request_obj, _back(request)))
 
 
-def _action_form(request, request_obj, form, *, title, submit_label, apply, template=None):
-    """Render and handle one of the request page's action forms (the shared form dialog)."""
+def _action_form(
+    request, request_obj, form, *, title, submit_label, apply, template=None, extra=None
+):
+    """Render and handle one of the request page's action forms (the shared form dialog).
+    `extra` adds to the template's context."""
     record_url = _record_url(request_obj, _back(request))
     if request.method == "POST" and form.is_valid():
         try:
@@ -639,6 +666,7 @@ def _action_form(request, request_obj, form, *, title, submit_label, apply, temp
                 (request_obj.number, record_url),
                 (title, None),
             ],
+            **(extra or {}),
         },
     )
 
@@ -814,10 +842,33 @@ def complaint_record(request, pk):
             outcome_communicated_on=review.outcome_communicated_on,
             outcome_communicated_how=review.outcome_communicated_how,
         )
-    form = ComplaintRecordForm(request.POST or None, initial=initial)
+    from nonconformance.selectors import module_on_for
+
+    # With the nonconformance module on, the record opened from the complaint takes the place of
+    # a free-text reference: the form leaves the field out and a stored reference stays as it is.
+    # The form carries the shape it was drawn in, so a module switched between opening and saving
+    # neither clears a stored reference nor drops one just typed: the save is refused and the
+    # form shown again in the current shape, with the other answers kept.
+    shape = "nonconformance" if module_on_for(request.user) else "reference"
+    data = request.POST.copy() if request.method == "POST" else None
+    reshaped = data is not None and data.get("form_shape") != shape
+    if reshaped:
+        data["form_shape"] = shape
+    form = ComplaintRecordForm(data, initial=initial)
+    form.fields["form_shape"] = forms.CharField(
+        widget=forms.HiddenInput, required=False, initial=shape
+    )
+    if shape == "nonconformance":
+        del form.fields["corrective_action_reference"]
 
     def apply(data):
         values = dict(data)
+        values.pop("form_shape", None)
+        if reshaped:
+            raise ValidationError(
+                "The nonconformance module was switched on or off after you opened this form. "
+                "Check the form and save again."
+            )
         expected = values.pop("expected_revision")
         services.update_complaint(
             actor=request.user, request=request_obj, expected_revision=expected, **values
@@ -858,6 +909,7 @@ def complaint_review(request, pk):
         submit_label="Approve review",
         apply=apply,
         template="desk/complaint_review.html",
+        extra=_nonconformance_context(request.user, request_obj),
     )
 
 

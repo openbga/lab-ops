@@ -1,0 +1,330 @@
+{
+  "id": "nonconformance-detail",
+  "routes": [
+    "nonconformance:detail"
+  ],
+  "title": "Nonconformance",
+  "purpose": "Read one nonconformance with its investigation, impact on reported results, actions, linked tickets, effectiveness check, closing and history, and work it through to closing.",
+  "summary": "One nonconformance: what happened, the investigation, the decision on reported results, its actions and linked tickets, the effectiveness check and closing. The owner or a supervisor works it here.",
+  "tasks": [
+    {
+      "title": "Record the investigation",
+      "steps": [
+        "Select [[Record investigation]] and fill in [[Containment]], [[Root cause]] and [[Similar cases]] as far as you know them.",
+        "Select [[Save investigation]]."
+      ]
+    },
+    {
+      "title": "Add an action with a person and a due date",
+      "steps": [
+        "Under Actions select [[Add action]].",
+        "Describe it in [[Action]], choose the [[Person]] and the [[Due date]], and save."
+      ]
+    },
+    {
+      "title": "Record the decision on reported results",
+      "steps": [
+        "Select [[Record impact]], choose the [[Decision on reported results]] and describe [[What was reviewed]].",
+        "If results are affected, record under [[Client told]] whether the client was told, then select [[Save impact]]."
+      ]
+    },
+    {
+      "title": "Work the record through to closing",
+      "steps": [
+        "Use [[Change status]] to move it on, up to Verification.",
+        "In Verification, once every action is done or cancelled, select [[Record effectiveness]].",
+        "A supervisor who is not the owner then selects [[Close nonconformance]] and writes the [[Closing note]]."
+      ]
+    },
+    {
+      "title": "Mark your action done",
+      "steps": [
+        "In the Actions table select [[Mark done]] on your action, describe [[What was done]] and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every staff role can read this page. The owner or a supervisor works the record; the person an action is assigned to can also mark it done.",
+    "Closing needs Verification, the decision on reported results, no open actions and an Effective or No corrective action needed check.",
+    "The owner cannot close their own record. A supervisor chooses the owner, so a record raised by anyone else has no owner until then.",
+    "Leaving Verification clears the effectiveness check, and reopening clears the closing and the check. The history keeps both.",
+    "If someone changed the record after you opened a form, your save is refused and your input kept. Reload the record and review it first."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Every staff role opens every nonconformance while the optional nonconformance module is on. While it is off, this page answers Not found and the record is kept unchanged. Controls a role can never use are not shown; a control that is unavailable in the current state is shown disabled with the reason beside it. The server checks every change again.",
+        "Who does what: the owner or a supervisor (the supervisor role; the admin role counts as a supervisor) works an open record: its details, investigation, impact, status, actions, linked tickets and effectiveness check. Only a supervisor chooses or changes the owner. The person an action is assigned to may also mark that action done. A supervisor who is not the owner closes the record, and a supervisor reopens a closed one with a reason. Anyone else opening a work form is refused."
+      ]
+    },
+    {
+      "title": "Header and actions",
+      "items": [
+        {
+          "label": "Heading and badges",
+          "description": "The number (NC- and six digits) and the title, then the status, the severity, the owner or No owner yet, and on an open record with open actions past their due date a count such as 2 overdue actions."
+        },
+        {
+          "label": "Edit details",
+          "description": "The owner or a supervisor, open record only. Opens the details form (see Edit nonconformance)."
+        },
+        {
+          "label": "More",
+          "description": "A menu. Choose owner, or Change owner once there is one, for supervisors on an open record. Change status and, in Verification, Record effectiveness for the owner or a supervisor when they are not already the main button."
+        },
+        {
+          "label": "Main button",
+          "description": "The next step for you: Reopen nonconformance on a closed record (supervisors); Close nonconformance when you may close it now; Record effectiveness in Verification while no check allows closing; otherwise Change status. Readers who do not work the record get none."
+        },
+        {
+          "label": "Closed",
+          "description": "Notice on a closed record: This nonconformance is closed and does not change. A supervisor can reopen it with a reason."
+        },
+        {
+          "label": "Read only",
+          "description": "Notice for anyone who does not work the record: Its owner or a supervisor works this nonconformance. It adds You can mark done the actions assigned to you when that applies."
+        },
+        {
+          "label": "Overdue",
+          "description": "Notice on an open record with at least one open action whose due date is before today: it gives the count and points to the Due column under Actions."
+        },
+        {
+          "label": "On this page",
+          "description": "Links to the sections: Details, Investigation, Impact on reported results, Actions with their count, Linked tickets with their count, Effectiveness check, Closing and History."
+        }
+      ]
+    },
+    {
+      "title": "Details",
+      "items": [
+        {
+          "label": "Source",
+          "description": "Where it came from: Complaint, Found internally, Audit finding, Proficiency testing, Equipment, External assessment, Preventive action or improvement, or Other."
+        },
+        {
+          "label": "Severity",
+          "description": "Minor, Major or Critical: the laboratory's own grading."
+        },
+        {
+          "label": "Area or section",
+          "description": "Where in the laboratory it happened, or Not recorded."
+        },
+        {
+          "label": "Raised",
+          "description": "When the record was raised and by whom."
+        },
+        {
+          "label": "Owner",
+          "description": "The person who works the record with the supervisors, or No owner yet."
+        },
+        {
+          "label": "Opened from",
+          "description": "The complaint ticket the record was opened from, as a link. Shown only when the record was opened from a complaint and you may open that ticket now."
+        },
+        {
+          "label": "What happened",
+          "description": "The description given when the record was raised or last edited."
+        }
+      ]
+    },
+    {
+      "title": "Investigation",
+      "items": [
+        {
+          "label": "Record investigation",
+          "description": "The owner or a supervisor, open record only. Opens the investigation form (see Record investigation)."
+        },
+        {
+          "label": "Containment",
+          "description": "What was done at once to limit the problem, or Not recorded."
+        },
+        {
+          "label": "Root cause",
+          "description": "Why it happened, or Not recorded."
+        },
+        {
+          "label": "Similar cases",
+          "description": "Whether similar nonconformities exist or could occur and what was checked, or Not recorded."
+        }
+      ]
+    },
+    {
+      "title": "Impact on reported results",
+      "items": [
+        {
+          "label": "Record impact",
+          "description": "The owner or a supervisor, open record only. Opens the impact form (see Record impact)."
+        },
+        {
+          "label": "Client not recorded",
+          "description": "Warning shown when reported results are affected and whether the client was told is not recorded yet. The record cannot close until it is."
+        },
+        {
+          "label": "Decision",
+          "description": "No reported results affected, Reported results affected or Does not concern results, or Not recorded yet."
+        },
+        {
+          "label": "Recorded",
+          "description": "When the impact was last saved and by whom. Shown once a decision exists."
+        },
+        {
+          "label": "What was reviewed",
+          "description": "The orders and reports reviewed and the conclusion, or Not recorded."
+        },
+        {
+          "label": "Client told",
+          "description": "Told on a date, how and by whom; or No need to tell a client; or Not recorded."
+        }
+      ]
+    },
+    {
+      "title": "Actions",
+      "paragraphs": [
+        "The record's actions in due date order, with their count in the heading. With none, No actions yet."
+      ],
+      "items": [
+        {
+          "label": "Add action",
+          "description": "The owner or a supervisor, open record only. Opens the action form (see Add or edit action)."
+        },
+        {
+          "label": "Action",
+          "description": "What is to be done."
+        },
+        {
+          "label": "Person",
+          "description": "Who does it."
+        },
+        {
+          "label": "Due",
+          "description": "The due date. On an open action of an open record it also shows Overdue with the number of days, Due today, Due in a number of days (within 30 days) or Scheduled."
+        },
+        {
+          "label": "Status",
+          "description": "Open, Done or Cancelled."
+        },
+        {
+          "label": "Finished",
+          "description": "When the action was marked done or cancelled and by whom, with what was done or why it was cancelled. A dash while it is open."
+        },
+        {
+          "label": "Actions menu",
+          "description": "On an open action of an open record, for the owner or a supervisor: Mark done, Edit action and Cancel action."
+        },
+        {
+          "label": "Mark done",
+          "description": "Shown as a button on an open action to the person it is assigned to, when they do not work the record. Opens the Mark done form."
+        }
+      ]
+    },
+    {
+      "title": "Linked tickets",
+      "paragraphs": [
+        "The tickets this nonconformance concerns. Only tickets you may open now are listed and counted; a ticket in a restricted category you cannot open is left out without a trace, so two people can see different lists. With none you can open, No linked tickets."
+      ],
+      "items": [
+        {
+          "label": "Add ticket",
+          "description": "The owner or a supervisor, open record only. Opens the form to link a ticket by its number (see Add ticket)."
+        },
+        {
+          "label": "Ticket",
+          "description": "The ticket number, for example REQ-000123. It opens the ticket."
+        },
+        {
+          "label": "Subject",
+          "description": "The ticket's subject. The complaint the record was opened from is marked Opened from this complaint."
+        },
+        {
+          "label": "Status",
+          "description": "The ticket's current status."
+        },
+        {
+          "label": "Linked",
+          "description": "When the ticket was linked and by whom."
+        },
+        {
+          "label": "Remove",
+          "description": "The owner or a supervisor, open record only. Opens the form to remove the link with a reason (see Remove linked ticket). Not offered for the complaint the record was opened from, which stays linked."
+        }
+      ]
+    },
+    {
+      "title": "Effectiveness check",
+      "items": [
+        {
+          "label": "Record effectiveness",
+          "description": "The owner or a supervisor, open record. Available in Verification only; otherwise it is disabled with the note Record effectiveness: move it to Verification first."
+        },
+        {
+          "label": "Result",
+          "description": "Effective, Not effective or No corrective action needed, or Not checked yet."
+        },
+        {
+          "label": "Checked",
+          "description": "When the check was recorded and by whom."
+        },
+        {
+          "label": "What was checked",
+          "description": "What was checked and what it showed."
+        }
+      ]
+    },
+    {
+      "title": "Closing",
+      "paragraphs": [
+        "On a closed record: when it was closed and by whom, and the Closing note. On an open record a supervisor sees either Not ready to close followed by the reason, with Close nonconformance disabled, or Ready to close: use Close nonconformance at the top of the page. Other readers see the conditions for closing."
+      ],
+      "items": [
+        {
+          "label": "Conditions for closing",
+          "description": "Checked in this order, each with its reason: an owner is chosen (Choose its owner first.); you are not the owner (You own this nonconformance, so another supervisor closes it.); it is in Verification; the decision on reported results is recorded; when results are affected, whether the client was told is recorded; no action is open (Finish or cancel its open actions first.); and the effectiveness result is Effective or No corrective action needed."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "paragraphs": [
+        "Every change to the record and its actions, oldest first, each with who made it and when. A reason shows when one was given. Changes to the status, severity, source, decision on reported results, client told, effectiveness, due date, owner or person show the value before and after. Text typed into the record is not repeated here. Action entries add the action's due date and person."
+      ],
+      "items": [
+        {
+          "label": "Event titles",
+          "description": "Raised, Details edited, Owner changed, Investigation recorded, Impact on reported results recorded, Status changed, Effectiveness check recorded, Closed, Reopened, Ticket linked, Linked ticket removed, Action added, Action edited, Action marked done and Action cancelled."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Stale forms",
+          "description": "Every form carries the version of the record this page showed. A change to the record, its actions or its linked tickets advances that version. Saving after someone else changed the record is refused with your input kept: This nonconformance changed after you opened it. Reload it and review the latest details."
+        },
+        {
+          "label": "Closed record",
+          "description": "A closed record does not change: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Patient data",
+          "description": "The forms ask you to refer to an order, sample or ticket number and not to enter patient names or identifiers, because every staff role reads every record."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/models.py",
+    "nonconformance/services.py",
+    "nonconformance/selectors.py",
+    "nonconformance/templatetags/nonconformance.py",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html",
+    "core/due.py",
+    "core/modules.py",
+    "desk/permissions.py",
+    "accounts/roles.py"
+  ]
+}

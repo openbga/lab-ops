@@ -15,15 +15,18 @@ from django.views.decorators.http import require_GET, require_POST
 from accounts.roles import require_role, require_staff
 
 from . import lab_profile as service
+from . import modules
 from .concurrency import protect_form, record_token
-from .lab_profile_forms import LabCertificateForm, LabIdentityForm, LabLogoForm
-from .models import Lab, LabCertificate
+from .lab_profile_forms import LabCertificateForm, LabIdentityForm, LabLogoForm, ModuleSwitchForm
+from .models import AuditEvent, Lab, LabCertificate
 
 CERTIFICATE_ACTIONS = (
     "lab.certificate_added",
     "lab.certificate_changed",
     "lab.certificate_removed",
 )
+MODULE_ACTIONS = ("module.enabled", "module.disabled")
+HISTORY_LIMIT = 20
 
 
 def _lab():
@@ -50,13 +53,26 @@ def _saved(request, changed, message):
 
 
 def _history():
-    events = list(service.history())
+    """The newest profile changes and module switches, newest first."""
+    switches = (
+        AuditEvent.objects.filter(action__in=MODULE_ACTIONS)
+        .select_related("actor")
+        .order_by("-occurred_at")[:HISTORY_LIMIT]
+    )
+    events = sorted(
+        [*service.history(HISTORY_LIMIT), *switches],
+        key=lambda event: event.occurred_at,
+        reverse=True,
+    )[:HISTORY_LIMIT]
     for event in events:
         if event.action in CERTIFICATE_ACTIONS:
             values = event.after or event.before or {}
             event.detail = " ".join(
                 str(values[key]) for key in ("authority", "number") if values.get(key)
             )
+        elif event.action in MODULE_ACTIONS:
+            key = (event.after or {}).get("key", "")
+            event.detail = modules.MODULES.get(key, ("",))[0]
     return events
 
 
@@ -81,6 +97,61 @@ def lab_profile(request):
             "can_manage": can_manage,
             "lab_token": record_token(lab) if can_manage else "",
             "history": _history() if lab else [],
+            "modules": modules.states(),
+            "can_manage_modules": modules.can_manage(request.user),
+        },
+    )
+
+
+def _module_title(enable, name):
+    return f"Turn {'on' if enable else 'off'} {name[:1].lower()}{name[1:]}"
+
+
+@login_required
+def lab_module(request, key):
+    """Turn one optional module on or off (the admin role), with a reason. The form carries the
+    state it asks for and the switch's revision it showed, both from one reading of the switch."""
+    require_role(request.user, *modules.MODULE_ROLES)
+    state = next((row for row in modules.states() if row["key"] == key), None)
+    if state is None:
+        raise Http404("No such module.")
+    form = ModuleSwitchForm(
+        request.POST if request.method == "POST" else None,
+        initial={
+            "expected_revision": state["revision"],
+            "enabled": "0" if state["is_enabled"] else "1",
+        },
+    )
+    enable = not state["is_enabled"]
+    if request.method == "POST":
+        if form.is_valid():
+            enable = form.cleaned_data["enabled"]
+            try:
+                modules.set_enabled(
+                    actor=request.user,
+                    key=key,
+                    enabled=enable,
+                    expected_revision=form.cleaned_data["expected_revision"],
+                    reason=form.cleaned_data["reason"],
+                )
+            except ValidationError as exc:
+                _service_errors(form, exc)
+            else:
+                messages.success(request, "Module turned on." if enable else "Module turned off.")
+                return redirect("lab-profile")
+        else:
+            # The title follows what the posted form asks for, never a second reading.
+            enable = form["enabled"].value() == "1"
+    title = _module_title(enable, state["name"])
+    return render(
+        request,
+        "core/lab_module_form.html",
+        {
+            "page_title": title,
+            "form": form,
+            "module": state,
+            "enable": enable,
+            "submit_label": "Turn on" if enable else "Turn off",
         },
     )
 

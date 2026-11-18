@@ -10,4 +10,5 @@ def seed_setup(ctx):
 
 
 def seed_records(ctx):
-    tell()
+    """The story's requests by key, for later seeds (nonconformance.seed) to use by identity."""
+    ctx.created["requests"] = tell() or {}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+Nonconformances raised in each of the last twelve months, by source, and by area over the same
+months (nonconformance.summary.counts). Counts only. Context: counts (first, months newest first
+with month, by_source and total; sources (value, label); source_totals; total; areas with area
+and count, most first) source_totals ((value, label, count) per source) and list_url (the Nonconformances list, whose show=any&source= filter
+the source totals open). The Summary tab of the Quality section.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Nonconformances raised since {{ counts.first|date:"F Y" }}, counted by the month they were raised.</p>{% endblock %}
+{% block content %}
+{% section_tabs "quality" %}
+{% panel title="By month and source" heading_id="months-heading" count=counts.total table=True class="mb-3" %}
+  {% list_results items=counts.total empty_title="No nonconformances in the last twelve months" empty_body="Records raised in a month are counted here." %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="months-heading">
+    <thead><tr><th scope="col">Month</th>{% for value, label in counts.sources %}<th scope="col" class="text-end">{{ label }}</th>{% endfor %}<th scope="col" class="text-end">Total</th></tr></thead>
+    <tbody>
+      {% for row in counts.months %}
+      <tr>
+        <th scope="row"><time datetime="{{ row.month|date:'Y-m' }}">{{ row.month|date:"F Y" }}</time></th>
+        {% for n in row.by_source %}<td class="text-end">{{ n }}</td>{% endfor %}
+        <td class="text-end"><strong>{{ row.total }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><th scope="row">Twelve months</th>{% for value, label, n in source_totals %}<td class="text-end">{% if n %}<a href="{{ list_url }}?show=any&amp;source={{ value }}" aria-label="{{ n }} {{ label }}: open the list">{{ n }}</a>{% else %}0{% endif %}</td>{% endfor %}<td class="text-end"><strong>{{ counts.total }}</strong></td></tr></tfoot>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% panel title="By area" heading_id="areas-heading" count=counts.areas|length table=True class="mb-3" %}
+  {% list_results items=counts.areas empty_title="No nonconformances in the last twelve months" %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="areas-heading">
+    <thead><tr><th scope="col">Area or section</th><th scope="col" class="text-end">Raised</th></tr></thead>
+    <tbody>
+      {% for row in counts.areas %}
+      <tr><th scope="row">{% if row.area %}{{ row.area }}{% else %}<span class="vr-muted">No area recorded</span>{% endif %}</th><td class="text-end">{{ row.count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}
