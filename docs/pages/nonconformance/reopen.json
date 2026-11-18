@@ -1,0 +1,71 @@
+{
+  "id": "nonconformance-reopen",
+  "routes": [
+    "nonconformance:reopen"
+  ],
+  "title": "Reopen nonconformance",
+  "purpose": "Reopen a closed nonconformance with a reason, returning it to Investigating.",
+  "summary": "Reopen a closed nonconformance with a reason. Only a supervisor can do this. The record returns to Investigating.",
+  "tasks": [
+    {
+      "title": "Reopen a closed record",
+      "steps": [
+        "On the closed record select [[Reopen nonconformance]].",
+        "Explain why in [[Reason]] and select [[Reopen nonconformance]]."
+      ]
+    },
+    {
+      "title": "Close it again later",
+      "steps": [
+        "Work it back to Verification and record a new effectiveness check. A supervisor who is not the owner then closes it."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "It returns to Investigating. Its closing and effectiveness check stay in the history.",
+    "The closing note and the effectiveness check are cleared from the record, so a new check is needed before it can close again.",
+    "Its actions, investigation, impact, owner and linked tickets stay as they were.",
+    "The reason is required and is kept with the change in the history."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only a supervisor (the admin role included) may open this form; anyone else is refused. It opens from Reopen nonconformance at the top of a closed record, as a dialog or a full page. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Reason",
+          "description": "Required, up to 4,000 characters. Kept with the change in the record's history."
+        },
+        {
+          "label": "Reopen nonconformance",
+          "description": "Sets the status to Investigating, clears when and by whom it was closed, the closing note and the effectiveness check, and confirms Nonconformance reopened. The history records Reopened with your reason."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "A record that is not closed: This nonconformance is not closed. A stale form: This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/templates/nonconformance/action_form.html"
+  ]
+}

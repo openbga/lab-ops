@@ -41,6 +41,7 @@ testpaths = [
     "request_forms/tests",
     "dataimport/tests",
     "attachments/tests",
+    "nonconformance/tests",
 ]
 
 [tool.ruff]

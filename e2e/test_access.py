@@ -46,7 +46,15 @@ def test_staff_roles_land_on_workspace_and_denied_actions_are_refused(
     sign_out(page)
 
 
-STAFF_ITEMS = ["Dashboard", "Tickets", "Teams", "Client organizations", "Laboratory profile"]
+# The demonstration switches the optional nonconformance module on, so every staff role has it.
+STAFF_ITEMS = [
+    "Dashboard",
+    "Tickets",
+    "Teams",
+    "Client organizations",
+    "Nonconformances",
+    "Laboratory profile",
+]
 ADMIN_ONLY = ["Record retention", "Announcements"]
 
 
@@ -105,7 +113,9 @@ def test_role_menu_on_desktop_and_mobile(page: Page, sign_in_as, request, viewpo
     expect(nav).to_be_visible()
     for label in absent:
         expect(nav.get_by_role("link", name=label, exact=True)).to_have_count(0)
-    expect(nav.locator(".vr-nav-heading")).to_have_text(["Service desk", "Clients", "Setup"])
+    expect(nav.locator(".vr-nav-heading")).to_have_text(
+        ["Service desk", "Clients", "Quality", "Setup"]
+    )
     for label in STAFF_ITEMS + (ADMIN_ONLY if role == "admin" else []):
         expect(nav.get_by_role("link", name=label, exact=True)).to_be_visible()
     destination = "Client organizations"

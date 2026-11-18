@@ -74,9 +74,20 @@ with a reason. The assignee or a supervisor records the investigation decision a
 findings, actions, corrective-action reference and communication of the outcome. Resolve the
 immediate issue when appropriate. Before closure, a supervisor who never held the assignment or
 recorded or revised the investigation decision must review the complaint. The **Complaints
-awaiting review** queue helps supervisors find this work.
+awaiting review** queue helps supervisors find this work. With the nonconformance module on, open the corrective action
+as a nonconformance from the complaint's record instead of typing a reference.
 
-### 7. Link an external record
+### 7. Record a nonconformance
+
+When the laboratory uses the nonconformance module, open **Nonconformances** and choose **New
+nonconformance**, or choose **Open nonconformance** in a complaint's record. Describe what happened
+and refer to orders, samples or reports by their numbers, never by patient. A supervisor chooses
+the owner. The owner records containment, root cause and similar cases, the decision on results
+already reported and whether the client was told. Add actions with a person and a due date and
+move the record through its statuses. In Verification, record the effectiveness check. Another
+supervisor then closes it. **Corrective actions** lists open and overdue actions.
+
+### 8. Link an external record
 
 From a ticket or organization, add a link, choose its source system and type, then enter the
 source identifier. If clients should see a non-person link, select **Show to client** where
@@ -84,13 +95,13 @@ offered. Web addresses must use HTTPS on the configured system host. For a patie
 or donor link, staff with the explicit grant can enter the source key and a masked label.
 Revealing it records an audit event. Open the source system separately to look up that person.
 
-### 8. Look up a client or contact
+### 9. Look up a client or contact
 
 Find the organization by name or account code. Its page brings together open tickets, contact
 details, sites, portal access and links to other systems. Use **Timeline** to review recent
 activity across the organization. Staff see only tickets within their scope.
 
-### 9. Maintain organizations, sites and portal access
+### 10. Maintain organizations, sites and portal access
 
 Account managers and client services staff can create or update these records. From an organization
 add a site or contact, or use **Set access** beside a portal account to choose its linked contact
@@ -101,13 +112,13 @@ For a bulk update, open **Spreadsheet import**. Download the corresponding CSV t
 organizations before their sites, contacts or external identifiers. Check the preview for creates,
 updates, unchanged rows and errors. Confirm the file only when the changes match your intent.
 
-### 10. Save a view
+### 11. Save a view
 
 Set the filters and sort on **Tickets**, then select **Save view**. Give it a name.
 A supervisor can share a view with a team or all staff. Each reader sees only tickets their
 account may open.
 
-### 11. Set up the desk
+### 12. Set up the desk
 
 Administrators set up teams and ticket categories first. Category presets provide starting
 points for different kinds of laboratories. Adjust routing, client labels and restrictions, then
@@ -117,13 +128,13 @@ external systems before using their identifiers in links or imports.
 
 ## Client journeys
 
-### 12. Sign in and see open tickets
+### 13. Sign in and see open tickets
 
 The portal home offers services and lists open tickets, including those waiting for you. Choose
 **Tickets** for the fuller list. Access depends on the organization and sites assigned to your
 account. A restricted ticket appears only to the client account that raised it.
 
-### 13. Raise a ticket
+### 14. Raise a ticket
 
 Select a service, such as **Request a pickup**, or use **New ticket** for another topic. Choose
 a site when asked. Fill the required details, include an order or sample number in **Your
@@ -131,7 +142,7 @@ reference** if relevant and send. Keep the ticket number for follow-up. If a for
 available, **Request again** on a previous ticket starts another with eligible answers copied.
 Check them and enter any dates, times, confirmations or patient details again.
 
-### 14. Follow a ticket and reply
+### 15. Follow a ticket and reply
 
 Open a ticket to see its status, the conversation and any form details, files or references
 shared with you. Send a reply to answer the laboratory. Replying to a resolved ticket or one

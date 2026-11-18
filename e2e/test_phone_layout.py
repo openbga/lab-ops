@@ -106,7 +106,7 @@ def test_frame_pages_fit_a_phone_with_44px_targets(page: Page, demo: Lab, phone)
 
 
 # Every list page of the frame (one with a filter toolbar). Add a list here when you add one.
-LISTS = ["/clients/", "/lab/announcements/"]
+LISTS = ["/clients/", "/lab/announcements/", "/quality/nonconformances/", "/quality/actions/"]
 THUMBBAR = 64  # the phone bottom bar, --vr-thumbbar-height
 SHEET = "Filter and sort"
 

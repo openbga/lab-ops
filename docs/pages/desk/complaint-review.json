@@ -30,7 +30,7 @@
   "good_to_know": [
     "You are refused if you recorded the decision, have ever been assigned the ticket, or are not a supervisor. The message tells you which.",
     "Approving does not close or resolve the ticket. Close it afterwards from its page.",
-    "A review cannot be undone or repeated, and the complaint's record no longer changes after it.",
+    "A review is not undone. While it counts, the complaint's record no longer changes; if its reviewer later becomes the assignee, another supervisor reviews it again and both reviews stay in the history.",
     "The Review button appears on the ticket only when you may review it. Otherwise a line starting Review: gives the reason."
   ],
   "sections": [
@@ -43,7 +43,7 @@
       "items": [
         {
           "label": "Decision, Rationale, Findings and actions, Corrective action, Outcome communicated",
-          "description": "The complaint's record as it stands. You cannot change it here."
+          "description": "The complaint's record as it stands. You cannot change it here. When a nonconformance was opened from the complaint, Corrective action shows its number, which never changes; its status is on the nonconformance itself."
         },
         {
           "label": "Review note",

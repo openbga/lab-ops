@@ -1,0 +1,97 @@
+{
+  "id": "core-lab-module",
+  "routes": [
+    "lab-module"
+  ],
+  "title": "Turn a module on or off",
+  "purpose": "Turn an optional module on or off for the whole laboratory, with a reason.",
+  "summary": "Turn an optional module, such as nonconformance and corrective action, on or off for everyone, with a reason. Only the admin role can do this.",
+  "tasks": [
+    {
+      "title": "Turn a module on",
+      "steps": [
+        "On the laboratory profile, under Optional modules, select [[Turn on]] beside the module.",
+        "Explain why in [[Reason]] and select [[Turn on]]."
+      ]
+    },
+    {
+      "title": "Turn a module off",
+      "steps": [
+        "Under Optional modules select [[Turn off]] beside the module.",
+        "Explain why in [[Reason]] and select [[Turn off]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Turning a module off hides its pages, menu entry, links and buttons for everyone, and its addresses answer Not found.",
+    "Records are kept unchanged while a module is off and reappear when it is turned on again.",
+    "The switch and your reason appear in the laboratory profile's history.",
+    "If someone switched the module after you opened this form, your change is refused. Reload the profile and check its state."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role may open this form; anyone else is refused. It opens from Turn on or Turn off in the Optional modules panel of the laboratory profile, as a dialog or a full page. The title names the change, for example Turn on nonconformance and corrective action. An unknown module answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "What it adds",
+          "description": "The module's description, shown first."
+        },
+        {
+          "label": "Effect note",
+          "description": "Turning on: Every staff role then sees its pages and menu entry. Records kept from an earlier time it was on reappear unchanged. Turning off: Its pages, menu entry, links and buttons disappear for everyone, and its addresses answer Not found. Its records are kept unchanged and reappear when it is turned on again."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Kept with the change in the laboratory profile's history."
+        },
+        {
+          "label": "Turn on / Turn off",
+          "description": "Switches the module for the whole laboratory, confirms Module turned on. or Module turned off. and returns to the laboratory profile. The history there records Module enabled or Module disabled with the module's name, your name, the time and the reason."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the laboratory profile without switching anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Stale form",
+          "description": "The form asks for the opposite of the state it showed. If the module was switched after you opened it, saving is refused rather than switching it back: This module was switched after you opened the page. Reload it and check its state."
+        },
+        {
+          "label": "Nothing to change",
+          "description": "Asking for the state the module already has is refused with Nothing to change."
+        },
+        {
+          "label": "Changes under way",
+          "description": "Turning a module off waits for changes already being saved in the module to finish. A change started after it is switched off is refused."
+        },
+        {
+          "label": "Nonconformance and corrective action",
+          "description": "Records of problems found in the laboratory's work. While it is on, every staff role sees Nonconformances under Quality in the sidebar, and complaint tickets offer Open nonconformance. While it is off, complaint tickets keep the free-text Corrective action reference instead."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/modules.py",
+    "core/lab_profile_views.py",
+    "core/lab_profile_forms.py",
+    "templates/core/lab_module_form.html",
+    "templates/core/_modules_panel.html",
+    "core/templatetags/navigation.py",
+    "core/templatetags/ui.py",
+    "desk/views.py",
+    "desk/templates/desk/request_detail.html"
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "id": "nonconformance-action-cancel",
+  "routes": [
+    "nonconformance:action-cancel"
+  ],
+  "title": "Cancel action",
+  "purpose": "Cancel an open action on a nonconformance that is no longer needed, with a reason.",
+  "summary": "Cancel an open action that is no longer needed, with a reason. The record's owner or a supervisor can do this.",
+  "tasks": [
+    {
+      "title": "Cancel an action",
+      "steps": [
+        "Open the action's [[Actions]] menu on the record and select [[Cancel action]].",
+        "Explain why in [[Reason]] and select [[Cancel action]]."
+      ]
+    },
+    {
+      "title": "Replace it with a different action",
+      "steps": [
+        "Cancel the old one, then select [[Add action]] on the record."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Cancelling cannot be undone. The action stays listed as Cancelled with your reason.",
+    "A cancelled action no longer stops the record from closing or from being checked Effective.",
+    "The person the action is assigned to cannot cancel it unless they own the record or are a supervisor.",
+    "To change the person or due date instead, use Edit action."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Cancel action in an action's menu on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Action, Person, Due",
+          "description": "The action you are cancelling: its text, who does it and its due date."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Shown under Finished in the record's Actions table and kept in the history."
+        },
+        {
+          "label": "Cancel action",
+          "description": "Sets the action to Cancelled, records you and the time, and confirms Action cancelled. The history records Action cancelled."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record and leaves the action open."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "An action already done or cancelled: This action is already finished. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html"
+  ]
+}

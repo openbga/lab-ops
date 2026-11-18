@@ -243,7 +243,7 @@ def whats_new(request):
             preferences.save(request, preferences.WHATS_NEW_KEY, seen)
         except ValueError:
             pass  # too many saved preferences: the indicator stays, the list still shows
-    visible = visible_staff_items(request.user)
+    visible = visible_staff_items(request.user, request=request)
     return render(
         request,
         "core/whats_new.html",

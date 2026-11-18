@@ -1,0 +1,102 @@
+{
+  "id": "nonconformance-action-form",
+  "routes": [
+    "nonconformance:action-add",
+    "nonconformance:action-edit"
+  ],
+  "title": "Add or edit action",
+  "purpose": "Add an action to a nonconformance with the person who does it and a due date, or change an open action with a reason.",
+  "summary": "Add an action to a nonconformance with who does it and by when, or change an open action's text, person or due date with a reason.",
+  "tasks": [
+    {
+      "title": "Add an action",
+      "steps": [
+        "On the record select [[Add action]].",
+        "Describe it in [[Action]], choose the [[Person]] and the [[Due date]], and select [[Add action]]."
+      ]
+    },
+    {
+      "title": "Change an open action",
+      "steps": [
+        "Open the action's [[Actions]] menu and select [[Edit action]].",
+        "Make the change, explain it in [[Reason]] and select [[Save changes]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A new or changed due date must be today or later. An existing due date already past may stay as it is.",
+    "Editing an action needs a reason. It is kept with the change in the record's history.",
+    "Only an open action can be edited. A done or cancelled action stays as it was.",
+    "The person can mark the action done even if they do not own the record."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Add action under Actions, or Edit action in an action's menu, on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Adding and editing",
+      "paragraphs": [
+        "Add action starts empty, has no Reason field, and its button reads Add action. Edit action starts with the action's text, person and due date, notes that a due date already past may stay as it is while a new one is today or later, asks for a Reason, and its button reads Save changes. Adding an action, or changing one, clears a recorded effectiveness check: the work it covered has changed, so it is recorded again before closing. The history keeps the earlier check."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Action",
+          "description": "Required, up to 2,000 characters. What is to be done."
+        },
+        {
+          "label": "Person",
+          "description": "Required. Who does it. Lists active staff accounts; the person must be an active account with a staff role, otherwise: Choose an active staff member as the person who does it."
+        },
+        {
+          "label": "Due date",
+          "description": "Required. Today or later. When editing, an unchanged due date already past is accepted; a changed one must be today or later: Choose today or a later date."
+        },
+        {
+          "label": "Reason",
+          "description": "Edit only, required. Kept with the change in the record's history."
+        },
+        {
+          "label": "Add action",
+          "description": "Adds the action as Open and confirms Action added. The history records Action added with its due date and person."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves the edit and confirms Action saved. The history records Action edited with your reason, and the due date and person before and after when they changed."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "An edit that changes nothing: Change at least one detail before saving. An action already done or cancelled: Only an open action changes. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form. A change to any of the record's actions counts as a change to the record."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html",
+    "core/forms.py"
+  ]
+}

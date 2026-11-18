@@ -1,0 +1,30 @@
+{% load ui %}{% comment %}
+The laboratory profile's "Optional modules" panel (core.modules): each module with what it adds
+and whether it is on. The admin role (can_manage_modules) gets Turn on / Turn off, which opens
+core/lab_module_form.html. Context (core.lab_profile_views.lab_profile): modules, can_manage_modules.
+{% endcomment %}
+{% panel title="Optional modules" heading_id="modules-heading" count=modules|length table=True flush=True class="mb-3" %}
+  {% list_results items=modules empty_title="No optional modules" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="modules-heading">
+      <thead><tr>
+        <th scope="col">Module</th>
+        <th scope="col">What it adds</th>
+        <th scope="col">Status</th>
+        {% if can_manage_modules %}<th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {% for m in modules %}
+        <tr>
+          <th scope="row">{{ m.name }}</th>
+          <td class="vr-wrap">{{ m.description }}</td>
+          <td>{% if m.is_enabled %}{% status label="On" tone="success" plain=True %}{% else %}{% status label="Off" tone="neutral" plain=True %}{% endif %}</td>
+          {% if can_manage_modules %}<td class="text-end vr-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{% url 'lab-module' m.key %}">{% if m.is_enabled %}Turn off{% else %}Turn on{% endif %}<span class="visually-hidden"> {{ m.name }}</span></a></td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">A module that is off shows no page, menu entry or link anywhere, and its records are kept. Only the admin role turns a module on or off, with a reason.</p>{% endfill %}
+{% endpanel %}

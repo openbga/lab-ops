@@ -18,6 +18,7 @@
 !dataimport/**/*.py
 !desk/**/*.py
 !links/**/*.py
+!nonconformance/**/*.py
 !request_forms/**/*.py
 !service_levels/**/*.py
 !taxonomy/**/*.py

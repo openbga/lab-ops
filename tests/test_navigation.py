@@ -107,6 +107,15 @@ def plain_static_storage(settings):
     }
 
 
+@pytest.fixture(autouse=True)
+def modules_on(db):
+    """Every optional module on, so its pages are checked like the others; a module that is off
+    hides its items (test_a_module_that_is_off_shows_no_item)."""
+    from core.models import LabModule
+
+    LabModule.objects.create(key="nonconformance", is_enabled=True, revision=1)
+
+
 @pytest.fixture
 def admin_user(staff):
     return staff("nav-admin", "admin")
@@ -218,7 +227,7 @@ def test_every_staff_destination_has_an_explicit_menu_rule_and_one_section():
 
 
 # Every staff role reads these.
-COMMON_MENU = {"dashboard", "requests", "teams", "clients", "lab-profile"}
+COMMON_MENU = {"dashboard", "requests", "teams", "clients", "lab-profile", "nonconformances"}
 ROLE_MENUS = {
     "supervisor": COMMON_MENU,
     "client_services": COMMON_MENU | {"import"},  # spreadsheet import (M2-A)
@@ -253,6 +262,20 @@ def test_staff_menu_matches_work_capabilities_and_every_destination_opens(client
             assert (f'id="vr-nav-{key}"' in nav) == bool(set(keys) & ROLE_MENUS[role])
     for url in sidebar_links(response):
         assert client.get(url).status_code == 200, (role, url)
+
+
+@pytest.mark.parametrize("role", ROLE_MENUS)
+def test_a_module_that_is_off_shows_no_item(client, staff, role):
+    from core.models import LabModule
+    from core.templatetags.navigation import MODULE_ITEMS
+
+    LabModule.objects.update(is_enabled=False)
+    client.force_login(staff(f"module-off-{role}", role))
+    response = client.get(reverse("dashboard"))
+    assert sidebar_links(response) == menu_urls(ROLE_MENUS[role] - set(MODULE_ITEMS))
+    assert 'id="vr-nav-quality"' not in region(response.content, '<nav class="vr-sidenav')
+    for key in MODULE_ITEMS:
+        assert client.get(reverse(ITEMS[key].url_name)).status_code == 404
 
 
 def test_combined_roles_and_revocations_change_the_next_menu(client, staff):

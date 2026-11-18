@@ -1,0 +1,82 @@
+{
+  "id": "nonconformance-owner",
+  "routes": [
+    "nonconformance:owner"
+  ],
+  "title": "Choose owner",
+  "purpose": "Choose the person who works a nonconformance, or hand it to someone else.",
+  "summary": "Choose who owns a nonconformance, or hand it to someone else. Only a supervisor can do this. The owner works the record with the supervisors.",
+  "tasks": [
+    {
+      "title": "Choose the owner",
+      "steps": [
+        "On the record open [[More]] and select [[Choose owner]].",
+        "Pick the person in [[Owner]], optionally add [[Reason (optional)]], and select [[Choose owner]]."
+      ]
+    },
+    {
+      "title": "Hand the record to someone else",
+      "steps": [
+        "On the record open [[More]] and select [[Change owner]].",
+        "Pick the new person in [[Owner]] and select [[Change owner]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The owner works the record with the supervisors and cannot close it.",
+    "Until an owner is chosen, only supervisors can work the record, and it cannot be closed.",
+    "After a change, the previous owner can no longer work the record unless they are a supervisor.",
+    "Choosing the person who already owns it is refused."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only a supervisor (the admin role included) may open this form; anyone else is refused. It opens from the More menu on an open record, as a dialog or a full page. The title and button read Choose owner while the record has no owner and Change owner once it has one. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Owner",
+          "description": "Required. Starts with the current owner, if any. Lists active staff accounts; the person must be an active account with a staff role, otherwise: Choose an active staff member as the owner."
+        },
+        {
+          "label": "Reason (optional)",
+          "description": "Kept with the change in the record's history."
+        },
+        {
+          "label": "Choose owner / Change owner",
+          "description": "Saves and confirms Owner saved. The history records Owner changed with the owner before and after."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "The same person: This person already owns it. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html",
+    "core/forms.py"
+  ]
+}
