@@ -30,6 +30,16 @@ DEMO_LAB_IDENTITY = {
     "email": "clientservices@example.invalid",
     "website": "https://laboratory.example.invalid",
 }
+# kind: name or office, title or role, email, phone. Invented, like every seeded record.
+DEMO_LAB_CONTACTS = {
+    "security": (
+        "Information Security Office",
+        "Security official",
+        "security@example.invalid",
+        "555-0143",
+    ),
+    "privacy": ("Compliance Office", "Privacy official", "privacy@example.invalid", "555-0144"),
+}
 # (issuing authority, program or scope, certificate or laboratory ID, has validity dates)
 DEMO_LAB_CERTIFICATES = (
     ("Example Federal Program", "Laboratory certificate", "EX-0000000000", True),
@@ -165,6 +175,14 @@ class Command(BaseCommand):
                     valid_until=date(year + 1, 12, 31) if dated else None,
                     position=position,
                 ),
+            )
+        for kind, (name, title, email, phone) in DEMO_LAB_CONTACTS.items():
+            lab_profile.save_contact(
+                actor=admin,
+                kind=kind,
+                values={"name": name, "title": title, "email": email, "phone": phone},
+                expected_revision=0,
+                reason="Demonstration contact, invented for the synthetic laboratory.",
             )
 
     def _announce_accounts(self, password):
