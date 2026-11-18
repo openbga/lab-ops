@@ -78,9 +78,10 @@ The privacy records, encryption inside the application and tamper-evident audit 
 safeguards. They follow the named modules because the incident record reuses corrective actions and
 the audit seal needs the scheduled job. Email comes after the outbox it depends on.
 
-Later starts with what completes the modules above, then the desk features staff use daily, then the
-remaining quality records in the order their dependencies allow. Integration, single sign-on and the
-fuller supply and pickup work matter once a laboratory uses the desk every day, so they come last.
+Later starts with time worked on a ticket, which needs nothing unbuilt, and with what completes the
+modules above, then the desk features staff use daily, then the remaining quality records in the
+order their dependencies allow. Integration, single sign-on and the fuller supply and pickup work
+matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
@@ -402,6 +403,19 @@ fuller supply and pickup work matter once a laboratory uses the desk every day, 
 
 ## Later
 
+### Time worked on a ticket
+
+- **Delivers:** staff record the time they worked on a ticket: the person, the date, the minutes and
+  an optional note of what was done, entered on its own or together with a reply, a note or a logged
+  contact; the ticket shows the total time worked, the time by person, and the elapsed time from
+  opening to resolution; a laboratory setting can ask for time before a ticket is resolved, for all
+  categories or for chosen ones, off by default; a time entry is corrected with a reason and never
+  edited; time is for staff and is never shown to clients; the ticket list gains a column and a
+  filter for time worked.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** a running timer, billing from time, payroll timesheets, and time on records other
+  than tickets.
+
 ### Competency and task authorization
 
 - **Delivers:** a competency assessment per person and area with the elements the laboratory lists,
@@ -447,11 +461,13 @@ fuller supply and pickup work matter once a laboratory uses the desk every day, 
 
 - **Delivers:** monthly counts of tickets by team, category, client organization and channel;
   first-response and resolution targets met and missed; time to first response and to resolution;
-  complaints opened and closed; each report and the ticket list exported as CSV within the reader's
-  scope, without patient-marked values or person-level keys, and with each export recorded.
+  time worked on tickets by person, team, category and client organization; complaints opened and
+  closed; each report and the ticket list exported as CSV within the reader's scope, without
+  patient-marked values or person-level keys, and with each export recorded.
 - **Basis:** 42 CFR §493.1239 (ongoing quality assessment, documented); ISO 15189:2022 §5.5 d)
   (indicators such as turnaround achieved).
-- **Depends on:** access records for sensitive reads, which record the exports.
+- **Depends on:** access records for sensitive reads, which record the exports; time worked on a
+  ticket.
 - **Leaves out:** charts beyond simple trends, delivery on a schedule, and a report builder.
 
 ### Sample and requisition problem reasons
@@ -772,7 +788,7 @@ Not ready to build. Each waits for evidence that laboratories want it.
 | Chemical inventory, safety data sheet indexing and waste records | They belong in an environment, health and safety system. The plans themselves can be controlled documents |
 | Leave, appraisal, pay, health and disciplinary records, and staff scheduling | They belong in a personnel system |
 | HL7 or FHIR interfaces | The desk references records. The inbound API receives links from a relay the laboratory runs |
-| Sales pipeline and quotes, invoicing and payments, timesheets | A laboratory's work with its clients is service to existing accounts, and billing stays in its billing system |
+| Sales pipeline and quotes, invoicing and payments, payroll timesheets | A laboratory's work with its clients is service to existing accounts, and billing and payroll stay in their own systems. Time worked on a ticket is a Later item |
 | Telephony and text messages | Calls are logged by hand. Automated texts raise consent rules that need their own design |
 | AI features | Not asked for by evidence, and they add a data processor |
 | A configurable workflow engine | Each record type has the few statuses its rules need |
