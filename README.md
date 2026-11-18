@@ -1,8 +1,8 @@
-# OpenBGA Lab Ops
+# OpenBGA Lab Ops: free, open-source client service desk for laboratories
 
 [![Checks](https://github.com/openbga/lab-ops/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/openbga/lab-ops/actions/workflows/checks.yml)
 
-OpenBGA Lab Ops is an open-source client service desk for US laboratories. Staff track
+OpenBGA Lab Ops is a free, open-source client service desk for US laboratories. Staff track
 questions, complaints, pickups and supply orders from intake to resolution. Clients use a
 portal to open tickets, reply to their laboratory and follow work for their organization or
 sites. Each deployment serves one laboratory.
@@ -141,7 +141,7 @@ Please report vulnerabilities privately using the [security policy](SECURITY.md)
 
 OpenBGA Lab Ops is part of [OpenBGA](https://github.com/openbga) and an open-source project of [BGASoft](https://bgasoft.com), a laboratory software company.
 
-**Community use.** The software is free under the AGPL-3.0-only licence and is provided as is. The project does not include a support commitment: issues and pull requests are welcome and are answered on a best-effort basis.
+**Community use.** The software is provided as is under the AGPL-3.0-only licence. The project does not include a support commitment: issues and pull requests are welcome and are answered on a best-effort basis.
 
 **Enterprise support.** BGASoft offers paid support and services for organizations that run this software. Are you looking for support? Contact [bgasoft.com](https://bgasoft.com). Please do not use GitHub issues for support requests of that kind.
 
@@ -149,7 +149,12 @@ OpenBGA Lab Ops is part of [OpenBGA](https://github.com/openbga) and an open-sou
 
 Copyright (C) 2026 BGASoft Inc. and OpenBGA contributors.
 
-OpenBGA Lab Ops uses the GNU Affero General Public License version 3 only. If you deploy a
-modified version, set `SOURCE_CODE_URL` to the corresponding source so users can reach it from
-the application's footer. The trademark notice and bundled component licences accompany the
+OpenBGA Lab Ops is free to use, with no licence fee and no per-user pricing. Its source is
+published under the GNU Affero General Public License version 3 only (AGPL-3.0-only), so anyone
+may use, study, change and share it under that licence. BGASoft offers optional paid
+[hosting](https://bgasoft.com/openbga/) and
+[support and implementation](https://bgasoft.com/services/open-source-support/).
+
+If you deploy a modified version, set `SOURCE_CODE_URL` to the corresponding source so users
+can reach it from the application's footer. The trademark notice and bundled component licences accompany the
 software. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [Third-party notices](THIRD_PARTY_NOTICES.md).
