@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Edit scheduled job settings (admin role), opened in the shared form dialog from the Scheduled jobs
+page; this page is the no-JavaScript fallback. Context: page_title, form (jobs.forms.JobSettingsForm,
+with the hidden expected_revision), crumbs, cancel_url. Saving returns to the Scheduled jobs page.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label="Save changes" no_required_note=True class="vr-narrow" %}
+  <fieldset class="vr-form-section">
+    {{ form.expected_revision }}
+    {{ form.close_resolved_after_days.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

@@ -196,6 +196,11 @@ class RequestClock(models.Model):
         default=0, help_text="Business seconds paused or resolved before a reopening."
     )
     calculated_at = models.DateTimeField(null=True, blank=True)
+    # When the scheduled job (service_levels.jobs) recorded the breach notices of each clock:
+    # one notice per clock run. Resolving clears the resolution clock's, so a reopened request
+    # that passes its target again is noticed again.
+    first_response_breach_noticed_at = models.DateTimeField(null=True, blank=True)
+    resolution_breach_noticed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "ticket clock"

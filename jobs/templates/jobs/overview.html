@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Scheduled jobs (admin role): whether the scheduler runs, each job's last run, the settings, and
+the email notices that need attention. Overview page: no breadcrumbs, no primary action.
+Context: scheduler ("never" | "stale" | "running"), latest_start, jobs (label, summary, started_at,
+outcome, tone, error, failures, did), settings (jobs.models.JobSettings), counts (waiting,
+retrying, failed, sent, not_sent), notices (created_at, ticket_id, reference, recipient, events,
+failed, attempts, last_error, next_attempt_at; reference and recipient are blank when the reader
+may not open the ticket), mail_enabled.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The jobs that run in the background, their settings, and email notices that could not be sent.</p>{% endblock %}
+{% block content %}
+{% if scheduler == "never" %}
+{% notice tone="warning" label="Not running" class="mb-3" %}The scheduled jobs have never run on this deployment. Email notices are still sent right after each change, but retries, service target notices and automatic closing need a scheduler that runs <code>python manage.py run_scheduled_jobs</code> every few minutes. See the operations guide.{% endnotice %}
+{% elif scheduler == "stale" %}
+{% notice tone="warning" label="Not running" class="mb-3" %}No scheduled job has run in the last 30 minutes. The last run started <time datetime="{{ latest_start|date:'c' }}">{{ latest_start|date:"Y-m-d H:i" }}</time>. Check that the scheduler still runs <code>python manage.py run_scheduled_jobs</code> every few minutes.{% endnotice %}
+{% endif %}
+
+{% panel title="Jobs" heading_id="jobs-heading" count=jobs|length table=True class="mb-3" %}
+  {% list_results items=jobs empty_title="No scheduled jobs" %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="jobs-heading">
+    <thead><tr>
+      <th scope="col">Job</th>
+      <th scope="col">What it does</th>
+      <th scope="col">Last run</th>
+      <th scope="col">Outcome</th>
+      <th scope="col">Last run did</th>
+    </tr></thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <th scope="row">{{ job.label }}</th>
+        <td class="vr-wrap">{{ job.summary }}</td>
+        <td class="vr-nowrap">{% if job.started_at %}<time datetime="{{ job.started_at|date:'c' }}">{{ job.started_at|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
+        <td>{% if job.outcome %}<div>{% status label=job.outcome tone=job.tone %}{% if job.error %}<span class="vr-sub">{{ job.error }}{% if job.failures > 1 %}, {{ job.failures }} runs in a row{% endif %}</span>{% endif %}</div>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        <td class="vr-wrap">{% if job.did %}{{ job.did }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
+{% panel title="Settings" heading_id="settings-heading" class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'jobs:settings-edit' %}">Edit<span class="visually-hidden"> settings</span></a>{% endfill %}
+  <dl class="vr-facts">
+    {% fact label="Close resolved tickets after" wide=True %}{% if settings.close_resolved_after_days %}{{ settings.close_resolved_after_days }} day{{ settings.close_resolved_after_days|pluralize }}{% else %}Never (tickets stay resolved until someone closes them){% endif %}{% endfact %}
+  </dl>
+{% endpanel %}
+
+{% panel title="Email notices" heading_id="notices-heading" table=True class="mb-3" %}
+  {% panel_section %}
+    {% if not mail_enabled %}{% notice tone="neutral" label="Email is off" %}Email is off on this deployment. Notices are recorded but not sent.{% endnotice %}{% endif %}
+    <dl class="vr-facts">
+      {% fact label="Waiting to send" %}{{ counts.waiting }}{% if counts.retrying %} <span class="vr-muted">({{ counts.retrying }} to retry)</span>{% endif %}{% endfact %}
+      {% fact label="Failed" value=counts.failed %}
+      {% fact label="Sent in the last 7 days" value=counts.sent %}
+      {% fact label="Not sent in the last 7 days" value=counts.not_sent %}
+    </dl>
+  {% endpanel_section %}
+  {% list_results items=notices empty_title="Nothing needs attention" empty_body="No email notice has failed or is waiting to be retried." %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-label="Notices that need attention">
+    <thead><tr>
+      <th scope="col">Recorded</th>
+      <th scope="col">Ticket</th>
+      <th scope="col">For</th>
+      <th scope="col">Notice</th>
+      <th scope="col">Status</th>
+      <th scope="col" class="text-end" data-vr-col-priority="low">Attempts</th>
+      <th scope="col">Last error</th>
+      <th scope="col">Next attempt</th>
+    </tr></thead>
+    <tbody>
+      {% for notice in notices %}
+      <tr>
+        <th scope="row" class="vr-nowrap"><time datetime="{{ notice.created_at|date:'c' }}">{{ notice.created_at|date:"Y-m-d H:i" }}</time></th>
+        <td class="vr-nowrap">{% if notice.ticket_id %}<a class="vr-id" href="{% url 'desk:request-detail' notice.ticket_id %}">{{ notice.reference }}</a>{% else %}<span class="vr-muted">Not available to you</span>{% endif %}</td>
+        <td>{% if notice.ticket_id %}{{ notice.recipient }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        <td>{{ notice.events }}</td>
+        <td class="vr-nowrap">{% if notice.failed %}{% status label="Failed" tone="danger" plain=True %}{% else %}{% status label="Waiting to retry" tone="progress" plain=True %}{% endif %}</td>
+        <td class="text-end">{{ notice.attempts }}</td>
+        <td>{% if notice.last_error %}<span class="vr-id">{{ notice.last_error }}</span>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        <td class="vr-nowrap">{% if notice.next_attempt_at %}<time datetime="{{ notice.next_attempt_at|date:'c' }}">{{ notice.next_attempt_at|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

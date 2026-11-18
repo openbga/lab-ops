@@ -47,7 +47,7 @@ def test_staff_roles_land_on_workspace_and_denied_actions_are_refused(
 
 
 STAFF_ITEMS = ["Dashboard", "Tickets", "Teams", "Client organizations", "Laboratory profile"]
-ADMIN_ONLY = ["Record retention", "Announcements"]
+ADMIN_ONLY = ["Record retention", "Scheduled jobs", "Announcements"]
 
 
 def test_client_lands_in_portal_and_cannot_use_staff_routes(page: Page, sign_in_as):

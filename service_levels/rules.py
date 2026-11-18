@@ -282,6 +282,9 @@ def sync_status(
             clock.resolution_met_at = now
             if _late(now, clock.resolution_due_at):
                 clock.resolution_missed = True
+            # This run of the clock is over: a reopened request that passes its target again
+            # gets a new breach notice (service_levels.jobs).
+            clock.resolution_breach_noticed_at = None
     if status in STOPPED_STATUSES:
         meet_first_response(clock, now)
 

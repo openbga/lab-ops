@@ -8,14 +8,17 @@ laboratories use the software. There are no committed release dates.
 The staff desk and client portal support tickets, conversations, attachments, assignments,
 complaint review, service targets and saved views. Laboratories can manage client directories,
 import them from CSV files, link tickets to external records and publish forms for pickups,
-supply orders and other services. See the [product scope](product.md) and [workflows](workflows.md).
+supply orders and other services. Scheduled jobs retry email notices from a durable outbox,
+tell the people responsible when a service target passes and, when an administrator sets a
+period, close resolved tickets. A job queue or worker process, digests and a scheduler on the
+public demonstration (new spending for the maintainers to approve) are not part of it. See the
+[product scope](product.md) and [workflows](workflows.md).
 
 ## Next
 
 | Planned work | What it would add |
 | --- | --- |
 | Nonconformance and corrective action | An optional record linked to complaints, with containment, impact assessment, an action owner and due date, effectiveness review and closure. |
-| Scheduled jobs and a notification outbox | Delivery retries, service clock breach notices and an optional interval for automatically closing resolved tickets. |
 | Email channel | Send replies by email and receive messages through a provider webhook, associating a verified reply with its ticket. |
 | Sign-off and controlled documents | Versioned documents, approval, effective dates, review dates and an attributed sign-off. |
 | Read-and-acknowledge and training records | Assign a particular document version to people or teams and record training attendance and acknowledgement. |

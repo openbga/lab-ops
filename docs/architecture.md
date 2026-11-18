@@ -20,6 +20,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `request_forms` | Form definitions, offerings, catalogs and captured values |
 | `attachments` | Upload inspection, file metadata, bytes, withdrawal and authorized downloads |
 | `dataimport` | CSV previews and transactional updates for the client directory |
+| `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -55,10 +56,31 @@ calls the clock and notification hooks. [Ticket services](../desk/services.py)
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.
-Queries use the same clock states for lists and counts. The notification hooks schedule mail
-after commit. An email is built from the ticket number, fixed event text, the laboratory name
-and a sign-in URL. A delivery failure is logged. Durable retries are planned.
-[Service clocks](../service_levels/hooks.py) and [notifications](../desk/notifications.py)
+Queries use the same clock states for lists and counts. The notification hooks record one
+notice per recipient in the outbox inside the change's transaction, holding ids, event codes and
+the ticket number only. After commit each notice gets its first attempt. At every attempt the
+topic's handler decides again, from the ticket and the account as they are then, whether the
+notice still applies, and builds the email from the ticket number, fixed event text, the
+laboratory name and a sign-in URL. A failed attempt is counted and retried later; delivery is
+at least once. [Service clocks](../service_levels/hooks.py), [notifications](../desk/notifications.py)
+and [the outbox](../jobs/outbox.py)
+
+## Scheduled jobs
+
+`manage.py run_scheduled_jobs` runs every job in [the registry](../jobs/registry.py) once, in
+order, holding a PostgreSQL advisory lock so two runs never overlap. Each job works in short
+transactions and locks each record it changes the way the services do, skipping a record another
+transaction holds until the next run, so people working are never kept waiting. A job that fails
+is logged with its error's class and frames, and the remaining jobs still run. The command exits
+with an error when any job failed. Each job's last run is kept in `JobState` for the Scheduled
+jobs page.
+
+A job that changes a record acts as a dedicated "Scheduled jobs" account ([jobs/actor.py](../jobs/actor.py)),
+created on first use, inactive, with no usable password, role or deliverable address. Its id is
+stored in the job settings, not looked up by name. A job decides from records read under its own
+locks: the automatic close locks the settings row and then the ticket, and the breach notice
+locks the ticket and then its clock, the same order as the ticket services. Later items add their
+periodic work and their notice topics to the registry.
 
 ## Ticket forms
 

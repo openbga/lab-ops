@@ -43,6 +43,12 @@ and only to the account that raised it in the client portal.
 | Resolved | Staff have recorded an internal resolution summary. A client reply reopens it. Staff can reopen it with a reason. |
 | Closed | Work is final. The client can open a linked follow-up ticket. |
 
+An administrator can have resolved tickets close automatically a set number of days after they
+were resolved (from 1 to 365; none by default). The scheduled jobs close them under the same
+rules as closing by hand, so a complaint stays resolved until its review counts. The timeline
+names the "Scheduled jobs" account and the period, and a page of the ticket opened before the
+close can no longer save.
+
 ### Entries and visibility
 
 A staff reply appears in the client conversation. Internal notes and logs of calls and other
@@ -104,6 +110,12 @@ client, and while waiting on a third party if the target allows that pause. Time
 is excluded if the ticket reopens. Changing category or priority recalculates outstanding clocks.
 Editing a target alone does not move existing due times.
 
+When a running clock passes its due time, the scheduled jobs send one email notice to the
+assignee and the leads of the ticket's team, or to every member of the team when it has neither.
+A clock gets one notice each time it runs past its due time: resolving and reopening a ticket
+starts its resolution clock again. Clocks already past due when a deployment installs this
+release get no notice for that breach. The ticket itself does not change.
+
 ## Roles and capabilities
 
 | Account or grant | Access |
@@ -111,7 +123,7 @@ Editing a target alone does not move existing due times.
 | Any staff role | Read and work authorized tickets. Log contact, assign tickets, manage non-person links, fill form details and save personal views. |
 | Client services or account manager | Maintain client organizations, sites, contacts and portal access. Import organization data. |
 | Supervisor | Read restricted tickets across teams, review eligible complaints, withdraw replies or files, read ticket audit history, share saved views and manage team membership. |
-| Administrator role | All operational roles plus laboratory settings, teams, taxonomy, forms, catalogs, external systems, business calendars and targets. |
+| Administrator role | All operational roles plus laboratory settings, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
@@ -128,9 +140,27 @@ roles. Replies from staff identify the team and the laboratory.
 
 When email is configured, client recipients with access can receive a notice after a staff
 reply or a change to Waiting on client or Resolved. Assignment and client replies can notify the
-assignee. Notices use the ticket number, a fixed event description, the laboratory's name and
-a sign-in link. Conversation text and attachments stay in the application. Staff may disable
-their own notices. The demonstration disables email.
+assignee, and a passed service target notifies the people responsible (see Service clocks).
+Notices use the ticket number, a fixed event description, the laboratory's name and a sign-in
+link. Conversation text and attachments stay in the application. Staff may disable their own
+notices. The demonstration disables email.
+
+Each notice is recorded with the change that raised it and sent once that change is saved. A
+notice the mail server does not accept is retried by the scheduled jobs, after 5, 15 and 30
+minutes and then 1, 2, 4 and 8 hours, and marked failed after the eighth attempt. Before every
+attempt the application checks again that the recipient may still read the ticket and that the
+event still applies, for example that a reply has not been withdrawn. With email off, notices are
+recorded as not sent and are never sent later.
+
+### Scheduled jobs
+
+One command, `manage.py run_scheduled_jobs`, run by the deployment's scheduler every few minutes,
+retries notices, sends service target notices and closes resolved tickets after the laboratory's
+period. Without a scheduler, notices are still sent right after each change, but nothing is
+retried, no target notice is sent and nothing closes automatically. The Scheduled jobs page shows
+administrators when each job last ran, warns when no run happened in the last 30 minutes, and
+lists notices that failed or wait to be retried. Changes the jobs make are recorded under a
+"Scheduled jobs" account that cannot sign in. The demonstration has no scheduler.
 
 ## Record keeping and laboratory policy
 

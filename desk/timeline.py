@@ -44,7 +44,13 @@ def _phrase(action, data, teams, users):
             return f"{moved}, assigned to {_name(person)}" if person else moved
         return f"Assigned to {_name(person)}" if person else "Assignee cleared"
     if action == "status_changed":
-        return f"Status: {STATUS.get(data.get('old'))} → {STATUS.get(data.get('new'))}"
+        phrase = f"Status: {STATUS.get(data.get('old'))} → {STATUS.get(data.get('new'))}"
+        if data.get("automatic"):  # desk.services.close_resolved_automatically
+            days = data.get("after_days")
+            unit = "day" if days == 1 else "days"
+            when = f" {days} {unit} after it was resolved" if isinstance(days, int) else ""
+            phrase += f" (closed automatically{when})"
+        return phrase
     if action == "updated":
         parts = []
         if "priority" in data.get("fields", ()):

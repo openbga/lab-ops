@@ -18,8 +18,10 @@ class EmailNoticesForm(StyledForm, forms.Form):
     enabled = forms.BooleanField(
         required=False,
         label="Email me ticket notices",
-        help_text="A short notice when a ticket is assigned to you or a client replies on a "
-        "ticket assigned to you. It names only the ticket number.",
+        help_text="A short notice when a ticket is assigned to you, when a client replies on a "
+        "ticket assigned to you, and when a ticket assigned to you, or in a team you lead, passes "
+        "a service target. When a ticket has no assignee and its team no lead, every member of "
+        "the team is told. It names only the ticket number.",
     )
 
 

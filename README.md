@@ -16,8 +16,8 @@ sites. Each deployment serves one laboratory.
 | Client records | Manage organizations, sites, contacts and portal access. Preview CSV imports and see each client's ticket history. |
 | Service desk | Route tickets to teams and staff. Record calls, send client-visible replies, attach files and keep internal notes. Filter work queues, save views and review complaints. |
 | Service requests | Offer pickup, supply order and other forms through the portal. Configure required fields and orderable items. |
-| Targets and references | Measure first response and resolution on the lab's business calendar. Link tickets to orders, samples and reports in existing systems. |
-| Administration | Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history. |
+| Targets and references | Measure first response and resolution on the lab's business calendar, and tell the people responsible when a target passes. Link tickets to orders, samples and reports in existing systems. |
+| Administration | Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history. Follow scheduled jobs and email notices that need attention, and close resolved tickets automatically after a set period. |
 
 ## Hosted demo
 
@@ -113,7 +113,9 @@ above to create the first administrator.
 
 Render's assigned HTTPS hostname is configured automatically. For a custom domain, set
 `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`. Configure SMTP to enable password-reset and sign-in
-email. The process and database health endpoints are `/health/` and `/ready/`. Back up PostgreSQL
+email. To retry notices, send service target notices and close resolved tickets automatically,
+run `python manage.py run_scheduled_jobs` every few minutes, for example from a Render cron job
+([Scheduled jobs](docs/operations.md#scheduled-jobs)). The process and database health endpoints are `/health/` and `/ready/`. Back up PostgreSQL
 and test a restore before storing laboratory records. For the separate, destructive demo reset
 job, see [Public demonstration](docs/operations.md#public-demonstration).
 

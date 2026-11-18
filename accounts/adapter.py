@@ -16,6 +16,19 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             log_sign_in_failure(sender=type(self), credentials=credentials, request=request)
             raise
 
+    def pre_login(self, request, user, **kwargs):
+        # The scheduled jobs' account (jobs.actor) never signs in, even if someone activates it
+        # and gives it a password in the admin console: a person's actions would otherwise be
+        # recorded as the scheduled jobs'.
+        from jobs.actor import is_system_account
+
+        if is_system_account(user):
+            from allauth.account.internal.stagekit import clear_login
+
+            clear_login(request)
+            return self.respond_user_inactive(request, user)
+        return super().pre_login(request, user, **kwargs)
+
     def send_password_reset_mail(self, user, email, context):
         # A shared demonstration account keeps its published password (accounts.middleware).
         # The page answers as for any address, so it does not reveal which accounts are shared.

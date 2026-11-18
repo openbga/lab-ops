@@ -17,6 +17,7 @@
 !core/demo_assets/*.png
 !dataimport/**/*.py
 !desk/**/*.py
+!jobs/**/*.py
 !links/**/*.py
 !request_forms/**/*.py
 !service_levels/**/*.py

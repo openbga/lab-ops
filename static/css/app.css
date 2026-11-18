@@ -5210,6 +5210,15 @@ details.card:not([open]) > summary.card-header {
     min-height: var(--vr-touch-target);
   }
 
+  /* A number with a unit: the input inside the field box is the target, so it gets the whole
+     44px and the box grows by its border (the rule under Numbers subtracts the border). */
+  .input-group:has(> .vr-number) > .vr-number,
+  .input-group:has(> .vr-number) > .vr-number:focus,
+  .input-group:has(> .vr-number) > .vr-number[aria-invalid="true"],
+  .input-group:has(> .vr-number) > .input-group-text {
+    min-height: var(--vr-touch-target);
+  }
+
   /* Checkbox and radio: the label is the 44px target and the box sits on its middle line. */
   .form-check {
     min-height: var(--vr-touch-target);
