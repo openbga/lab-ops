@@ -19,8 +19,8 @@ files in the image. Do not strip those files or the notices in bundled browser a
 | dj-database-url | BSD-3-Clause; https://github.com/jazzband/dj-database-url/blob/master/LICENSE |
 | Bootstrap 5.3.8 | MIT; https://github.com/twbs/bootstrap/blob/v5.3.8/LICENSE; retain bundled license header/file under static/vendor/bootstrap-5.3.8/ |
 | Popper (bundled in the Bootstrap JavaScript) | MIT. [Popper license and copyright](static/vendor/bootstrap-5.3.8/popper.LICENSE) |
-| Bootstrap Icons 1.13.2 (subset in static/img/icons.svg, symbols copied verbatim) | MIT; https://github.com/twbs/icons/blob/v1.13.2/LICENSE; retain static/img/icons.LICENSE |
-| Overpass (variable, latin and latin-ext subsets, via @fontsource-variable/overpass 5.3.0) | SIL Open Font License 1.1; Copyright 2021 The Overpass Project Authors (https://github.com/RedHatOfficial/Overpass); retain static/vendor/overpass-5.3.0/OFL.txt |
+| Bootstrap Icons 1.13.2 (subset in static/img/icons.svg, symbols copied verbatim) | MIT; https://github.com/twbs/icons/blob/v1.13.2/LICENSE; retain static/img/icons.LICENSE, which the product website publishes beside its copy of the subset |
+| Overpass (variable, latin and latin-ext subsets, via @fontsource-variable/overpass 5.3.0) | SIL Open Font License 1.1; Copyright 2021 The Overpass Project Authors (https://github.com/RedHatOfficial/Overpass); retain static/vendor/overpass-5.3.0/OFL.txt, which the product website publishes beside its copy of the latin subset |
 | HTMX 2.0.11 | 0BSD; https://github.com/bigskysoftware/htmx/blob/v2.0.11/LICENSE; retain bundled LICENSE under static/vendor/htmx-2.0.11/ |
 | Tom Select 2.7.0 (including Sifter, Unicode Variants and microplugin) | Apache-2.0; https://github.com/orchidjs/tom-select/blob/v2.7.0/LICENSE; retain bundled license and headers under static/vendor/tom-select/ |
 | Vanilla Calendar Pro 3.4.0 | MIT; https://github.com/uvarov-frontend/vanilla-calendar-pro/blob/v3.4.0/LICENSE; retain bundled LICENSE and the header under static/vendor/vanilla-calendar-pro-3.4.0/ |

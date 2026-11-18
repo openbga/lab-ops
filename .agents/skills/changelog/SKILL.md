@@ -20,7 +20,7 @@ conflict. `CHANGELOG.md` is generated and never edited by hand. The parser and t
 | Removal or deprecation | Yes |
 | Security fix or hardening | Yes |
 | Migration, new setting or environment variable, management command, dependency, Docker or Render change, upgrade step | Yes, with `## Technical notes` |
-| Refactor, tests, CI, agent instructions, internal docs, roadmap | No |
+| Refactor, tests, CI, agent instructions, internal docs, presentation website (`website/`), roadmap | No |
 
 A pull request with nothing observable carries the `no-changelog` label and says so in its
 description. One coherent change is usually one entry; a large pull request that delivers

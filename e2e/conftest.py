@@ -184,18 +184,26 @@ def sign_in_as(page: Page, demo: Lab):
     return go
 
 
+# Journeys that produce images instead of checking behaviour: marker -> the option that opts in.
+OPT_IN = {"screenshots": "--screenshots-dir", "website_shots": "--website-shots-dir"}
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--screenshots-dir",
         default=None,
         help="Opt in to the milestone screenshot set and write the images to this directory.",
     )
+    parser.addoption(
+        "--website-shots-dir",
+        default=None,
+        help="Opt in to the presentation website's screenshots and write them to this directory.",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    """The screenshot journey produces review artifacts; it runs only when asked for."""
-    if config.getoption("--screenshots-dir"):
-        return
-    chosen = [item for item in items if "screenshots" not in item.keywords]
+    """The image journeys produce artifacts; each runs only when its option asks for it."""
+    off = [marker for marker, option in OPT_IN.items() if not config.getoption(option)]
+    chosen = [item for item in items if not any(marker in item.keywords for marker in off)]
     config.hook.pytest_deselected(items=[i for i in items if i not in chosen])
     items[:] = chosen
