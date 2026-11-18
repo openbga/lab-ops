@@ -69,6 +69,11 @@ def system_account():
         return user
 
 
+def system_account_id():
+    """The id of the scheduled jobs' account, or None before a job has needed it."""
+    return JobSettings.objects.filter(pk=1).values_list("system_account_id", flat=True).first()
+
+
 def is_system_account(user):
     """True only for the account recorded as the scheduled jobs' own."""
     if user is None or getattr(user, "pk", None) is None:

@@ -5,8 +5,10 @@ desk.notifications reads. Client portal accounts cannot turn notices off and are
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.shortcuts import redirect, render
 
+from accounts.models import User
 from accounts.roles import require_staff
 from core import preferences
 from core.forms import StyledForm
@@ -34,7 +36,11 @@ def email_notices(request):
     )
     if request.method == "POST" and form.is_valid():
         enabled = form.cleaned_data["enabled"]
-        preferences.save(request, OPT_OUT_KEY, None if enabled else False)
+        with transaction.atomic():
+            # A notice being sent to this account holds the account's row (jobs.outbox): the
+            # change waits for it, and every later attempt reads the new choice.
+            User.objects.select_for_update().filter(pk=request.user.pk).first()
+            preferences.save(request, OPT_OUT_KEY, None if enabled else False)
         messages.success(request, "Email notice preference saved.")
         return redirect("email-notices")
     return render(

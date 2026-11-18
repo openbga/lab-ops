@@ -16,13 +16,13 @@ def mark_existing_breaches(apps, schema_editor):
     RequestClock = apps.get_model("service_levels", "RequestClock")
     now = timezone.now()
     running = RequestClock.objects.exclude(request__status__in=STOPPED)
-    running.filter(first_response_met_at__isnull=True, first_response_due_at__lte=now).update(
+    running.filter(first_response_met_at__isnull=True, first_response_due_at__lt=now).update(
         first_response_breach_noticed_at=now
     )
     running.filter(
         Q(resolution_met_at__isnull=True)
         & Q(paused_since__isnull=True)
-        & Q(resolution_due_at__lte=now)
+        & Q(resolution_due_at__lt=now)
     ).update(resolution_breach_noticed_at=now)
 
 

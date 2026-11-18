@@ -6,7 +6,9 @@ rules:
   laboratory role and no capability by that status alone (see accounts.roles).
 - A client user can hold no staff flag, role, or permission, so a client link can never
   coexist with staff access.
-- Users are deactivated, never deleted; the last active superuser cannot be removed.
+- Users are deactivated, never deleted; the last active superuser cannot be removed (the
+  scheduled jobs' account, which nobody signs in as, does not count).
+- The scheduled jobs' account (jobs.actor) stays inactive with no staff flag, role or permission.
 - The built-in role groups keep their names. Every account and group change, and every
   password change, writes an attributed audit event; password values are never recorded.
 - A new account opened from a client organization's page ("Add portal account") arrives with
@@ -89,7 +91,22 @@ class AccessRules:
     """Shared validation for the add and change forms."""
 
     def clean(self):
+        from jobs.actor import is_system_account, system_account_id
+
         data = super().clean()
+        if self.instance.pk and is_system_account(self.instance):
+            granted = (
+                data.get("is_active")
+                or data.get("is_staff")
+                or data.get("is_superuser")
+                or data.get("groups")
+                or data.get("user_permissions")
+            )
+            if granted:
+                raise forms.ValidationError(
+                    "This account records what the scheduled jobs do and nobody signs in as it. "
+                    "It stays inactive, with no staff access, role or permission."
+                )
         if self.instance.pk and "client" in data:
             stored = User.objects.filter(pk=self.instance.pk).values_list("client_id", flat=True)
             was_client = stored.first() is not None
@@ -116,7 +133,7 @@ class AccessRules:
         if self.instance.pk and self.instance.is_superuser and self.instance.is_active:
             leaving = not data.get("is_superuser", True) or not data.get("is_active", True)
             others = User.objects.filter(is_superuser=True, is_active=True).exclude(
-                pk=self.instance.pk
+                pk__in=[self.instance.pk, system_account_id()]
             )
             if leaving and not others.exists():
                 raise forms.ValidationError("Keep at least one active superuser.")

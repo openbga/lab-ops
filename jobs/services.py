@@ -7,20 +7,27 @@ from accounts.roles import has_role, require_role
 from core.audit import record_event
 
 from .actor import locked_settings
+from .locks import share_lock
 from .models import CLOSE_AFTER_DAYS_MAX
 
 STALE = "These settings changed after you opened them. Reload and check them before saving again."
 
 
 def _days(value):
-    if value in (None, ""):
+    """A whole number of days from 1 to CLOSE_AFTER_DAYS_MAX, or None. Accepts an int or the
+    digits of one (the form's text); never a fraction or a yes/no value."""
+    if value is None or value == "":
         return None
-    try:
-        days = int(value)
-    except TypeError, ValueError:
-        raise ValidationError(
-            {"close_resolved_after_days": "Enter a whole number of days."}
-        ) from None
+    if isinstance(value, bool):
+        days = None
+    elif isinstance(value, int):
+        days = value
+    elif isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
+        days = int(value.strip())
+    else:
+        days = None
+    if days is None:
+        raise ValidationError({"close_resolved_after_days": "Enter a whole number of days."})
     if not 1 <= days <= CLOSE_AFTER_DAYS_MAX:
         raise ValidationError(
             {
@@ -41,7 +48,13 @@ def update_settings(*, actor, expected_revision, close_resolved_after_days):
     require_role(actor, "admin")
     days = _days(close_resolved_after_days)
     row = locked_settings()
-    # The account as it is now, after the lock: deactivated or demoted since the page opened.
+    # The account and its roles as they are now, held until this change commits: a
+    # deactivation or a removed role either came first and refuses this change, or waits for it.
+    share_lock(User, [actor.pk])
+    share_lock(
+        User.groups.through,
+        User.groups.through.objects.filter(user_id=actor.pk).values_list("pk", flat=True),
+    )
     current = User.objects.filter(pk=actor.pk, is_active=True, client__isnull=True).first()
     if current is None or not has_role(current, "admin"):
         raise PermissionDenied("Your role does not permit this action.")

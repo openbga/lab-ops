@@ -132,8 +132,10 @@ the recipient's account id and the error's class, never an address or the server
 Administrators see failed notices and those waiting to be retried on the Scheduled jobs page.
 With `EMAIL_BACKEND` set to the dummy backend, notices are recorded as not sent and are never sent
 later, even after mail is configured. `EMAIL_TIMEOUT` (10 seconds by default) bounds how long a
-send waits for the mail server, so a slow server delays a save by at most that long and the
-notice is retried.
+send waits for the mail server. The attempt right after a change stops at the first notice the
+server does not take, so a slow server delays a save by about one timeout, and the rest wait for
+the scheduled jobs. A run of `send_notices` stops after three failed sends in a row and leaves the
+rest for the next run.
 
 ## Scheduled jobs
 

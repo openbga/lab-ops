@@ -151,9 +151,13 @@ def wants_notices(user):
 def _staff_can_read(user, request):
     from django.core.exceptions import PermissionDenied
 
+    from jobs.actor import is_system_account
+
     from .selectors import staff_requests
 
     if not user.is_active or user.client_id is not None or not user.email:
+        return False
+    if is_system_account(user):  # it does no work, even if someone gave it a role
         return False
     try:
         return staff_requests(user).filter(pk=request.pk).exists()
@@ -297,6 +301,42 @@ def _batch(request, connection):
 # Checked and worded at each sending attempt (jobs.outbox) --------------------------------------
 
 
+def _hold(notice):
+    """Hold, until the attempt's transaction ends, the rows the decision about `notice` rests on:
+    the request, the recipient's account, the request's category (restriction) and the
+    recipient's team memberships, roles and portal access grants. A change to any of them
+    (reassignment, a reply withdrawn, a status change, deactivation, a role or grant removed, an
+    organization move, a category restricted, a lead role removed) waits until the notice has been
+    sent, and the notice is decided from this reading. The request is waited for briefly (the
+    outbox's lock_timeout); the rest are taken without waiting, so the attempt never waits while
+    holding a lock a writer needs, and a busy row leaves the notice for a later attempt.
+
+    Returns (request, user), freshly read under the locks, or (None, None)."""
+    from accounts.models import User
+    from clients.models import PortalAccess
+    from jobs.locks import share_lock
+    from taxonomy.models import RequestCategory
+    from teams.models import TeamMembership
+
+    from .models import ServiceRequest
+
+    if not share_lock(ServiceRequest, [notice.object_id]):
+        return None, None
+    share_lock(User, [notice.recipient_id], nowait=True)
+    request = ServiceRequest.objects.filter(pk=notice.object_id).first()
+    user = User.objects.filter(pk=notice.recipient_id).first()
+    if request is None or user is None:
+        return None, None
+    share_lock(RequestCategory, [request.category_id], nowait=True)
+    for model, rows in (
+        (TeamMembership, TeamMembership.objects.filter(user=user)),
+        (User.groups.through, User.groups.through.objects.filter(user=user)),
+        (PortalAccess, PortalAccess.objects.filter(user=user)),
+    ):
+        share_lock(model, rows.values_list("pk", flat=True), nowait=True)
+    return request, user
+
+
 def _replies_still_visible(entries):
     """Events about a reply whose reply is still client-visible now (not withdrawn since)."""
     from .models import RequestEntry
@@ -309,22 +349,26 @@ def _replies_still_visible(entries):
     }
 
 
+def _client_events_still_true(request, events):
+    """A status event applies only while the request still has that status: a client who
+    replied since (reopening it) is not told it waits for them or is resolved."""
+    from .models import Status
+
+    holds = {"waiting_client": Status.WAITING_CLIENT, "resolved": Status.RESOLVED}
+    return {e for e in events if e not in holds or request.status == holds[e]}
+
+
 def prepare_request_notice(notice):
     """`notice` (topic desk.request) worded for sending, or None when it no longer applies."""
-    from accounts.models import User
-
-    from .models import ServiceRequest
-
-    request = ServiceRequest.objects.filter(pk=notice.object_id).first()
-    user = User.objects.filter(pk=notice.recipient_id).first()
-    if request is None or user is None:
+    request, user = _hold(notice)
+    if request is None:
         return None
     entries = notice.data.get("entries") or {}
     stale = set(entries) - _replies_still_visible(entries)
     events = set(notice.events) - stale  # e.g. a reply withdrawn before the notice went out
     portal = bool(notice.data.get("portal"))
     if portal:
-        events &= CLIENT_EVENTS
+        events = _client_events_still_true(request, events & CLIENT_EVENTS)
         if not events or user.pk not in {u.pk for u in client_recipients(request)}:
             return None
         event = next(e for e in CLIENT_PRECEDENCE if e in events)
@@ -348,11 +392,9 @@ def prepare_request_notice(notice):
 # Service target breaches ---------------------------------------------------------------------
 
 
-def breach_recipients(request):
-    """[(staff account, role)] to tell that `request` passed a service target: the assignee and
-    the leads of the request's team; when it has neither, every member of the team. Only active
-    staff who can read the request and have not turned their notices off."""
-    from accounts.models import User
+def _breach_roles(request):
+    """[(user id, role)] responsible for `request` now: the assignee and the team's leads, or
+    every member of the team when it has neither. Accounts only; checked by the callers."""
     from teams.models import TeamMembership
 
     memberships = TeamMembership.objects.filter(team_id=request.team_id)
@@ -363,6 +405,17 @@ def breach_recipients(request):
     chosen += [(pk, "lead") for pk in sorted(lead_ids - {request.assignee_id})]
     if not chosen:
         chosen = [(pk, "member") for pk in sorted(memberships.values_list("user_id", flat=True))]
+    return chosen
+
+
+def breach_recipients(request):
+    """[(staff account, role)] to tell that `request` passed a service target: the assignee and
+    the leads of the request's team; when it has neither, every member of the team. Only active
+    staff who can read the request and have not turned their notices off (never the scheduled
+    jobs' account)."""
+    from accounts.models import User
+
+    chosen = _breach_roles(request)
     users = User.objects.in_bulk([pk for pk, _role in chosen])
     return [
         (users[pk], role)
@@ -371,50 +424,55 @@ def breach_recipients(request):
     ]
 
 
-def _still_in_role(user, request, role):
-    from teams.models import TeamMembership
-
-    if role == "assignee":
-        return request.assignee_id == user.pk
-    members = TeamMembership.objects.filter(team_id=request.team_id, user=user)
-    if role == "lead":
-        return members.filter(is_lead=True).exists()
-    return members.exists()
-
-
 def breach_still_running(clock, which, now):
     """Whether `clock`'s `which` clock ("first_response" or "resolution") is past due and not met
-    at `now` (a resolution clock paused while waiting is not running)."""
+    at `now` (a resolution clock paused while waiting is not running). Past due means after the
+    due time, as service_levels.rules counts it: at the due time itself it is still on time."""
     if clock is None:
         return False
     due = getattr(clock, f"{which}_due_at")
     met = getattr(clock, f"{which}_met_at")
     paused = which == "resolution" and clock.paused_since is not None
-    return due is not None and met is None and not paused and due <= now
+    return due is not None and met is None and not paused and due < now
+
+
+def _same_run(clock, which, noticed_at):
+    """Whether the clock's breach mark is still the one this notice was recorded with: resolving,
+    or a recalculated due time, ends the run the notice belongs to."""
+    from datetime import datetime
+
+    mark = getattr(clock, f"{which}_breach_noticed_at")
+    try:
+        recorded = datetime.fromisoformat(noticed_at)
+    except TypeError, ValueError:
+        return False
+    return mark is not None and mark == recorded
 
 
 def prepare_breach_notice(notice):
     """`notice` (topic desk.breach) worded for sending, or None when it no longer applies: the
-    request was resolved or its clock met or paused since, or the person is no longer the
-    assignee or in the team, cannot read the request, or turned notices off."""
-    from accounts.models import User
+    request was resolved or its clock met, paused or recalculated since (another run of the
+    clock), or the person is no longer among those responsible now (the assignee and the leads, or
+    the members while the ticket has neither), cannot read the request, or turned notices off."""
     from service_levels.models import RequestClock
 
-    from .models import ServiceRequest, Status
+    from .models import Status
 
-    request = ServiceRequest.objects.filter(pk=notice.object_id).first()
-    user = User.objects.filter(pk=notice.recipient_id).first()
     which, role = notice.data.get("clock"), notice.data.get("role")
-    if request is None or user is None or which not in BREACH_EVENTS or role not in BREACH_ROLES:
+    if which not in BREACH_EVENTS or role not in BREACH_ROLES:
         return None
-    if request.status in (Status.RESOLVED, Status.CLOSED):
+    request, user = _hold(notice)
+    if request is None or request.status in (Status.RESOLVED, Status.CLOSED):
         return None
     clock = RequestClock.objects.filter(request=request).first()
-    if not breach_still_running(clock, which, timezone.now()):
+    if not (
+        breach_still_running(clock, which, timezone.now())
+        and _same_run(clock, which, notice.data.get("noticed_at"))
+    ):
         return None
     if not (
         user.email
-        and _still_in_role(user, request, role)
+        and user.pk in {pk for pk, _role in _breach_roles(request)}
         and wants_notices(user)
         and _staff_can_read(user, request)
     ):

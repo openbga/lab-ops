@@ -112,8 +112,10 @@ Editing a target alone does not move existing due times.
 
 When a running clock passes its due time, the scheduled jobs send one email notice to the
 assignee and the leads of the ticket's team, or to every member of the team when it has neither.
-A clock gets one notice each time it runs past its due time: resolving and reopening a ticket
-starts its resolution clock again. Clocks already past due when a deployment installs this
+A clock gets one notice each time it runs past its due time: resolving and reopening a ticket,
+or a change of category or priority that moves a due time, starts that clock again. At the due
+time itself a target is still met; a notice waiting to be sent from an earlier run of the clock is
+dropped. Clocks already past due when a deployment installs this
 release get no notice for that breach. The ticket itself does not change.
 
 ## Roles and capabilities
@@ -149,8 +151,11 @@ Each notice is recorded with the change that raised it and sent once that change
 notice the mail server does not accept is retried by the scheduled jobs, after 5, 15 and 30
 minutes and then 1, 2, 4 and 8 hours, and marked failed after the eighth attempt. Before every
 attempt the application checks again that the recipient may still read the ticket and that the
-event still applies, for example that a reply has not been withdrawn. With email off, notices are
-recorded as not sent and are never sent later.
+event still applies: a reply not withdrawn, the ticket still waiting on the client or still
+resolved, the person still the assignee or still responsible for a passed target. It holds what
+that check read until the notice is sent, so a change made meanwhile waits for it; a notice whose
+ticket or recipient is being changed at that moment is tried again a minute later. With email off
+when a change is saved, its notices are recorded as not sent and are never sent later.
 
 ### Scheduled jobs
 

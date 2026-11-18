@@ -168,11 +168,12 @@ def complaint(agent, category, make_user, join):
     return resolve(agent, request, days_ago=10), lead
 
 
-def test_a_complaint_without_a_review_stays_resolved_and_is_counted(complaint):
+def test_a_complaint_without_a_review_stays_resolved(complaint):
+    # Not even a candidate: it cannot close until its review is recorded (review R1-12).
     request, _ = complaint
     set_period(7)
     revision = request.revision
-    assert close_resolved_tickets() == {"closed": 0, "kept_open": 1}
+    assert close_resolved_tickets() == {"closed": 0}
     request.refresh_from_db()
     assert request.status == Status.RESOLVED and request.revision == revision
     assert not AuditEvent.objects.filter(reason__startswith="Closed automatically").exists()
@@ -191,7 +192,7 @@ def test_a_reviewed_complaint_closes(complaint):
 def test_a_complaint_awaiting_review_does_not_stop_other_tickets(complaint, agent, category):
     other = resolve(agent, new_request(agent, category), days_ago=10)
     set_period(7)
-    assert close_resolved_tickets() == {"closed": 1, "kept_open": 1}
+    assert close_resolved_tickets() == {"closed": 1}
     assert status_of(other) == Status.CLOSED
 
 

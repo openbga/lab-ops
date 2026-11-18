@@ -46,6 +46,10 @@ COUNT_WORDS = {
     "failed": ("notice failed", "notices failed"),
     "not_sent": ("notice not sent", "notices not sent"),
     "busy": ("left for the next run", "left for the next run"),
+    "left_for_next_run": (
+        "notice left for the next run (the mail server failed three times in a row)",
+        "notices left for the next run (the mail server failed three times in a row)",
+    ),
 }
 
 OUTCOMES = {
@@ -86,6 +90,17 @@ def _job(row):
     }
 
 
+def recipient_label(user):
+    """Who a notice was for: the full name, else the username, never an email address (an
+    account can use its address as its username): then "Account" and its number."""
+    name = user.get_full_name()
+    if name:
+        return name
+    if "@" not in user.username:
+        return user.username
+    return f"Account {user.pk}"
+
+
 def _notice(notice):
     named = notice.ticket_id is not None
     recipient = notice.recipient
@@ -93,7 +108,7 @@ def _notice(notice):
         "created_at": notice.created_at,
         "ticket_id": notice.ticket_id,
         "reference": notice.reference if named else "",
-        "recipient": (recipient.get_full_name() or recipient.username) if named else "",
+        "recipient": recipient_label(recipient) if named else "",
         "events": ", ".join(EVENT_LABELS.get(code, "Other") for code in notice.events),
         "failed": notice.status == NoticeStatus.FAILED,
         "attempts": notice.attempts,

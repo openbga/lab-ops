@@ -119,10 +119,12 @@ def _current_assignee(assignee, team):
     deactivation that comes first makes this check fail, and one that comes after waits, then
     finds the new assignment and returns it to the queue (release_assignments)."""
     from accounts.models import User
+    from jobs.actor import is_system_account
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
     if not (
         current is not None
+        and not is_system_account(current)  # it does no work, even if someone gave it a role
         and current.is_active
         and current.client_id is None
         and TeamMembership.objects.select_for_update(no_key=True)

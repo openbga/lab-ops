@@ -95,7 +95,12 @@ def test_the_assignee_and_the_teams_leads_are_told_once_each(breached, crew, lat
     for notice in breach_notices():
         assert notice.events == [FIRST]
         assert notice.object_id == breached.pk and notice.reference == breached.number
-        assert notice.data == {"clock": "first_response", "role": notice.data["role"]}
+        assert notice.data == {
+            "clock": "first_response",
+            "role": notice.data["role"],
+            # The clock run it belongs to: the breach mark set with it.
+            "noticed_at": clock_of(breached).first_response_breach_noticed_at.isoformat(),
+        }
         assert notice.status == NoticeStatus.WAITING and notice.attempts == 0
 
 
@@ -277,7 +282,11 @@ def test_resolving_clears_the_mark_so_a_reopened_ticket_is_noticed_again(
         reason="It came back.",
     )
     assert clock_of(request).resolution_breach_noticed_at is None
-    # Its resolution time had passed before it was resolved, so it is past it again at once.
+    # Its resolution time had passed before it was resolved; the hour before opening counted,
+    # so it is due at the reopening itself (still on time then) and past it a minute later.
+    assert clock_of(request).resolution_due_at == datetime(2026, 11, 17, 9, tzinfo=NY)
+    assert notice_breaches() == {"breaches": 0, "notices": 0}
+    frozen(datetime(2026, 11, 17, 9, 1, tzinfo=NY))
     assert notice_breaches() == {"breaches": 1, "notices": 2}
     assert breach_notices(RESOLUTION).count() == 4
 

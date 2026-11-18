@@ -280,7 +280,13 @@ def test_reply_with_waiting_status_sends_one_notice(portal_account, agent, categ
 
 def test_resolved_status_notice(portal_account, agent, category, clinic):
     request = staff_request(agent, category, clinic)
-    ServiceRequest.objects.filter(pk=request.pk).update(created_by=portal_account, channel="portal")
+    # A "resolved" notice goes out only while the ticket is resolved (checked at sending).
+    ServiceRequest.objects.filter(pk=request.pk).update(
+        created_by=portal_account,
+        channel="portal",
+        status=Status.RESOLVED,
+        resolved_at=timezone.now(),
+    )
     request.refresh_from_db()
     mail.outbox.clear()
     run(
