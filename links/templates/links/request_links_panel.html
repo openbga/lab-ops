@@ -9,7 +9,7 @@ A person-level row without the capability is a placeholder ("Patient linked") wi
 address, link id, actor, time, reason or action, current or removed. With it, the masked label shows; the key comes only from Reveal, a
 POST whose answer replaces the row's key cell and is recorded in the audit history.
 {% endcomment %}
-{% panel title="Links" id="links" heading_id="links-heading" count=current|length table=True class="mb-3" %}
+{% panel title="Links" id="links" heading_id="links-heading" count=current|length table=True class="vr-request-links mb-3" %}
   {% fill actions %}{% if may_see_person %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'link_records:person-search' %}">Find by patient key</a>{% endif %}{% if can_change %}<a class="btn btn-sm btn-outline-secondary" href="{{ add_url }}">Add link</a>{% endif %}{% endfill %}
   {% if client_reference and not reference_linked %}
   {% panel_section %}

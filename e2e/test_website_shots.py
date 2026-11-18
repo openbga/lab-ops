@@ -43,7 +43,7 @@ def _shots():
     return {
         "dashboard": ("client_services", "/", 800, None, True),
         "queue": ("client_services", "/requests/?view=my-teams", 900, None, False),
-        "ticket": ("client_services", f"/requests/{missing}/", 900, "Links", False),
+        "ticket": ("client_services", f"/requests/{missing}/", 900, "Conversation", False),
         "complaint": ("supervisor", f"/requests/{complaint}/", 900, "Complaint", False),
         "portal": ("client", "/portal/", 900, None, False),
         "organization": ("account_manager", f"/clients/{clinic}/", 900, None, False),

@@ -43,12 +43,12 @@ def test_log_work_and_close_a_request(page: Page, demo, view: View):
     created = ServiceRequest.objects.get(subject="E2E result not received")
     expect(heading).to_contain_text(created.number)
 
+    add_entry = page.get_by_role("link", name="Add entry", exact=True)
+    expect(add_entry).to_have_attribute("href", "#composer")
     if view.phone:
-        # Reply is the page's primary action, in the thumb bar within reach.
-        reply = page.get_by_role("link", name="Reply").first
-        box = reply.bounding_box()
+        box = add_entry.bounding_box()
         assert box["y"] > view.viewport["height"] * 0.75 and box["height"] >= 44
-        reply.click()
+        add_entry.click()
         expect(page.locator("#composer")).to_be_in_viewport()
 
     # Journey 3: log the contact, then reply and wait on the client.

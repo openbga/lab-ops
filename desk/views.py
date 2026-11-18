@@ -30,6 +30,7 @@ from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
 from links.search import request_ids_for_identifier
+from service_levels.templatetags.clocks import clock_parts
 from taxonomy import terms
 from taxonomy.models import RequestCategory
 
@@ -510,6 +511,7 @@ def _detail_context(request, request_obj, composer=None):
             )
         )
     )
+    clock = getattr(request_obj, "clock", None)
     audience = portal_audience(request_obj)
     review = getattr(request_obj, "complaint_review", None)
     # One decision on the review's independence for the whole page: its notice, the Review action
@@ -531,6 +533,7 @@ def _detail_context(request, request_obj, composer=None):
         "page_title": f"{request_obj.number} {request_obj.subject}",
         "req": request_obj,
         "entries": entries,
+        "clocks": clock_parts(clock) if clock else [],
         "audience": audience,
         "composer": composer,
         "review": review,

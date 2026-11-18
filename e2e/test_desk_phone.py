@@ -5,7 +5,7 @@ behind "Filter and sort", and the filter sheet keeps the chosen view."""
 import re
 
 import pytest
-from conftest import Lab
+from conftest import NARROW, Lab
 from helpers import sign_in
 from playwright.sync_api import Page, expect
 from test_phone_layout import PHONES, THUMBBAR, check, filter_button, open_filter_sheet
@@ -42,6 +42,44 @@ def test_reply_notice_leaves_room_for_its_message(page: Page, demo: Lab):
         assert message.evaluate(
             "el => el.clientWidth >= 10 * parseFloat(getComputedStyle(el).fontSize)"
         ), f"The reply notice squeezes its message at {width}px"
+
+
+def test_ticket_conversation_follows_the_facts_independently_of_the_editor(page: Page, demo: Lab):
+    from desk.models import ServiceRequest
+
+    ticket = ServiceRequest.objects.get(
+        subject="Electronic deliverable rejected by the state portal"
+    )
+    page.set_viewport_size({"width": 1366, "height": 1600})
+    sign_in(page, "demo_supervisor", demo.password)
+    page.goto(f"/requests/{ticket.pk}/")
+    facts = page.locator('section[aria-labelledby="request-facts-heading"]')
+    thread = page.get_by_role("region", name="Conversation", exact=True)
+    composer = page.locator("#composer")
+    links = page.locator("#links")
+    expect(page.locator(".vr-page-meta")).to_contain_text("Resolution overdue")
+    expect(facts.get_by_role("heading", name="Client and contact")).to_be_visible()
+    expect(facts.get_by_role("heading", name="Intake")).to_be_visible()
+    expect(facts.get_by_text("Target 4 h", exact=True)).to_be_visible()
+    expect(facts.get_by_text("Target 36 h", exact=True)).to_be_visible()
+
+    # Logging a contact opens extra fields. The tall editor must not leave a gap above the thread.
+    composer.get_by_label("Log contact").check()
+    fact_box, thread_box, editor_box = (panel.bounding_box() for panel in (facts, thread, composer))
+    assert fact_box["x"] + fact_box["width"] <= editor_box["x"]
+    assert thread_box["x"] == pytest.approx(fact_box["x"], abs=1)
+    assert (
+        fact_box["y"] + fact_box["height"]
+        <= thread_box["y"]
+        < editor_box["y"] + editor_box["height"]
+    )
+    assert thread_box["y"] + thread_box["height"] <= links.bounding_box()["y"]
+
+    page.set_viewport_size(NARROW)
+    fact_box, thread_box, editor_box = (panel.bounding_box() for panel in (facts, thread, composer))
+    assert fact_box["y"] + fact_box["height"] <= thread_box["y"]
+    assert thread_box["y"] + thread_box["height"] <= editor_box["y"]
+    assert editor_box["y"] + editor_box["height"] <= links.bounding_box()["y"]
 
 
 @pytest.mark.parametrize("phone", PHONES, ids=lambda size: f"{size['width']}px")

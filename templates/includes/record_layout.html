@@ -7,6 +7,7 @@ region named by aside_label, with a visible scrollbar and a fade while more rema
 Rendered by the {% record_layout %} block tag ({% load ui %}); the body is the full-width panels.
 Parameters:
   aside_label   accessible name of the side column's scroll region (e.g. "Add a note")
+  stacked_lead  allow several panels to flow independently beside the action panel
 Parts:
   lead          the first panel (the record's key facts)
   aside         the side column; omit it for a single column
@@ -17,7 +18,7 @@ Usage:
     {% panel title="Requested tests" table=True %}...{% endpanel %}
   {% endrecord_layout %}
 {% endcomment %}
-<div class="vr-record{% if slots.aside %} vr-record-has-aside{% endif %}">
+<div class="vr-record{% if slots.aside %} vr-record-has-aside{% endif %}{% if stacked_lead %} vr-record-stacked-lead{% endif %}">
   <div class="vr-record-lead">{{ slots.lead }}</div>
   {% if slots.aside %}<div class="vr-record-aside"><div class="vr-record-aside-scroll" tabindex="0" role="region" aria-label="{{ aside_label }}">{{ slots.aside }}</div></div>{% endif %}
   {{ body }}

@@ -269,7 +269,9 @@ COMPONENTS = {
     ),
     "page_meta": Component(I + "page_meta.html", body="block"),
     "more_actions": Component(I + "more_actions.html", ("label", "small", "id"), body="block"),
-    "record_layout": Component(I + "record_layout.html", ("aside_label",), body="block"),
+    "record_layout": Component(
+        I + "record_layout.html", ("aside_label", "stacked_lead"), body="block"
+    ),
     "sheet": Component(
         I + "sheet.html", ("id", "title", "below", "class"), body="block", derive=sheet_values
     ),

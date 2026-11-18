@@ -1,6 +1,17 @@
 {% comment %}
-The service clocks of a staff request page header.
-Context: request (desk.ServiceRequest), user. Renders both clocks (first response and resolution):
-state in words with its tone glyph, then the due time, or when it was met, or since when it is
-paused. Nothing when no service target applies.
-{% endcomment %}{% load ui clocks %}{% if request.clock %}<ul class="vr-clocks list-unstyled mb-0" aria-label="Service clocks">{% clock_parts request.clock as parts %}{% for part in parts %}{% if part.state != "none" %}<li><span class="vr-clock-name">{{ part.name }}</span> {% status label=part.label tone=part.tone plain=True %}{% if part.met_at %} <span class="vr-muted small">met <time datetime="{{ part.met_at|date:'c' }}">{{ part.met_at|date:"Y-m-d H:i" }}</time></span>{% elif part.paused_since %} <span class="vr-muted small">since <time datetime="{{ part.paused_since|date:'c' }}">{{ part.paused_since|date:"Y-m-d H:i" }}</time></span>{% elif part.due_at %} <span class="vr-muted small">due <time datetime="{{ part.due_at|date:'c' }}">{{ part.due_at|date:"Y-m-d H:i" }}</time></span>{% endif %}<span class="visually-hidden">, target {{ part.minutes|duration }}</span></li>{% endif %}{% endfor %}</ul>{% endif %}
+The staff ticket's service clocks, already evaluated for its header and details.
+Each part carries its state, target and applicable deadline, pause or completion time.
+{% endcomment %}{% load ui clocks %}
+{% if parts %}
+<ul class="vr-clocks list-unstyled mb-0" aria-label="Service clocks">
+  {% for part in parts %}{% if part.state != "none" %}
+  <li>
+    <div class="vr-clock-name">{{ part.name }} {% status label=part.label tone=part.tone plain=True %}</div>
+    {% if part.met_at %}<div>Met <time datetime="{{ part.met_at|date:'c' }}">{{ part.met_at|date:"Y-m-d H:i" }}</time></div>
+    {% elif part.paused_since %}<div>Paused since <time datetime="{{ part.paused_since|date:'c' }}">{{ part.paused_since|date:"Y-m-d H:i" }}</time></div>
+    {% elif part.due_at %}<div>Due <time datetime="{{ part.due_at|date:'c' }}">{{ part.due_at|date:"Y-m-d H:i" }}</time></div>{% endif %}
+    <span class="vr-muted small">Target {{ part.minutes|duration }}</span>
+  </li>
+  {% endif %}{% endfor %}
+</ul>
+{% endif %}
