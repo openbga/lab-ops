@@ -76,7 +76,7 @@
       "items": [
         {
           "label": "Ticket",
-          "description": "The ticket number."
+          "description": "The ticket number. The Tickets breadcrumb returns to the same search, status, sort and page when you open a ticket from the list."
         },
         {
           "label": "Topic",
@@ -168,7 +168,7 @@
         },
         {
           "label": "Files",
-          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames; if one is refused, your text stays and you choose the files again. Files are not scanned for viruses."
+          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames. After a validation error, Files lists the previous selection. Choose the files again, or check the box to leave out the ones you omit. Files are not scanned for viruses."
         },
         {
           "label": "Send reply",
@@ -189,6 +189,7 @@
   ],
   "sources": [
     "attachments/forms.py",
+    "templates/django/forms/widgets/attachment_files.html",
     "attachments/templates/attachments/_portal_reply_files.html",
     "clients/portal.py",
     "clients/portal_urls.py",

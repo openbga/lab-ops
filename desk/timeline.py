@@ -3,6 +3,7 @@ Event data holds ids and codes only; names are looked up here, for the page that
 
 from accounts.models import User
 from taxonomy.choices import Priority
+from taxonomy.models import RequestCategory
 from teams.models import Team
 
 from .models import Channel, ComplaintDecision, EntryKind, Status
@@ -72,3 +73,58 @@ def _phrase(action, data, teams, users):
             return f"{kind.capitalize()} link {verb}"
         return f"Link {verb}: {kind}"
     return action.replace("_", " ").replace(".", " ").capitalize()
+
+
+def audit_changes(events):
+    """Display only recorded, operational changes on the supervisor's ticket history.
+
+    Audit snapshots also contain free text and references to linked records with separate
+    permissions. Never render the raw snapshots, even for supervisors.
+    """
+    events = list(events)
+    fields_by_action = {
+        "request.assigned": ("team_id", "assignee_id"),
+        "request.updated": ("category_id", "priority"),
+        "request.status_changed": ("status",),
+        "request.complaint_marked": ("is_complaint",),
+        "request.complaint_unmarked": ("is_complaint",),
+        "complaint.decided": ("decision",),
+        "complaint.reviewed": ("reviewed_by",),
+    }
+    values = {}
+    for event in events:
+        for key in fields_by_action.get(event.action, ()):
+            values.setdefault(key, set()).update(
+                data[key] for data in (event.before, event.after) if data.get(key) is not None
+            )
+
+    def names(model, key):
+        return {obj.pk: str(obj) for obj in model.objects.filter(pk__in=values.get(key, ()))}
+
+    user_ids = values.get("assignee_id", set()) | values.get("reviewed_by", set())
+    people = {
+        user.pk: _name(user) for user in User.objects.filter(pk__in=user_ids, client__isnull=True)
+    }
+    labels = {
+        "team_id": ("Team", names(Team, "team_id")),
+        "assignee_id": ("Assigned to", {None: "Nobody assigned", **people}),
+        "category_id": ("Category", names(RequestCategory, "category_id")),
+        "priority": ("Priority", PRIORITY),
+        "status": ("Status", STATUS),
+        "is_complaint": ("Complaint", {True: "Yes", False: "No"}),
+        "decision": ("Investigation decision", {"": "No decision", **DECISION}),
+        "reviewed_by": ("Independent reviewer", {None: "No reviewer", **people}),
+    }
+    for event in events:
+        event.changes = []
+        for key in fields_by_action.get(event.action, ()):
+            if key not in event.after or event.before.get(key) == event.after[key]:
+                continue
+            name, options = labels[key]
+            before = (
+                options.get(event.before[key], "Unavailable")
+                if key in event.before
+                else "Not recorded"
+            )
+            event.changes.append((name, before, options.get(event.after[key], "Unavailable")))
+    return events

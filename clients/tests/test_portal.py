@@ -57,8 +57,9 @@ def test_a_portal_account_sees_its_own_organization_and_active_contacts(
     page = response.content.decode()
     assert response.context["client"] == clinic
     assert [c.name for c in response.context["contacts"]] == ["Pat Example"]
-    assert "Example Clinic" in page and "frontdesk@clinic.example.invalid" in page
-    assert "Pat Example" in page and "pat@clinic.example.invalid" in page
+    assert "Example Clinic" in page and 'href="mailto:frontdesk@clinic.example.invalid"' in page
+    assert "Pat Example" in page and 'href="mailto:pat@clinic.example.invalid"' in page
+    assert 'href="tel:555-0100"' in page and 'href="tel:555-0142"' in page
     assert "Example Reference Laboratory" in page
     assert "Former Person" not in page and "555-0199" not in page  # inactive contact
     assert "Internal: pays late." not in page  # internal notes stay internal

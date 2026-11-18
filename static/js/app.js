@@ -110,7 +110,7 @@
 
   function syncSelection(name) {
     document.querySelectorAll('[data-vr-select-all="' + name + '"]').forEach(function (master) {
-      var eligible = rowBoxes(name, master.closest("table")).filter(function (box) { return !box.disabled; });
+      var eligible = rowBoxes(name, master.closest("table") || selectionScope(master)).filter(function (box) { return !box.disabled; });
       var checked = eligible.filter(function (box) { return box.checked; }).length;
       master.checked = eligible.length > 0 && checked === eligible.length;
       master.indeterminate = checked > 0 && checked < eligible.length;
@@ -152,7 +152,7 @@
     var master = event.target.closest("[data-vr-select-all]");
     if (master) {
       var name = master.getAttribute("data-vr-select-all");
-      rowBoxes(name, master.closest("table")).forEach(function (box) {
+      rowBoxes(name, master.closest("table") || selectionScope(master)).forEach(function (box) {
         if (!box.disabled) {
           box.checked = master.checked;
         }
@@ -369,6 +369,24 @@
   // After the other scripts' DOMContentLoaded work (grid.js hides and orders the columns).
   document.addEventListener("DOMContentLoaded", function () { window.setTimeout(initFilterSheets, 0); });
   document.addEventListener("htmx:load", initFilterSheets);
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var sheet = document.getElementById("ticket-bulk-actions");
+    if (!sheet || !window.bootstrap) return;
+    var form = sheet.closest("form");
+    form.setAttribute("data-vr-bulk-enhanced", "");
+    if (form.hasAttribute("data-vr-bulk-errors") && window.matchMedia("(max-width: 575.98px)").matches) {
+      var trigger = form.querySelector(".vr-bulk-trigger");
+      sheet.addEventListener("shown.bs.offcanvas", function () {
+        var field = sheet.querySelector("[aria-invalid=true], .is-invalid");
+        if (field) (field.tomselect ? field.tomselect.focus_node : field).focus();
+      }, { once: true });
+      sheet.addEventListener("hidden.bs.offcanvas", function () {
+        (trigger.getClientRects().length ? trigger : form.querySelector("[data-vr-select-all]")).focus();
+      }, { once: true });
+      window.bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
+    }
+  });
 
   // Bootstrap's offcanvas leaves the opening button's aria-expanded to the page.
   function syncSheetButtons(event, expanded) {

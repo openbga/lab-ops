@@ -208,6 +208,18 @@ def test_list_puts_open_first_and_filters_by_status(client, agent, category, cli
     active = client.get(reverse("portal:request-list"), {"status": "active"})
     assert list(active.context["page_obj"]) == [waiting]
     assert "Waiting for you" in filtered.content.decode()
+    detail_url = reverse(
+        "portal:request-detail", args=[waiting.number], query={"list": "status=waiting_client"}
+    )
+    assert f'href="{detail_url}"' in main(filtered)
+    detail = client.get(detail_url)
+    assert detail.context["list_url"] == reverse(
+        "portal:request-list", query={"status": "waiting_client"}
+    )
+    reply = client.post(
+        detail.context["reply_url"], {"body": "Reply", "expected_revision": waiting.revision}
+    )
+    assert reply.url == detail_url + "#conversation"
 
 
 # P2 -----------------------------------------------------------------------------------------
@@ -252,6 +264,7 @@ def test_site_required_when_scoped(client, category, clinic_site, west_site, sco
     form = client.get(reverse("portal:request-create")).context["form"]
     assert form.fields["site"].required
     assert set(form.fields["site"].queryset) == {clinic_site}
+    assert form["site"].value() == clinic_site.pk
     response = raise_post(client, category=category.pk, subject="x", description="y")
     assert "site" in response.context["form"].errors
     response = raise_post(
@@ -268,6 +281,7 @@ def test_site_required_when_the_organization_has_several(
     form = client.get(reverse("portal:request-create")).context["form"]
     assert form.fields["site"].required
     assert set(form.fields["site"].queryset) == {clinic_site, west_site}
+    assert form["site"].value() is None
     response = raise_post(
         client, category=category.pk, subject="x", description="y", site=west_site.pk
     )

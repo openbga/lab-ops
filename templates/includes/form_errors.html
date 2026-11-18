@@ -11,7 +11,7 @@ An include sees the page's context: on a page whose context has a "formset", pas
     {% if form.non_field_errors %}
     <ul class="mb-1 ps-3">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
     {% endif %}
-    {% with count=form.errors|length %}{% if form.errors and not form.non_field_errors or count > 1 or formset.total_error_count %}<p class="mb-0">{% if form.errors and not form.non_field_errors or count > 1 %}Check the highlighted field{{ count|pluralize }} below. {% endif %}{% if formset.total_error_count %}Check the {{ formset_label|default:"rows" }} below. {% endif %}Your entries were kept.</p>{% endif %}{% endwith %}
+    {% with count=form.errors|length %}{% if form.errors and not form.non_field_errors or count > 1 or formset.total_error_count %}<p class="mb-0">{% if form.errors and not form.non_field_errors or count > 1 %}Check the highlighted field{{ count|pluralize }} below. {% endif %}{% if formset.total_error_count %}Check the {{ formset_label|default:"rows" }} below. {% endif %}{% if not form.is_multipart %}Your entries were kept.{% endif %}</p>{% endif %}{% endwith %}
     {% for field in form.hidden_fields %}{% for error in field.errors %}<p class="mb-0">{{ field.label }}: {{ error }}</p>{% endfor %}{% endfor %}
 {% endnotice %}
 {% endif %}

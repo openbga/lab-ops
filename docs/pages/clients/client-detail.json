@@ -17,7 +17,7 @@
       "title": "Check what is open for the organization",
       "steps": [
         "Read the counts above the table in Open tickets, then select a ticket number to open it.",
-        "Select [[Timeline]] to see everything that happened for the organization, newest first."
+        "If there are more than eight, select [[Show all open tickets]] to see the rest."
       ]
     },
     {
@@ -82,6 +82,10 @@
         {
           "label": "On this page",
           "description": "Links that jump to Organization, Open tickets, Sites, Contacts, Portal accounts and History, with the count of each list in brackets. The Open tickets count is the number of open tickets, not all tickets."
+        },
+        {
+          "label": "Client organizations",
+          "description": "The breadcrumb returns to the directory. When you opened this record from the list, it restores the search, filters, sort and page."
         }
       ]
     },
@@ -135,6 +139,10 @@
         {
           "label": "Ticket, Subject, Status, Site, Team, Last update",
           "description": "Up to eight open tickets, the most recently updated first. The ticket number opens the ticket once the service desk provides its page; until then it is plain text. Site shows a dash when the ticket is not about one site. Team shows the team and, under it, the assignee when there is one. Last update shows the date and time."
+        },
+        {
+          "label": "Show all open tickets",
+          "description": "Appears when more than eight open or waiting tickets are visible to you. Opens the service desk filtered to this organization and those statuses."
         },
         {
           "label": "No open tickets",

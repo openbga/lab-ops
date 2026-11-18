@@ -1,69 +1,67 @@
 {% extends "base.html" %}
 {% load announcements ui %}
-{% comment %}
-Staff start page: the laboratory's current announcements for staff (the announcements tag), what
-needs doing now, then the newest client organizations. No vanity counts.
-Context: queues = [{label, count, url, oldest_at, note, tone, area, status}] built in core.views for
-the signed-in user's roles (each count is the count of the linked list), grouped as queue_lines =
-[{family, name, total, queues}] (the line diagram: one line per area of work, accents only) with
-queue_total, and queues_clear when every count is zero; recent_clients. Queues with count 0 still
-show, so an empty queue reads as "nothing waiting" rather than missing. A queue's label links to
-the list it counts (only while the count is above zero). can_manage_clients comes from the
-workspace context processor.
-{% endcomment %}
 {% block page_dateline %}{% include "includes/dateline.html" %}{% endblock %}
 {% block page_actions %}{% if can_manage_clients %}<a class="btn btn-primary" href="{% url 'clients:client-create' %}">{% icon name="plus-lg" %}New organization</a>{% endif %}{% endblock %}
 {% block content %}
 {% announcements %}
-{% if queues %}
-{% panel title="Your work queues" heading_id="queues-heading" count=queue_total|floatformat:"0g"|add:" waiting" flush=True class="mb-3" %}
-  <div class="vr-lines">
-    {% for line in queue_lines %}
-    <section class="vr-line" data-family="{{ line.family }}" aria-labelledby="line-{{ line.family }}">
-      <h3 class="vr-line-name" id="line-{{ line.family }}"><span class="vr-line-roundel" aria-hidden="true"></span>{{ line.name }}<span class="vr-line-total">{{ line.total|floatformat:"0g" }}</span></h3>
-      <ol class="vr-stations">
-        {% for queue in line.queues %}
-        <li class="vr-station" data-state="{% if queue.count %}active{% else %}zero{% endif %}"{% if queue.count %} data-tone="{{ queue.tone }}"{% endif %}>
-          <span class="vr-station-dot" aria-hidden="true"></span>
-          <div class="vr-station-body">
-            {% if queue.count %}<a class="vr-queue-link" href="{{ queue.url }}">{{ queue.label }}</a>{% status label=queue.status tone=queue.tone plain=True %}{% else %}<span class="vr-queue-label">{{ queue.label }}</span>{% endif %}
-            {% if queue.oldest_at %}<span class="vr-station-old">Oldest <time datetime="{{ queue.oldest_at|date:'c' }}" title="{{ queue.oldest_at|date:'Y-m-d H:i T' }}">{{ queue.oldest_at|timesince }}</time></span>{% endif %}
-            {% if queue.note and queue.count %}<span class="vr-station-old">{{ queue.note }}</span>{% endif %}
-          </div>
-          <span class="vr-station-count">{{ queue.count|floatformat:"0g" }}</span>
-        </li>
+<div class="vr-dashboard">
+  <div class="vr-dashboard-panels">
+    {% if queue_groups %}
+    {% panel title="Your work queues" heading_id="queues-heading" flush=True %}
+      {% fill title %}{% if queue_groups|length == 1 %}<span class="vr-dashboard-area" data-family="{{ queue_groups.0.family }}" aria-hidden="true">{{ queue_groups.0.name }}</span>{% endif %}Your work queues{% endfill %}
+      {% fill actions %}<button type="button" class="btn btn-link vr-btn-icon" data-bs-toggle="offcanvas" data-bs-target="#queue-definitions" aria-controls="queue-definitions" aria-expanded="false" title="Queue definitions" aria-label="Queue definitions">{% icon name="info-circle" %}</button>{% endfill %}
+      <div class="vr-dashboard-queues">
+        {% for group in queue_groups %}
+          {% if queue_groups|length > 1 %}<h3 class="vr-dashboard-area" data-family="{{ group.family }}">{{ group.name }}</h3>{% endif %}
+          <ul class="vr-queue-list" aria-label="{{ group.name }} queues">
+            {% for queue in group.queues %}
+            <li>
+              <a class="vr-queue-link" data-tone="{% if queue.count %}{{ queue.tone }}{% else %}neutral{% endif %}" href="{{ queue.url }}">
+                <span class="vr-queue-icon">{% icon name=queue.icon %}</span>
+                <span class="vr-queue-copy">
+                  <strong>{{ queue.label }}</strong>
+                  {% if queue.oldest_at %}<small>Oldest <time datetime="{{ queue.oldest_at|date:'c' }}" title="{{ queue.oldest_at|date:'Y-m-d H:i T' }}">{{ queue.oldest_at|timesince }}</time></small>{% elif queue.count %}<small>{{ queue.status }}</small>{% endif %}
+                </span>
+                <span class="vr-queue-count">{{ queue.count|floatformat:"0g" }}<span class="visually-hidden">{% if group.family == "desk" %} ticket{{ queue.count|pluralize }}{% else %} organization{{ queue.count|pluralize }}{% endif %}</span></span>
+                {% icon name="chevron-right" class="vr-queue-chevron" %}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
         {% endfor %}
-      </ol>
-    </section>
-    {% endfor %}
-  </div>
-  {% if queues_clear %}<p class="vr-muted small" role="status">Nothing is waiting for you right now.</p>{% endif %}
-{% endpanel %}
-{% endif %}
+        {% if queues_clear %}<p class="vr-form-note" role="status">Nothing is waiting for you right now.</p>{% endif %}
+      </div>
+    {% endpanel %}
+    {% endif %}
 
-{% if can_manage_clients %}{% url 'clients:client-create' as create_url %}{% endif %}
-{% url 'clients:client-list' as clients_url %}
-{% panel title="Recently added organizations" heading_id="recent-heading" table=True %}
-  {% fill actions %}{% if recent_clients %}<a class="btn btn-sm btn-outline-secondary" href="{{ clients_url }}">All client organizations</a>{% endif %}{% endfill %}
-    {% list_results items=recent_clients empty_title="No client organizations yet" empty_body="Organizations appear here once they are added." action_url=create_url action_label="New organization" %}
-    <div class="vr-table-wrap">
-      <table class="table table-hover vr-table">
-        <thead>
-          <tr><th scope="col">Organization</th><th scope="col">Account code</th><th scope="col">Status</th><th scope="col">City</th><th scope="col">State</th></tr>
-        </thead>
-        <tbody>
-          {% for client in recent_clients %}
-          <tr>
-            <th scope="row"><a class="vr-row-link" href="{% url 'clients:client-detail' client.pk %}">{{ client.name }}</a></th>
-            <td class="vr-id">{{ client.account_number|default:"—" }}</td>
-            <td>{% if client.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
-            <td>{{ client.city|default:"—" }}</td>
-            <td>{{ client.state|default:"—" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endlist_results %}
-{% endpanel %}
+    {% if can_manage_clients %}{% url 'clients:client-create' as create_url %}{% endif %}
+    {% panel title="Recently added organizations" heading_id="recent-heading" table=True class="vr-dashboard-recent" %}
+      {% fill title %}<span class="vr-dashboard-area" data-family="clients" aria-hidden="true">Clients</span>Recently added organizations{% endfill %}
+      {% fill actions %}{% if recent_clients %}<a class="btn btn-link btn-sm" href="{% url 'clients:client-list' %}" aria-label="All client organizations">All organizations {% icon name="arrow-right" %}</a>{% endif %}{% endfill %}
+      {% list_results items=recent_clients empty_title="No client organizations yet" empty_body="Organizations appear here once they are added." action_url=create_url action_label="New organization" %}
+        <div class="vr-table-wrap">
+          {# Keep native columns on phones. Location moves beside the code so the table fits its panel. #}
+          <table class="table table-hover vr-table vr-table-scroll vr-dashboard-directory">
+            <thead><tr><th scope="col">Organization</th><th class="vr-directory-location" scope="col">Location</th><th class="text-end" scope="col">Status</th></tr></thead>
+            <tbody>{% for client in recent_clients %}
+              <tr>
+                <th scope="row" class="vr-wrap"><a class="vr-row-link" href="{% url 'clients:client-detail' client.pk %}" aria-labelledby="org-{{ client.pk }}" aria-describedby="org-meta-{{ client.pk }}"><span id="org-{{ client.pk }}">{{ client.name }}</span><small id="org-meta-{{ client.pk }}"><span class="visually-hidden">Account code </span>{{ client.account_number|default:"—" }}<span class="vr-directory-inline-location"> · {{ client.city }}{% if client.city and client.state %}, {% endif %}{{ client.state }}{% if not client.city and not client.state %}—{% endif %}</span></small></a></th>
+                <td class="vr-directory-location">{{ client.city }}{% if client.city and client.state %}, {% endif %}{{ client.state }}{% if not client.city and not client.state %}—{% endif %}</td>
+                <td class="text-end">{% if client.is_active %}{% status label="Active" tone="success" %}{% else %}{% status label="Inactive" tone="neutral" %}{% endif %}</td>
+              </tr>
+            {% endfor %}</tbody>
+          </table>
+        </div>
+      {% endlist_results %}
+    {% endpanel %}
+  </div>
+</div>
+{% if queues %}
+{% sheet id="queue-definitions" title="Queue definitions" %}
+  <p>A ticket can appear in more than one queue.</p>
+  <dl class="vr-dashboard-definitions">{% for group in queue_groups %}{% for queue in group.queues %}
+    {% fact label=queue.label %}{% if queue.count %}{{ queue.status }}. {% endif %}{{ queue.note }}{% if queue.oldest_at %} Oldest ticket logged <time datetime="{{ queue.oldest_at|date:'c' }}">{{ queue.oldest_at|date:"Y-m-d H:i T" }}</time>.{% endif %}{% endfact %}
+  {% endfor %}{% endfor %}</dl>
+{% endsheet %}
+{% endif %}
 {% endblock %}

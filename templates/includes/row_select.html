@@ -9,8 +9,9 @@ Parameters:
             sees the page's context, where "form" is usually a bound Django form)
   ready     truthy to mark the row for select_all's ready shortcut (data-ready)
   checked   truthy when selected
+  selected_values  previously selected values on a bound bulk form
   disabled  truthy for an ineligible row; give the visible reason beside it and in label
   id, describedby   optional id and aria-describedby
 Usage: <td>{% row_select name="contacts" value=contact.pk label="Select "|add:contact.name %}</td>
 {% endcomment %}
-<input class="form-check-input" type="checkbox"{% if name and not disabled %} name="{{ name }}"{% endif %}{% if value != "" and value is not None and not disabled %} value="{{ value }}"{% endif %}{% if id %} id="{{ id }}"{% endif %}{% if form_id %} form="{{ form_id }}"{% endif %}{% if ready %} data-ready{% endif %}{% if checked %} checked{% endif %}{% if disabled %} disabled{% endif %}{% if describedby %} aria-describedby="{{ describedby }}"{% endif %}{% if label %} aria-label="{{ label }}"{% endif %}>
+<input class="form-check-input" type="checkbox"{% if name and not disabled %} name="{{ name }}"{% endif %}{% if value != "" and value is not None and not disabled %} value="{{ value }}"{% endif %}{% if id %} id="{{ id }}"{% endif %}{% if form_id %} form="{{ form_id }}"{% endif %}{% if ready %} data-ready{% endif %}{% if checked or value in selected_values %} checked{% endif %}{% if disabled %} disabled{% endif %}{% if describedby %} aria-describedby="{{ describedby }}"{% endif %}{% if label %} aria-label="{{ label }}"{% endif %}>

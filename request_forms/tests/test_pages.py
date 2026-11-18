@@ -115,6 +115,31 @@ def test_field_form_explains_patient_information(client, admin, pickup):
     assert "never appear in email, lists, search, exports, logs" in page
 
 
+def test_changing_field_type_validates_only_the_settings_on_screen(client, admin, pickup):
+    request_field = pickup.fields.get(key="items")
+    login(client, admin)
+    response = client.post(
+        reverse("request_forms:field-edit", args=[request_field.pk]),
+        {
+            "label": "Courier instructions",
+            "kind": "short_text",
+            "audience": "client",
+            # A native form still posts hidden controls after the operator changes Type.
+            "catalog": request_field.catalog_id,
+            "min_value": "unfinished",
+            "choices": "Morning\nAfternoon",
+            "expected_revision": request_field.revision,
+            "is_active": "on",
+            "reason": "This field now records instructions.",
+        },
+    )
+    assert response.status_code == 302
+    request_field.refresh_from_db()
+    assert request_field.kind == "short_text"
+    assert request_field.catalog_id is None and request_field.min_value is None
+    assert request_field.choices == []
+
+
 # Portal --------------------------------------------------------------------------------------
 
 

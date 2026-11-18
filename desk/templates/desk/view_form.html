@@ -15,9 +15,7 @@ filters a new view stores, as label and value pairs), submit_label, cancel_url, 
   <fieldset class="vr-form-section">{% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}</fieldset>
 {% endform_page %}
 {% if view %}
-<p class="mt-3"><button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#delete-view">Delete view</button></p>
-{% url 'desk:view-delete' view.pk as delete_url %}
-{% confirm_dialog id="delete-view" label="Delete view" object=view.name body="The view's name and filters are removed for everyone it is shared with. No ticket changes." action=delete_url %}
+<p class="mt-3"><a class="btn btn-outline-danger" href="{% url 'desk:view-edit' view.pk %}?confirm=delete">Delete view</a></p>
 {# form: button-target #}
 <form method="post" action="{% url 'desk:view-move' view.pk %}" class="mt-2 d-flex gap-2">{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" name="direction" value="up">Move up</button><button class="btn btn-outline-secondary" type="submit" name="direction" value="down">Move down</button></form>
 {% endif %}

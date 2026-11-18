@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui desk %}
+{% load ui desk static %}
 {% comment %}
 One request: its facts, the composer (reply, note or logged contact), its service clock and links
 (slots filled by the service_levels and links apps), the complaint record when it is a complaint,
@@ -35,7 +35,7 @@ the thumb bar's primary action is Reply, which jumps to the composer.
 {% endblock %}
 {% block content %}
 {% if is_closed %}{% notice tone="neutral" label="Closed" %}This ticket is closed. Internal notes can still be added; for anything the client needs, log a new ticket.{% endnotice %}{% endif %}
-{% record_layout aside_label="Reply or add a note" %}
+{% record_layout aside_label=composer_title %}
   {% fill lead %}
   {% panel title="Ticket" heading_id="request-facts-heading" %}
     <dl class="vr-facts">
@@ -55,17 +55,17 @@ the thumb bar's primary action is Reply, which jumps to the composer.
   {% endpanel %}
   {% endfill %}
   {% fill aside %}
-  {% panel title="Reply or add a note" id="composer" heading_id="composer-heading" %}
+  {% panel title=composer_title id="composer" heading_id="composer-heading" %}
     {% if is_closed %}<p class="vr-form-note">The ticket is closed: only internal notes can be added.</p>{% endif %}
-    {% if not audience %}{% notice tone="info" label="Nobody in the portal sees this ticket" %}A reply is recorded but reaches nobody. Call the client and log the contact instead.{% endnotice %}{% endif %}
+    {% if not audience and not is_closed %}{% notice tone="info" label="Nobody in the portal sees this ticket" %}A reply is recorded but reaches nobody. Call the client and log the contact instead.{% endnotice %}{% endif %}
     {% url 'desk:request-entry' req.pk as composer_action %}
-    {% form_page form=composer action=composer_action no_required_note=True submit_label="Send" class="vr-composer" multipart=True %}
+    {% form_page form=composer action=composer_action no_required_note=True submit_label=is_closed|yesno:"Add note,Send" class="vr-composer" multipart=True %}
       <input type="hidden" name="list" value="{{ list_query }}">
       {{ composer.expected_revision }}
       <fieldset class="vr-form-section vr-composer-mode">
         <legend class="visually-hidden">Kind of entry</legend>
         {{ composer.kind.as_field_group }}
-        <p class="vr-composer-visibility" aria-live="polite"><span class="vr-composer-public">{% icon name="eye" %}Visible to the client{% if audience %} ({{ audience|length }} portal account{{ audience|length|pluralize }}){% endif %}</span><span class="vr-composer-internal">{% icon name="lock" %}Internal, not shown to the client</span></p>
+        <p class="vr-composer-visibility" aria-live="polite"><span class="vr-composer-public">{% icon name="eye" %}{% if audience %}Visible to the client ({{ audience|length }} portal account{{ audience|length|pluralize }}){% else %}No portal account can see this reply{% endif %}</span><span class="vr-composer-internal">{% icon name="lock" %}Internal, not shown to the client</span></p>
       </fieldset>
       <fieldset class="vr-form-section">
         {{ composer.body.as_field_group }}
@@ -110,7 +110,7 @@ the thumb bar's primary action is Reply, which jumps to the composer.
       {% else %}
       <li class="vr-entry vr-entry-{{ entry.kind }}{% if entry.withdrawn_at %} vr-entry-withdrawn{% endif %}">
         <div class="vr-entry-head">
-          <span class="vr-entry-kind">{% if entry.kind == "reply" %}{% if entry.withdrawn_at %}{% icon name="eye-slash" %}Reply, withdrawn from client view{% else %}{% icon name="eye" %}Reply, visible to the client{% endif %}{% elif entry.kind == "note" %}{% icon name="lock" %}Internal note{% else %}{% icon name="telephone" %}Logged contact, internal{% endif %}</span>
+          <span class="vr-entry-kind">{% if entry.kind == "reply" %}{% if entry.withdrawn_at %}{% icon name="eye-slash" %}Reply, withdrawn from client view{% elif audience %}{% icon name="eye" %}Reply, visible to the client{% else %}{% icon name="eye-slash" %}Reply, no current portal audience{% endif %}{% elif entry.kind == "note" %}{% icon name="lock" %}Internal note{% else %}{% icon name="telephone" %}Logged contact, internal{% endif %}</span>
           <span class="vr-muted">{{ entry.author|person }}{% if entry.author_capacity == "client" %} (client){% endif %} · <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"Y-m-d H:i" }}</time></span>
         </div>
         {% if entry.kind == "contact" %}<p class="vr-entry-contact">{{ entry.get_contact_direction_display }} by {{ entry.get_contact_channel_display|lower }}{% if entry.contact_with %}, {{ entry.contact_with }}{% endif %}: <strong>{{ entry.get_contact_outcome_display }}</strong></p>{% endif %}
@@ -137,4 +137,5 @@ the thumb bar's primary action is Reply, which jumps to the composer.
   {% endif %}
 {% endrecord_layout %}
 {% endblock %}
+{% block extra_js %}{{ block.super }}<script src="{% static 'js/ticket-draft.js' %}" defer></script>{% endblock %}
 {% block record_foot %}{% record_foot identifier=req.number %}{% endblock %}

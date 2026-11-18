@@ -5,20 +5,20 @@
   ],
   "title": "Dashboard",
   "purpose": "See the work waiting for your laboratory roles, including your tickets, and the client organizations added most recently.",
-  "summary": "The work waiting for your roles, grouped by area (your tickets, clients and more), and the client organizations added most recently.",
+  "summary": "Open a work queue for your role or find one of the eight most recently added client organizations.",
   "tasks": [
     {
       "title": "Start on the work that is waiting",
       "steps": [
-        "Find the line for your area under Your work queues.",
-        "Select a queue's label to open the list of those items. Queues showing 0 have no link."
+        "Under [[Your work queues]], select the row for the work you want to open.",
+        "Select [[Queue definitions]] to see what a queue includes."
       ]
     },
     {
       "title": "Start on your tickets",
       "steps": [
-        "Under Service desk, select My open tickets to see what is assigned to you.",
-        "Select Unassigned in my teams to find work to take or assign."
+        "Select [[My open tickets]] for work assigned to you.",
+        "Select [[Unassigned in my teams]] for work you can take or assign."
       ]
     },
     {
@@ -30,14 +30,15 @@
     {
       "title": "Open a recently added organization",
       "steps": [
-        "Under Recently added organizations, select the name. Select [[All client organizations]] for the complete list."
+        "Under [[Recently added organizations]], select the organization's name.",
+        "Select [[All organizations]] for the complete organization list."
       ]
     }
   ],
   "good_to_know": [
-    "Counts are live: each is the number of records the linked list shows with the same filter.",
+    "Each count matches the filtered list you can open. A ticket may appear in several queues, and the client queue counts organizations.",
     "Ticket queues count only tickets you may read. Restricted categories count for their team's members and supervisors.",
-    "The colour of a line only marks its area. The status and icon tell you the state.",
+    "Queues with zero matches still open. Queues with work appear first within each area.",
     "Complaints awaiting my review is shown to supervisors only, and counts only complaints you may review independently.",
     "Announcements cannot be dismissed. They disappear when they end or are withdrawn."
   ],
@@ -55,32 +56,36 @@
         },
         {
           "label": "Your work queues",
-          "description": "Your queues, grouped into lines by area of work. Each line shows its area's total, and the header shows how many items wait in all your queues together. The panel appears only when one of your roles has a queue. A queue's label opens the corresponding filtered list when its count is nonzero. Empty queues stay on their line with a muted label and 0, without a link. “Nothing is waiting for you right now” means all your displayed queues are zero. The Service desk line holds the ticket queues; it appears for every staff role."
+          "description": "Every staff role has a Service desk group. The Clients group appears for staff who manage organizations. Within each group, queues with work appear first. The desk prioritizes overdue tickets, unassigned tickets, complaints awaiting your review and then your open tickets. Each row opens its filtered list, including when the count is zero. “Nothing is waiting for you right now” appears when all your queues are empty."
         },
         {
-          "label": "Recently added organizations / All client organizations",
-          "description": "Shows the eight most recently added client organizations, active or not, with account code, status, city and state. The name opens the organization; All client organizations opens the complete list. There are no search, sorting or paging controls here."
+          "label": "Queue definitions",
+          "description": "Opens the descriptions for the queues your roles can use. Each gives the work it contains, its status when work is waiting, and the local date and time of the oldest ticket when available."
+        },
+        {
+          "label": "Recently added organizations / All organizations",
+          "description": "The eight most recently added organizations, newest first, including inactive organizations. The name opens the record. Account code, status and location (city and state when recorded) identify it. In a narrow panel the location appears beside the code. All organizations opens the complete organization list."
         }
       ]
     },
     {
-      "title": "Each queue on a line",
+      "title": "Reading a queue",
       "items": [
         {
           "label": "Queue",
-          "description": "The type of work, with a note about what to do. Opens the filtered list while the count is above zero."
+          "description": "Select the row, including its count, to open the matching list."
         },
         {
           "label": "Status",
-          "description": "Shown while work waits, with the matching tone and icon. The line colours only mark the area; they never mean a status."
+          "description": "Queue definitions names the status and describes the work. A queue without a ticket age shows its status in the row when work is waiting."
         },
         {
           "label": "Oldest",
-          "description": "Age of the earliest relevant timestamp when that queue supplies one. Hover over it for the exact time. The ticket queues use the time the oldest ticket was logged; the client organization queue supplies none."
+          "description": "Age since the oldest ticket in the queue was logged. Select Queue definitions for the exact date and local time. The organization queue has no ticket age."
         },
         {
           "label": "Count",
-          "description": "Computed number of records matching that queue's filters."
+          "description": "Number of matching tickets or organizations in the linked list. The same ticket may meet more than one queue’s conditions."
         }
       ]
     },

@@ -31,7 +31,8 @@
     {
       "title": "What is listed",
       "paragraphs": [
-        "The page is titled History of followed by the ticket number and shows the History panel Audit history. Events appear oldest first, each with its action, the time, who did it and, when given, the reason."
+        "The page is titled History of followed by the ticket number and shows the History panel Audit history. Events appear oldest first, each with its action, the time, who did it and, when given, the reason.",
+        "Status, priority, category, assignment, complaint marking, investigation decisions and reviewer changes show the recorded previous and new values. A missing earlier value is marked Not recorded. Team, category and staff references use their current names."
       ],
       "items": [
         {
@@ -44,7 +45,7 @@
         },
         {
           "label": "Its complaint record",
-          "description": "The decision, updates and the review, with the before and after values the record keeps."
+          "description": "Shows the recorded decision, updates and review. Read findings and other narrative material on the ticket. The audit page does not copy those words or linked record identifiers into the change list."
         },
         {
           "label": "Its links",
@@ -66,6 +67,8 @@
     "desk/views.py",
     "desk/permissions.py",
     "desk/templates/desk/request_history.html",
-    "templates/includes/history_panel.html"
+    "templates/includes/history_panel.html",
+    "desk/timeline.py",
+    "templates/includes/history_item.html"
   ]
 }

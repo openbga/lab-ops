@@ -253,7 +253,7 @@ class TestRequestPage:
         )
         login(client, member)
         page = client.get(detail_url(request)).content.decode()
-        assert "Reply, visible to the client" in page
+        assert "Reply, no current portal audience" in page
         assert "Internal note" in page
         assert "Logged contact, internal" in page
         assert "To the client by phone, Office manager" in page and "Spoke with" in page
@@ -376,7 +376,7 @@ class TestComposer:
         request = new_request(member, category)
         login(client, member)
         expected = {
-            "reply": "Reply sent.",
+            "reply": "Reply recorded. No portal account can see this ticket.",
             "note": "Note added.",
             "contact": "Contact logged.",
         }
@@ -457,6 +457,29 @@ class TestComposer:
         assert NOBODY_NOTICE not in page.content.decode()
         assert page.context["composer"].initial["kind"] == EntryKind.REPLY
         assert "1 portal account" in page.content.decode()
+
+    def test_closed_ticket_with_portal_audience_only_offers_a_note(
+        self, client, member, category, clinic_portal
+    ):
+        ticket = services.create_request(
+            actor=clinic_portal,
+            category=category,
+            subject="Closed with a portal reader",
+            first_entry_kind=EntryKind.REPLY,
+            first_entry_body="Status, please.",
+            channel="portal",
+        )
+        set_status(ticket, Status.CLOSED)
+        login(client, member)
+        response = client.get(detail_url(ticket))
+        composer = response.context["composer"]
+        assert composer.initial["kind"] == EntryKind.NOTE
+        assert list(composer.fields["kind"].choices) == [(EntryKind.NOTE, "Note")]
+        assert b"Add an internal note" in response.content
+        assert b"Reply, visible to the client" in response.content
+        assert post_entry(client, ticket, kind="contact").status_code == 400
+        assert post_entry(client, ticket, kind="reply").status_code == 400
+        assert post_entry(client, ticket, kind="note").status_code == 302
 
     def test_an_inactive_portal_account_does_not_count_as_audience(
         self, client, member, category, clinic_portal
@@ -1406,6 +1429,34 @@ class TestHistoryPage:
             "desk.complaintreview",
         }
         assert worked.number in response.content.decode()
+
+    def test_history_describes_changes_and_keeps_private_payloads_out(
+        self, client, member, category, tech, lead, team
+    ):
+        ticket = new_request(member, category, assignee=member, priority="normal")
+        services.assign(actor=lead, request=ticket, expected_revision=1, team=team, assignee=tech)
+        services.update_properties(
+            actor=lead,
+            request=ticket,
+            expected_revision=seen(ticket),
+            priority="urgent",
+            category=category,
+        )
+        # Older and future event payloads can contain data with its own read boundary.
+        AuditEvent.objects.create(
+            actor=lead,
+            action="unrelated.event",
+            object_type="desk.servicerequest",
+            object_id=str(ticket.pk),
+            after={"patient_key": "private-history-value"},
+        )
+        login(client, lead)
+        response = client.get(reverse("desk:request-history", args=[ticket.pk]))
+        changes = {e.action: e.changes for e in response.context["events"]}
+        assert changes["request.assigned"] == [("Assigned to", member.username, tech.username)]
+        assert changes["request.updated"] == [("Priority", "Normal", "Urgent")]
+        assert b'<del class="vr-prior">Normal</del>' in response.content
+        assert b"private-history-value" not in response.content
 
     def test_history_is_in_time_order(self, client, lead, worked):
         login(client, lead)

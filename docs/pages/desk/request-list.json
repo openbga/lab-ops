@@ -174,7 +174,7 @@
         },
         {
           "label": "Apply, Clear all and filter chips",
-          "description": "Apply combines the search and the filters and returns to page 1. Clear all restores the unfiltered address and default sort. Removing a chip clears one criterion. Filters and sort stay in the page address, so a list can be bookmarked."
+          "description": "Apply combines the search and filters and returns to page 1. Clear all returns to the current queue. In a saved view it restores the saved filters and sort. Removing a chip clears one criterion."
         },
         {
           "label": "Filter and sort (phones)",
@@ -225,7 +225,8 @@
     {
       "title": "Change several tickets",
       "paragraphs": [
-        "The bar above the table acts on the ticked tickets. The header checkbox ticks only the rows on the current page, and the bar counts how many are selected. Every selected ticket must be one you may read, or the whole action is refused and nothing changes. Selecting nothing is refused. Success reads \"N tickets changed.\""
+        "The bar above the table acts on the ticked tickets. The header checkbox ticks only the rows on the current page, and the bar counts how many are selected. Every selected ticket must be one you may read, or the whole action is refused and nothing changes. Selecting nothing is refused. Success reads \"N tickets changed.\"",
+        "On a phone, select a ticket or use Select this page, then tap Change selected tickets above the navigation bar. If a choice needs correcting, the sheet reopens. Your choices and the selected tickets still on this page at the same revision are kept. Review the count before applying again."
       ],
       "items": [
         {
@@ -263,7 +264,7 @@
         },
         {
           "label": "Empty states",
-          "description": "No tickets here means the view is empty. No tickets match means the filters hide everything; use Clear all. An invalid filter shows an error and no rows."
+          "description": "No tickets here means the view is empty. No tickets match means the additional filters hide all its tickets. Clear filters returns to the same queue or restores the saved view. An invalid filter shows an error and no rows."
         }
       ]
     }

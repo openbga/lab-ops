@@ -7,7 +7,7 @@ Notices are sent only when the deployment has email configured.
 {% endcomment %}
 {% block content %}
 {% form_page form=form submit_label="Save" no_required_note=True class="vr-narrow" %}
-  {% fill note %}Notices are sent only when the laboratory has set up email.{% endfill %}
+  {% if not outbound_email_enabled %}{% notice tone="info" label="Email is off" %}Your preference is saved for when the laboratory enables email delivery.{% endnotice %}{% endif %}
   <fieldset class="vr-form-section">{{ form.enabled.as_field_group }}</fieldset>
 {% endform_page %}
 {% endblock %}

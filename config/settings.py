@@ -110,6 +110,10 @@ ACCOUNT_ADAPTER = "accounts.adapter.ClosedSignupAdapter"
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "optional"
+MFA_FORMS = {
+    "authenticate": "accounts.forms.MFAAuthenticateForm",
+    "reauthenticate": "accounts.forms.MFAReauthenticateForm",
+}
 ACCOUNT_LOGOUT_ON_GET = False
 # Sign-in limits per address use the connecting address. Behind a reverse proxy that is the
 # proxy, so every visitor would share one limit and failed attempts by anyone would lock

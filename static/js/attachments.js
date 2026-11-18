@@ -28,6 +28,7 @@
     var list = field.querySelector("[data-vr-files-list]");
     var problem = field.querySelector("[data-vr-files-problem]");
     var drop = field.querySelector(".vr-files-drop");
+    var retry = field.querySelector("[data-vr-files-retry]");
     var allowed = (input.getAttribute("accept") || "").split(",").filter(function (item) {
       return item.charAt(0) === ".";
     }).map(function (item) { return item.slice(1); });
@@ -44,7 +45,7 @@
       input.files = transfer.files;
     }
 
-    function problems() {
+    function problems(submitting) {
       var found = [];
       var total = 0;
       chosen.forEach(function (file) {
@@ -59,10 +60,14 @@
       });
       if (chosen.length > maxFiles) found.push("Attach at most " + maxFiles + " files at a time.");
       if (total > maxTotal) found.push("The files add up to " + size(total) + "; the limit is " + size(maxTotal) + ".");
+      if (submitting && retry && !retry.querySelector("input[type=checkbox]").checked &&
+          chosen.length < retry.querySelectorAll("input[type=hidden]").length) {
+        found.push("Choose the listed files again or confirm you want to leave some out.");
+      }
       return found;
     }
 
-    function render() {
+    function render(submitting) {
       list.textContent = "";
       chosen.forEach(function (file, index) {
         var item = document.createElement("li");
@@ -87,7 +92,7 @@
         }
         list.append(item);
       });
-      var found = problems();
+      var found = problems(submitting);
       problem.textContent = found.join(" ");
       problem.hidden = found.length === 0;
       input.setAttribute("aria-invalid", found.length ? "true" : "false");
@@ -128,14 +133,15 @@
     var form = input.form;
     if (form) {
       form.addEventListener("submit", function (event) {
-        if (problems().length) {
+        if (problems(true).length) {
           event.preventDefault();
           event.stopImmediatePropagation();
-          render();
+          render(true);
           problem.focus();
         }
       }, true);
     }
+    if (retry) retry.addEventListener("change", function () { render(); });
     problem.tabIndex = -1;
     field.classList.add("vr-file-ready", "vr-files-ready");
   }

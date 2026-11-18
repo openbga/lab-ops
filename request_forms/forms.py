@@ -12,6 +12,7 @@ from taxonomy.models import RequestCategory
 
 from . import definition, kinds
 from .models import (
+    CHOICE_KINDS,
     NO_VALUE_KINDS,
     Audience,
     Catalog,
@@ -485,21 +486,21 @@ class FieldForm(_KeyMixin, GroupedForm, StyledForm, forms.ModelForm):
                 ("kind", "col-md-6"),
                 ("audience", "col-md-6"),
                 ("help_text", "col-12"),
-                ("required", "col-12"),
+                ("required", "col-12 vr-setting-required"),
+                ("copy_on_repeat", "col-12 vr-setting-repeat"),
             ),
         ),
         (
             "Type settings",
             (
-                ("choices", "col-12"),
-                ("catalog", "col-md-6"),
-                ("whole_number", "col-12"),
-                ("min_value", "col-md-6"),
-                ("max_value", "col-md-6"),
-                ("copy_on_repeat", "col-12"),
+                ("choices", "col-12 vr-setting-choices"),
+                ("catalog", "col-md-6 vr-setting-catalog"),
+                ("whole_number", "col-12 vr-setting-number"),
+                ("min_value", "col-md-6 vr-setting-number"),
+                ("max_value", "col-md-6 vr-setting-number"),
             ),
         ),
-        ("Patient information", (("holds_patient_information", "col-12"),)),
+        ("Patient information", (("holds_patient_information", "col-12 vr-setting-patient"),)),
         ("Status", (("is_active", "col-12"),)),
         ("Change record", (("reason", "col-12"),)),
     )
@@ -545,8 +546,8 @@ class FieldForm(_KeyMixin, GroupedForm, StyledForm, forms.ModelForm):
             "holds_patient_information": PATIENT_HELP,
             "copy_on_repeat": "Clear it for a number that belongs to one order or sample. Dates, "
             "times, confirmations and patient information are never copied.",
-            "kind": "A section heading asks nothing: it groups the fields after it under its "
-            "label, with its help text as a short note.",
+            "kind": "Choose the type to see its settings. A confirmation is always required. "
+            "A section heading groups fields under its label and help text.",
         }
         widgets = {
             "min_value": forms.NumberInput(attrs={"inputmode": "decimal"}),
@@ -560,8 +561,38 @@ class FieldForm(_KeyMixin, GroupedForm, StyledForm, forms.ModelForm):
             catalogs = catalogs | Catalog.objects.filter(pk=self.instance.catalog_id)
         self.fields["catalog"].queryset = catalogs.order_by("name")
         self.fields["catalog"].empty_label = "No catalog"
-        self.fields["kind"].choices = FieldKind.choices
+        kind_field = self.fields["kind"]
+        kind_field.choices = FieldKind.choices
         self.fields["audience"].choices = Audience.choices
+        kind_field.widget.attrs["data-vr-field-kind"] = ""
+        if self.instance.pk and self.instance.values.exists():
+            kind_field.disabled = True
+            kind_field.help_text = (
+                "Tickets already hold values of this field, so its type stays. Add a new field "
+                "and make this one inactive to change it."
+            )
+            if self.instance.holds_patient_information:
+                self.fields["holds_patient_information"].disabled = True
+                self.fields["holds_patient_information"].help_text = (
+                    PATIENT_HELP + " Tickets already hold values of this field, so the mark stays."
+                )
+        elif self.instance.pk:
+            kind_field.help_text += (
+                " Saving a different type removes settings that belong only to the previous type."
+            )
+        if self.is_bound:
+            # CSS follows the native select, including without JavaScript. A hidden input may
+            # still post a previous type's value; it must not invalidate the selected type.
+            kind = self["kind"].value()
+            self.data = self.data.copy()
+            for name, applicable in (
+                ("choices", kind in CHOICE_KINDS),
+                ("catalog", kind == FieldKind.ITEMS),
+                ("min_value", kind == FieldKind.NUMBER),
+                ("max_value", kind == FieldKind.NUMBER),
+            ):
+                if not applicable:
+                    self.data.pop(self.add_prefix(name), None)
 
 
 class FieldEditForm(_EditMixin, FieldForm):
@@ -574,17 +605,6 @@ class FieldEditForm(_EditMixin, FieldForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["is_active"].initial = self.instance.is_active
-        if self.instance.holds_patient_information and self.instance.values.exists():
-            self.fields["holds_patient_information"].disabled = True
-            self.fields["holds_patient_information"].help_text = (
-                PATIENT_HELP + " Tickets already hold values of this field, so the mark stays."
-            )
-        if self.instance.values.exists():
-            self.fields["kind"].disabled = True
-            self.fields["kind"].help_text = (
-                "Tickets already hold values of this field, so its type stays. Add a new field "
-                "and make this one inactive to change it."
-            )
 
 
 class CatalogForm(_KeyMixin, GroupedForm, StyledForm, forms.ModelForm):

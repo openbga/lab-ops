@@ -60,6 +60,7 @@ def test_count_matches_the_list_it_links_to(client, staff, organizations):
     item = queue(response)
     # Two without any contact, one whose only contact is inactive; inactive organizations out.
     assert item["count"] == 3
+    assert b"3 waiting" not in response.content  # organization and ticket counts stay separate
     assert item["url"] == f"{reverse('clients:client-list')}?active=yes&contacts=none"
     assert f'href="{item["url"].replace("&", "&amp;")}"'.encode() in response.content
     target = client.get(item["url"])
@@ -81,8 +82,10 @@ def test_all_clear_and_the_queue_still_shows_at_zero(client, staff, db):
     response = client.get(reverse("dashboard"))
     assert response.context["queues_clear"] is True
     assert b"Nothing is waiting for you right now." in response.content
-    assert queue(response)["count"] == 0 and response.context["queue_total"] == 0
-    assert b'class="vr-queue-link"' not in response.content  # a label links only while waiting
+    assert queue(response)["count"] == 0
+    assert b'aria-label="Service desk queues"' in response.content
+    for item in response.context["queues"]:
+        assert f'href="{item["url"].replace("&", "&amp;")}"'.encode() in response.content
 
 
 def test_staff_without_client_queues_still_get_the_dashboard(client, staff, db):
@@ -90,7 +93,7 @@ def test_staff_without_client_queues_still_get_the_dashboard(client, staff, db):
     response = client.get(reverse("dashboard"))
     assert response.status_code == 200
     assert labels(response) == []
-    families = {line["family"] for line in response.context["queue_lines"]}
+    families = {line["family"] for line in response.context["queue_groups"]}
     assert families == {"desk"}  # the request desk's queues, for every staff role
 
 

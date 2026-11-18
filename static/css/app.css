@@ -1374,23 +1374,26 @@ html:hover::-webkit-scrollbar-thumb,
   color: var(--vr-text);
 }
 
-/* Glyph label + body (includes/messages.html, form_errors.html, status alerts) sit side by side.
-   Plain-text alerts stay in normal flow so inline text, links and emphasis wrap as one paragraph. */
-/* One notice grid: the status in its own column, top-aligned so its label shares the first line
-   of the content; the content in the second column; a close button, when present, last. */
+/* Let the message take a full line when the label and readable text cannot fit together.
+   This also works in a narrow record sidebar on a wide screen. */
 .alert:has(> .vr-status) {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: var(--vr-space-4);
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--vr-space-1) var(--vr-space-4);
 }
 
-.alert-dismissible:has(> .vr-status) {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+.alert > .vr-status + div {
+  flex: 1 1 24ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* The pill box is centred on the first line of the content (a 1.5 line box). */
 .alert > .vr-status {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   margin-top: calc((var(--vr-line-height-base) * var(--vr-font-size-3) - var(--vr-line-height-label-sm) - 2 * var(--vr-badge-py)) / 2);
 }
 
@@ -3274,6 +3277,20 @@ fieldset.vr-field > legend {
 }
 
 /* Form groups: a fieldset with a bold legend, separated by space, never by lines or wells. */
+/* Ticket form definitions. The native select stays in sync with the enhanced picker. Hidden
+   settings retain their values while switching types before save, including without script. */
+.vr-form:not(:has([data-vr-field-kind] :is([value="choice"], [value="multiple_choice"]):checked)) .vr-setting-choices,
+.vr-form:not(:has([data-vr-field-kind] [value="number"]:checked)) .vr-setting-number,
+.vr-form:not(:has([data-vr-field-kind] [value="items"]:checked)) .vr-setting-catalog,
+.vr-form:not(:has([data-vr-field-kind] :is([value="choice"], [value="multiple_choice"], [value="number"], [value="items"]):checked)) .vr-form-section:has(.vr-setting-choices),
+.vr-form:has([data-vr-field-kind] :is([value="confirmation"], [value="heading"]):checked) .vr-setting-required,
+.vr-form:has([data-vr-field-kind] [value="heading"]:checked) .vr-form-section:has(.vr-setting-patient),
+.vr-form:has([data-vr-field-kind] :is([value="heading"], [value="date"], [value="time"], [value="datetime"], [value="confirmation"]):checked) .vr-setting-repeat,
+.vr-form:has(.vr-setting-patient input:checked) .vr-setting-repeat,
+.vr-form:not(:has([name="audience"] [value="client"]:checked)) .vr-setting-repeat {
+  display: none;
+}
+
 .vr-form-section {
   padding: var(--vr-space-5);
   margin-bottom: var(--vr-space-8);
@@ -4941,167 +4958,220 @@ details.card:not([open]) > summary.card-header {
   --vr-line: var(--vr-line-setup);
 }
 
-/* Dashboard: one lane per area, side by side from 1200px. */
-.vr-lines {
+/* Dashboard panels follow their available width, including while the Help drawer is open. */
+.vr-dashboard {
+  container: dashboard / inline-size;
+}
+
+.vr-dashboard-panels {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--vr-space-3);
-  padding: var(--vr-space-2) var(--vr-space-4) var(--vr-space-4);
+  gap: var(--vr-space-4);
+  align-items: start;
 }
 
-@media (min-width: 768px) {
-  .vr-lines {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@container dashboard (min-width: 56rem) {
+  .vr-dashboard-panels {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   }
 }
 
-@media (min-width: 1200px) {
-  .vr-lines {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
+.vr-dashboard-panels > .card {
+  min-width: 0;
 }
 
-.vr-line {
-  padding: var(--vr-space-3) var(--vr-space-3) var(--vr-space-2);
-  border-radius: var(--vr-radius-lane);
-  background: var(--vr-lane);
+.vr-dashboard-panels .card-header {
+  flex-wrap: nowrap;
 }
 
-.vr-line-name {
+.vr-dashboard-panels .card-header > .card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--vr-font-size-6);
+}
+
+.vr-dashboard-area {
   display: flex;
   align-items: center;
   gap: var(--vr-space-2);
-  margin: 0 0 var(--vr-space-3);
-  padding: 0 var(--vr-space-1);
-  color: var(--vr-text-strong);
+  margin: 0 0 var(--vr-space-1);
+  color: var(--vr-text-muted);
   font-size: var(--vr-font-size-1);
-  font-weight: var(--vr-font-weight-black);
+  font-weight: var(--vr-font-weight-bold);
   letter-spacing: var(--vr-tracking-label);
   text-transform: uppercase;
 }
 
-.vr-line-roundel {
+.vr-dashboard-area::before {
+  content: "";
   flex: none;
-  width: var(--vr-station-lg);
-  height: var(--vr-station-lg);
-  border-radius: 50%;
+  width: var(--vr-space-4);
+  height: var(--vr-space-1);
+  border-radius: var(--vr-radius-pill);
   background: var(--vr-line);
 }
 
-.vr-line-total {
-  margin-left: auto;
-  padding: 0 var(--vr-space-2);
-  border-radius: var(--vr-radius-pill);
-  background: var(--vr-surface);
-  color: var(--vr-text);
+.vr-dashboard-queues {
+  padding: 0 var(--vr-space-3) var(--vr-space-3);
+}
+
+.vr-dashboard-queues > h3 {
+  padding: var(--vr-space-2) var(--vr-space-3);
+}
+
+.vr-queue-list,
+.vr-dashboard-definitions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vr-queue-list + h3 {
+  margin-top: var(--vr-space-3);
+}
+
+.vr-queue-link {
+  --vr-queue-ink: var(--vr-neutral-text);
+  --vr-queue-tint: var(--vr-neutral-bg);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--vr-space-2-5);
+  min-height: var(--vr-touch-target);
+  padding: var(--vr-space-2) var(--vr-space-3);
+  border-radius: var(--vr-radius-lg);
+  color: var(--vr-pen);
+}
+
+.vr-queue-link[data-tone="danger"] {
+  --vr-queue-ink: var(--vr-danger-text);
+  --vr-queue-tint: var(--vr-danger-bg);
+}
+
+.vr-queue-link[data-tone="warning"] {
+  --vr-queue-ink: var(--vr-warning-text);
+  --vr-queue-tint: var(--vr-warning-bg);
+}
+
+.vr-queue-link[data-tone="progress"] {
+  --vr-queue-ink: var(--vr-progress-text);
+  --vr-queue-tint: var(--vr-progress-bg);
+}
+
+.vr-queue-link[data-tone="info"] {
+  --vr-queue-ink: var(--vr-info-text);
+  --vr-queue-tint: var(--vr-info-bg);
+}
+
+.vr-queue-list li:nth-child(odd) .vr-queue-link {
+  background: var(--vr-row-stripe);
+}
+
+.vr-queue-list li .vr-queue-link:hover {
+  background: var(--vr-row-hover);
+}
+
+.vr-queue-icon {
+  display: grid;
+  width: var(--vr-space-8);
+  height: var(--vr-space-8);
+  place-items: center;
+  border-radius: var(--vr-radius-lg);
+  color: var(--vr-queue-ink);
+  background: var(--vr-queue-tint);
+}
+
+.vr-queue-copy {
+  display: grid;
+  gap: var(--vr-space-0-5);
+  overflow-wrap: anywhere;
+  line-height: var(--vr-line-height-snug);
+}
+
+.vr-queue-copy small,
+.vr-dashboard-directory small {
+  color: var(--vr-text-muted);
+  font-size: var(--vr-font-size-1);
+  font-weight: var(--vr-font-weight-regular);
+}
+
+.vr-queue-count {
+  color: var(--vr-queue-ink);
+  font-size: var(--vr-font-size-7);
   font-weight: var(--vr-font-weight-bold);
 }
 
-.vr-stations {
-  position: relative;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* The line joining the stations. */
-.vr-stations::before {
-  content: "";
-  position: absolute;
-  top: var(--vr-space-3);
-  bottom: var(--vr-space-5);
-  left: calc(var(--vr-space-1) + var(--vr-station-lg) / 2 - var(--vr-line-width) / 2);
-  width: var(--vr-line-width);
-  border-radius: var(--vr-radius-pill);
-  background: var(--vr-line);
-}
-
-.vr-station {
-  position: relative;
-  display: grid;
-  grid-template-columns: var(--vr-station-lg) minmax(0, 1fr) auto;
-  column-gap: var(--vr-space-2-5);
-  align-items: start;
-  margin-bottom: var(--vr-space-1);
-  padding: var(--vr-space-1-5) var(--vr-space-1);
-  border-radius: var(--vr-radius-lg);
-}
-
-.vr-station[data-state="active"]:hover {
-  background: var(--vr-station-hover);
-}
-
-.vr-station-dot {
-  position: relative;
-  z-index: var(--vr-z-raised);
-  justify-self: center;
-  width: var(--vr-station-lg);
-  height: var(--vr-station-lg);
-  border: var(--vr-border-width-xl) solid var(--vr-line);
-  border-radius: 50%;
-  background: var(--vr-surface);
-}
-
-/* An empty station is a short tick on the line. */
-.vr-station[data-state="zero"] .vr-station-dot {
-  width: 0.5rem;
-  height: var(--vr-line-width);
-  margin-top: var(--vr-space-2);
-  border: 0;
-  border-radius: var(--vr-radius-pill);
-  background: var(--vr-line);
-  transform: translateX(0.25rem);
-}
-
-.vr-station-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--vr-space-1);
-  min-width: 0;
-}
-
-/* The queue link covers the whole station, so the station is one target. */
-.vr-station .vr-queue-link {
-  color: var(--vr-text-strong);
-  font-weight: var(--vr-font-weight-semibold);
-  line-height: var(--vr-line-height-snug);
-  text-decoration: none;
-}
-
-.vr-station .vr-queue-link::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--vr-radius-lg);
-}
-
-.vr-station .vr-queue-label {
-  color: var(--vr-text-muted);
-  line-height: var(--vr-line-height-snug);
-}
-
-.vr-station-old {
+.vr-queue-chevron {
   color: var(--vr-text-muted);
   font-size: var(--vr-font-size-1);
 }
 
-.vr-station-count {
-  min-width: var(--vr-station-lg);
-  padding: 0 var(--vr-space-2);
-  border-radius: var(--vr-radius-pill);
-  background: var(--vr-count);
-  color: var(--vr-on-count);
-  font-size: var(--vr-font-size-2);
-  font-weight: var(--vr-font-weight-black);
-  line-height: var(--vr-line-height-base);
-  text-align: center;
+.vr-dashboard-definitions > div + div,
+.vr-dashboard-queues > .vr-form-note {
+  margin-top: var(--vr-space-3);
 }
 
-.vr-station[data-state="zero"] .vr-station-count {
-  background: transparent;
+.vr-dashboard-definitions dd {
+  margin: 0;
+}
+
+.vr-dashboard-recent {
+  container: dashboard-directory / inline-size;
+}
+
+.vr-dashboard-directory {
+  table-layout: fixed;
+}
+
+.vr-dashboard-directory th:first-child {
+  width: 53%;
+}
+
+.vr-dashboard-directory th:last-child {
+  width: 20%;
+}
+
+.vr-dashboard-directory .vr-row-link {
+  display: grid;
+  align-content: center;
+  min-height: var(--vr-touch-target);
+  line-height: var(--vr-line-height-snug);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vr-dashboard-directory > tbody > tr > :is(th, td) {
+  padding-block: var(--vr-space-1);
+  vertical-align: middle;
+}
+
+.vr-dashboard-directory td.vr-directory-location {
   color: var(--vr-text-muted);
-  font-weight: var(--vr-font-weight-regular);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vr-directory-inline-location {
+  display: none;
+}
+
+@container dashboard-directory (max-width: 29rem) {
+  .vr-dashboard-directory .vr-directory-location {
+    display: none;
+  }
+
+  .vr-directory-inline-location {
+    display: inline;
+  }
+
+  .vr-dashboard-directory th:first-child {
+    width: auto;
+  }
+
+  .vr-dashboard-directory th:last-child {
+    width: 6rem;
+  }
 }
 
 /* A dropdown toggle that carries its own chevron (i-chevron-down) drops Bootstrap's caret. */
@@ -5172,7 +5242,6 @@ details.card:not([open]) > summary.card-header {
   .vr-entrance-brand,
   .form-check-label,
   .card-header a:not(.btn),
-  .vr-station .vr-queue-link,
   .vr-portal-nav .nav-link,
   .vr-change-more > a,
   .vr-change-list > summary,
@@ -5314,8 +5383,15 @@ details.card:not([open]) > summary.card-header {
   }
 
   table.vr-table:not(.vr-table-scroll) > tbody > tr > th[scope="row"] {
+    flex-wrap: wrap;
     padding-bottom: var(--vr-space-2);
     font-size: var(--vr-font-size-3);
+  }
+
+  table.vr-table:not(.vr-table-scroll) th[scope="row"] > .vr-row-link {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   table.vr-table:not(.vr-table-scroll) > tbody > tr > th[scope="row"]::before {
@@ -5598,10 +5674,60 @@ p.vr-entry-contact {
   flex: 1 0 100%;
 }
 
-/* Phones: the rows come first. The request list's bulk actions appear once a row is selected. */
+.vr-bulk-master,
+.vr-bulk-trigger {
+  display: none;
+}
+
+/* Keep the selection action in thumb reach while the operator moves through phone cards. */
 @media (max-width: 575.98px) {
-  .vr-table-card:not(:has(input[name="requests"]:checked)) .vr-bulkbar {
+  [data-vr-bulk-enhanced] .vr-bulk-master {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vr-space-2);
+    min-height: var(--vr-touch-target);
+  }
+
+  .vr-table-card:has(input[name="requests"]:checked) [data-vr-bulk-enhanced] .vr-bulk-trigger {
+    position: fixed;
+    z-index: var(--vr-z-topbar);
+    right: var(--vr-space-3);
+    bottom: calc(var(--vr-thumbbar-height) + env(safe-area-inset-bottom) + var(--vr-space-2));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vr-space-2);
+    box-shadow: var(--vr-shadow-dialog);
+  }
+
+  .vr-bulk-sheet .vr-bulkbar {
+    display: grid;
+    padding: 0;
+  }
+
+  /* The native POST and individual checkboxes remain usable without Bootstrap. */
+  form:not([data-vr-bulk-enhanced]) > .vr-bulk-sheet {
+    position: static;
+    visibility: visible;
+    height: auto;
+    max-height: none;
+    transform: none;
+    box-shadow: none;
+  }
+
+  form:not([data-vr-bulk-enhanced]) .vr-sheet-header {
     display: none;
+  }
+
+  .vr-clock-badge {
+    display: grid;
+    min-width: 0;
+    justify-items: start;
+    gap: var(--vr-space-1);
+  }
+
+  .vr-clock-badge .vr-status,
+  .vr-clock-badge time {
+    white-space: normal;
   }
 }
 
@@ -5902,7 +6028,7 @@ p.vr-entry-contact {
 }
 
 /* The composer offers files for a reply or a note, not for a logged contact. */
-.vr-composer:has(input[name="kind"][value="contact"]:checked) .vr-composer-files {
+.vr-composer:has(input[name="kind"][value="contact"]:checked) .vr-composer-files:not(:has([data-vr-files-retry])) {
   display: none;
 }
 

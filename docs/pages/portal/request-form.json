@@ -43,7 +43,7 @@
         },
         {
           "label": "Site",
-          "description": "Shown when your account can use at least one active site. It is required when your account sees only listed sites, or when your organization has more than one active site; otherwise it is optional and its empty choice reads Not about one site. Only the sites your account may use are offered, shown with their code in brackets when they have one. When your organization has no active site the field is not shown. An account whose access the laboratory has not set yet is not asked for a site: its tickets are for the organization as a whole."
+          "description": "Shown when your account can use at least one active site. It is required when your account sees only listed sites, or when your organization has more than one active site; otherwise it is optional and its empty choice reads Not about one site. A required site is preselected when your account can use only one. Only the sites your account may use are offered, shown with their code in brackets when they have one. When your organization has no active site the field is not shown. An account whose access the laboratory has not set yet is not asked for a site: its tickets are for the organization as a whole."
         },
         {
           "label": "Subject",
@@ -55,7 +55,7 @@
         },
         {
           "label": "Files",
-          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames; if one is refused, your text stays and you choose the files again. Files are not scanned for viruses."
+          "description": "Optional. Photos, scans and documents for the laboratory: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone you can take a photo or pick one from your library. Each file is checked, and an image may have at most 100 pages or frames. After a validation error, Files lists the previous selection. Choose the files again, or check the box to leave out the ones you omit. Files are not scanned for viruses."
         },
         {
           "label": "Your reference",
@@ -95,6 +95,7 @@
   ],
   "sources": [
     "attachments/forms.py",
+    "templates/django/forms/widgets/attachment_files.html",
     "clients/portal.py",
     "clients/portal_urls.py",
     "desk/portal_forms.py",

@@ -10,7 +10,7 @@
     {
       "title": "Answer the client",
       "steps": [
-        "Choose [[Reply]] in the composer. The line above the text says Visible to the client.",
+        "Choose [[Reply]]. Check the line above the message to see whether any portal accounts can read it.",
         "Write the [[Message]], optionally set [[Then set status]], and select [[Send]]. On a phone, the [[Reply]] button in the bottom bar jumps to the composer."
       ]
     },
@@ -18,7 +18,7 @@
       "title": "Add an internal note",
       "steps": [
         "Choose [[Note]] in the composer. The line says Internal, not shown to the client.",
-        "Write the [[Message]] and select [[Send]]."
+        "Write the [[Message]] and select [[Send]], or [[Add note]] on a closed ticket."
       ]
     },
     {
@@ -151,7 +151,8 @@
     {
       "title": "Composer: Reply or add a note",
       "paragraphs": [
-        "The kind of entry is chosen first and shown in words next to an icon, not by colour alone. Reply is the default when at least one active portal account can read the ticket; otherwise Note is. The visibility line above the text always says which applies. Staff cannot reply or log a contact on a closed ticket; only a note is accepted there."
+        "An open ticket starts with Reply when an active portal account can read it. Otherwise it starts with Note. A closed ticket opens Add an internal note and offers only Note.",
+        "When you have an unsent message, contact details, status choice or files, saving another ticket action asks whether to discard the entry. Cancel keeps the draft and its files. Sending the entry saves it."
       ],
       "items": [
         {
@@ -172,7 +173,7 @@
         },
         {
           "label": "Files",
-          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames; a refused file keeps your text and asks you to choose the files again. Files are not scanned for viruses. They go with a reply (the client sees them in the portal) or a note (internal), never with a logged contact."
+          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames. After a validation error, Files lists the previous selection. Choose the files again, or check the box to leave out the ones you omit. Files are not scanned for viruses. They go with a reply (the client sees them in the portal) or a note (internal), never with a logged contact."
         },
         {
           "label": "Direction",
@@ -195,8 +196,8 @@
           "description": "Optional: Keep the status, Open, Waiting on client or Waiting on third party. It applies together with the entry. Resolve or close from Status instead. Hidden on a closed ticket."
         },
         {
-          "label": "Send",
-          "description": "Adds the entry. The page confirms Reply sent, Note added or Contact logged. If the ticket changed meanwhile, the entry is refused with a message to reload; the text you typed stays on the page until you reload."
+          "label": "Send / Add note",
+          "description": "Saves the entry. A reply with no portal audience is recorded and the confirmation says nobody can see it. A closed ticket uses Add note. If the ticket changed meanwhile, copy your text before reloading."
         },
         {
           "label": "Which accounts see a reply",
@@ -256,7 +257,7 @@
       "items": [
         {
           "label": "Reply, visible to the client",
-          "description": "A reply the client can read. A supervisor sees Withdraw from client view under it."
+          "description": "At least one portal account can read this reply now. With no current readers, the label is Reply, no current portal audience. Access can change after the reply was recorded. A supervisor can withdraw the reply."
         },
         {
           "label": "Reply, withdrawn from client view",
@@ -302,6 +303,7 @@
   ],
   "sources": [
     "attachments/forms.py",
+    "templates/django/forms/widgets/attachment_files.html",
     "attachments/services.py",
     "attachments/templates/attachments/_entry_files.html",
     "desk/forms.py",
@@ -318,6 +320,7 @@
     "request_forms/selectors.py",
     "request_forms/templates/request_forms/_details.html",
     "request_forms/templatetags/request_forms.py",
-    "service_levels/templates/service_levels/_request_clock.html"
+    "service_levels/templates/service_levels/_request_clock.html",
+    "static/js/ticket-draft.js"
   ]
 }

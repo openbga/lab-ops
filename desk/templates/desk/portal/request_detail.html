@@ -13,7 +13,7 @@ Form details ({% request_form_details %}, request_forms): the values of fields s
 when the request was raised with a request form, and "Request again" while the form is offered.
 {% endcomment %}
 {% block title %}{{ service_request.number }} · Tickets · {{ lab.name|default:"Client portal" }}{% endblock %}
-{% block breadcrumbs %}{% url 'portal:request-list' as list_url %}{% breadcrumbs section="Tickets" section_url=list_url current=service_request.number %}{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=service_request.number %}{% endblock %}
 {% block page_meta %}{% page_meta %}
   <li>{% status label=status.0 tone=status.1 plain=True %}</li>
   <li>{{ service_request.category.portal_label }}</li>
@@ -68,7 +68,6 @@ when the request was raised with a request form, and "Request again" while the f
   {% endfor %}
 {% endhistory_panel %}
 {% if can_reply %}
-{% url 'portal:request-reply' service_request.number as reply_url %}
 {% panel title="Reply" heading_id="reply-heading" class="mb-3" %}
   {% form_page form=reply_form action=reply_url submit_label="Send reply" no_required_note=True multipart=True %}
     <fieldset class="vr-form-section">

@@ -17,3 +17,33 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   For a local trial, start the Docker Compose app profile and run seed_demo. For a laboratory installation, configure PostgreSQL, run the migrations and use setup_lab to create the laboratory and its first administrator.
 
   </details>
+
+### Medium impact
+
+- **Fixed:** Clarify account recovery and email availability (2026-11-18)
+
+  Account pages explain email availability, verification and recovery codes. Keyboard users can read and dismiss phone Help without losing their place.
+
+- **Fixed:** Clarify ticket replies and changes (2026-11-18, Tickets)
+
+  Replies identify their portal audience, closed tickets offer internal notes, and ticket history shows the values changed by staff.
+
+- **Fixed:** Edit and reorder ticket forms (2026-11-18)
+
+  Field settings follow the selected type, preset comparisons show their counts, and moving a form keeps it in view.
+
+- **Fixed:** Find client tickets and services (2026-11-18, Client organizations)
+
+  Organizations link to all their open tickets. Portal ticket entry points offer the same services and select a client's sole available site.
+
+- **Fixed:** Keep your place in ticket queues (2026-11-18, Tickets)
+
+  Clearing a search keeps the current view. Staff can correct a bulk action with its selection intact and confirm a saved view's deletion.
+
+- **Fixed:** Protect ticket drafts and file selections (2026-11-18, Tickets)
+
+  Ticket actions protect an unfinished entry. After a form error, choose missing files again or explicitly leave them out before submitting.
+
+- **Changed:** Scan work queues and recent organizations (2026-11-18, Dashboard)
+
+  The dashboard shows each queue's count and oldest ticket in a compact row, with recent organizations alongside on wider screens.

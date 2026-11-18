@@ -1,0 +1,8 @@
+{% extends "mfa/index.html" %}
+{% load i18n %}
+{% block content %}
+  {{ block.super }}
+  {% if not authenticators.totp %}
+  <p>{% if outbound_email_enabled %}{% url 'account_email' as email_url %}{% blocktrans %}To verify an address before activating your authenticator, open <a href="{{ email_url }}">Email addresses</a> and select Re-send Verification.{% endblocktrans %}{% else %}{% trans "If setup asks you to verify an email address, contact your laboratory administrator. Outgoing email is off." %}{% endif %}</p>
+  {% endif %}
+{% endblock content %}

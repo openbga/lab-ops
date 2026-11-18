@@ -76,7 +76,7 @@
         },
         {
           "label": "Organization row link",
-          "description": "Opens the organization's page for any staff role."
+          "description": "Opens the organization's page. Select the Client organizations breadcrumb there to return to the same search, filters, sort and page."
         },
         {
           "label": "Email link",

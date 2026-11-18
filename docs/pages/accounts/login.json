@@ -25,7 +25,7 @@
     {
       "title": "Recover a forgotten password",
       "steps": [
-        "Select [[Forgot your password?]] and follow the emailed link."
+        "Select [[Forgot your password?]] and follow the recovery instructions."
       ]
     }
   ],
@@ -53,7 +53,7 @@
         },
         {
           "label": "Password",
-          "description": "Required account password. Use Forgot your password?, on the row under this field beside Remember me, for the email-based recovery form."
+          "description": "Required account password. Use Forgot your password?, on the row under this field beside Remember me, for the email-based recovery form. When outgoing email is off, recovery instructions direct you to the laboratory administrator."
         },
         {
           "label": "Remember me",

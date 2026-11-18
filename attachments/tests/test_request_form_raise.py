@@ -62,5 +62,22 @@ def test_bad_file_or_bad_values_create_nothing(client, portal_user, pickup):
         client, portal_user, **{"field-count": "", "files": [upload("a.pdf", PDF)]}
     )
     assert response.status_code == 200
+    assert b'name="files-previous" value="a.pdf"' in response.content
     assert not ServiceRequest.objects.exists() and not Attachment.objects.exists()
     assert not FieldValue.objects.exists()
+
+
+def test_changed_service_form_still_requires_a_file_decision(client, portal_user, pickup):
+    response = raise_form(
+        client, portal_user, form_definition="outdated", files=[upload("cooler.txt", b"Synthetic")]
+    )
+    assert (
+        response.status_code == 200
+        and b'name="files-previous" value="cooler.txt"' in response.content
+    )
+    assert not ServiceRequest.objects.exists()
+    refused = raise_form(client, portal_user, **{"files-previous": "cooler.txt"})
+    assert b"Choose these files again" in refused.content and not ServiceRequest.objects.exists()
+    sent = raise_form(client, portal_user, **{"files-previous": "cooler.txt", "files-omit": "yes"})
+    assert sent.status_code == 302 and ServiceRequest.objects.exists()
+    assert not Attachment.objects.exists()

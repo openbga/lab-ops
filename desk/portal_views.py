@@ -9,6 +9,8 @@ contacts, other events, team members, assignee, priority, service clocks and com
 never reach these templates.
 """
 
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Case, CharField, IntegerField, Value, When
@@ -22,7 +24,7 @@ from django.views.decorators.http import require_POST
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.portal import client_required
-from core.lists import list_response
+from core.lists import list_response, return_list_params
 from taxonomy import terms
 from taxonomy.choices import Priority
 
@@ -179,6 +181,7 @@ def request_detail(request, number, reply_form=None):
         and not portal_requests(request.user).filter(pk=follow_up_of.pk).exists()
     ):
         follow_up_of = None  # never name a request the account cannot see
+    list_params = return_list_params(request, PortalRequestFilter)
     can_reply = service_request.status in REPLYABLE
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})
@@ -198,6 +201,12 @@ def request_detail(request, number, reply_form=None):
             "signature": _signature(service_request),
             "can_reply": can_reply,
             "reply_form": reply_form,
+            "list_url": reverse("portal:request-list", query=list_params),
+            "reply_url": reverse(
+                "portal:request-reply",
+                args=[number],
+                query={"list": urlencode(list_params)} if list_params else None,
+            ),
             "is_closed": service_request.status == Status.CLOSED,
         },
     )
@@ -207,10 +216,16 @@ def request_detail(request, number, reply_form=None):
 @require_POST
 def request_reply(request, number):
     service_request = _portal_request(request.user, number)
+    list_params = return_list_params(request, PortalRequestFilter)
+    detail_url = reverse(
+        "portal:request-detail",
+        args=[number],
+        query={"list": urlencode(list_params)} if list_params else None,
+    )
     form = ReplyForm(request.POST, request.FILES)
     if service_request.status not in REPLYABLE:
         messages.error(request, "This ticket is closed. Open a follow-up ticket instead.")
-        return redirect("portal:request-detail", number=number)
+        return redirect(detail_url)
     if form.is_valid():
         try:
             add_entry_with_files(
@@ -227,7 +242,7 @@ def request_reply(request, number):
             _form_errors(form, exc)
         else:
             messages.success(request, "Reply sent to the laboratory.")
-            return redirect(f"{reverse('portal:request-detail', args=[number])}#conversation")
+            return redirect(f"{detail_url}#conversation")
     return request_detail(request, number, reply_form=form)
 
 

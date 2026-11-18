@@ -5,12 +5,12 @@
   ],
   "title": "Password reset requested",
   "purpose": "Check your email for recovery instructions.",
-  "summary": "Your reset request was received. If an account matches, check your email for the reset link.",
+  "summary": "Follow the recovery instructions for your laboratory. A reset request keeps your existing password until you use the emailed link.",
   "tasks": [
     {
       "title": "Reset the password",
       "steps": [
-        "Open the email and follow the reset link. Check your spam folder if it has not arrived."
+        "If email recovery is available, open the email and follow the reset link. Check your spam folder if it has not arrived."
       ]
     },
     {
@@ -23,13 +23,14 @@
   "good_to_know": [
     "This page does not confirm that an account exists.",
     "No password has changed yet.",
-    "Contact the laboratory if no email arrives; delivery depends on the deployment's mail."
+    "When outgoing email is off, ask the laboratory administrator to reset your password."
   ],
   "sections": [
     {
       "title": "State and next action",
       "paragraphs": [
-        "The Reset password page acknowledges a request without confirming that an eligible account exists. Check the mailbox and spam folder; contact the laboratory if delivery is unavailable. No password has changed, and no editable fields, resend button or dedicated Sign in link appear on this acknowledgement. Use the brand to return to the application. Signed-in visitors also see the current-account reminder. Actual email delivery depends on deployment mail configuration; the committed fallback writes outgoing mail to the console."
+        "With email delivery enabled, this page acknowledges a submitted request without identifying account holders. Check the mailbox and spam folder, or contact the laboratory. Use the brand to return to the application.",
+        "With outgoing email disabled, the page explains how to reach the administrator for a reset. Back to sign in returns to the login form."
       ]
     }
   ],
@@ -37,6 +38,9 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "templates/account/password_reset_done.html",
+    "templates/account/snippets/reset_without_email.html",
+    "core/context_processors.py"
   ]
 }

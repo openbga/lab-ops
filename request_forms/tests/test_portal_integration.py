@@ -32,13 +32,18 @@ def test_home_offers_the_service_menu(client, portal_user, pickup):
     assert reverse("portal_forms:raise", args=["pickup"]) in page
     assert reverse("portal:request-create") in page  # Something else
     assert page.index("How can we help?") < page.index("Open tickets")
+    listing = client.get(reverse("portal:request-list")).content.decode()
+    assert listing.count(f'href="{reverse("portal_forms:choose")}"') >= 2  # header and empty state
+    assert f'href="{reverse("portal:request-create")}"' not in listing
 
 
 def test_new_request_goes_straight_to_the_general_form_without_forms(client, portal_user):
     assert client.login(username=portal_user.username, password=PASSWORD)
     page = client.get(reverse("portal:home")).content.decode()
-    assert reverse("portal_forms:choose") not in page
-    assert reverse("portal:request-create") in page
+    listing = client.get(reverse("portal:request-list")).content.decode()
+    for html in (page, listing):
+        assert reverse("portal_forms:choose") not in html
+        assert reverse("portal:request-create") in html
 
 
 def test_portal_request_page_shows_client_values_only(client, portal_user, agent, pickup):

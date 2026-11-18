@@ -2,6 +2,7 @@
 {% url 'account_logout' as logout_url %}
 {% url 'account_change_password' as password_url %}
 {% url 'mfa_index' as mfa_url %}
+{% url 'account_email' as email_url %}
 {% url 'email-notices' as notices_url %}
 <div class="dropdown">
   <button class="btn btn-sm vr-topbar-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -17,6 +18,7 @@
     <p class="dropdown-item-text vr-muted small mb-0">Shared demonstration account: its password and two-factor settings cannot be changed.</p>
     {% else %}
     {% if password_url %}<a class="dropdown-item" href="{{ password_url }}">{% icon name="key" %}Change password</a>{% endif %}
+    {% if email_url %}<a class="dropdown-item" href="{{ email_url }}">{% icon name="envelope" %}Email addresses</a>{% endif %}
     {% if mfa_url %}<a class="dropdown-item" href="{{ mfa_url }}">{% icon name="lock" %}Two-factor authentication</a>{% endif %}
     {% endif %}
     {% if notices_url and not user.client_id %}<a class="dropdown-item" href="{{ notices_url }}">{% icon name="envelope" %}Email notices</a>{% endif %}

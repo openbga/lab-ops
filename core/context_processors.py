@@ -40,6 +40,8 @@ def link_preview_image(request):
 def workspace(request):
     roles = effective_roles(getattr(request, "user", AnonymousUser()))
     return {
+        "outbound_email_enabled": settings.EMAIL_BACKEND
+        != "django.core.mail.backends.dummy.EmailBackend",
         "link_preview_image": link_preview_image(request),
         "lab": Lab.objects.first(),
         "user_roles": roles,

@@ -28,19 +28,23 @@ row posts "<id>:<revision>", so a request changed since the list was opened is r
 {% endif %}{% endfor %}
 {% url 'desk:request-create' as create_url %}
 {% panel title=page_title table=True hidden_title=True %}
-  {% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields %}
-  {% list_results items=page_obj noun="tickets" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match" no_results_body="Nothing in this view matches these filters." empty_title="No tickets here" empty_body="Tickets appear here as they are logged in the desk or raised in the client portal." action_url=create_url action_label="New ticket" %}
+  {% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields clear_url=clear_url %}
+  {% list_results items=page_obj noun="tickets" filtered=refined invalid=filter_form.errors clear_url=clear_url error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match" no_results_body="Nothing in this view matches these filters." empty_title="No tickets here" empty_body="Tickets appear here as they are logged in the desk or raised in the client portal." action_url=create_url action_label="New ticket" %}
 {# form: bulk-selection #}
-  <form method="post" action="{% url 'desk:request-bulk' %}" id="bulk-form">
+  <form method="post" action="{{ request.path }}{% if list_query %}?{{ list_query }}{% endif %}" id="bulk-form"{% if bulk_form.errors %} data-vr-bulk-errors{% endif %}>
     {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <div class="vr-bulkbar" role="group" aria-label="Change the selected tickets">
-      {{ bulk_form.action.as_field_group }}
-      {{ bulk_form.assign_to.as_field_group }}
-      {{ bulk_form.status.as_field_group }}
-      <button class="btn btn-outline-secondary" type="submit">Apply to selected</button>
-      <p class="vr-form-note mb-0"><span data-vr-select-count="requests" aria-live="polite">0 selected</span>. The header checkbox selects this page only. Close applies to resolved tickets; a complaint closes after its review.</p>
-    </div>
+    <label class="vr-bulk-master">{% select_all name="requests" label="Select all tickets on this page" %} Select this page</label>
+    <button type="button" class="btn btn-outline-secondary vr-bulk-trigger" data-bs-toggle="offcanvas" data-bs-target="#ticket-bulk-actions" aria-controls="ticket-bulk-actions" aria-expanded="false">Change selected tickets <span data-vr-select-count="requests" aria-live="polite"></span></button>
+    {% sheet id="ticket-bulk-actions" title="Change selected tickets" below="sm" class="vr-bulk-sheet" %}
+      <div class="vr-bulkbar" role="group" aria-label="Change the selected tickets">
+        {% if bulk_form.errors %}<p class="vr-form-note mb-0">Review the selection and correct the action. Tickets that changed or left this page need to be selected again.</p>{% endif %}
+        {{ bulk_form.action.as_field_group }}
+        {{ bulk_form.assign_to.as_field_group }}
+        {{ bulk_form.status.as_field_group }}
+        <button class="btn btn-outline-secondary" type="submit">Apply to selected</button>
+        <p class="vr-form-note mb-0"><span data-vr-select-count="requests" aria-live="polite">0 selected</span>. Close applies to resolved tickets; a complaint closes after its review.</p>
+      </div>
+    {% endsheet %}
   </form>
   <div class="vr-table-wrap">
     <table class="table table-hover vr-table" data-vr-grid="desk.requests" data-vr-grid-version="3" aria-label="{{ page_title }}">
@@ -60,7 +64,7 @@ row posts "<id>:<revision>", so a request changed since the list was opened is r
       <tbody>
         {% for req in page_obj %}
         <tr>
-          <td>{% with key=req.pk|stringformat:"s" seen=req.revision|stringformat:"s" %}{% row_select name="requests" value=key|add:":"|add:seen label="Select "|add:req.number form_id="bulk-form" %}{% endwith %}</td>
+          <td>{% with key=req.pk|stringformat:"s" seen=req.revision|stringformat:"s" %}{% row_select name="requests" value=key|add:":"|add:seen label="Select "|add:req.number form_id="bulk-form" selected_values=selected_rows %}{% endwith %}</td>
           <th scope="row"><a class="vr-row-link vr-id" href="{% url 'desk:request-detail' req.pk %}?list={{ list_query|urlencode }}">{{ req.number }}</a></th>
           <td>{{ req.subject }}{% if req.is_complaint %} {% status label="Complaint" tone="warning" plain=True %}{% endif %}<div class="vr-muted small">{{ req.category.name }}</div></td>
           <td>{% status label=req.get_status_display tone=req.status|status_tone plain=True %}</td>

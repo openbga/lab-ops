@@ -6,7 +6,7 @@ import re
 
 import pytest
 from conftest import View
-from helpers import field, sign_in
+from helpers import field, pick, sign_in
 from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -137,10 +137,58 @@ def test_admin_adds_a_field(page: Page, demo, view: View):
     page.goto(f"/setup/request-forms/{template.pk}/fields/new/")
     expect(page.get_by_text("This field holds patient information")).to_be_visible()
     field(page, "Label").fill("Gate code")
+    expect(field(page, "Options")).to_be_hidden()
+    expect(field(page, "Lowest value")).to_be_hidden()
+    pick(field(page, "Type"), "choice")
+    field(page, "Options").fill("Front gate\nSide gate")
+    pick(field(page, "Type"), "number")
+    expect(field(page, "Options")).to_be_hidden()
+    expect(field(page, "Lowest value")).to_be_visible()
+    pick(field(page, "Type"), "choice")
+    expect(field(page, "Options")).to_have_value("Front gate\nSide gate")
     page.get_by_role("button", name="Add field").click()
     expect(page.get_by_text("Field Gate code added.")).to_be_visible()
     expect(page.get_by_role("link", name="Gate code")).to_be_visible()
     no_sideways_scroll(page, view.viewport["width"])
+
+
+def test_admin_can_move_a_form_repeatedly_in_a_phone_list(page: Page, demo):
+    page.set_viewport_size(P360)
+    sign_in(page, "demo_admin", demo.password)
+    page.goto("/setup/request-forms/?show=all")
+    move = page.get_by_role("button", name="Move", exact=True).last
+    toggle = page.locator("#" + move.get_attribute("id"))
+    for _ in range(2):
+        toggle.click()
+        page.get_by_role("button", name="Move up", exact=True).click()
+        expect(page).to_have_url(re.compile(r"\?show=all#move-form-\d+$"))
+        expect(toggle).to_be_focused()
+        expect(toggle).to_be_in_viewport(ratio=1)
+
+
+def test_setup_comparison_and_long_row_names_fit(page: Page, demo):
+    from request_forms.models import CatalogItem
+
+    sign_in(page, "demo_admin", demo.password)
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto("/setup/request-forms/presets/")
+    comparison = page.locator(".vr-table-wrap[aria-labelledby=preset-comparison-heading]")
+    comparison.focus()
+    expect(comparison).to_be_focused()
+    assert comparison.evaluate("e => e.scrollWidth <= e.clientWidth")
+
+    page.set_viewport_size(P360)
+    item = CatalogItem.objects.get(name__startswith="40 mL VOA")
+    for url, name in (
+        ("/setup/categories/", "Medical review officer or employer"),
+        (f"/setup/request-forms/catalogs/{item.catalog_id}/", item.name),
+    ):
+        page.goto(url)
+        link = page.get_by_role("link", name=re.compile(re.escape(name))).first
+        expect(link).to_be_visible()
+        assert link.evaluate(
+            "a => a.getBoundingClientRect().right <= a.closest('tr').getBoundingClientRect().right"
+        )
 
 
 def test_client_requests_a_pickup_again(page: Page, demo, view: View):

@@ -11,14 +11,14 @@
     {
       "title": "Finish signing in",
       "steps": [
-        "Type the six-digit code from your app, or an unused eight-digit recovery code, in [[Code]].",
+        "Type the six-digit code from your app, or an unused eight-digit recovery code, in [[Authenticator or recovery code]].",
         "Select [[Sign In]]. To give up, select [[Cancel]]; you return to sign in."
       ]
     },
     {
       "title": "Confirm a sensitive action",
       "steps": [
-        "Type the code in [[Code]] and select [[Confirm]]. The action you started then continues."
+        "Type the code in [[Authenticator or recovery code]] and select [[Confirm]]. The action you started then continues."
       ]
     }
   ],
@@ -39,7 +39,7 @@
       "title": "Fields and actions",
       "items": [
         {
-          "label": "Code",
+          "label": "Authenticator or recovery code",
           "description": "Required current six-digit authenticator code or unused eight-digit recovery code. Recovery codes are consumed on successful validation. TOTP uses the default 30-second step and refuses reuse of an already accepted current code. Invalid attempts are rate limited."
         },
         {
@@ -79,6 +79,7 @@
     "templates/allauth/layouts/manage.html",
     "uv.lock",
     "accounts/signin_log.py",
-    "accounts/tests/test_signin_log.py"
+    "accounts/tests/test_signin_log.py",
+    "accounts/forms.py"
   ]
 }

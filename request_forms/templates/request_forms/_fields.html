@@ -8,7 +8,7 @@ messages, such as a form changed since the page was opened). The hidden form_def
 the fields: the service refuses a submission drawn from another definition than the current one.
 {% endcomment %}<fieldset class="vr-form-section">
   <legend>{{ template.name }}</legend>
-  {% if form.errors %}{% notice tone="danger" %}{% for error in form.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Check the highlighted form details below. Your entries were kept.{% endnotice %}{% endif %}
+  {% if form.errors %}{% notice tone="danger" %}{% for error in form.non_field_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}Check the highlighted form details below.{% endnotice %}{% endif %}
   {% if template.instructions %}<p class="form-text">{{ template.instructions|linebreaksbr }}</p>{% endif %}
   {% include "request_forms/_layout.html" with form=form level=3 only %}
   {% if not_known %}{{ not_known.as_field_group }}{% endif %}

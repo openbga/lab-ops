@@ -13,7 +13,7 @@ from django.utils.text import Truncator
 from accounts.models import User
 from accounts.roles import require_staff
 from core.grids import active_filters
-from core.lists import list_response, toolbar_context
+from core.lists import list_response, return_list_params, toolbar_context
 from core.models import AuditEvent
 
 from .forms import (
@@ -238,6 +238,12 @@ def client_detail(request, pk):
         "clients/client_detail.html",
         {
             "page_title": client.name,
+            "list_url": reverse(
+                "clients:client-list", query=return_list_params(request, ClientFilter)
+            ),
+            "open_tickets_url": reverse(
+                "desk:request-list", query={"view": "all", "status": "active", "client": client.pk}
+            ),
             "client": client,
             "children": client.children.order_by("-is_active", "name"),
             "contacts": contacts,

@@ -109,7 +109,7 @@
         },
         {
           "label": "Files",
-          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames; a refused file keeps your text and asks you to choose the files again. Files are not scanned for viruses. They are attached to the ticket's first entry, so the client sees them only when that entry is a reply."
+          "description": "Optional photos, scans and documents: PDF, PNG, JPEG, GIF, WebP, TIFF, text, CSV, Word (.docx) or Excel (.xlsx), up to 5 files and 10 MB together. On a phone the picker offers the camera and the photo library. Each file is checked by its content, and an image may have at most 100 pages or frames. After a validation error, Files lists the previous selection. Choose the files again, or check the box to leave out the ones you omit. Files are not scanned for viruses. They are attached to the ticket's first entry, so the client sees them only when that entry is a reply."
         },
         {
           "label": "Assign to",
@@ -145,6 +145,7 @@
   ],
   "sources": [
     "attachments/forms.py",
+    "templates/django/forms/widgets/attachment_files.html",
     "desk/forms.py",
     "desk/lookups.py",
     "desk/services.py",

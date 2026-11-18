@@ -15,6 +15,35 @@ def portal_page(client, request):
     return client.get(reverse("portal:request-detail", args=[request.number])).content.decode()
 
 
+def test_retry_requires_reattaching_or_omitting_each_previous_file(client, clinic_portal, category):
+    client.force_login(clinic_portal)
+    url = reverse("portal:request-create")
+    data = {"category": category.pk, "category_terms": drawn([category]), "subject": "Packing list"}
+    first, second = "labels & notes.txt", "checklist.txt"
+    failed = client.post(url, {**data, "files": [upload(first, b"One"), upload(second, b"Two")]})
+    assert b'name="files-previous" value="labels &amp; notes.txt"' in failed.content
+    assert b'name="files-previous" value="checklist.txt"' in failed.content
+    assert b"Your entries were kept" not in failed.content
+    data.update(
+        {"description": "Synthetic instructions attached.", "files-previous": [first, second]}
+    )
+    for files in ([], [upload(first, b"One")]):
+        refused = client.post(url, {**data, "files": files})
+        assert b"Choose these files again or confirm" in refused.content
+        assert b'name="files-previous" value="checklist.txt"' in refused.content
+    invalid_replacement = client.post(
+        url, {**data, "files": [upload("cooler.png", b"Not an image")], "files-omit": "yes"}
+    )
+    assert b"cooler.png: this is not a PNG image" in invalid_replacement.content
+    assert b'name="files-previous" value="cooler.png"' in invalid_replacement.content
+    assert b'name="files-previous" value="checklist.txt"' not in invalid_replacement.content
+    assert not ServiceRequest.objects.exists()
+    assert not Attachment.objects.exists()
+    sent = client.post(url, {**data, "files": [upload(first, b"One")], "files-omit": "yes"})
+    assert sent.status_code == 302
+    assert Attachment.objects.get().original_name == first
+
+
 def test_client_raises_a_request_with_a_photo(client, clinic_portal, category):
     client.force_login(clinic_portal)
     response = client.post(
