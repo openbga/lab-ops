@@ -22,6 +22,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.urls import NoReverseMatch, reverse
 
 from accounts.roles import ROLES, effective_roles
+from core.modules import enabled_for
 
 register = template.Library()
 
@@ -70,6 +71,8 @@ STAFF_NAV = (
             "desk:request-history",
             "desk:view-create",
             "desk:view-edit",
+            # A complaint's nonconformance, opened from the ticket (optional module).
+            "nonconformance:from-ticket",
             # Links to external records, opened from a ticket.
             "link_records:request-link-add",
             "link_records:attachment-remove",
@@ -115,6 +118,33 @@ STAFF_NAV = (
         "dataimport:index",
         "file-earmark-arrow-up",
         ("dataimport:upload",),
+    ),
+    # Quality (optional module "nonconformance", core.modules)
+    NavItem(
+        "nonconformances",
+        "Nonconformances",
+        "nonconformance:list",
+        "exclamation-triangle",
+        (
+            "nonconformance:action-list",
+            "nonconformance:summary",
+            "nonconformance:create",
+            "nonconformance:detail",
+            "nonconformance:edit",
+            "nonconformance:owner",
+            "nonconformance:status",
+            "nonconformance:investigation",
+            "nonconformance:impact",
+            "nonconformance:effectiveness",
+            "nonconformance:close",
+            "nonconformance:reopen",
+            "nonconformance:action-add",
+            "nonconformance:action-edit",
+            "nonconformance:action-done",
+            "nonconformance:action-cancel",
+            "nonconformance:ticket-link",
+            "nonconformance:ticket-unlink",
+        ),
     ),
     # Setup
     NavItem(
@@ -193,6 +223,7 @@ STAFF_NAV = (
             "lab-logo-edit",
             "lab-certificate-create",
             "lab-certificate-edit",
+            "lab-module",
         ),
     ),
     NavItem("record-retention", "Record retention", "record-retention", "archive"),
@@ -240,6 +271,7 @@ STAFF_SECTIONS = (
     ("home", "", ("dashboard",)),
     ("desk", "Service desk", ("requests", "teams")),
     ("clients", "Clients", ("clients", "import")),
+    ("quality", "Quality", ("nonconformances",)),
     (
         "setup",
         "Setup",
@@ -264,6 +296,8 @@ STAFF_MENU_ROLES = {
     "teams": ROLES,
     "clients": ROLES,  # every staff role reads client organizations; CLIENT_ROLES change them
     "import": ("account_manager", "client_services"),  # clients.permissions.MANAGE_ROLES
+    # Quality: every staff role raises and reads nonconformances, while the module is on
+    "nonconformances": ROLES,
     # Setup items: the admin role sets up the taxonomy, clocks and systems
     "request-categories": ("admin",),
     "service-targets": ("admin",),
@@ -278,11 +312,20 @@ STAFF_MENU_ROLES = {
 }
 
 
-def visible_staff_items(user, roles=None):
-    """Keys of the staff menu items this account's current work capabilities show."""
+# Items of an optional module (core.modules key): shown only while the module is on.
+MODULE_ITEMS = {"nonconformances": "nonconformance"}
+
+
+def visible_staff_items(user, roles=None, request=None):
+    """Keys of the staff menu items this account's current work capabilities show, without the
+    items of an optional module that is off (in `request`'s one reading of the switches, so the
+    menu agrees with the page; core.modules.states_for)."""
     if roles is None:
         roles = effective_roles(user)
     visible = {key for key, allowed in STAFF_MENU_ROLES.items() if roles.intersection(allowed)}
+    for key, module in MODULE_ITEMS.items():
+        if key in visible and not enabled_for(request, module):
+            visible.discard(key)
     if (
         user.is_authenticated
         and user.is_active
@@ -297,7 +340,8 @@ def visible_staff_items(user, roles=None):
 @register.simple_tag(takes_context=True)
 def staff_nav_sections(context):
     """Return nonempty menu sections for this account's current work capabilities."""
-    visible = visible_staff_items(context["request"].user, context.get("user_roles"))
+    request = context["request"]
+    visible = visible_staff_items(request.user, context.get("user_roles"), request)
     return [
         {"key": key, "label": label, "items": items}
         for key, label, keys in STAFF_SECTIONS
@@ -325,7 +369,16 @@ ACCOUNT_ROUTES = frozenset(
 
 # Section tabs: one sidebar item whose content is two to six sibling lists (standard section 3,
 # rule 2). Every list in a set marks the same sidebar item.
-SECTION_TABS = {}
+SECTION_TABS = {
+    "quality": TabSet(
+        "Quality lists",
+        (
+            Tab("Nonconformances", "nonconformance:list"),
+            Tab("Corrective actions", "nonconformance:action-list"),
+            Tab("Summary", "nonconformance:summary"),
+        ),
+    ),
+}
 
 # Routes whose page belongs to another item depending on the record it shows. The route is
 # declared under its usual item above; its view may name one of the alternatives listed here as

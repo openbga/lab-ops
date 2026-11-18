@@ -12,7 +12,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | --- | --- |
 | `config` | Runtime settings, URL configuration and logging |
 | `accounts` | User identities, roles, capabilities, authentication and initial setup |
-| `core` | Laboratory profile, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
+| `core` | Laboratory profile, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
 | `clients` | Organization directory, sites, contacts and portal access grants |
 | `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
 | `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
@@ -21,12 +21,16 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `attachments` | Upload inspection, file metadata, bytes, withdrawal and authorized downloads |
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
+| `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
 its authorization and the current state, makes the changes and records their audit events in
 the same transaction. Row locks and expected revisions protect decisions against concurrent
-changes. The deployment's `TIME_ZONE` defines local input and display. The laboratory profile
+changes. A form posted with an earlier revision of its record is shown again, to anyone who may
+still read the record, with what was typed and the reason it cannot be saved: nothing is written.
+After its last lock a change reads the acting account and its scope again before it writes. The
+deployment's `TIME_ZONE` defines local input and display. The laboratory profile
 records the zone selected at setup.
 
 ## Authorization
@@ -46,6 +50,13 @@ Person-level links have no web address. A staff reveal or an exact-key search ne
 explicit capability and produces an audit event that omits the key. A non-person link can open
 an HTTPS URL only on the external system's configured host. The application does not fetch
 records from that URL. [Product access rules](product.md#roles-and-capabilities)
+
+## Optional modules
+
+An optional module's switch lives in `core.modules`. Its pages and reads start from selectors
+that answer 404 while it is off, and menu and page links check the same switch. Each write holds
+a shared lock on the switch, so turning a module off waits for writes already under way. A
+module's records stay in place while it is off. [Optional modules](../core/modules.py)
 
 ## Services and hooks
 

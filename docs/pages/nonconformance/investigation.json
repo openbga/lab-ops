@@ -1,0 +1,83 @@
+{
+  "id": "nonconformance-investigation",
+  "routes": [
+    "nonconformance:investigation"
+  ],
+  "title": "Record investigation",
+  "purpose": "Record a nonconformance's containment, root cause and whether similar cases exist or could occur.",
+  "summary": "Record what was done at once to contain the problem, its root cause, and whether similar cases exist or could occur. The owner or a supervisor updates this while the record is open.",
+  "tasks": [
+    {
+      "title": "Record the investigation",
+      "steps": [
+        "Fill in [[Containment]], [[Root cause]] and [[Similar cases]] as far as you know them.",
+        "Select [[Save investigation]]. You can come back and add more later."
+      ]
+    },
+    {
+      "title": "Update what was found",
+      "steps": [
+        "The form starts with what is recorded. Change the text and select [[Save investigation]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every field is optional, but saving is refused unless something changed.",
+    "Refer to an order, sample or ticket number. Do not enter patient names or identifiers.",
+    "Saving does not change the status. Use Change status on the record to move it on.",
+    "The record shows the latest text. The history notes each save without repeating the text."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Record investigation on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Containment",
+          "description": "Optional, up to 4,000 characters. What was done at once to limit the problem. Also asked when the record is raised."
+        },
+        {
+          "label": "Root cause",
+          "description": "Optional, up to 4,000 characters. Why it happened."
+        },
+        {
+          "label": "Similar cases",
+          "description": "Optional, up to 4,000 characters. Whether similar nonconformities exist or could occur, and what was checked."
+        },
+        {
+          "label": "Save investigation",
+          "description": "Saves and confirms Investigation saved. The history records Investigation recorded."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "Nothing changed: Change at least one detail before saving. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/templates/nonconformance/action_form.html"
+  ]
+}

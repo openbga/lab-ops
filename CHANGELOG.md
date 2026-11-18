@@ -18,6 +18,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
+- **Added:** Record nonconformances and corrective actions (2026-11-18, Nonconformances, [#4](https://github.com/openbga/lab-ops/pull/4))
+
+  Track a problem from containment to an effectiveness check, with dated actions and closing by another supervisor. Administrators switch the module on in the laboratory profile.
+
+  <details><summary>Technical notes</summary>
+
+  Migrations `core.0003_labmodule` and `nonconformance.0001_initial` add the module switch and the new tables. Every optional module starts switched off, so an upgraded laboratory sees no change until an administrator switches it on. The demonstration seed switches it on and adds four synthetic records at its next reset.
+
+  </details>
+
 - **Added:** Retry email notices and run scheduled jobs (2026-11-18, Scheduled jobs)
 
   Notices the mail server refuses are retried. Teams hear when a ticket passes a service target, and resolved tickets can close after a set number of days.

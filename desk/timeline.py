@@ -68,6 +68,12 @@ def _phrase(action, data, teams, users):
         return "Complaint record updated"
     if action == "complaint_reviewed":
         return "Complaint reviewed"
+    if action == "nonconformance_opened":
+        return f"Nonconformance {data.get('number', '')} opened from this complaint"
+    if action == "nonconformance_linked":
+        return f"Linked to nonconformance {data.get('number', '')}"
+    if action == "nonconformance_unlinked":
+        return f"No longer linked to nonconformance {data.get('number', '')}"
     if action == "reply_withdrawn":
         return "A reply was withdrawn from client view"
     if action == "attachment_withdrawn":  # never the file's name

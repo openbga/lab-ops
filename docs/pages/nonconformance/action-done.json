@@ -1,0 +1,80 @@
+{
+  "id": "nonconformance-action-done",
+  "routes": [
+    "nonconformance:action-done"
+  ],
+  "title": "Mark done",
+  "purpose": "Mark an open action on a nonconformance done and record what was done.",
+  "summary": "Mark an open action done and say what was done. The person the action is assigned to, the record's owner or a supervisor can do this.",
+  "tasks": [
+    {
+      "title": "Mark an action done",
+      "steps": [
+        "In the Actions table on the record select [[Mark done]] on the action.",
+        "Describe [[What was done]] and select [[Mark done]]."
+      ]
+    },
+    {
+      "title": "Find your actions to finish",
+      "steps": [
+        "Open [[Corrective actions]], set [[Show]] to [[Mine]] and select the nonconformance number."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Marking done cannot be undone. A done action can no longer be edited or cancelled.",
+    "The record can close only when no action is open, so finishing actions moves it toward closing.",
+    "The actions of a closed record do not change.",
+    "If the record changed after you opened the form, saving is refused and your text kept. Reload and try again."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Mark done on an action of the record, as a dialog or a full page. The person the action is assigned to, the record's owner or a supervisor (the admin role included) may open it; anyone else is refused: Its assignee, the owner or a supervisor marks an action done. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Action, Person, Due",
+          "description": "The action you are finishing: its text, who does it and its due date."
+        },
+        {
+          "label": "What was done",
+          "description": "Required, up to 2,000 characters. Shown under Finished in the record's Actions table."
+        },
+        {
+          "label": "Mark done",
+          "description": "Sets the action to Done, records you and the time, and confirms Action marked done. The history records Action marked done."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "An action already done or cancelled: This action is already finished. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Any change to the record, its actions or its linked tickets counts."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/templates/nonconformance/action_form.html",
+    "nonconformance/templates/nonconformance/nonconformance_detail.html"
+  ]
+}

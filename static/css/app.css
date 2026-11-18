@@ -1998,7 +1998,8 @@ html:hover::-webkit-scrollbar-thumb,
   --vr-line: var(--vr-line-desk);
 }
 
-#vr-nav-records {
+#vr-nav-records,
+#vr-nav-quality {
   --vr-line: var(--vr-line-records);
 }
 

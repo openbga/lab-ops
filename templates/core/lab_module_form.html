@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Turn an optional module on or off (the admin role), with a reason: an action form in the shared
+form dialog, a full page without script. The form carries the state it asks for (enable) and the
+switch's revision the page showed; a switch in between is refused. Context: page_title, form
+(core.lab_profile_forms.ModuleSwitchForm), module (name, description from core.modules.states()),
+enable, submit_label. Saving returns to the laboratory profile.
+{% endcomment %}
+{% block breadcrumbs %}{% url 'lab-profile' as profile_url %}{% breadcrumbs section="Laboratory profile" section_url=profile_url %}{% endblock %}
+{% block content %}
+{% url 'lab-profile' as cancel_url %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label destructive=enable|yesno:",1" %}
+  <p class="vr-form-note">{{ module.description }}</p>
+  {% if enable %}
+  <p class="vr-form-note">Every staff role then sees its pages and menu entry. Records kept from an earlier time it was on reappear unchanged.</p>
+  {% else %}
+  <p class="vr-form-note">Its pages, menu entry, links and buttons disappear for everyone, and its addresses answer Not found. Its records are kept unchanged and reappear when it is turned on again.</p>
+  {% endif %}
+  <fieldset class="vr-form-section">
+    {{ form.reason.as_field_group }}
+  </fieldset>
+  {{ form.expected_revision }}{{ form.enabled }}
+{% endform_page %}
+{% endblock %}

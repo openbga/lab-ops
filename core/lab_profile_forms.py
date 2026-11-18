@@ -81,3 +81,22 @@ class LabCertificateForm(GroupedForm, forms.ModelForm):
             "position": "Certificates are listed in this order, lowest first.",
         }
         widgets = {"valid_from": DATE, "valid_until": DATE}
+
+
+class ModuleSwitchForm(forms.Form):
+    """Turn an optional module on or off (core.modules.set_enabled). `enabled` is the state the
+    page asked for, the opposite of the one it showed, and `expected_revision` the switch's
+    revision it showed: a switch in between is refused rather than silently inverted."""
+
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
+    enabled = forms.TypedChoiceField(
+        choices=[("1", "On"), ("0", "Off")],
+        coerce=lambda value: value == "1",
+        widget=forms.HiddenInput,
+    )
+    reason = forms.CharField(
+        label="Reason",
+        max_length=2000,
+        help_text="Kept with the change in the laboratory profile's history.",
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )

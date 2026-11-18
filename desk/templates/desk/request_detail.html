@@ -6,7 +6,11 @@ One request: its facts, the composer (reply, note or logged contact), its servic
 and the conversation, newest first. Context (desk.views._detail_context): req, entries (newest
 first; events carry .phrase), audience (portal accounts that can read it), composer (EntryForm),
 review (ComplaintReview or None), review_refusal, can_record_complaint, is_supervisor, is_member,
-is_closed, list_query, list_url, previous_url, next_url, follow_ups, follow_up_of.
+is_closed, list_query, list_url, previous_url, next_url, follow_ups, follow_up_of;
+nonconformance_module (the optional module is on for this reader: its panel, links and actions
+show only then), nonconformance_opened (the nonconformance opened from this complaint, or None:
+part of the complaint's record, its number shown as text while the module is off) and
+nonconformances (the nonconformances linked to this ticket, empty while the module is off).
 On a phone the page reads: facts, composer, then the conversation with the latest entry first;
 the thumb bar's primary action is Reply, which jumps to the composer.
 {% endcomment %}
@@ -85,15 +89,22 @@ the thumb bar's primary action is Reply, which jumps to the composer.
 
   {% include "links/_request_links.html" with request=req %}
 
+  {% if nonconformance_module and nonconformances %}
+  {% panel title="Nonconformances" heading_id="nonconformances-heading" count=nonconformances|length class="mb-3" %}
+    <ul class="vr-plain-list">{% for item in nonconformances %}<li><a class="vr-id" href="{% url 'nonconformance:detail' item.pk %}">{{ item.number }}</a> {{ item.title }} · {{ item.get_status_display }}</li>{% endfor %}</ul>
+  {% endpanel %}
+  {% endif %}
+
   {% if req.is_complaint %}
   {% panel title="Complaint" heading_id="complaint-heading" class="mb-3" %}
-    {% fill actions %}{% if can_record_complaint %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-decision' req.pk %}?list={{ list_query|urlencode }}">{% if review.decision %}Revise decision{% else %}Record decision{% endif %}</a> <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-record' req.pk %}?list={{ list_query|urlencode }}">Findings and outcome</a>{% endif %}{% if not review_refusal %} <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-review' req.pk %}?list={{ list_query|urlencode }}">Review</a>{% endif %}{% endfill %}
+    {% fill actions %}{% if can_record_complaint %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-decision' req.pk %}?list={{ list_query|urlencode }}">{% if review.decision %}Revise decision{% else %}Record decision{% endif %}</a> <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-record' req.pk %}?list={{ list_query|urlencode }}">Findings and outcome</a>{% if nonconformance_module and not nonconformance_opened %} <a class="btn btn-sm btn-outline-secondary" href="{% url 'nonconformance:from-ticket' req.pk %}">{% icon name="plus-lg" %}Open nonconformance</a>{% endif %}{% endif %}{% if not review_refusal %} <a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:complaint-review' req.pk %}?list={{ list_query|urlencode }}">Review</a>{% endif %}{% endfill %}
     <dl class="vr-facts">
       {% fact label="Decision" empty="Not recorded yet" %}{% if review.decision %}{{ review.get_decision_display }} · {{ review.decided_by|person }}, <time datetime="{{ review.decided_at|date:'c' }}">{{ review.decided_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
       {% if review.rationale %}{% fact label="Rationale" wide=True value=review.rationale|linebreaksbr %}{% endif %}
       {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
-      {% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}
-      {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
+      {% if nonconformance_opened %}{% fact label="Corrective action" %}{% if nonconformance_module %}<a class="vr-id" href="{% url 'nonconformance:detail' nonconformance_opened.pk %}">{{ nonconformance_opened.number }}</a> · {{ nonconformance_opened.get_status_display }}{% else %}<span class="vr-id">{{ nonconformance_opened.number }}</span>{% endif %}{% if review.corrective_action_reference %}<br><span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
+      {% else %}{% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}{% endif %}
+      {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {% endif %}{% endif %}{{ review.outcome_communicated_how }}{% endfact %}
       {% fact label="Independent review" empty="Not reviewed" %}{% if review.is_reviewed %}{{ review.reviewed_by|person }}, <time datetime="{{ review.reviewed_at|date:'c' }}">{{ review.reviewed_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
       {% if review.review_note %}{% fact label="Review note" wide=True value=review.review_note|linebreaksbr %}{% endif %}
     </dl>

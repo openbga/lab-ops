@@ -42,6 +42,7 @@ testpaths = [
     "dataimport/tests",
     "attachments/tests",
     "jobs/tests",
+    "nonconformance/tests",
 ]
 
 [tool.ruff]

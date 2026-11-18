@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load ui navigation nonconformance desk %}
+{% comment %}
+Corrective actions (docs/ui-standards.md section 5), the second of the Quality section tabs: the
+actions of every nonconformance, open ones by default (show=), soonest due first (sort=due_on).
+An action has no page of its own; its nonconformance's number opens the record, where the action
+is worked. Context
+(core.lists.list_response): page_obj (CorrectiveAction with nonconformance and assignee),
+filter_form (nonconformance.forms.ActionFilter: show, status), q, sort, per_page, active_filters,
+the toolbar context, and today (the laboratory's date, for the due pills).
+{% endcomment %}
+{% block page_actions %}<a class="btn btn-primary" href="{% url 'nonconformance:create' %}">{% icon name="plus-lg" %}New nonconformance</a>{% endblock %}
+{% block content %}
+{% section_tabs "quality" %}
+{% panel title=page_title table=True hidden_title=True %}
+  {% grid_toolbar label="Filter corrective actions" grid="nonconformance.actions" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="actions" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No actions are hidden by an invalid filter." no_results_title="No actions match" no_results_body="Nothing in this view matches. Show All to include done and cancelled actions." empty_title="No corrective actions yet" empty_body="Actions are added on a nonconformance's page, each with a person and a due date." %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="nonconformance.actions" data-vr-grid-version="1" aria-label="{{ page_title }}">
+      <thead>
+        <tr>
+          {% sort_header label="Nonconformance" asc="number" desc="-number" col="number" locked=True first="desc" %}
+          {% sort_header label="Action" asc="description" desc="-description" col="description" %}
+          {% sort_header label="Person" asc="assignee" desc="-assignee" col="assignee" %}
+          {% sort_header label="Due" asc="due_on" desc="-due_on" col="due_on" %}
+          {% sort_header label="Status" asc="status" desc="-status" col="status" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for action in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'nonconformance:detail' action.nonconformance_id %}">{{ action.nonconformance.number }}</a></th>
+          <td class="vr-wrap">{{ action.description|truncatechars:160 }}</td>
+          <td>{{ action.assignee|person }}</td>
+          <td class="vr-nowrap"><time datetime="{{ action.due_on|date:'Y-m-d' }}">{{ action.due_on|date:"Y-m-d" }}</time>{% if action.status == "open" %} {% due_pill due=action.due_on today=today plain=True %}{% endif %}</td>
+          <td>{% status label=action.get_status_display tone=action.status|action_tone plain=True %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

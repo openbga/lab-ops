@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+New nonconformance (any staff role; the owner field for supervisors only) and Open nonconformance
+from a complaint ticket (its assignee or a supervisor; the ticket's revision is carried in the
+form). Nothing of the ticket is copied into the record: every staff role reads the record, while
+the ticket may be restricted. A shared form dialog, a full page without script.
+Context: page_title, form, submit_label, cancel_url, crumbs; optional ticket (the complaint).
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  {% notice tone="info" label="No patient data" %}Refer to an order, sample or ticket number. Do not enter patient names or identifiers.{% endnotice %}
+  {% if ticket %}<p class="vr-form-note">Opened from complaint <span class="vr-id">{{ ticket.number }}</span>. Its source is Complaint, and the ticket is linked to the new record. Nothing is copied from the ticket.</p>{% endif %}
+  <fieldset class="vr-form-section">
+    <legend>What happened</legend>
+    {{ form.title.as_field_group }}
+    {{ form.description.as_field_group }}
+    {% if form.source %}{{ form.source.as_field_group }}{% endif %}
+    {{ form.severity.as_field_group }}
+    {{ form.area.as_field_group }}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>First steps</legend>
+    {{ form.containment.as_field_group }}
+    {% if form.owner %}{{ form.owner.as_field_group }}{% endif %}
+  </fieldset>
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+{% endform_page %}
+{% endblock %}

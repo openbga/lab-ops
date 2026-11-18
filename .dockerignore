@@ -19,6 +19,7 @@
 !desk/**/*.py
 !jobs/**/*.py
 !links/**/*.py
+!nonconformance/**/*.py
 !request_forms/**/*.py
 !service_levels/**/*.py
 !taxonomy/**/*.py

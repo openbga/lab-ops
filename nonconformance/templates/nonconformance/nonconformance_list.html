@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load ui navigation nonconformance desk %}
+{% comment %}
+Nonconformances (docs/ui-standards.md section 5), the first of the Quality section tabs. Every
+staff role reads every record and raises new ones. Context (core.lists.list_response): page_obj
+(Nonconformance, annotated with has_open_actions and has_overdue_actions by
+nonconformance.selectors.with_action_counts), filter_form (nonconformance.forms.NonconformanceFilter:
+show, status, severity, source), q, sort, per_page, active_filters and the toolbar context.
+{% endcomment %}
+{% block page_actions %}<a class="btn btn-primary" href="{% url 'nonconformance:create' %}">{% icon name="plus-lg" %}New nonconformance</a>{% endblock %}
+{% block content %}
+{% section_tabs "quality" %}
+{% url 'nonconformance:create' as create_url %}
+{% panel title=page_title table=True hidden_title=True %}
+  {% grid_toolbar label="Filter nonconformances" grid="nonconformance.records" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="nonconformances" filtered=active_filters|default:q invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above. No nonconformances are hidden by an invalid filter." no_results_title="No nonconformances match" no_results_body="Nothing in this view matches. Show All to include closed records." empty_title="No nonconformances yet" empty_body="Raise one when a problem is found in the laboratory's work." action_url=create_url action_label="New nonconformance" %}
+  <div class="vr-table-wrap">
+    <table class="table table-hover vr-table" data-vr-grid="nonconformance.records" data-vr-grid-version="1" aria-label="{{ page_title }}">
+      <thead>
+        <tr>
+          {% sort_header label="Number" asc="number" desc="-number" col="number" locked=True first="desc" %}
+          {% sort_header label="Title" asc="title" desc="-title" col="title" %}
+          {% sort_header label="Status" asc="status" desc="-status" col="status" %}
+          {% sort_header label="Severity" asc="severity" desc="-severity" col="severity" first="desc" %}
+          {% sort_header label="Source" asc="source" desc="-source" col="source" priority="low" %}
+          {% sort_header label="Owner" asc="owner" desc="-owner" col="owner" %}
+          {% sort_header label="Raised" asc="raised_at" desc="-raised_at" col="raised_at" first="desc" %}
+          {% sort_header label="Action due" asc="overdue" desc="-overdue" col="overdue" first="desc" %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for nc in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'nonconformance:detail' nc.pk %}">{{ nc.number }}</a></th>
+          <td class="vr-wrap">{{ nc.title }}{% if nc.area %}<br><span class="vr-muted small">{{ nc.area }}</span>{% endif %}</td>
+          <td>{% status label=nc.get_status_display tone=nc.status|nc_status_tone plain=True %}</td>
+          <td>{% status label=nc.get_severity_display tone=nc.severity|severity_tone plain=True %}</td>
+          <td>{{ nc.get_source_display }}</td>
+          <td>{% if nc.owner %}{{ nc.owner|person }}{% else %}<span class="vr-muted">No owner yet</span>{% endif %}</td>
+          <td class="vr-nowrap"><time datetime="{{ nc.raised_at|date:'c' }}">{{ nc.raised_at|date:"Y-m-d H:i" }}</time></td>
+          <td>{% if nc.has_overdue_actions %}{% status label="Overdue action" tone="danger" plain=True %}{% elif nc.has_open_actions %}<span class="vr-muted">Open actions</span>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}

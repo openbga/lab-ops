@@ -75,6 +75,7 @@ urlpatterns = [
         lab_profile_views.lab_certificate_remove,
         name="lab-certificate-remove",
     ),
+    path("lab/modules/<slug:key>/", lab_profile_views.lab_module, name="lab-module"),
     path("ready/", views.ready, name="ready"),
     path("lookups/<slug:name>/", lookups.lookup, name="lookup"),
     path("preferences/", preferences.preference, name="preference"),
@@ -94,4 +95,7 @@ urlpatterns = [
     path("request-forms/", include("request_forms.request_urls")),
     path("portal/forms/", include("request_forms.portal_urls")),
     path("attachments/", include("attachments.urls")),
+    # Optional modules (core.modules): their pages answer 404 while the module is off.
+    # Optional module: its addresses are Not found while it is off (core.modules).
+    path("quality/", include("nonconformance.urls")),
 ]

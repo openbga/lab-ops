@@ -1,0 +1,84 @@
+{
+  "id": "nonconformance-status",
+  "routes": [
+    "nonconformance:status"
+  ],
+  "title": "Change status",
+  "purpose": "Move an open nonconformance between Open, Investigating, Corrective action and Verification.",
+  "summary": "Move an open nonconformance to another stage: Open, Investigating, Corrective action or Verification. Closing and reopening have their own forms.",
+  "tasks": [
+    {
+      "title": "Move the record on",
+      "steps": [
+        "Choose the stage under [[New status]], optionally add [[Reason (optional)]], and select [[Change status]]."
+      ]
+    },
+    {
+      "title": "Get it ready to close",
+      "steps": [
+        "Choose Verification and select [[Change status]].",
+        "Then record the check on the record with [[Record effectiveness]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Any open stage can follow any other. The application does not enforce an order.",
+    "Leaving Verification clears the effectiveness check; the history keeps it.",
+    "Closed is not a choice here. A supervisor who is not the owner closes the record with Close nonconformance.",
+    "Only the owner or a supervisor can change the status."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Opens from Change status on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it; anyone else is refused. While the optional nonconformance module is off it answers Not found."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Now",
+          "description": "The record's current status."
+        },
+        {
+          "label": "New status",
+          "description": "Required. The open stages other than the current one: Open, Investigating, Corrective action, Verification. In Verification the field notes Leaving Verification clears the effectiveness check; the history keeps it."
+        },
+        {
+          "label": "Reason (optional)",
+          "description": "Kept with the change in the record's history."
+        },
+        {
+          "label": "Change status",
+          "description": "Saves and confirms Status changed. The history records Status changed with the status before and after. Leaving Verification also clears the effectiveness result, note and who checked it."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the record without changing anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Refusals",
+          "description": "The current status: It already has this status. A closed record: A closed nonconformance does not change. A supervisor can reopen it."
+        },
+        {
+          "label": "Stale form",
+          "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Your input is kept on the form."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "nonconformance/urls.py",
+    "nonconformance/views.py",
+    "nonconformance/forms.py",
+    "nonconformance/services.py",
+    "nonconformance/models.py",
+    "nonconformance/templates/nonconformance/action_form.html"
+  ]
+}
