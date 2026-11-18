@@ -740,6 +740,18 @@ def update_complaint(*, actor, request, expected_revision, **data):
     communicated."""
     request = _staff_request(actor, request, expected_revision)
     review = _complaint_record(request, actor)
+    if (
+        "corrective_action_reference" in data
+        and (data["corrective_action_reference"] or "").strip()
+        != review.corrective_action_reference
+        and request.nonconformances_opened.exists()
+    ):
+        raise ValidationError(
+            {
+                "corrective_action_reference": "This complaint's nonconformance takes the place "
+                "of a reference; the reference recorded earlier stays as it is."
+            }
+        )
     before = snapshot(review)
     for name in COMPLAINT_FIELDS:
         if name in data:

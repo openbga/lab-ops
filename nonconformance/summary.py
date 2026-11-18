@@ -35,37 +35,36 @@ def counts(records, today=None, months=MONTHS):
     first, starts = period(today, months)
     zone = timezone.get_current_timezone()
     since = timezone.make_aware(datetime.combine(first, time.min), zone)
-    in_period = records.filter(raised_at__gte=since)
+    # One statement for both tables, so they count the same records.
     rows = (
-        in_period.annotate(month=TruncMonth("raised_at", tzinfo=zone))
-        .values("month", "source")
-        .annotate(n=Count("pk"))
+        records.filter(raised_at__gte=since)
+        .annotate(month=TruncMonth("raised_at", tzinfo=zone), key=Lower(Trim("area")))
+        .values("month", "source", "key")
+        .annotate(n=Count("pk"), label=Min(Trim("area")))
     )
-    table = {}
+    table, areas = {}, {}
     for row in rows:
         month = (
             timezone.localtime(row["month"], zone).date()
             if isinstance(row["month"], datetime)
             else row["month"]
         )
-        table.setdefault(month, {})[row["source"]] = row["n"]
+        by_source = table.setdefault(month, {})
+        by_source[row["source"]] = by_source.get(row["source"], 0) + row["n"]
+        count, label = areas.get(row["key"], (0, row["label"] or ""))
+        areas[row["key"]] = (count + row["n"], min(label, row["label"] or ""))
     sources = list(Source.choices)
     months_out = []
     for start in reversed(starts):
         by_source = [table.get(start, {}).get(value, 0) for value, _ in sources]
         months_out.append({"month": start, "by_source": by_source, "total": sum(by_source)})
     source_totals = [sum(m["by_source"][i] for m in months_out) for i in range(len(sources))]
-    areas = (
-        in_period.annotate(key=Lower(Trim("area")))
-        .values("key")
-        .annotate(count=Count("pk"), label=Min(Trim("area")))
-        .order_by("-count", "key")
-    )
+    area_rows = sorted(areas.items(), key=lambda item: (-item[1][0], item[0] or ""))
     return {
         "first": first,
         "months": months_out,
         "sources": sources,
         "source_totals": source_totals,
         "total": sum(source_totals),
-        "areas": [{"area": row["label"] or "", "count": row["count"]} for row in areas],
+        "areas": [{"area": label, "count": count} for _, (count, label) in area_rows],
     }

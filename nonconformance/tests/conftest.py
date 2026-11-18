@@ -15,6 +15,12 @@ PASSWORD = "test-password-729!"
 
 
 @pytest.fixture(autouse=True)
+def quick_password_hasher(settings):
+    """Synthetic accounts only: a fast hasher keeps hundreds of fixture accounts quick."""
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
+@pytest.fixture(autouse=True)
 def plain_static_storage(settings):
     settings.STORAGES = {
         **settings.STORAGES,

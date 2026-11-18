@@ -141,9 +141,13 @@ class StatusForm(RevisionForm):
     reason = _optional_reason()
 
     def __init__(self, *args, current, **kwargs):
+        """`current` is the status the page shows, left out of the choices. A posted form keeps
+        every open status as a choice, so a status changed by someone else meanwhile is reported
+        by the service as a stale record, with the choice kept, rather than as an invalid choice."""
         super().__init__(*args, **kwargs)
+        shown = None if self.is_bound else current
         self.fields["status"].choices = [
-            (value, STATUS_LABELS[value]) for value in ACTIVE_STATUSES if value != current
+            (value, STATUS_LABELS[value]) for value in ACTIVE_STATUSES if value != shown
         ]
         if current == Status.VERIFICATION:
             self.fields[

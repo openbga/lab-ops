@@ -278,8 +278,9 @@ class TestTicketPage:
         ticket_url = reverse("desk:request-detail", args=[complaint.pk])
         open_url = reverse("nonconformance:from-ticket", args=[complaint.pk])
         assert open_url in text(client.get(ticket_url))
-        form = main(client.get(reverse("desk:complaint-record", args=[complaint.pk])))
-        assert 'name="corrective_action_reference"' not in form
+        record_form = reverse("desk:complaint-record", args=[complaint.pk])
+        # Until a record is opened from it, the complaint can still take a free-text reference.
+        assert 'name="corrective_action_reference"' in main(client.get(record_form))
         page = text(client.get(open_url))
         assert "Results late three times" not in page  # nothing is copied from the ticket
         response = client.post(
@@ -299,6 +300,8 @@ class TestTicketPage:
         ticket_page = text(client.get(ticket_url))
         assert nc.number in ticket_page and open_url not in ticket_page
         assert client.get(open_url).status_code == 302  # one per complaint
+        # Its number takes the reference's place.
+        assert 'name="corrective_action_reference"' not in main(client.get(record_form))
 
     def test_a_stale_ticket_revision_is_refused(self, client, module_on, agent, complaint):
         client.force_login(agent)

@@ -19,7 +19,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.utils import timezone
 
-from accounts.roles import effective_roles, require_staff
+from accounts.roles import ROLES, has_role, require_staff
 from core.audit import record_event, snapshot
 from core.modules import lock_enabled
 from desk import services as desk_services
@@ -125,31 +125,49 @@ def _staff_account(user, field, label):
         .filter(pk=getattr(user, "pk", None), is_active=True, client__isnull=True)
         .first()
     )
-    if current is None or not effective_roles(current):
+    if current is None or not has_role(current, *ROLES):
         raise ValidationError({field: f"Choose an active staff member as {label}."})
     return current
 
 
+def _current_actor(actor):
+    """The acting account as it stands now, read after the locks the change holds: an account
+    deactivated, moved to the portal or left without a staff role since its page was drawn (or its
+    request began) is refused. Every check of who may act uses this reading."""
+    from accounts.models import User
+
+    current = (
+        User.objects.filter(pk=actor.pk, is_active=True, client__isnull=True).first()
+        if getattr(actor, "pk", None)
+        else None
+    )
+    if current is None or not has_role(current, *ROLES):
+        raise PermissionDenied("Your account no longer has a staff role.")
+    return current
+
+
 def _lock(actor, nc, expected_revision):
-    """The record locked for a change, after the module and revision checks."""
+    """(record, actor): the record locked for a change and the acting account read after the lock,
+    once the module, the account and the revision are checked."""
     require_staff(actor)
     lock_enabled(MODULE)
     locked = Nonconformance.objects.select_for_update().filter(pk=nc.pk).first()
     if locked is None:
         raise Http404("No such nonconformance.")
+    actor = _current_actor(actor)
     if expected_revision is None or locked.revision != expected_revision:
         raise ValidationError(STALE)
-    return locked
+    return locked, actor
 
 
 def _work(actor, nc, expected_revision):
-    """The record locked for the owner's or a supervisor's change to an open record."""
-    locked = _lock(actor, nc, expected_revision)
+    """(record, actor) for the owner's or a supervisor's change to an open record."""
+    locked, actor = _lock(actor, nc, expected_revision)
     if locked.status == Status.CLOSED:
         raise ValidationError(CLOSED)
     if not can_work(actor, locked):
         raise PermissionDenied("The owner or a supervisor works this nonconformance.")
-    return locked
+    return locked, actor
 
 
 def _save(nc):
@@ -232,6 +250,7 @@ def raise_nonconformance(
     record waits for one."""
     require_staff(actor)
     lock_enabled(MODULE)
+    actor = _current_actor(actor)
     details = _details(title, description, source, severity, area)
     if owner is not None:
         if not is_supervisor(actor):
@@ -250,6 +269,9 @@ def open_from_complaint(
     require_staff(actor)
     lock_enabled(MODULE)
     ticket = _locked_ticket(actor, request.pk)
+    actor = _current_actor(actor)
+    if not staff_requests(actor).filter(pk=ticket.pk).exists():
+        raise Http404("No such ticket.")
     if expected_revision is None or ticket.revision != expected_revision:
         raise ValidationError("This ticket changed. Reload it and review the latest entries.")
     if not ticket.is_complaint:
@@ -285,7 +307,7 @@ def open_from_complaint(
 def update_details(
     *, actor, nc, expected_revision, title, description, source, severity, area="", reason=""
 ):
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     details = _details(title, description, source, severity, area)
     if nc.source_request_id and details["source"] != Source.COMPLAINT:
         raise ValidationError({"source": "A record opened from a complaint keeps that source."})
@@ -302,7 +324,7 @@ def update_details(
 @transaction.atomic
 def set_owner(*, actor, nc, expected_revision, owner, reason=""):
     """Choose or change the owner (a supervisor)."""
-    nc = _lock(actor, nc, expected_revision)
+    nc, actor = _lock(actor, nc, expected_revision)
     if nc.status == Status.CLOSED:
         raise ValidationError(CLOSED)
     if not is_supervisor(actor):
@@ -330,7 +352,7 @@ def record_investigation(
 ):
     """Containment (what was done at once), the root cause, and whether similar
     nonconformities exist or could occur."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     before = snapshot(nc)
     nc.containment = _text(containment, "containment", "Containment", required=False)
     nc.root_cause = _text(root_cause, "root_cause", "The root cause", required=False)
@@ -357,7 +379,7 @@ def record_impact(
 ):
     """The decision on results already reported, what was reviewed to reach it, and whether, when,
     how and by whom the client was told."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     before = snapshot(nc)
     nc.impact = _choice(impact, Impact, "impact", "Choose the decision on reported results.")
     nc.impact_assessment = _text(
@@ -402,7 +424,7 @@ def change_status(*, actor, nc, expected_revision, status, reason=""):
     """Move an open record between Open, Investigating, Corrective action and Verification.
     Closing and reopening have their own services. Leaving Verification clears its effectiveness
     check, which the history keeps."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     if status not in ACTIVE_STATUSES:
         raise ValidationError(
             {"status": "Choose Open, Investigating, Corrective action or Verification."}
@@ -418,6 +440,15 @@ def change_status(*, actor, nc, expected_revision, status, reason=""):
     return nc
 
 
+def _work_changed(actor, nc):
+    """An action added or changed: a recorded effectiveness check no longer covers the work, so it
+    is cleared (the history keeps it) and must be recorded again before closing."""
+    if nc.effectiveness:
+        before = snapshot(nc)
+        _clear_effectiveness(nc)
+        _audit(actor, "nonconformance.effectiveness_cleared", nc, before)
+
+
 def _clear_effectiveness(nc):
     nc.effectiveness, nc.effectiveness_note = "", ""
     nc.effectiveness_checked_by, nc.effectiveness_checked_at = None, None
@@ -426,7 +457,7 @@ def _clear_effectiveness(nc):
 @transaction.atomic
 def record_effectiveness(*, actor, nc, expected_revision, result, note):
     """The effectiveness check, in Verification. "Effective" needs every action finished."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     if nc.status != Status.VERIFICATION:
         raise ValidationError("Move it to Verification before checking effectiveness.")
     result = _choice(result, Effectiveness, "result", "Choose the result of the check.")
@@ -448,7 +479,7 @@ def close(*, actor, nc, expected_revision, note):
     """Close the record: a supervisor who is not its owner, once it is in Verification with the
     decision on reported results, every action finished and an effectiveness check that allows
     it. Every condition is checked on the locked record."""
-    nc = _lock(actor, nc, expected_revision)
+    nc, actor = _lock(actor, nc, expected_revision)
     open_actions = CorrectiveAction.objects.filter(
         nonconformance=nc, status=ActionStatus.OPEN
     ).count()
@@ -469,7 +500,7 @@ def close(*, actor, nc, expected_revision, note):
 def reopen(*, actor, nc, expected_revision, reason):
     """Reopen a closed record with a reason (a supervisor). It returns to Investigating; the
     closing and the effectiveness check are cleared from the record and kept in its history."""
-    nc = _lock(actor, nc, expected_revision)
+    nc, actor = _lock(actor, nc, expected_revision)
     if not is_supervisor(actor):
         raise PermissionDenied("A supervisor reopens a nonconformance.")
     if refusal := reopen_refusal(actor, nc):
@@ -515,8 +546,9 @@ def _locked_action(nc, action):
 
 @transaction.atomic
 def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     description, assignee, due_on = _action_values(description, assignee, due_on)
+    _work_changed(actor, nc)
     action = CorrectiveAction.objects.create(
         nonconformance=nc,
         description=description,
@@ -533,7 +565,7 @@ def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
 def update_action(*, actor, nc, expected_revision, action, description, assignee, due_on, reason):
     """Change an open action's text, person or due date, with a reason. A due date already past
     may stay as it is; a new one is today or later."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     action = _locked_action(nc, action)
     if action.status != ActionStatus.OPEN:
         raise ValidationError("Only an open action changes.")
@@ -544,6 +576,7 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
     action.description, action.assignee, action.due_on = description, assignee, due_on
     if snapshot(action) == before:
         raise ValidationError("Change at least one detail before saving.")
+    _work_changed(actor, nc)
     action.save()
     record_event(
         actor=actor,
@@ -561,7 +594,7 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
 def finish_action(*, actor, nc, expected_revision, action, done, note):
     """Mark an open action done (its assignee, the owner or a supervisor) or cancel it (the owner
     or a supervisor), with what was done or why."""
-    nc = _lock(actor, nc, expected_revision)
+    nc, actor = _lock(actor, nc, expected_revision)
     if nc.status == Status.CLOSED:
         raise ValidationError(CLOSED)
     action = _locked_action(nc, action)
@@ -593,7 +626,7 @@ def finish_action(*, actor, nc, expected_revision, action, done, note):
 @transaction.atomic
 def link_ticket(*, actor, nc, expected_revision, request):
     """Link a ticket the actor may read. The ticket's timeline records it."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     ticket = _locked_ticket(actor, request.pk)
     link = _link(actor, nc, ticket)
     _ticket_event(actor, ticket, "nonconformance_linked", nc)
@@ -605,7 +638,7 @@ def link_ticket(*, actor, nc, expected_revision, request):
 def unlink_ticket(*, actor, nc, expected_revision, link, reason):
     """Remove a linked ticket, with a reason; the link is kept with who removed it. The ticket
     the record was opened from stays linked."""
-    nc = _work(actor, nc, expected_revision)
+    nc, actor = _work(actor, nc, expected_revision)
     link = (
         TicketLink.objects.select_for_update()
         .filter(pk=link.pk, nonconformance=nc, removed_at__isnull=True)

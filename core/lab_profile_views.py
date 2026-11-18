@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.cache import add_never_cache_headers
 from django.views.decorators.http import require_GET, require_POST
 
 from accounts.roles import require_role, require_staff
@@ -143,7 +144,7 @@ def lab_module(request, key):
             # The title follows what the posted form asks for, never a second reading.
             enable = form["enabled"].value() == "1"
     title = _module_title(enable, state["name"])
-    return render(
+    response = render(
         request,
         "core/lab_module_form.html",
         {
@@ -154,6 +155,8 @@ def lab_module(request, key):
             "submit_label": "Turn on" if enable else "Turn off",
         },
     )
+    add_never_cache_headers(response)  # a refused form shows the reason typed again
+    return response
 
 
 def _form_page(request, form, *, title, submit_label, multipart=False, notes=()):

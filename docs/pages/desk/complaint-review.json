@@ -43,7 +43,7 @@
       "items": [
         {
           "label": "Decision, Rationale, Findings and actions, Corrective action, Outcome communicated",
-          "description": "The complaint's record as it stands. You cannot change it here."
+          "description": "The complaint's record as it stands. You cannot change it here. When a nonconformance was opened from the complaint, Corrective action shows its number, which never changes; its status is on the nonconformance itself."
         },
         {
           "label": "Review note",

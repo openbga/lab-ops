@@ -286,12 +286,12 @@
     {
       "title": "History",
       "paragraphs": [
-        "Every change to the record and its actions, oldest first, each with who made it and when. A reason shows when one was given. Changes to the status, severity, source, decision on reported results, client told, effectiveness, due date, owner or person show the value before and after. Text typed into the record is not repeated here. Action entries add the action's due date and person."
+        "Every change to the record and its actions, oldest first, each with who made it and when. A reason shows when one was given. Changes to the status, severity, source, decision on reported results, client told, effectiveness, due date, owner or person show the value before and after. Text typed into the record is not repeated here. Action entries add the action's due date and person. The linking or removal of a ticket you may not open is left out, with its reason."
       ],
       "items": [
         {
           "label": "Event titles",
-          "description": "Raised, Details edited, Owner changed, Investigation recorded, Impact on reported results recorded, Status changed, Effectiveness check recorded, Closed, Reopened, Ticket linked, Linked ticket removed, Action added, Action edited, Action marked done and Action cancelled."
+          "description": "Raised, Details edited, Owner changed, Investigation recorded, Impact on reported results recorded, Status changed, Effectiveness check recorded, Effectiveness check cleared (an action was added or changed after it), Closed, Reopened, Ticket linked, Linked ticket removed, Action added, Action edited, Action marked done and Action cancelled."
         }
       ]
     },
@@ -300,7 +300,7 @@
       "items": [
         {
           "label": "Stale forms",
-          "description": "Every form carries the version of the record this page showed. A change to the record, its actions or its linked tickets advances that version. Saving after someone else changed the record is refused with your input kept: This nonconformance changed after you opened it. Reload it and review the latest details."
+          "description": "Every form carries the version of the record this page showed. A change to the record, its actions or its linked tickets advances that version. Saving after someone else changed the record is refused with your input kept: This nonconformance changed after you opened it. Reload it and review the latest details. That holds even if the change means you can no longer make it, such as a new owner."
         },
         {
           "label": "Closed record",

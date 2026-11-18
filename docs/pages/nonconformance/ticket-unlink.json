@@ -31,7 +31,7 @@
     {
       "title": "Access",
       "paragraphs": [
-        "Opens from Remove beside a linked ticket on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it, and only for a current link to a ticket you may open now; otherwise it answers Not found or is refused. While the optional nonconformance module is off it answers Not found."
+        "Opens from Remove beside a linked ticket on the record, as a dialog or a full page. Only the owner or a supervisor (the admin role included) may open it, and only for a current link to a ticket you may open now; otherwise it answers Not found or is refused. If the ticket is no longer open to you when you save, the form says so and shows nothing of the ticket. While the optional nonconformance module is off it answers Not found."
       ]
     },
     {

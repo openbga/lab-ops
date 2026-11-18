@@ -107,9 +107,11 @@ Editing a target alone does not move existing due times.
 ## Optional modules
 
 An administrator switches optional modules on or off on the laboratory profile, with a reason.
-The change is recorded in the profile's history. A module that is off shows no page, menu entry
-or link, and its addresses do not exist. Its records are kept and reappear when it is switched on
-again. The desk works with every module off. A new installation starts with every module off.
+The change is recorded in the profile's history. A module that is off shows no page, menu entry,
+link or action, and its addresses do not exist. Its records are kept and reappear when it is
+switched on again. History elsewhere keeps what it recorded: a ticket's timeline and a complaint's
+record still show the number of a nonconformance, without a link. The desk works with every
+module off. A new installation starts with every module off.
 
 ### Nonconformance and corrective action
 
@@ -140,16 +142,17 @@ overdue after its due date. Lists show open records, records the reader owns or 
 action on, and open or overdue actions.
 
 The effectiveness check is recorded in Verification: effective, not effective, or no corrective
-action needed. Effective needs every action finished. Moving a record out of Verification clears
-its check, and the history keeps it. A supervisor who is not the owner closes the record once it
+action needed. Effective needs every action finished. Moving a record out of Verification, or
+adding or changing an action, clears its check, and the history keeps it. A supervisor who is not the owner closes the record once it
 is in Verification with the decision on reported results recorded, the client notice recorded
 when results are affected, no open action and a check of effective or no corrective action
-needed. A supervisor can reopen a closed record with a reason. It returns to Investigating
-without its closing or check.
+needed. The closing form shows what is being closed. A supervisor can reopen a closed record with
+a reason. It returns to Investigating without its closing or check.
 
 The assignee or a supervisor can open a nonconformance from a complaint's record while the
 complaint can still change. The complaint then shows the record's number in place of a
-free-text corrective action reference. A reference recorded earlier stays as it was. A record can
+free-text corrective action reference, and its review shows that number. A reference recorded
+earlier stays as it was. A record can
 also be linked to other tickets. Linking, unlinking and opening from a complaint add an event to
 the ticket's timeline. A linked ticket shows on the record only to staff who may open that
 ticket. Raise records about restricted tickets with care: every staff member reads every record.

@@ -7,7 +7,9 @@ linked tickets, effectiveness, close, reopen): a short form in the shared form d
 revision of the record the page read; a stale save is refused with the input kept.
 Context: nc, form, page_title, submit_label, destructive, notes (sentences above the fields),
 cancel_url (the record), crumbs; optional current_status, action (the action being finished),
-link (the linked ticket being removed). A form unavailable in the record's current state is not
+link (the linked ticket being removed), closing (the Close form: the record's decision on
+reported results, client notice, action counts and effectiveness check, from the reading whose
+revision the form posts). A form unavailable in the record's current state is not
 offered: opening it returns to the record with the reason (views._form_response).
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
@@ -20,6 +22,15 @@ offered: opening it returns to the record with the reason (views._form_response)
     {% fact label="Action" wide=True value=action.description|linebreaksbr %}
     {% fact label="Person" value=action.assignee|person %}
     {% fact label="Due" %}<time datetime="{{ action.due_on|date:'Y-m-d' }}">{{ action.due_on|date:"Y-m-d" }}</time>{% endfact %}
+  </dl>{% endif %}
+  {% if closing %}<p class="vr-form-note">You close the record as it stands below.</p>
+  <dl class="vr-facts">
+    {% fact label="Decision on reported results" value=nc.get_impact_display empty="Not recorded" %}
+    {% fact label="Orders and reports reviewed" wide=True value=nc.impact_assessment|linebreaksbr empty="Not recorded" %}
+    {% fact label="Client told" empty="Not recorded" %}{% if nc.client_notice %}{{ nc.get_client_notice_display }}{% if nc.client_told_on %}, <time datetime="{{ nc.client_told_on|date:'Y-m-d' }}">{{ nc.client_told_on|date:"Y-m-d" }}</time>, {{ nc.client_told_how }}, {{ nc.client_told_by|person }}{% endif %}{% endif %}{% endfact %}
+    {% fact label="Actions" %}{{ nc.done_action_count }} done, {{ nc.cancelled_action_count }} cancelled, {{ nc.open_action_count }} open{% endfact %}
+    {% fact label="Effectiveness check" empty="Not recorded" %}{% if nc.effectiveness %}{{ nc.get_effectiveness_display }} · {{ nc.effectiveness_checked_by|person }}{% endif %}{% endfact %}
+    {% if nc.effectiveness_note %}{% fact label="What was checked" wide=True value=nc.effectiveness_note|linebreaksbr %}{% endif %}
   </dl>{% endif %}
   {% if link %}<dl class="vr-facts">
     {% fact label="Ticket" %}<span class="vr-id">{{ link.request.number }}</span>{% endfact %}

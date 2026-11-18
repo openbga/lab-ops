@@ -25,6 +25,7 @@
     "Closing needs Verification, the decision on reported results, no open actions and an Effective or No corrective action needed check.",
     "If reported results are affected, whether the client was told must be recorded first.",
     "The owner cannot close their own record, even as a supervisor. Another supervisor closes it.",
+    "The form shows what you close: the decision on reported results, what was reviewed, whether the client was told, the actions and the effectiveness check.",
     "A closed record does not change. A supervisor can reopen it with a reason."
   ],
   "sections": [

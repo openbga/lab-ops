@@ -39,7 +39,7 @@
     {
       "title": "Adding and editing",
       "paragraphs": [
-        "Add action starts empty, has no Reason field, and its button reads Add action. Edit action starts with the action's text, person and due date, notes A due date already past may stay as it is; a new one is today or later., asks for a Reason, and its button reads Save changes."
+        "Add action starts empty, has no Reason field, and its button reads Add action. Edit action starts with the action's text, person and due date, notes that a due date already past may stay as it is while a new one is today or later, asks for a Reason, and its button reads Save changes. Adding an action, or changing one, clears a recorded effectiveness check: the work it covered has changed, so it is recorded again before closing. The history keeps the earlier check."
       ]
     },
     {

@@ -13,7 +13,7 @@ Messages are fixed text: nothing typed into a record reaches a message, a URL or
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -89,11 +89,20 @@ def _errors(form, exc):
         form.add_error(None, exc)
 
 
-def _record_or_404(user, pk):
-    """The record, read once for the page and its form (404 while the module is off)."""
+def _record_or_404(user, pk, with_action_counts=False):
+    """The record, read once for the page and its form (404 while the module is off). With
+    `with_action_counts`, its open, done and cancelled actions are counted in the same statement
+    (open_action_count, done_action_count, cancelled_action_count)."""
+    records = selectors.staff_nonconformances(user)
+    if with_action_counts:
+        records = records.annotate(
+            **{
+                f"{status}_action_count": Count("actions", filter=Q(actions__status=status))
+                for status in ActionStatus.values
+            }
+        )
     record = (
-        selectors.staff_nonconformances(user)
-        .select_related(
+        records.select_related(
             "owner",
             "raised_by",
             "closed_by",
@@ -121,15 +130,7 @@ def _crumbs(nc, title):
     ]
 
 
-def _require_work(user, nc):
-    """The owner or a supervisor works a record; anyone else is refused before the form shows."""
-    if not services.can_work(user, nc):
-        raise PermissionDenied("The owner or a supervisor works this nonconformance.")
-
-
-def _require_supervisor(user, message):
-    if not is_supervisor(user):
-        raise PermissionDenied(message)
+WORK_REFUSAL = "The owner or a supervisor works this nonconformance."
 
 
 def _form_response(
@@ -146,12 +147,30 @@ def _form_response(
     template="nonconformance/action_form.html",
     extra=None,
     unavailable="",
+    allowed=True,
+    refusal="",
+    gone="",
 ):
     """Render and handle one action form of the record page (the shared form dialog; a page
     without script). `nc` is the one reading the form was drawn from; a refused save shows the
     service's message on the form with the input kept. `unavailable` is why the record's current
     state makes the change impossible (from the same reading): the form is then not offered, and
-    opening it returns to the record with that reason (a POST is still decided by the service)."""
+    opening it returns to the record with that reason (a POST is still decided by the service).
+
+    `allowed` is whether the reader may make this change on this reading; otherwise `refusal` is
+    the 403's reason. A form posted from an earlier reading of the record (its revision differs)
+    is shown again with the stale-record message and the input kept, even when this reading no
+    longer allows the change: whoever drew it may have been the owner then. `gone` is the message
+    when the service finds what the form concerns no longer there for the reader (a linked ticket
+    out of reach): the form is shown again with that message and nothing of it."""
+    if not allowed:
+        if request.method == "POST" and _posted_revision(request) != nc.revision:
+            form.is_valid()
+            form.add_error(None, services.STALE)
+            return _render_form(
+                request, nc, form, title, submit_label, destructive, notes, template, extra
+            )
+        raise PermissionDenied(refusal)
     if unavailable and request.method != "POST":
         messages.info(request, unavailable)
         return redirect(_record_url(nc))
@@ -162,9 +181,24 @@ def _form_response(
             _errors(form, exc)
         except PermissionDenied as exc:  # the record changed hands since the page was drawn
             form.add_error(None, str(exc))
+        except Http404:
+            if not gone:
+                raise
+            # What the form concerned is out of the reader's reach now: say so, keep the input,
+            # and draw nothing of it again.
+            form.add_error(None, gone)
+            extra = {}
         else:
             messages.success(request, success)
             return redirect(_record_url(nc))
+    return _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra)
+
+
+def _posted_revision(request):
+    return whole_number(request.POST.get("expected_revision"))
+
+
+def _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra):
     response = render(
         request,
         template,
@@ -309,6 +343,7 @@ HISTORY_TITLES = {
     "nonconformance.impact_recorded": "Impact on reported results recorded",
     "nonconformance.status_changed": "Status changed",
     "nonconformance.effectiveness_recorded": "Effectiveness check recorded",
+    "nonconformance.effectiveness_cleared": "Effectiveness check cleared",
     "nonconformance.closed": "Closed",
     "nonconformance.reopened": "Reopened",
     "nonconformance.ticket_linked": "Ticket linked",
@@ -338,8 +373,13 @@ def _coded(names, value):
     return names.get(value, value)
 
 
-def _history(nc, actions):
-    """The record's audit events and those of its actions, oldest first, as history items."""
+TICKET_EVENTS = ("nonconformance.ticket_linked", "nonconformance.ticket_unlinked")
+
+
+def _history(user, nc, actions):
+    """The record's audit events and those of its actions, oldest first, as history items. The
+    linking or removal of a ticket the reader may not open now is left out entirely, its reason
+    included, like the ticket itself (selectors.linked_tickets)."""
     from accounts.models import User
 
     action_ids = [str(action.pk) for action in actions]
@@ -351,6 +391,22 @@ def _history(nc, actions):
         .select_related("actor")
         .order_by("occurred_at")
     )
+    ticket_ids = {
+        (event.after or event.before or {}).get("request_id")
+        for event in events
+        if event.action in TICKET_EVENTS
+    }
+    readable = set(
+        staff_requests(user)
+        .filter(pk__in=[i for i in ticket_ids if i])
+        .values_list("pk", flat=True)
+    )
+    events = [
+        event
+        for event in events
+        if event.action not in TICKET_EVENTS
+        or (event.after or event.before or {}).get("request_id") in readable
+    ]
     person_ids = {
         data.get(key)
         for event in events
@@ -465,7 +521,7 @@ def nonconformance_detail(request, pk):
             "close_refusal": close_refusal,
             "next_step": next_step,
             "has_own_actions": any(action.can_finish for action in actions),
-            "history": _history(nc, actions),
+            "history": _history(user, nc, actions),
             "toc": toc,
         },
     )
@@ -478,7 +534,9 @@ def nonconformance_detail(request, pk):
 def nonconformance_create(request):
     user = request.user
     selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
-    can_choose_owner = is_supervisor(user)
+    # A supervisor chooses an owner. A posted owner is kept on the form even if the poster is no
+    # longer a supervisor, so the service refuses it with the input kept rather than dropping it.
+    can_choose_owner = is_supervisor(user) or bool(request.POST.get("owner"))
     form = NonconformanceCreateForm(request.POST or None, can_choose_owner=can_choose_owner)
     list_url = reverse("nonconformance:list")
     if request.method == "POST" and form.is_valid():
@@ -525,11 +583,15 @@ def from_ticket(request, pk):
     ticket = staff_requests(user).filter(pk=pk).first()
     if ticket is None or not ticket.is_complaint:
         raise Http404("No such complaint.")
-    if not (is_supervisor(user) or user.pk == ticket.assignee_id):
+    posted = request.method == "POST"
+    # A form posted from an earlier reading of the ticket is answered by the service (stale,
+    # already opened, no longer yours) with the input kept; this reading decides only the rest.
+    stale = posted and whole_number(request.POST.get("expected_revision")) != ticket.revision
+    if not (is_supervisor(user) or user.pk == ticket.assignee_id or stale):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     ticket_url = reverse("desk:request-detail", args=[ticket.pk])
     existing = records.filter(source_request=ticket).first()
-    if existing is not None:
+    if existing is not None and not posted:
         messages.info(request, "This complaint already has a nonconformance.")
         return redirect(_record_url(existing))
     review = ComplaintReview.objects.filter(request=ticket).first()
@@ -591,7 +653,6 @@ def from_ticket(request, pk):
 def nonconformance_edit(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = DetailsForm(
         request.POST or None,
         from_complaint=bool(nc.source_request_id),
@@ -615,6 +676,8 @@ def nonconformance_edit(request, pk):
         title=f"Edit {nc.number}",
         submit_label="Save changes",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Details saved.",
         notes=(NO_PATIENT_DATA,),
         unavailable=_closed(nc),
@@ -625,7 +688,6 @@ def nonconformance_edit(request, pk):
 def nonconformance_owner(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_supervisor(user, "A supervisor chooses the owner.")
     form = OwnerForm(request.POST or None, initial={**_revision(nc), "owner": nc.owner_id})
     title = "Change owner" if nc.owner_id else "Choose owner"
 
@@ -639,6 +701,8 @@ def nonconformance_owner(request, pk):
         title=title,
         submit_label=title,
         apply=apply,
+        allowed=is_supervisor(user),
+        refusal="A supervisor chooses the owner.",
         success="Owner saved.",
         notes=("The owner works the record with the supervisors and cannot close it.",),
         unavailable=_closed(nc),
@@ -649,7 +713,6 @@ def nonconformance_owner(request, pk):
 def nonconformance_status(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = StatusForm(request.POST or None, current=nc.status, initial=_revision(nc))
 
     def apply(data):
@@ -662,6 +725,8 @@ def nonconformance_status(request, pk):
         title="Change status",
         submit_label="Change status",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Status changed.",
         extra={"current_status": nc.get_status_display()},
         unavailable=_closed(nc),
@@ -672,7 +737,6 @@ def nonconformance_status(request, pk):
 def nonconformance_investigation(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = InvestigationForm(
         request.POST or None,
         initial={
@@ -693,6 +757,8 @@ def nonconformance_investigation(request, pk):
         title="Record investigation",
         submit_label="Save investigation",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Investigation saved.",
         notes=(NO_PATIENT_DATA,),
         unavailable=_closed(nc),
@@ -703,7 +769,6 @@ def nonconformance_investigation(request, pk):
 def nonconformance_impact(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = ImpactForm(
         request.POST or None,
         initial={
@@ -727,6 +792,8 @@ def nonconformance_impact(request, pk):
         title="Record impact",
         submit_label="Save impact",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Impact on reported results saved.",
         notes=(NO_PATIENT_DATA,),
         template="nonconformance/impact_form.html",
@@ -738,7 +805,6 @@ def nonconformance_impact(request, pk):
 def nonconformance_effectiveness(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = EffectivenessForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
@@ -751,6 +817,8 @@ def nonconformance_effectiveness(request, pk):
         title="Record effectiveness",
         submit_label="Record effectiveness",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Effectiveness check recorded.",
         notes=(
             "Effective needs every action done or cancelled. Not effective keeps the record "
@@ -768,10 +836,11 @@ def nonconformance_effectiveness(request, pk):
 @login_required
 def nonconformance_close(request, pk):
     user = request.user
-    nc = _record_or_404(user, pk)
-    _require_supervisor(user, "A supervisor closes a nonconformance.")
+    # What the supervisor closes is shown on the form, from the reading whose revision it posts:
+    # the record and its action counts in one statement.
+    nc = _record_or_404(user, pk, with_action_counts=True)
     form = CloseForm(request.POST or None, initial=_revision(nc))
-    open_actions = nc.actions.filter(status=ActionStatus.OPEN).count()
+    open_actions = nc.open_action_count
 
     def apply(data):
         services.close(actor=user, nc=nc, **data)
@@ -783,7 +852,10 @@ def nonconformance_close(request, pk):
         title="Close nonconformance",
         submit_label="Close nonconformance",
         apply=apply,
+        allowed=is_supervisor(user),
+        refusal="A supervisor closes a nonconformance.",
         success="Nonconformance closed.",
+        extra={"closing": True},
         unavailable=services.close_refusal(user, nc, open_actions),
     )
 
@@ -792,7 +864,6 @@ def nonconformance_close(request, pk):
 def nonconformance_reopen(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_supervisor(user, "A supervisor reopens a nonconformance.")
     form = ReasonForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
@@ -805,6 +876,8 @@ def nonconformance_reopen(request, pk):
         title="Reopen nonconformance",
         submit_label="Reopen nonconformance",
         apply=apply,
+        allowed=is_supervisor(user),
+        refusal="A supervisor reopens a nonconformance.",
         success="Nonconformance reopened.",
         notes=(
             "It returns to Investigating. Its closing and effectiveness check stay in the history.",
@@ -816,22 +889,10 @@ def nonconformance_reopen(request, pk):
 # ------------------------------------------------------------------------------ actions
 
 
-def _action_or_404(nc, action_pk):
-    action = (
-        CorrectiveAction.objects.filter(nonconformance=nc, pk=action_pk)
-        .select_related("assignee")
-        .first()
-    )
-    if action is None:
-        raise Http404("No such action.")
-    return action
-
-
 @login_required
 def action_add(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = ActionForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
@@ -844,17 +905,33 @@ def action_add(request, pk):
         title="Add action",
         submit_label="Add action",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Action added.",
         unavailable=_closed(nc),
     )
 
 
+def _record_and_action(user, pk, action_pk):
+    """(record, action) read together in one statement, so the form's revision and the action it
+    shows come from the same moment (staff only; 404 while the module is off)."""
+    records = selectors.staff_nonconformances(user)
+    action = (
+        CorrectiveAction.objects.filter(
+            pk=action_pk, nonconformance_id=pk, nonconformance__in=records
+        )
+        .select_related("assignee", "nonconformance", "nonconformance__owner")
+        .first()
+    )
+    if action is None:
+        raise Http404("No such action.")
+    return action.nonconformance, action
+
+
 @login_required
 def action_edit(request, pk, action_pk):
     user = request.user
-    nc = _record_or_404(user, pk)
-    _require_work(user, nc)
-    action = _action_or_404(nc, action_pk)
+    nc, action = _record_and_action(user, pk, action_pk)
     form = ActionForm(
         request.POST or None,
         editing=True,
@@ -876,20 +953,20 @@ def action_edit(request, pk, action_pk):
         title="Edit action",
         submit_label="Save changes",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Action saved.",
-        notes=("A due date already past may stay as it is; a new one is today or later.",),
+        notes=(
+            "A due date already past may stay as it is; a new one is today or later. Changing "
+            "an action clears a recorded effectiveness check.",
+        ),
         unavailable=_finished(nc, action),
     )
 
 
 def _finish(request, pk, action_pk, *, done):
     user = request.user
-    nc = _record_or_404(user, pk)
-    action = _action_or_404(nc, action_pk)
-    if done and not services.can_finish_action(user, nc, action):
-        raise PermissionDenied("Its assignee, the owner or a supervisor marks an action done.")
-    if not done:
-        _require_work(user, nc)
+    nc, action = _record_and_action(user, pk, action_pk)
     form = FinishActionForm(request.POST or None, done=done, initial=_revision(nc))
     title = "Mark done" if done else "Cancel action"
 
@@ -903,6 +980,14 @@ def _finish(request, pk, action_pk, *, done):
         title=title,
         submit_label=title,
         apply=apply,
+        allowed=(
+            services.can_finish_action(user, nc, action) if done else services.can_work(user, nc)
+        ),
+        refusal=(
+            "Its assignee, the owner or a supervisor marks an action done."
+            if done
+            else "The owner or a supervisor cancels an action."
+        ),
         success="Action marked done." if done else "Action cancelled.",
         destructive=not done,
         extra={"action": action},
@@ -934,7 +1019,6 @@ def _ticket_number(raw):
 def ticket_link(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
-    _require_work(user, nc)
     form = LinkTicketForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
@@ -957,6 +1041,8 @@ def ticket_link(request, pk):
         title="Add ticket",
         submit_label="Add ticket",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
         success="Ticket linked.",
         notes=("The ticket's timeline records the link.",),
         unavailable=_closed(nc),
@@ -966,20 +1052,22 @@ def ticket_link(request, pk):
 @login_required
 def ticket_unlink(request, pk, link_pk):
     user = request.user
-    nc = _record_or_404(user, pk)
-    _require_work(user, nc)
-    link = selectors.linked_tickets(user, nc).filter(pk=link_pk).first()
+    selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
+    # The link and its record in one statement: the form's revision and the ticket it names come
+    # from the same moment, and only a ticket the reader may open now.
+    link = (
+        selectors.linked_tickets(user, pk)
+        .filter(pk=link_pk)
+        .select_related("nonconformance", "nonconformance__owner")
+        .first()
+    )
     if link is None:
         raise Http404("No such linked ticket.")
+    nc = link.nonconformance
     form = ReasonForm(request.POST or None, initial=_revision(nc))
 
     def apply(data):
-        try:
-            services.unlink_ticket(actor=user, nc=nc, link=link, **data)
-        except Http404:
-            raise ValidationError(
-                "This ticket is no longer linked or no longer open to you."
-            ) from None
+        services.unlink_ticket(actor=user, nc=nc, link=link, **data)
 
     return _form_response(
         request,
@@ -988,6 +1076,9 @@ def ticket_unlink(request, pk, link_pk):
         title="Remove linked ticket",
         submit_label="Remove ticket",
         apply=apply,
+        allowed=services.can_work(user, nc),
+        refusal=WORK_REFUSAL,
+        gone="That ticket is no longer linked or no longer open to you.",
         success="Linked ticket removed.",
         destructive=True,
         notes=("The link stays in the history with your reason.",),

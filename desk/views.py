@@ -7,7 +7,6 @@ the user may not read answers 404 on every route. Every change goes through desk
 
 from urllib.parse import urlencode
 
-from django import forms
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -526,9 +525,10 @@ def _detail_context(request, request_obj, composer=None):
         "review_refusal": services.review_refusal(user, request_obj, review)
         if request_obj.is_complaint
         else "",
+        # The record can change until a review that still counts (desk.services._complaint_record).
         "can_record_complaint": request_obj.is_complaint
         and (supervisor or user.pk == request_obj.assignee_id)
-        and not (review and review.is_reviewed),
+        and not services.review_counts(request_obj, review),
         "is_supervisor": supervisor,
         "is_member": request_obj.team.memberships.filter(user=user).exists(),
         "is_closed": closed,
@@ -547,28 +547,33 @@ def _detail_context(request, request_obj, composer=None):
 
 
 def _nonconformance_context(user, request_obj):
-    """The optional nonconformance module on the ticket page: the record opened from this
-    complaint and the records linked to the ticket. Nothing while the module is off."""
+    """The optional nonconformance module on a ticket's pages, from one check of the switch.
+
+    The record opened from a complaint is part of the complaint's record, so its number shows
+    whether the module is on or off (as a link only while it is on); opening it advances the
+    ticket's revision, so a form drawn before cannot save over it. The records linked to the
+    ticket, the Open nonconformance action and every link show only while the module is on."""
     # Imported here: the desk works with every optional module off (core.modules).
     from nonconformance import selectors as nonconformance_selectors
+    from nonconformance.models import Nonconformance
 
-    if not nonconformance_selectors.module_on_for(user):
-        return {"nonconformance_module": False}
-    opened = None
-    if request_obj.is_complaint:
-        opened = (
-            nonconformance_selectors.staff_nonconformances(user)
-            .filter(source_request=request_obj)
-            .first()
-        )
+    module_on = nonconformance_selectors.module_on_for(user)
+    opened = (
+        Nonconformance.objects.filter(source_request=request_obj).first()
+        if request_obj.is_complaint
+        else None
+    )
     return {
-        "nonconformance_module": True,
+        "nonconformance_module": module_on,
         "nonconformance_opened": opened,
-        "nonconformances": list(nonconformance_selectors.for_ticket(user, request_obj)),
+        "nonconformances": (
+            list(nonconformance_selectors.for_ticket(user, request_obj)) if module_on else []
+        ),
     }
 
 
 @login_required
+@never_cache
 def request_detail(request, pk):
     request_obj = _request_or_404(request.user, pk)
     return render(request, "desk/request_detail.html", _detail_context(request, request_obj))
@@ -651,7 +656,7 @@ def _action_form(
     if request.method == "POST":
         # Scope again before the refused form shows anything about the request.
         request_obj = _request_or_404(request.user, request_obj.pk)
-    return render(
+    response = render(
         request,
         template or "desk/request_action.html",
         {
@@ -669,6 +674,8 @@ def _action_form(
             **(extra or {}),
         },
     )
+    add_never_cache_headers(response)  # a refused form shows what was typed again
+    return response
 
 
 def _revision(request_obj):
@@ -842,33 +849,15 @@ def complaint_record(request, pk):
             outcome_communicated_on=review.outcome_communicated_on,
             outcome_communicated_how=review.outcome_communicated_how,
         )
-    from nonconformance.selectors import module_on_for
-
-    # With the nonconformance module on, the record opened from the complaint takes the place of
-    # a free-text reference: the form leaves the field out and a stored reference stays as it is.
-    # The form carries the shape it was drawn in, so a module switched between opening and saving
-    # neither clears a stored reference nor drops one just typed: the save is refused and the
-    # form shown again in the current shape, with the other answers kept.
-    shape = "nonconformance" if module_on_for(request.user) else "reference"
-    data = request.POST.copy() if request.method == "POST" else None
-    reshaped = data is not None and data.get("form_shape") != shape
-    if reshaped:
-        data["form_shape"] = shape
-    form = ComplaintRecordForm(data, initial=initial)
-    form.fields["form_shape"] = forms.CharField(
-        widget=forms.HiddenInput, required=False, initial=shape
-    )
-    if shape == "nonconformance":
+    form = ComplaintRecordForm(request.POST or None, initial=initial)
+    if request_obj.nonconformances_opened.exists():
+        # The nonconformance opened from the complaint takes the place of a free-text reference
+        # (a stored one stays as it is). Opening it advances the ticket's revision, so a form
+        # drawn before it was opened, with the field, is refused as stale.
         del form.fields["corrective_action_reference"]
 
     def apply(data):
         values = dict(data)
-        values.pop("form_shape", None)
-        if reshaped:
-            raise ValidationError(
-                "The nonconformance module was switched on or off after you opened this form. "
-                "Check the form and save again."
-            )
         expected = values.pop("expected_revision")
         services.update_complaint(
             actor=request.user, request=request_obj, expected_revision=expected, **values

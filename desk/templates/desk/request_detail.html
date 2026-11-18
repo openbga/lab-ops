@@ -7,9 +7,10 @@ and the conversation, newest first. Context (desk.views._detail_context): req, e
 first; events carry .phrase), audience (portal accounts that can read it), composer (EntryForm),
 review (ComplaintReview or None), review_refusal, can_record_complaint, is_supervisor, is_member,
 is_closed, list_query, list_url, previous_url, next_url, follow_ups, follow_up_of;
-nonconformance_module (the optional module is on for this reader; nothing of it shows otherwise),
-nonconformance_opened (the nonconformance opened from this complaint, or None) and
-nonconformances (the nonconformances linked to this ticket).
+nonconformance_module (the optional module is on for this reader: its panel, links and actions
+show only then), nonconformance_opened (the nonconformance opened from this complaint, or None:
+part of the complaint's record, its number shown as text while the module is off) and
+nonconformances (the nonconformances linked to this ticket, empty while the module is off).
 On a phone the page reads: facts, composer, then the conversation with the latest entry first;
 the thumb bar's primary action is Reply, which jumps to the composer.
 {% endcomment %}
@@ -101,7 +102,7 @@ the thumb bar's primary action is Reply, which jumps to the composer.
       {% fact label="Decision" empty="Not recorded yet" %}{% if review.decision %}{{ review.get_decision_display }} · {{ review.decided_by|person }}, <time datetime="{{ review.decided_at|date:'c' }}">{{ review.decided_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}
       {% if review.rationale %}{% fact label="Rationale" wide=True value=review.rationale|linebreaksbr %}{% endif %}
       {% fact label="Findings and actions" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
-      {% if nonconformance_module %}{% fact label="Corrective action" empty="No nonconformance yet" %}{% if nonconformance_opened %}<a class="vr-id" href="{% url 'nonconformance:detail' nonconformance_opened.pk %}">{{ nonconformance_opened.number }}</a> · {{ nonconformance_opened.get_status_display }}{% endif %}{% if review.corrective_action_reference %}{% if nonconformance_opened %}<br>{% endif %}<span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
+      {% if nonconformance_opened %}{% fact label="Corrective action" %}{% if nonconformance_module %}<a class="vr-id" href="{% url 'nonconformance:detail' nonconformance_opened.pk %}">{{ nonconformance_opened.number }}</a> · {{ nonconformance_opened.get_status_display }}{% else %}<span class="vr-id">{{ nonconformance_opened.number }}</span>{% endif %}{% if review.corrective_action_reference %}<br><span class="vr-muted">Reference recorded earlier:</span> {{ review.corrective_action_reference }}{% endif %}{% endfact %}
       {% else %}{% fact label="Corrective action" value=review.corrective_action_reference empty="No reference" %}{% endif %}
       {% fact label="Outcome communicated" empty="Not yet" %}{% if review.outcome_communicated_on %}{{ review.outcome_communicated_on|date:"Y-m-d" }}{% if review.outcome_communicated_how %}, {{ review.outcome_communicated_how }}{% endif %}{% endif %}{% endfact %}
       {% fact label="Independent review" empty="Not reviewed" %}{% if review.is_reviewed %}{{ review.reviewed_by|person }}, <time datetime="{{ review.reviewed_at|date:'c' }}">{{ review.reviewed_at|date:"Y-m-d H:i" }}</time>{% endif %}{% endfact %}

@@ -10,7 +10,10 @@ switching the module off waits for writes already under way and a write that sta
 finds the module off.
 """
 
-from django.core.exceptions import ValidationError
+from functools import wraps
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.http import Http404
 
@@ -45,6 +48,21 @@ def require_enabled(key):
     """404 for a page of a module that is off: its pages do not exist while it is off."""
     if not is_enabled(key):
         raise Http404("This module is not in use.")
+
+
+def module_view(key):
+    """Decorator for every address of a module: while the module is off it does not exist, for
+    every audience (404 before sign-in or role checks)."""
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            require_enabled(key)
+            return view(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 def lock_enabled(key):
@@ -95,6 +113,13 @@ def set_enabled(*, actor, key, enabled, expected_revision, reason):
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     module, _ = LabModule.objects.select_for_update().get_or_create(key=key)
+    # Who may switch it is decided again from the account as it stands once the switch is locked:
+    # a role removed or an account deactivated while the request waited counts.
+    current = get_user_model().objects.filter(pk=actor.pk).first()
+    if current is None:
+        raise PermissionDenied("Your role does not permit this action.")
+    require_role(current, *MODULE_ROLES)
+    actor = current
     if expected_revision is None or module.revision != expected_revision:
         raise ValidationError(
             "This module was switched after you opened the page. Reload it and check its state."

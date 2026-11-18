@@ -1,7 +1,6 @@
-"""Where the module meets the desk and the summary: the complaint record form keeps the shape it
-was drawn in when the module is switched meanwhile, the complaint review shows the record opened
-from the complaint, the summary page's access, and cleared values in a record's history. Synthetic
-data only."""
+"""Where the module meets the desk and the summary: the complaint record form with the module off,
+the complaint review showing the record opened from the complaint, the summary page's access, and
+cleared values in a record's history. Synthetic data only."""
 
 import pytest
 from django.urls import reverse
@@ -41,65 +40,19 @@ def record_form(client, ticket):
     return reverse("desk:complaint-record", args=[ticket.pk])
 
 
-def post_record(client, ticket, shape, **values):
+def post_record(client, ticket, **values):
     data = {
         "expected_revision": ticket.revision,
         "findings": "Courier pickup moved.",
         "outcome_communicated_how": "",
-        "form_shape": shape,
         **values,
     }
     return client.post(record_form(client, ticket), data)
 
 
-def test_with_the_module_on_the_record_form_has_no_free_text_reference(
-    client, module_on, agent, decided
-):
-    client.force_login(agent)
-    page = client.get(record_form(client, decided)).content.decode()
-    assert 'name="corrective_action_reference"' not in page
-    assert 'name="form_shape" value="nonconformance"' in page
-    response = post_record(client, decided, "nonconformance")
-    assert response.status_code == 302
-    review = ComplaintReview.objects.get(request=decided)
-    assert review.findings == "Courier pickup moved."
-    assert review.corrective_action_reference == "CA-TEST-0042"  # kept as it was
-
-
-def test_a_module_switched_off_after_the_form_opened_does_not_clear_the_stored_reference(
-    client, module_on, agent, decided
-):
-    client.force_login(agent)
-    LabModule.objects.filter(key="nonconformance").update(is_enabled=False)
-    # Drawn with the module on (no reference field), saved with it off.
-    response = post_record(client, decided, "nonconformance")
-    assert response.status_code == 200
-    page = response.content.decode()
-    assert "switched on or off after you opened this form" in page
-    assert 'name="corrective_action_reference"' in page  # shown again in the current shape
-    assert 'name="form_shape" value="reference"' in page
-    assert "Courier pickup moved." in page  # the other answers are kept
-    review = ComplaintReview.objects.get(request=decided)
-    assert review.corrective_action_reference == "CA-TEST-0042"
-    assert review.findings == ""
-    assert fresh(decided).revision == decided.revision
-
-
-def test_a_module_switched_on_after_the_form_opened_does_not_drop_a_typed_reference(
-    client, agent, decided
-):
-    client.force_login(agent)
-    LabModule.objects.create(key="nonconformance", is_enabled=True, revision=1)
-    response = post_record(client, decided, "reference", corrective_action_reference="CA-TEST-0099")
-    assert response.status_code == 200
-    assert "switched on or off after you opened this form" in response.content.decode()
-    review = ComplaintReview.objects.get(request=decided)
-    assert review.corrective_action_reference == "CA-TEST-0042" and review.findings == ""
-
-
 def test_with_the_module_off_the_record_form_still_saves_a_reference(client, agent, decided):
     client.force_login(agent)
-    response = post_record(client, decided, "reference", corrective_action_reference="CA-TEST-0100")
+    response = post_record(client, decided, corrective_action_reference="CA-TEST-0100")
     assert response.status_code == 302
     assert ComplaintReview.objects.get(request=decided).corrective_action_reference == (
         "CA-TEST-0100"
@@ -120,10 +73,12 @@ def test_the_complaint_review_shows_the_record_opened_from_the_complaint(
     client.force_login(lead2)
     page = client.get(reverse("desk:complaint-review", args=[decided.pk])).content.decode()
     assert nc.number in page and "Reference recorded earlier" in page
+    assert nc.get_status_display() not in page[page.index("Corrective action") :][:400]
+    # Part of the complaint's record: the number stays, as text, while the module is off.
     LabModule.objects.filter(key="nonconformance").update(is_enabled=False)
     page = client.get(reverse("desk:complaint-review", args=[decided.pk])).content.decode()
     main = page[page.index("<main") : page.index("</main>")]
-    assert nc.number not in main and "CA-TEST-0042" in main
+    assert nc.number in main and "CA-TEST-0042" in main and "/quality/" not in main
 
 
 class TestSummary:
