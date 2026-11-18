@@ -103,7 +103,10 @@ def module_view(key):
                 response = view(request, *args, **kwargs)
             except (Http404, PermissionDenied) as exc:
                 if isinstance(exc, ModuleOff):
+                    # Found off during the request: answered like an unknown address (no route,
+                    # so no page help or form of the module), and the rest of the response agrees.
                     _found_off(request, key)
+                    request.resolver_match = None
                 response = response_for_exception(request, exc)
             add_never_cache_headers(response)
             return response
@@ -133,12 +136,12 @@ def enabled_for(request, key):
     return states_for(request)[key]
 
 
-def _module_key_for(path):
-    """The module whose view `path` (or `path` with a slash) is, from the full address list; no
-    database read."""
+def _module_key_for(path, root=None):
+    """The module whose view `path` (or `path` with a slash) is, from the full address list of
+    `root`; no database read."""
     for candidate in (path, path if path.endswith("/") else path + "/"):
         try:
-            match = resolve(candidate)
+            match = resolve(candidate, root)
         except Resolver404:
             continue
         return getattr(match.func, "module_key", None)
@@ -148,13 +151,15 @@ def _module_key_for(path):
 _URLCONFS = {}
 
 
-def _urlconf_without(disabled):
-    """The address list without the addresses of the modules in `disabled` (cached per set)."""
-    key = frozenset(disabled)
+def _urlconf_without(disabled, root=None):
+    """The address list of `root` (the configured one by default) without the addresses of the
+    modules in `disabled`, cached per root and set (its error handlers are that root's)."""
+    root = root or settings.ROOT_URLCONF
+    key = (root, frozenset(disabled))
     if key not in _URLCONFS:
-        base = import_module(settings.ROOT_URLCONF)
-        namespaces = {MODULE_NAMESPACES[module] for module in key}
-        urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key))}")
+        base = import_module(root) if isinstance(root, str) else root
+        namespaces = {MODULE_NAMESPACES[module] for module in key[1]}
+        urlconf = types.ModuleType(f"{base.__name__}__without_{'_'.join(sorted(key[1]))}")
         urlconf.urlpatterns = [
             pattern
             for pattern in base.urlpatterns
@@ -168,18 +173,20 @@ def _urlconf_without(disabled):
 
 
 class ModuleAddressMiddleware:
-    """Before CommonMiddleware and the CSRF check (config/settings.py). A request to an address
-    of a module reads the switches once for the whole response. While the module is off, the
-    request is resolved against the address list without it, so the address does not exist: for
-    every method the answer is exactly that of an unknown address (no slash redirect, no CSRF
-    step, no page help). While it is on, every response of the address, a refusal by any later
-    middleware included, is marked never to be stored. Other requests read nothing here."""
+    """Before SecurityMiddleware, CommonMiddleware and the CSRF check (config/settings.py). A
+    request to an address of a module reads the switches once for the whole response. While the
+    module is off, the request is resolved against the address list without it, so the address
+    does not exist: for every method the answer is exactly that of an unknown address (no slash
+    redirect, no CSRF step, no page help). While it is on, every response of the address, a
+    redirect or refusal by any later middleware included, is marked never to be stored. Other
+    requests read nothing here."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        key = _module_key_for(request.path_info)
+        root = getattr(request, "urlconf", None) or settings.ROOT_URLCONF
+        key = _module_key_for(request.path_info, root)
         if key is None:
             return self.get_response(request)
         states = states_for(request)
@@ -187,7 +194,7 @@ class ModuleAddressMiddleware:
         try:
             disabled = [module for module, on in states.items() if not on]
             if not states[key]:
-                request.urlconf = _urlconf_without(disabled)
+                request.urlconf = _urlconf_without(disabled, root)
                 return self.get_response(request)
             response = self.get_response(request)
         finally:

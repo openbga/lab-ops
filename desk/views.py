@@ -238,7 +238,11 @@ def _apply_bulk(request, form):
             None,
             "A selected ticket is no longer open to you. Nothing was changed; reload the list.",
         )
-    except (ValidationError, PermissionDenied, ValueError) as exc:
+    except PermissionDenied as exc:
+        if not _still_staff(request.user):
+            raise  # no longer staff: 403, no list drawn again
+        form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
+    except (ValidationError, ValueError) as exc:
         form.add_error(None, " ".join(getattr(exc, "messages", [str(exc)])))
     else:
         messages.success(request, f"{count} ticket{'s' if count != 1 else ''} changed.")
@@ -679,6 +683,9 @@ def _action_form(
                 return redirect("desk:request-list")
             return redirect(record_url)
     if request.method == "POST":
+        if form.is_bound and form.errors and _posted_earlier(request, request_obj):
+            # Completing the fields alone cannot make a form drawn from an earlier reading saveable.
+            form.add_error(None, "This ticket changed. Reload it and review the latest entries.")
         # Scope again before the refused form shows anything about the request.
         request_obj = reread() if reread else _request_or_404(request.user, request_obj.pk)
     response = render(

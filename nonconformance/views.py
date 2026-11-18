@@ -202,6 +202,10 @@ def _form_response(
         else:
             messages.success(request, success)
             return redirect(_record_url(nc))
+    elif request.method == "POST" and _posted_earlier(request, nc.revision):
+        # Invalid and drawn from an earlier reading: completing the fields alone cannot make it
+        # saveable, so it says so too.
+        form.add_error(None, services.STALE)
     return _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra)
 
 
