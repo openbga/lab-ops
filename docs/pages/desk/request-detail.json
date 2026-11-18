@@ -5,13 +5,15 @@
   ],
   "title": "Ticket",
   "purpose": "Read one ticket with its conversation, answer the client or add an internal note, log a call, and assign it, change its status or category, or handle it as a complaint.",
-  "summary": "One ticket: who it is from, its status and owner, the conversation, and the composer for a reply, an internal note or a logged contact. Assign, change status or handle a complaint from here.",
+  "summary": "Read the client and intake details, check the service targets, and catch up on the conversation. Use Add entry to reply, write an internal note or log a call.",
   "tasks": [
     {
       "title": "Answer the client",
       "steps": [
-        "Choose [[Reply]]. Check the line above the message to see whether any portal accounts can read it.",
-        "Write the [[Message]], optionally set [[Then set status]], and select [[Send]]. On a phone, the [[Reply]] button in the bottom bar jumps to the composer."
+        "Select [[Add entry]] to go to the entry form.",
+        "Choose [[Reply]] and check who can see it.",
+        "Write the [[Message]]. To change the status with your reply, choose it under [[Then set status]].",
+        "Select [[Send]]."
       ]
     },
     {
@@ -64,7 +66,7 @@
       "items": [
         {
           "label": "Heading and badges",
-          "description": "The ticket number and subject, then its status, its priority, a Complaint badge when it is a complaint, and the team with the assignee (or nobody assigned)."
+          "description": "The heading identifies the ticket by number and subject. It shows the status, any overdue service clock, priority, team and assignee. Complaints are marked Complaint."
         },
         {
           "label": "Take it",
@@ -83,8 +85,8 @@
           "description": "A menu. Edit category and priority opens that form and Mark as a complaint opens the complaint form; both are hidden on a closed ticket. Unmark complaint appears instead of Mark as a complaint on a complaint, for supervisors only. Audit history is for supervisors."
         },
         {
-          "label": "Reply",
-          "description": "The main button. It jumps to the composer. On a phone it is in the bar at the bottom of the screen. Hidden on a closed ticket."
+          "label": "Add entry",
+          "description": "Jumps to the entry form on a ticket that is still open for work. On a phone, use Add entry in the bottom bar. On a closed ticket, go directly to Add an internal note."
         },
         {
           "label": "Previous in list / Next in list",
@@ -97,7 +99,10 @@
       ]
     },
     {
-      "title": "Ticket facts",
+      "title": "Ticket details",
+      "paragraphs": [
+        "Client and contact shows who the ticket concerns and how to reach them. Intake shows the category, how the ticket arrived and who logged it."
+      ],
       "items": [
         {
           "label": "Organization",
@@ -144,8 +149,8 @@
           "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded in the audit history. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
         },
         {
-          "label": "Service clock and links",
-          "description": "Below the facts, the ticket's service clocks appear when service targets are configured, and a Links section shows links to orders and other records once they are in use. Neither shows anything otherwise."
+          "label": "First response / Resolution",
+          "description": "Each service clock with a target shows its status and the target in business hours or minutes. Due gives its deadline, Met gives the time the response or resolution was recorded, and Paused since gives the start of the pause. The ticket heading names any overdue clock."
         }
       ]
     },
@@ -207,6 +212,22 @@
       ]
     },
     {
+      "title": "Links",
+      "paragraphs": [
+        "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access."
+      ],
+      "items": [
+        {
+          "label": "Add link",
+          "description": "Links an external record, such as an order or report, to this ticket. Available until the ticket is closed."
+        },
+        {
+          "label": "Find by patient key",
+          "description": "Opens the exact-key search for staff with permission to view patient information."
+        }
+      ]
+    },
+    {
       "title": "Nonconformances section",
       "paragraphs": [
         "Only if your laboratory uses the optional nonconformance module, and only when at least one nonconformance is linked to this ticket. It lists each linked record with its number (opening the record), title and status, oldest first. Every staff role can read these records. With the module off the section never appears, and the linked records are kept."
@@ -264,7 +285,7 @@
     {
       "title": "Conversation",
       "paragraphs": [
-        "Entries are shown latest first, under a count such as 5 entries, latest first. Entries are never edited or deleted. Each shows its author, the date and time and, for a client's own reply, the word client."
+        "Read the newest entry first. Each date heads a group of entries. The time and author appear beside each entry, and replies from a client are marked (client). Entries cannot be edited or deleted."
       ],
       "items": [
         {
@@ -294,9 +315,10 @@
       ]
     },
     {
-      "title": "On a phone",
+      "title": "Page layout",
       "paragraphs": [
-        "The sections stack: the ticket's facts, the composer, then the conversation with the latest entry first. The Reply button in the bottom bar jumps to the composer. On a wide screen the facts and the composer sit side by side. Assign, Status and the other actions stay in the page header."
+        "On a wide screen, Ticket details and Conversation share the left column. The entry form stays open on the right while you read.",
+        "On a narrow screen, select Conversation in Ticket details to jump straight to the thread. The entry form follows the conversation. On a phone, Add entry in the bottom bar takes you straight to the form. Linked records and other related sections follow."
       ]
     },
     {
@@ -329,10 +351,14 @@
     "desk/visibility.py",
     "docs/product.md",
     "links/templates/links/_request_links.html",
+    "links/templates/links/request_links_panel.html",
+    "links/templatetags/record_links.py",
     "request_forms/selectors.py",
     "request_forms/templates/request_forms/_details.html",
     "request_forms/templatetags/request_forms.py",
     "service_levels/templates/service_levels/_request_clock.html",
+    "service_levels/templatetags/clocks.py",
+    "templates/includes/record_layout.html",
     "static/js/ticket-draft.js",
     "desk/jobs.py",
     "nonconformance/selectors.py",

@@ -64,6 +64,10 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   Ticket actions protect an unfinished entry. After a form error, choose missing files again or explicitly leave them out before submitting.
 
+- **Changed:** Read ticket details and conversations together (2026-11-18, Tickets)
+
+  Staff can read the latest conversation below the ticket details and use Add entry to reply, write a note or log a call.
+
 - **Changed:** Scan work queues and recent organizations (2026-11-18, Dashboard)
 
   The dashboard shows each queue's count and oldest ticket in a compact row, with recent organizations alongside on wider screens.

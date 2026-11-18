@@ -11,14 +11,15 @@ nonconformance_module (the optional module is on for this reader: its panel, lin
 show only then), nonconformance_opened (the nonconformance opened from this complaint, or None:
 part of the complaint's record, its number shown as text while the module is off) and
 nonconformances (the nonconformances linked to this ticket, empty while the module is off).
-On a phone the page reads: facts, composer, then the conversation with the latest entry first;
-the thumb bar's primary action is Reply, which jumps to the composer.
+The facts and conversation share a column beside the composer. On a phone the composer
+follows the conversation. Add entry jumps directly to it.
 {% endcomment %}
 {% block title %}{{ req.number }} · Tickets · OpenBGA Lab Ops{% endblock %}
 {% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
 {% block page_heading %}<span class="vr-id">{{ req.number }}</span> {{ req.subject }}{% endblock %}
 {% block page_meta %}{% page_meta %}
   <li>{% status label=req.get_status_display tone=req.status|status_tone %}</li>
+  {% for part in clocks %}{% if part.state == "overdue" %}<li>{% status label=part.name|add:" overdue" tone=part.tone %}</li>{% endif %}{% endfor %}
   <li>{% status label=req.get_priority_display|add:" priority" tone=req.priority|priority_tone plain=True %}</li>
   {% if req.is_complaint %}<li>{% status label="Complaint" tone="warning" plain=True %}</li>{% endif %}
   <li>{{ req.team.name }}{% if req.assignee %} · {{ req.assignee|person }}{% else %} · <span class="vr-muted">nobody assigned</span>{% endif %}</li>
@@ -35,27 +36,69 @@ the thumb bar's primary action is Reply, which jumps to the composer.
   {% if not req.is_complaint %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Mark as a complaint</a></li>{% elif is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Unmark complaint</a></li>{% endif %}{% endif %}
   {% if is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:request-history' req.pk %}?list={{ list_query|urlencode }}">Audit history</a></li>{% endif %}
 {% endmore_actions %}
-{% if not is_closed %}<a class="btn btn-primary" href="#composer">{% icon name="reply" %}Reply</a>{% endif %}
+{% if not is_closed %}<a class="btn btn-primary" href="#composer">Add entry</a>{% endif %}
 {% endblock %}
 {% block content %}
 {% if is_closed %}{% notice tone="neutral" label="Closed" %}This ticket is closed. Internal notes can still be added; for anything the client needs, log a new ticket.{% endnotice %}{% endif %}
-{% record_layout aside_label=composer_title %}
+{% record_layout aside_label=composer_title stacked_lead=True %}
   {% fill lead %}
-  {% panel title="Ticket" heading_id="request-facts-heading" %}
-    <dl class="vr-facts">
-      {% fact label="Organization" empty="No organization" %}{% if req.client %}<a href="{% url 'clients:client-detail' req.client.pk %}">{{ req.client.name }}</a>{% endif %}{% endfact %}
-      {% fact label="Site" value=req.site.name empty="No site" %}
-      {% fact label="Contact" empty="No contact" %}{% if req.contact %}{{ req.contact.name }}{% if req.contact.phone %} · <a href="tel:{{ req.contact.phone }}">{{ req.contact.phone }}</a>{% endif %}{% if req.contact.email %} · <a href="mailto:{{ req.contact.email }}">{{ req.contact.email }}</a>{% endif %}{% endif %}{% endfact %}
-      {% if req.reported_by %}{% fact label="Reported by" value=req.reported_by %}{% endif %}
-      {% fact label="Category" %}{{ req.category.parent.name }} › {{ req.category.name }}{% endfact %}
-      {% fact label="Arrived by" value=req.get_channel_display %}
-      {% fact label="Logged" %}<time datetime="{{ req.created_at|date:'c' }}">{{ req.created_at|date:"Y-m-d H:i" }}</time> by {{ req.created_by|person }}{% endfact %}
-      {% if req.client_reference %}{% fact label="Reference given" %}<span class="vr-id">{{ req.client_reference }}</span>{% endfact %}{% endif %}
-      {% if follow_up_of %}{% fact label="Follows up" %}<a class="vr-id" href="{% url 'desk:request-detail' follow_up_of.pk %}">{{ follow_up_of.number }}</a>{% endfact %}{% endif %}
-      {% if req.resolution_summary %}{% fact label="Resolution" wide=True value=req.resolution_summary|linebreaksbr %}{% endif %}
-    </dl>
+  {% panel title="Ticket details" heading_id="request-facts-heading" %}
+    {% fill actions %}<a class="btn btn-sm btn-outline-secondary d-xl-none" href="#conversation-heading">Conversation</a>{% endfill %}
+    <div class="vr-ticket-fact-groups">
+      <section aria-labelledby="client-contact-heading">
+        <h3 id="client-contact-heading">Client and contact</h3>
+        <dl class="vr-facts">
+          {% fact label="Organization" empty="No organization" %}{% if req.client %}<a href="{% url 'clients:client-detail' req.client.pk %}">{{ req.client.name }}</a>{% endif %}{% endfact %}
+          {% fact label="Site" value=req.site.name empty="No site" %}
+          {% fact label="Contact" empty="No contact" %}{% if req.contact %}{{ req.contact.name }}{% if req.contact.phone %} · <a href="tel:{{ req.contact.phone }}">{{ req.contact.phone }}</a>{% endif %}{% if req.contact.email %} · <a href="mailto:{{ req.contact.email }}">{{ req.contact.email }}</a>{% endif %}{% endif %}{% endfact %}
+          {% if req.reported_by %}{% fact label="Reported by" value=req.reported_by %}{% endif %}
+        </dl>
+      </section>
+      <section aria-labelledby="ticket-intake-heading">
+        <h3 id="ticket-intake-heading">Intake</h3>
+        <dl class="vr-facts">
+          {% fact label="Category" %}{{ req.category.parent.name }} › {{ req.category.name }}{% endfact %}
+          {% fact label="Arrived by" value=req.get_channel_display %}
+          {% fact label="Logged" %}<time datetime="{{ req.created_at|date:'c' }}">{{ req.created_at|date:"Y-m-d H:i" }}</time> by {{ req.created_by|person }}{% endfact %}
+          {% if req.client_reference %}{% fact label="Reference given" %}<span class="vr-id">{{ req.client_reference }}</span>{% endfact %}{% endif %}
+          {% if follow_up_of %}{% fact label="Follows up" %}<a class="vr-id" href="{% url 'desk:request-detail' follow_up_of.pk %}">{{ follow_up_of.number }}</a>{% endfact %}{% endif %}
+        </dl>
+      </section>
+    </div>
+    {% if req.resolution_summary %}<dl class="vr-facts">{% fact label="Resolution" wide=True value=req.resolution_summary|linebreaksbr %}</dl>{% endif %}
+    {% include "service_levels/_request_clock.html" with parts=clocks only %}
     {% include "desk/_request_details.html" with service_request=req %}
-    {% include "service_levels/_request_clock.html" with request=req %}
+  {% endpanel %}
+
+  {% panel title="Conversation" heading_id="conversation-heading" count=entries|length|stringformat:"d"|add:" entries, latest first" %}
+    {% regroup entries by created_at|date:"Y-m-d" as days %}
+    {% for day in days %}
+    <div class="vr-conversation-day">
+      <h3><time datetime="{{ day.grouper }}">{{ day.grouper }}</time></h3>
+      <ol class="vr-entries">
+      {% for entry in day.list %}
+      {% if entry.kind == "event" %}
+      <li class="vr-entry vr-entry-event">
+        <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"H:i" }}</time>
+        <span>{{ entry.phrase }} · {{ entry.author|person }}</span>
+      </li>
+      {% else %}
+      <li class="vr-entry vr-entry-{{ entry.kind }}{% if entry.withdrawn_at %} vr-entry-withdrawn{% endif %}">
+        <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"H:i" }}</time>
+        <div class="vr-entry-head">
+          <span class="vr-entry-kind">{% if entry.kind == "reply" %}{% if entry.withdrawn_at %}{% icon name="eye-slash" %}Reply, withdrawn from client view{% elif audience %}{% icon name="eye" %}Reply, visible to the client{% else %}{% icon name="eye-slash" %}Reply, no current portal audience{% endif %}{% elif entry.kind == "note" %}{% icon name="lock" %}Internal note{% else %}{% icon name="telephone" %}Logged contact, internal{% endif %}</span>
+          <span class="vr-muted">{{ entry.author|person }}{% if entry.author_capacity == "client" %} (client){% endif %}</span>
+        </div>
+        {% if entry.kind == "contact" %}<p class="vr-entry-contact">{{ entry.get_contact_direction_display }} by {{ entry.get_contact_channel_display|lower }}{% if entry.contact_with %}, {{ entry.contact_with }}{% endif %}: <strong>{{ entry.get_contact_outcome_display }}</strong></p>{% endif %}
+        <div class="vr-entry-body">{{ entry.body|linebreaks }}</div>
+        {% include "attachments/_entry_files.html" with entry=entry audience="staff" %}
+        {% if entry.withdrawn_at %}<p class="vr-form-note mb-0">Withdrawn by {{ entry.withdrawn_by|person }} on {{ entry.withdrawn_at|date:"Y-m-d H:i" }}: {{ entry.withdrawal_reason }}</p>{% elif entry.kind == "reply" and is_supervisor %}<p class="mb-0"><a href="{% url 'desk:entry-withdraw' req.pk entry.pk %}?list={{ list_query|urlencode }}">Withdraw from client view</a></p>{% endif %}
+      </li>
+      {% endif %}
+      {% endfor %}
+      </ol>
+    </div>
+    {% endfor %}
   {% endpanel %}
   {% endfill %}
   {% fill aside %}
@@ -112,27 +155,6 @@ the thumb bar's primary action is Reply, which jumps to the composer.
     {% if review_refusal and not review_counts %}<p class="vr-form-note mb-0">Review: {{ review_refusal }}</p>{% endif %}
   {% endpanel %}
   {% endif %}
-
-  {% panel title="Conversation" heading_id="conversation-heading" count=entries|length|stringformat:"d"|add:" entries, latest first" class="mb-3" %}
-    <ol class="vr-entries">
-      {% for entry in entries %}
-      {% if entry.kind == "event" %}
-      <li class="vr-entry vr-entry-event"><span>{{ entry.phrase }}</span> <span class="vr-muted">· {{ entry.author|person }} · <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"Y-m-d H:i" }}</time></span></li>
-      {% else %}
-      <li class="vr-entry vr-entry-{{ entry.kind }}{% if entry.withdrawn_at %} vr-entry-withdrawn{% endif %}">
-        <div class="vr-entry-head">
-          <span class="vr-entry-kind">{% if entry.kind == "reply" %}{% if entry.withdrawn_at %}{% icon name="eye-slash" %}Reply, withdrawn from client view{% elif audience %}{% icon name="eye" %}Reply, visible to the client{% else %}{% icon name="eye-slash" %}Reply, no current portal audience{% endif %}{% elif entry.kind == "note" %}{% icon name="lock" %}Internal note{% else %}{% icon name="telephone" %}Logged contact, internal{% endif %}</span>
-          <span class="vr-muted">{{ entry.author|person }}{% if entry.author_capacity == "client" %} (client){% endif %} · <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"Y-m-d H:i" }}</time></span>
-        </div>
-        {% if entry.kind == "contact" %}<p class="vr-entry-contact">{{ entry.get_contact_direction_display }} by {{ entry.get_contact_channel_display|lower }}{% if entry.contact_with %}, {{ entry.contact_with }}{% endif %}: <strong>{{ entry.get_contact_outcome_display }}</strong></p>{% endif %}
-        <div class="vr-entry-body">{{ entry.body|linebreaks }}</div>
-        {% include "attachments/_entry_files.html" with entry=entry audience="staff" %}
-        {% if entry.withdrawn_at %}<p class="vr-form-note mb-0">Withdrawn by {{ entry.withdrawn_by|person }} on {{ entry.withdrawn_at|date:"Y-m-d H:i" }}: {{ entry.withdrawal_reason }}</p>{% elif entry.kind == "reply" and is_supervisor %}<p class="mb-0"><a href="{% url 'desk:entry-withdraw' req.pk entry.pk %}?list={{ list_query|urlencode }}">Withdraw from client view</a></p>{% endif %}
-      </li>
-      {% endif %}
-      {% endfor %}
-    </ol>
-  {% endpanel %}
 
   {% if follow_ups %}
   {% panel title="Follow-up tickets" heading_id="follow-ups-heading" count=follow_ups|length class="mb-3" %}

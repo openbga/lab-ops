@@ -3,7 +3,7 @@ composer (D2, D3), the action forms (D4 to D6, D9), the list with its system vie
 bulk actions and query budget (D10), Find (D12), the dashboard queues (D14) and the history
 page (D15). D7 and D8 are in test_restricted_and_complaints."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from django.db import connection
@@ -234,6 +234,30 @@ class TestNewRequest:
 
 
 class TestRequestPage:
+    def test_entries_group_by_lab_day_latest_first(self, client, member, category, monkeypatch):
+        # All entries have the same UTC date, but midnight in New York separates the opening
+        # entry from the two replies. Two writes at the same instant retain newest-first order.
+        now = datetime(2026, 11, 19, 4, 58, tzinfo=UTC)
+        monkeypatch.setattr(timezone, "now", lambda: now)
+        request = new_request(member, category, first_entry_body="Late shift handoff.")
+        now += timedelta(minutes=5)
+        reply_to(member, request, "First update after midnight.")
+        reply_to(member, request, "Second update after midnight.")
+
+        login(client, member)
+        with timezone.override("America/New_York"):
+            page = client.get(detail_url(request)).content.decode()
+        markers = [
+            'datetime="2026-11-19"',
+            "Second update after midnight.",
+            "First update after midnight.",
+            'datetime="2026-11-18"',
+            "Late shift handoff.",
+        ]
+        assert all(page.count(marker) == 1 for marker in markers)
+        positions = [page.index(marker) for marker in markers]
+        assert positions == sorted(positions)
+
     def test_entries_are_labelled_in_words(self, client, member, make_user, category):
         request = new_request(member, category)
         reply = reply_to(member, request, "Reply text")

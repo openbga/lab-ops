@@ -194,14 +194,19 @@ hides and reorders columns. One list is one `section.card.vr-table-card`.
 4. History is one component, `includes/history_item.html`, newest last, in the final panel:
    what happened, when, who, and the reason where one was required.
 5. Layout is `{% record_layout %}` (`includes/record_layout.html`). A side column (from 1200px)
-   may hold the context and launch panel of the most frequent record action. It sits beside the
-   first panel only (the record's key facts) and grows with its content up to the viewport
+   may hold the context and launch panel of the most frequent record action. It usually sits
+   beside the first panel (the record's key facts) and grows with its content up to the viewport
    height. Longer content scrolls inside its own keyboard-focusable box with a visible scrollbar
    and a fade while more remains below; it never hides content silently. Long-form guidance does
    not belong in the side column. Every later panel spans the
    full width, so wide tables keep their columns. Below 1200px the page stacks: first panel, side
    column, then the rest, which is also the reading and tab order. Its editing fields open in the
    shared form dialog. No panel inside a panel.
+
+   On a staff ticket, the left column holds the ticket details and the latest-first conversation
+   directly below them. The entry form occupies the right column. Both columns size their panels
+   independently. Below 1200px, the order is ticket details, conversation, entry form. Related
+   records follow at full width.
 6. `Edit` is a secondary header button for records that can be edited freely. A locked record
    is changed through `Correct <thing>`, which requires a reason and is recorded in history.
 
@@ -263,7 +268,7 @@ Read-only records, search, filter controls and sign-in use their own pages.
 | Row selection | `{% select_all %}` for the header, `{% row_select %}` for each row |
 | Facts | `dl.vr-facts` of `{% fact %}` rows (`includes/fact.html`; a blank value shows "—") |
 | History | `{% history_panel %}` (`includes/history_panel.html`) of `{% history_item %}` entries |
-| Record page layout | `{% record_layout %}` (`includes/record_layout.html`): the first panel with the side column beside it, then full-width panels |
+| Record page layout | `{% record_layout %}` (`includes/record_layout.html`) places the side column beside the record's key facts or, for staff tickets, beside the facts and conversation. Related records follow at full width. |
 | Form page | `{% form_page %}` (`includes/form_page.html`): errors, required note, sections, action row |
 | Form action row | `{% form_actions %}…{% endform_actions %}` (`includes/form_actions.html`); the body holds any further buttons |
 | Required-fields note | `{% required_note %}` (`includes/required_note.html`) |

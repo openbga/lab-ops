@@ -3550,6 +3550,14 @@ fieldset.vr-field > legend {
   margin-bottom: var(--vr-space-5);
 }
 
+.vr-record-stacked-lead > .vr-record-lead {
+  display: grid;
+  align-content: start;
+  align-self: start;
+  gap: var(--vr-space-5);
+  min-width: 0;
+}
+
 .vr-record-lead > .card,
 .vr-record-aside-scroll > .card {
   margin-bottom: 0;
@@ -3558,6 +3566,10 @@ fieldset.vr-field > legend {
 @media (min-width: 1200px) {
   .vr-record.vr-record-has-aside {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+
+  .vr-record-stacked-lead.vr-record-has-aside {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   }
 
   .vr-record > * {
@@ -3569,7 +3581,7 @@ fieldset.vr-field > legend {
     grid-row: 1;
   }
 
-  .vr-record-lead > .card {
+  .vr-record-lead > .card:only-child {
     height: 100%;
   }
 
@@ -5515,6 +5527,54 @@ details.card:not([open]) > summary.card-header {
    entries a client sees is decided on the server; here only the labels: every entry and the
    composer state their visibility in words, with the colour as a second cue. */
 
+.vr-ticket-fact-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--vr-space-3) var(--vr-space-6);
+}
+
+.vr-ticket-fact-groups h3,
+.vr-conversation-day h3 {
+  padding-bottom: var(--vr-space-1);
+  margin: 0 0 var(--vr-space-2);
+  border-bottom: var(--vr-border-width) solid var(--vr-border);
+  color: var(--vr-text-muted);
+  font-size: var(--vr-font-size-2);
+  font-weight: var(--vr-font-weight-semibold);
+}
+
+.vr-ticket-fact-groups .vr-facts {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vr-space-2);
+}
+
+.vr-ticket-fact-groups dd {
+  line-height: var(--vr-line-height-snug);
+}
+
+.vr-panel-body .vr-composer .vr-form-section + .vr-form-section {
+  margin-top: var(--vr-space-3);
+}
+
+.vr-composer .vr-file-ready .vr-drop {
+  flex-flow: row wrap;
+  justify-content: flex-start;
+  gap: var(--vr-space-1) var(--vr-space-2);
+  padding: var(--vr-space-2) var(--vr-space-3);
+  border: var(--vr-border-width) dashed var(--vr-border-strong);
+  box-shadow: none;
+  background: var(--vr-surface-2);
+  text-align: start;
+}
+
+.vr-composer .vr-drop .vr-icon {
+  font-size: var(--vr-font-size-4);
+}
+
+.vr-composer .vr-drop-hint {
+  flex-basis: 100%;
+}
+
 .vr-composer-mode .form-check {
   display: inline-flex;
   align-items: center;
@@ -5574,11 +5634,24 @@ details.card:not([open]) > summary.card-header {
 }
 
 .vr-entry {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--vr-space-3);
   padding: var(--vr-space-3) var(--vr-space-4);
   border: var(--vr-border-width) solid var(--vr-border);
   border-radius: var(--vr-radius-lg);
   background: var(--vr-surface);
   overflow-wrap: anywhere;
+}
+
+.vr-entry > :not(time) {
+  grid-column: 2;
+}
+
+.vr-entry > time {
+  color: var(--vr-text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--vr-font-size-2);
 }
 
 .vr-entry-note,
@@ -5603,9 +5676,8 @@ details.card:not([open]) > summary.card-header {
 .vr-entry-head {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   gap: var(--vr-space-1) var(--vr-space-3);
-  margin-bottom: var(--vr-space-2);
+  margin-bottom: var(--vr-space-1);
   font-size: var(--vr-font-size-2);
 }
 
@@ -5820,14 +5892,33 @@ p.vr-entry-contact {
 /* The request page's two clocks (service_levels/_request_clock.html): one line each on a phone,
    side by side when there is room. The state is a .vr-status with its glyph and words. */
 .vr-clocks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--vr-space-1) var(--vr-space-4);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--vr-space-3);
+  padding: var(--vr-space-2) var(--vr-space-3);
+  border-radius: var(--vr-radius);
+  background: var(--vr-surface-2);
+  font-size: var(--vr-font-size-2);
 }
 
 .vr-clock-name {
-  color: var(--vr-text-muted);
+  font-weight: var(--vr-font-weight-semibold);
 }
+
+.vr-request-links .vr-empty {
+  padding: var(--vr-space-2) var(--vr-panel-inset) var(--vr-space-3);
+  text-align: start;
+}
+
+.vr-request-links .vr-empty-title {
+  font-size: var(--vr-font-size-2);
+}
+
+.vr-request-links .vr-empty-body {
+  max-width: none;
+  margin: 0;
+}
+
 /* ================================================================ Ticket forms
    The portal service menu (request_forms/_service_grid.html): one full-width tile per form on a
    phone, the whole tile a touch target; two columns from 576px, three from 992px. The item-list
