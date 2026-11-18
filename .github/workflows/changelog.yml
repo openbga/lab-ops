@@ -25,13 +25,14 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # Application source: everything except tests, browser journeys, CI,
-          # contributor documentation and development tools. In-app page help
-          # (docs/pages/) ships with the application, so it counts.
+          # contributor documentation, the presentation website and development
+          # tools. In-app page help (docs/pages/) ships with the application, so
+          # it counts.
           is_source() {
             case "$1" in
               docs/pages/*) return 0 ;;
               tests/* | e2e/* | */tests/* | docs/* | .github/* | .agents/* \
-                | tools/* | changelog.d/*) return 1 ;;
+                | website/* | tools/* | changelog.d/*) return 1 ;;
               */*) return 0 ;;
               *.md | .gitignore | .dockerignore | .python-version) return 1 ;;
             esac

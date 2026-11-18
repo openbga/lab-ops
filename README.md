@@ -7,7 +7,7 @@ questions, complaints, pickups and supply orders from intake to resolution. Clie
 portal to open tickets, reply to their laboratory and follow work for their organization or
 sites. Each deployment serves one laboratory.
 
-[Try the public demo](https://openbga-lab-ops.onrender.com/) · [Deployment guide](#deploy-to-render) · [Roadmap](docs/roadmap.md)
+[Product website](https://openbga.github.io/lab-ops/) · [Try the public demo](https://openbga-lab-ops.onrender.com/) · [Deployment guide](#deploy-to-render) · [Roadmap](docs/roadmap.md)
 
 ## What you can do
 

@@ -85,6 +85,21 @@ On Linux, add `--with-deps` to the browser installation command. CI runs the app
 browser journeys and a container test for a fresh database migration, sign-in, static assets
 and health endpoints.
 
+### Presentation website
+
+The [product website](https://openbga.github.io/lab-ops/) is built from `website/` and published
+from `main` by the `pages` workflow. Its roadmap page is rendered from `docs/roadmap.md` each
+time, so change planned work there. The build needs only Python and stops at a broken link or
+at roadmap Markdown the page cannot show. To preview a change:
+
+```sh
+python3 tools/website/build.py
+python3 -m http.server --bind 127.0.0.1 --directory build/website
+```
+
+After changing a page that appears in the site's screenshots, regenerate them with the command
+in `e2e/test_website_shots.py`, then check their alt text and captions in `website/index.html`.
+
 ## Pull requests
 
 Describe the change, why it matters and how you tested it. Call out changes to permissions,
