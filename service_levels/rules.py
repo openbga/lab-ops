@@ -204,6 +204,13 @@ def _mark_missed_if_past_due(clock, now: datetime) -> None:
         clock.resolution_missed = True
 
 
+def clear_breach_mark(clock, which):
+    """End the breach-notice run of one clock ("first_response" or "resolution"): a later breach
+    is noticed again, and a notice of the ended run still waiting no longer applies."""
+    setattr(clock, f"{which}_breach_noticed_at", None)
+    setattr(clock, f"{which}_breach_run", None)
+
+
 def apply_target(
     clock, target: TargetValues | None, *, start: datetime, now: datetime, calendar: Calendar | None
 ) -> None:
@@ -214,18 +221,24 @@ def apply_target(
     _mark_missed_if_past_due(clock, now)
     empty = target or TargetValues(None, None, None, None, False)
     if clock.first_response_met_at is None:
+        before = clock.first_response_due_at
         clock.first_response_minutes = empty.first_response_minutes
         clock.first_response_due_at = (
             add_business_seconds(start, empty.first_response_minutes * 60, calendar)
             if empty.first_response_minutes
             else None
         )
+        if clock.first_response_due_at != before:  # a new run: a later breach is noticed again
+            clear_breach_mark(clock, "first_response")
     if clock.resolution_met_at is None:
+        before = clock.resolution_due_at
         clock.target_id = empty.target_id
         clock.calendar_id = empty.calendar_id
         clock.pause_on_third_party = empty.pause_on_third_party
         clock.resolution_minutes = empty.resolution_minutes
         clock.resolution_due_at = _resolution_due(clock, start, calendar)
+        if clock.resolution_due_at != before:
+            clear_breach_mark(clock, "resolution")
     clock.calculated_at = now
 
 
@@ -236,6 +249,7 @@ def meet_first_response(clock, at: datetime) -> bool:
     clock.first_response_met_at = at
     if _late(at, clock.first_response_due_at):
         clock.first_response_missed = True
+    clear_breach_mark(clock, "first_response")  # met: its breach run, if any, is over
     return True
 
 
@@ -282,6 +296,10 @@ def sync_status(
             clock.resolution_met_at = now
             if _late(now, clock.resolution_due_at):
                 clock.resolution_missed = True
+        if target_phase == "stopped":
+            # This run of the clock is over: a reopened request that passes its target again
+            # gets a new breach notice (service_levels.jobs).
+            clear_breach_mark(clock, "resolution")
     if status in STOPPED_STATUSES:
         meet_first_response(clock, now)
 

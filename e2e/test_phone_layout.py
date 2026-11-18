@@ -28,6 +28,8 @@ STAFF = [
     "/lab/announcements/",
     "/lab/announcements/new/",
     "/lab/record-retention/",
+    "/lab/scheduled-jobs/",
+    "/lab/scheduled-jobs/settings/",
     "/whats-new/",
     "/accounts/password/change/",
     "/accounts/email/",

@@ -39,7 +39,8 @@
       "title": "Resolve or close the ticket",
       "steps": [
         "Select [[Status]], choose Resolved and write the resolution summary.",
-        "When nothing more is owed, open [[Status]] again and choose Closed."
+        "When nothing more is owed, open [[Status]] again and choose Closed.",
+        "If an administrator set a period under Scheduled jobs, a resolved ticket also closes on its own that many days after it was resolved."
       ]
     }
   ],
@@ -284,7 +285,7 @@
         },
         {
           "label": "Events",
-          "description": "One-line records of what changed: logged, status changes, assignment (moved to a team, assigned to a person, assignee cleared), category or priority changes, complaint marked or unmarked, the complaint decision, record update and review, a withdrawn reply, and, with the optional nonconformance module, a nonconformance opened from this complaint, linked to the ticket or no longer linked. They show who and when. Nonconformance events keep their number if the module is turned off later."
+          "description": "One-line records of what changed: logged, status changes, assignment (moved to a team, assigned to a person, assignee cleared), category or priority changes, complaint marked or unmarked, the complaint decision, record update and review, a withdrawn reply, and, with the optional nonconformance module, a nonconformance opened from this complaint, linked to the ticket or no longer linked. They show who and when. Nonconformance events keep their number if the module is turned off later. A ticket closed by the scheduled jobs shows Status: Resolved → Closed (closed automatically N days after it was resolved), by the Scheduled jobs account."
         },
         {
           "label": "Follow-up tickets",
@@ -333,6 +334,7 @@
     "request_forms/templatetags/request_forms.py",
     "service_levels/templates/service_levels/_request_clock.html",
     "static/js/ticket-draft.js",
+    "desk/jobs.py",
     "nonconformance/selectors.py",
     "nonconformance/views.py"
   ]

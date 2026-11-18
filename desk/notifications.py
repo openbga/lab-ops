@@ -1,12 +1,17 @@
 """Outbound notices about requests (requirement N1, docs/product.md "Notifications").
 
-desk.services calls the three hooks below inside its transaction, after its own writes. Nothing
-is sent then: each hook adds to a batch held on the request instance, and the batch sends once
-the transaction commits (`transaction.on_commit`), to the recipients still eligible at that
-moment (checked again at dispatch), and a notice about a reply only while that reply is still
-client-visible (desk.visibility). A rolled-back change sends nothing, two hooks of
-one change (a reply that also sets "Waiting on client") send one notice per person, and a failed
-send is logged and never undoes the change.
+desk.services calls the three hooks below inside its transaction, after its own writes. Each
+hook adds to a batch held on the request instance, and the batch records one notice per person
+in the outbox (jobs.outbox) in the same transaction: a rolled-back change records nothing, and
+two hooks of one change (a reply that also sets "Waiting on client") make one notice per person.
+Nothing is sent before commit. The outbox gives each notice its first attempt once the change
+commits and the scheduled job retries one that could not be sent; a failed send is logged and
+never undoes the change.
+
+At every attempt the outbox asks `prepare_request_notice` whether the notice still applies, from
+the request and the recipient as they are then (an account deactivated, access narrowed, the
+request reassigned or moved), and a notice about a reply only while that reply is still
+client-visible (desk.visibility). Choosing again is the same rule as choosing first.
 
 Who is told:
 
@@ -15,6 +20,9 @@ Who is told:
   while it can see the request (desk.portal_scope).
 - A request assigned to someone else: the new assignee.
 - A client reply on an assigned request: the assignee.
+- A request past its first-response or resolution target (the scheduled job in
+  service_levels.jobs): the assignee and the leads of the request's team, or, when it has neither,
+  every member of the team (`breach_recipients`).
 
 Staff can turn their own notices off (preference `notifications.email`); a client account
 cannot, because the notice is how it learns of an answer.
@@ -25,19 +33,18 @@ in. Nothing else of the request, its entries, organization, site, contact, categ
 links reaches a template; tests render every template with sentinel values in all of them.
 """
 
-import logging
 import os
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.core.mail import EmailMessage
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
-
-logger = logging.getLogger("lab_ops.notifications")
+from django.utils import timezone
 
 OPT_OUT_KEY = "notifications.email"  # core.preferences: False turns a staff member's notices off
+TOPIC = "desk.request"  # jobs.registry.NOTICE_TOPICS
+BREACH_TOPIC = "desk.breach"
 
 # Fixed phrases, one per event. The only event-specific text a notice carries.
 PHRASES = {
@@ -46,11 +53,20 @@ PHRASES = {
     "resolved": "The laboratory has resolved your ticket.",
     "assigned": "A ticket has been assigned to you.",
     "client_reply": "The client has replied on a ticket assigned to you.",
+    "first_response_breached": "A ticket has passed its first-response target.",
+    "resolution_breached": "A ticket has passed its resolution target.",
 }
 # When one change raises several client events, the client gets the most telling one.
 CLIENT_PRECEDENCE = ("resolved", "waiting_client", "reply")
 CLIENT_EVENTS = frozenset(CLIENT_PRECEDENCE)
 STAFF_EVENTS = frozenset({"assigned", "client_reply"})
+# A breach notice's event, by the clock it is about (service_levels.models.RequestClock).
+BREACH_EVENTS = {
+    "first_response": "first_response_breached",
+    "resolution": "resolution_breached",
+}
+# Why a person is told about a breach, kept on the notice and checked again at sending.
+BREACH_ROLES = ("assignee", "lead", "member")
 SUBJECT_TEMPLATE = "desk/email/notice_subject.txt"
 BODY_TEMPLATE = "desk/email/notice_body.txt"
 
@@ -135,9 +151,13 @@ def wants_notices(user):
 def _staff_can_read(user, request):
     from django.core.exceptions import PermissionDenied
 
+    from jobs.actor import is_system_account
+
     from .selectors import staff_requests
 
     if not user.is_active or user.client_id is not None or not user.email:
+        return False
+    if is_system_account(user):  # it does no work, even if someone gave it a role
         return False
     try:
         return staff_requests(user).filter(pk=request.pk).exists()
@@ -199,115 +219,273 @@ def render_notice(context):
     return subject, body
 
 
-# Sending -------------------------------------------------------------------------------------
+def prepared(*, user, number, request_id, event, portal):
+    """The outbox's Prepared notice: `event`'s allow-listed words for `user`'s current address."""
+    from jobs.outbox import Prepared
+
+    context = notice_context(
+        number=number,
+        event=event,
+        url=sign_in_url(request_path(number, request_id, portal=portal)),
+        laboratory=lab_name(),
+    )
+    subject, body = render_notice(context)
+    return Prepared(to=user.email, subject=subject, body=body, event=event)
+
+
+# Recording -----------------------------------------------------------------------------------
 
 
 class _Batch:
-    """Notices of one change, sent once it commits. Keyed by recipient; ids only."""
+    """Notices of one change to one request, recorded in the outbox, one per recipient. Ids and
+    codes only. Their first attempt comes once the change commits, with every other notice the
+    transaction recorded (jobs.outbox.after_commit), so a bulk action shares one mail budget."""
 
-    def __init__(self, request):
+    def __init__(self, request, collector):
         self.number = request.number
         self.request_id = request.pk
-        self.recipients = {}  # user pk -> (is portal account, set of events); ids only
-        self.entries = {}  # event about a reply -> ids of the replies it is about
+        self.collector = collector  # the transaction's jobs.outbox._AfterCommit
+        self.notices = {}  # user pk -> jobs.models.Notice recorded in this change
 
     def add(self, user, event, entry=None):
-        portal, events = self.recipients.setdefault(user.pk, (user.client_id is not None, set()))
-        events.add(event)
-        if entry is not None:  # a notice about a reply rests on that reply
-            self.entries.setdefault(event, set()).add(entry.pk)
+        from jobs import outbox
 
-    def _entry_events_still_true(self):
-        """Events about a reply whose reply is still client-visible now (not withdrawn since)."""
-        from .models import RequestEntry
-        from .visibility import client_visible
-
-        return {
-            event
-            for event, ids in self.entries.items()
-            if client_visible(RequestEntry.objects.filter(pk__in=ids)).exists()
-        }
-
-    def eligible(self):
-        """Recipients still eligible now, at dispatch, with their current address: anything may
-        have changed since the hook chose them (an account deactivated, access narrowed, the
-        request reassigned or moved). Choosing again is the same rule as choosing first."""
-        from accounts.models import User
-
-        from .models import ServiceRequest
-
-        request = ServiceRequest.objects.filter(pk=self.request_id).first()
-        if request is None:
-            return {}
-        clients = {user.pk: user for user in client_recipients(request)}
-        staff = User.objects.in_bulk(
-            [pk for pk, (portal, _events) in self.recipients.items() if not portal]
-        )
-        stale = set(self.entries) - self._entry_events_still_true()
-        chosen = {}
-        for user_id, (portal, events) in self.recipients.items():
-            events = events - stale  # e.g. a reply withdrawn before the notice went out
-            if not events:
-                continue
-            if portal:
-                user = clients.get(user_id)
-            else:
-                user = staff.get(user_id)
-                still = (
-                    user is not None
-                    and request.assignee_id == user.pk
-                    and wants_notices(user)
-                    and _staff_can_read(user, request)
-                )
-                user = user if still else None
-            if user is not None and user.email:
-                chosen[user_id] = (user.email, portal, events)
-        return chosen
-
-    def flush(self):
-        laboratory = lab_name()
-        for user_id, (email, portal, events) in self.eligible().items():
-            if portal:
-                chosen = next(e for e in CLIENT_PRECEDENCE if e in events)
-            else:
-                chosen = "assigned" if "assigned" in events else "client_reply"
-            context = notice_context(
-                number=self.number,
-                event=chosen,
-                url=sign_in_url(request_path(self.number, self.request_id, portal=portal)),
-                laboratory=laboratory,
+        notice = self.notices.get(user.pk)
+        if notice is None:
+            notice = outbox.record(
+                recipient=user,
+                topic=TOPIC,
+                object_id=self.request_id,
+                reference=self.number,
+                events=[event],
+                # How the notice was addressed: a portal account is told only client events.
+                data={"portal": user.client_id is not None, "entries": {}},
             )
-            subject, body = render_notice(context)
-            try:
-                EmailMessage(subject, body, to=[email]).send()
-            except Exception as exc:  # a delivery problem never undoes the change
-                logger.warning(
-                    "Notice not sent: request=%s recipient=%s event=%s error=%s",
-                    self.number,
-                    user_id,
-                    chosen,
-                    type(exc).__name__,
-                )
+            self.notices[user.pk] = notice
+            self.collector.ids.append(notice.pk)
+        elif event not in notice.events:
+            notice.events = sorted({*notice.events, event})
+        if entry is not None:  # a notice about a reply rests on that reply
+            ids = notice.data["entries"].setdefault(event, [])
+            if entry.pk not in ids:
+                ids.append(entry.pk)
+        notice.save(update_fields=["events", "data"])
 
 
 def _notify(request, user, event, entry=None):
     connection = transaction.get_connection()
     if not connection.in_atomic_block:  # services always run atomically; be safe regardless
-        batch = _Batch(request)
-        batch.add(user, event, entry)
-        batch.flush()
+        with transaction.atomic():
+            _batch(request).add(user, event, entry)
         return
-    _batch(request, connection).add(user, event, entry)
+    _batch(request).add(user, event, entry)
 
 
-def _batch(request, connection):
-    """This change's batch for `request`, registering its sending on commit the first time."""
+def _batch(request):
+    """This change's batch for `request`. A batch belongs to the transaction whose collector it
+    holds: once that commits or rolls back, the next change on the same instance starts a new
+    batch."""
+    from jobs import outbox
+
+    collector = outbox.after_commit()
     batch = getattr(request, "_pending_notices", None)
-    registered = batch is not None and any(
-        getattr(item[1], "__self__", None) is batch for item in connection.run_on_commit
-    )
-    if not registered:
-        batch = _Batch(request)
+    if batch is None or batch.collector is not collector:
+        batch = _Batch(request, collector)
         request._pending_notices = batch
-        transaction.on_commit(batch.flush)
     return batch
+
+
+# Checked and worded at each sending attempt (jobs.outbox) --------------------------------------
+
+
+def _hold(notice, scope):
+    """Hold, until the attempt's transaction ends, the rows the decision about `notice` rests on,
+    and read the request and the recipient after them. A change to any of these rows waits until
+    the notice has been sent, so it goes out only on the reading it was decided from:
+
+    - always: the request (reassignment, a status change, a reply withdrawn lock it), the
+      recipient's account (deactivation, an organization move) and the request's category
+      (restriction);
+    - scope "portal": the recipient's portal access grants;
+    - scope "staff": the recipient's roles and their membership of the request's team;
+    - scope "breach": as "staff", and the request's team and all of its memberships, held only
+      against adding a member or changing a lead (key share), so assigning other tickets goes on.
+
+    The request is waited for briefly (the outbox's lock_timeout); the rest are taken without
+    waiting, so the attempt never waits while holding a lock a writer needs, and a busy row leaves
+    the notice for a later attempt. Returns (request, user), or (None, None)."""
+    from accounts.models import User
+    from clients.models import PortalAccess
+    from jobs.locks import share_lock
+    from taxonomy.models import RequestCategory
+    from teams.models import Team, TeamMembership
+
+    from .models import ServiceRequest
+
+    if not share_lock(ServiceRequest, [notice.object_id]):
+        return None, None
+    share_lock(User, [notice.recipient_id], nowait=True)
+    request = ServiceRequest.objects.filter(pk=notice.object_id).first()
+    user = User.objects.filter(pk=notice.recipient_id).first()
+    if request is None or user is None:
+        return None, None
+    share_lock(RequestCategory, [request.category_id], nowait=True)
+    if scope == "portal":
+        grants = PortalAccess.objects.filter(user=user).values_list("pk", flat=True)
+        share_lock(PortalAccess, grants, nowait=True)
+        return request, user
+    roles = User.groups.through.objects.filter(user=user).values_list("pk", flat=True)
+    share_lock(User.groups.through, roles, nowait=True, mode="key share")
+    memberships = TeamMembership.objects.filter(team_id=request.team_id)
+    if scope == "breach":
+        share_lock(Team, [request.team_id], nowait=True, mode="key share")
+    else:
+        memberships = memberships.filter(user=user)
+    share_lock(
+        TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
+    )
+    return request, user
+
+
+def _replies_still_visible(entries):
+    """Events about a reply whose reply is still client-visible now (not withdrawn since)."""
+    from .models import RequestEntry
+    from .visibility import client_visible
+
+    return {
+        event
+        for event, ids in (entries or {}).items()
+        if client_visible(RequestEntry.objects.filter(pk__in=ids)).exists()
+    }
+
+
+def _client_events_still_true(request, events):
+    """A status event applies only while the request still has that status: a client who
+    replied since (reopening it) is not told it waits for them or is resolved."""
+    from .models import Status
+
+    holds = {"waiting_client": Status.WAITING_CLIENT, "resolved": Status.RESOLVED}
+    return {e for e in events if e not in holds or request.status == holds[e]}
+
+
+def prepare_request_notice(notice):
+    """`notice` (topic desk.request) worded for sending, or None when it no longer applies."""
+    portal = bool(notice.data.get("portal"))
+    request, user = _hold(notice, "portal" if portal else "staff")
+    if request is None:
+        return None
+    entries = notice.data.get("entries") or {}
+    stale = set(entries) - _replies_still_visible(entries)
+    events = set(notice.events) - stale  # e.g. a reply withdrawn before the notice went out
+    if portal:
+        events = _client_events_still_true(request, events & CLIENT_EVENTS)
+        if not events or user.pk not in {u.pk for u in client_recipients(request)}:
+            return None
+        event = next(e for e in CLIENT_PRECEDENCE if e in events)
+    else:
+        events &= STAFF_EVENTS
+        if not (
+            events
+            and request.assignee_id == user.pk
+            and wants_notices(user)
+            and _staff_can_read(user, request)
+        ):
+            return None
+        event = "assigned" if "assigned" in events else "client_reply"
+    if not user.email:
+        return None
+    return prepared(
+        user=user, number=request.number, request_id=request.pk, event=event, portal=portal
+    )
+
+
+# Service target breaches ---------------------------------------------------------------------
+
+
+def _breach_roles(request):
+    """[(user id, role)] responsible for `request` now: the assignee and the team's leads, or
+    every member of the team when it has neither. Accounts only; checked by the callers."""
+    from teams.models import TeamMembership
+
+    memberships = TeamMembership.objects.filter(team_id=request.team_id)
+    lead_ids = set(memberships.filter(is_lead=True).values_list("user_id", flat=True))
+    chosen = []
+    if request.assignee_id is not None:
+        chosen.append((request.assignee_id, "assignee"))
+    chosen += [(pk, "lead") for pk in sorted(lead_ids - {request.assignee_id})]
+    if not chosen:
+        chosen = [(pk, "member") for pk in sorted(memberships.values_list("user_id", flat=True))]
+    return chosen
+
+
+def breach_recipients(request):
+    """[(staff account, role)] to tell that `request` passed a service target: the assignee and
+    the leads of the request's team; when it has neither, every member of the team. Only active
+    staff who can read the request and have not turned their notices off (never the scheduled
+    jobs' account)."""
+    from accounts.models import User
+
+    chosen = _breach_roles(request)
+    users = User.objects.in_bulk([pk for pk, _role in chosen])
+    return [
+        (users[pk], role)
+        for pk, role in chosen
+        if pk in users and wants_notices(users[pk]) and _staff_can_read(users[pk], request)
+    ]
+
+
+def breach_still_running(clock, which, now):
+    """Whether `clock`'s `which` clock ("first_response" or "resolution") is past due and not met
+    at `now` (a resolution clock paused while waiting is not running). Past due means after the
+    due time, as service_levels.rules counts it: at the due time itself it is still on time."""
+    if clock is None:
+        return False
+    due = getattr(clock, f"{which}_due_at")
+    met = getattr(clock, f"{which}_met_at")
+    paused = which == "resolution" and clock.paused_since is not None
+    return due is not None and met is None and not paused and due < now
+
+
+def _same_run(clock, which, run):
+    """Whether the clock's breach run is still the one this notice was recorded in: resolving,
+    or a recalculated due time, ends the run the notice belongs to, and a later breach starts a
+    new one (service_levels.jobs), even at the same instant."""
+    current = getattr(clock, f"{which}_breach_run")
+    return current is not None and run is not None and str(current) == str(run)
+
+
+def prepare_breach_notice(notice):
+    """`notice` (topic desk.breach) worded for sending, or None when it no longer applies: the
+    request was resolved or its clock met, paused or recalculated since (another run of the
+    clock), or the person is no longer among those responsible now (the assignee and the leads, or
+    the members while the ticket has neither), cannot read the request, or turned notices off."""
+    from service_levels.models import RequestClock
+
+    from .models import Status
+
+    which, role = notice.data.get("clock"), notice.data.get("role")
+    if which not in BREACH_EVENTS or role not in BREACH_ROLES:
+        return None
+    request, user = _hold(notice, "breach")
+    if request is None or request.status in (Status.RESOLVED, Status.CLOSED):
+        return None
+    clock = RequestClock.objects.filter(request=request).first()
+    if not (
+        breach_still_running(clock, which, timezone.now())
+        and _same_run(clock, which, notice.data.get("run"))
+    ):
+        return None
+    if not (
+        user.email
+        and user.pk in {pk for pk, _role in _breach_roles(request)}
+        and wants_notices(user)
+        and _staff_can_read(user, request)
+    ):
+        return None
+    return prepared(
+        user=user,
+        number=request.number,
+        request_id=request.pk,
+        event=BREACH_EVENTS[which],
+        portal=False,
+    )

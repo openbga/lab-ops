@@ -65,7 +65,9 @@ Use **Status** when responsibility for the next action changes. Waiting on clien
 resolution clock. Waiting on third party pauses it if the target is configured that way.
 Resolve with an internal summary. Closing is final and is available only after resolution.
 Reopen a resolved ticket with a reason. A client reply also reopens one that was resolved or
-waiting on the client. A closed ticket can have a new linked follow-up.
+waiting on the client. A closed ticket can have a new linked follow-up. If an administrator has
+set a period on the Scheduled jobs page, resolved tickets close by themselves that many days
+after they were resolved; complaints wait for their review.
 
 ### 6. Handle a complaint
 
@@ -157,7 +159,8 @@ profile copy with `setup_lab --sync-timezone`.
 
 When email is configured, a notice identifies the ticket and directs the recipient to sign in.
 Read the message and download files inside the application. Staff can change their own email
-notice preference. The demonstration sends no email.
+notice preference. The assignee and the team's leads also get a notice when a ticket passes a
+service target. The demonstration sends no email.
 
 ## Laboratory information
 

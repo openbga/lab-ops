@@ -6,7 +6,11 @@ rules:
   laboratory role and no capability by that status alone (see accounts.roles).
 - A client user can hold no staff flag, role, or permission, so a client link can never
   coexist with staff access.
-- Users are deactivated, never deleted; the last active superuser cannot be removed.
+- Users are deactivated, never deleted; the last active superuser with staff status (who can
+  open account administration) cannot be removed (the scheduled jobs' account, which nobody
+  signs in as, does not count).
+- The scheduled jobs' account (jobs.actor) cannot be edited here: it stays inactive, with its
+  name and undeliverable address, and no staff flag, role or permission.
 - The built-in role groups keep their names. Every account and group change, and every
   password change, writes an attributed audit event; password values are never recorded.
 - A new account opened from a client organization's page ("Add portal account") arrives with
@@ -25,7 +29,7 @@ from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.contrib.auth.models import Group, Permission
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
 
@@ -89,7 +93,17 @@ class AccessRules:
     """Shared validation for the add and change forms."""
 
     def clean(self):
+        from jobs.actor import is_system_account, system_account_id
+
         data = super().clean()
+        if self.instance.pk and is_system_account(self.instance) and self.has_changed():
+            # Its name labels every change the jobs made (the timelines read it), and its
+            # address must stay undeliverable: it is not edited at all.
+            raise forms.ValidationError(
+                "This account records what the scheduled jobs do and nobody signs in as it. It "
+                "cannot be changed: it stays inactive, with its name and an address that receives "
+                "no mail, and no staff access, role or permission."
+            )
         if self.instance.pk and "client" in data:
             stored = User.objects.filter(pk=self.instance.pk).values_list("client_id", flat=True)
             was_client = stored.first() is not None
@@ -113,13 +127,24 @@ class AccessRules:
                     "A client user cannot be staff or superuser or hold roles or permissions. "
                     "Clear the client to create a laboratory account."
                 )
-        if self.instance.pk and self.instance.is_superuser and self.instance.is_active:
-            leaving = not data.get("is_superuser", True) or not data.get("is_active", True)
-            others = User.objects.filter(is_superuser=True, is_active=True).exclude(
-                pk=self.instance.pk
+        owner = self.instance.is_superuser and self.instance.is_active and self.instance.is_staff
+        if self.instance.pk and owner:
+            # An owner opens account administration: active, superuser and staff.
+            leaving = not all(
+                data.get(flag, True) for flag in ("is_superuser", "is_active", "is_staff")
             )
+            owners = User.objects.filter(is_superuser=True, is_active=True, is_staff=True)
+            if leaving and connection.in_atomic_block:
+                # Every owner row held until this save commits (the admin saves in one
+                # transaction): two owners stepping down at once take turns, and the second sees
+                # the first has gone.
+                list(owners.select_for_update().order_by("pk"))
+            others = owners.exclude(pk__in=[self.instance.pk, system_account_id()])
             if leaving and not others.exists():
-                raise forms.ValidationError("Keep at least one active superuser.")
+                raise forms.ValidationError(
+                    "Keep at least one active superuser with staff status, so someone can still "
+                    "open account administration."
+                )
         return data
 
 
@@ -135,6 +160,15 @@ class AccountCreationForm(AccessRules, AdminUserCreationForm):
 class AccountAdmin(SuperuserOnly, UserAdmin):
     form = AccountChangeForm
     add_form = AccountCreationForm
+
+    def has_change_permission(self, request, obj=None):
+        # The scheduled jobs' account is shown, never changed (its password page included).
+        from jobs.actor import is_system_account
+
+        if obj is not None and is_system_account(obj):
+            return False
+        return super().has_change_permission(request, obj)
+
     list_display = (
         "username",
         "full_name",

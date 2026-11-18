@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "request_forms",
     "dataimport",
     "attachments",
+    "jobs",
     "nonconformance",
 ]
 MIDDLEWARE = [
@@ -142,6 +143,9 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+# Seconds to wait for the mail server. A notice that times out is retried by the scheduled jobs
+# (jobs.outbox) instead of holding up the request that saved the change.
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@example.invalid")
 # The deployment's public address for links in emailed notices (desk.notifications), which are
 # sent after a change commits, with no request to take the host from. Unset: Render's

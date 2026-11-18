@@ -55,7 +55,7 @@ STAFF_ITEMS = [
     "Nonconformances",
     "Laboratory profile",
 ]
-ADMIN_ONLY = ["Record retention", "Announcements"]
+ADMIN_ONLY = ["Record retention", "Scheduled jobs", "Announcements"]
 
 
 def test_client_lands_in_portal_and_cannot_use_staff_routes(page: Page, sign_in_as):

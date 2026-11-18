@@ -125,8 +125,42 @@ and verify delivery with a test account. Store credentials in the host's secret 
 Set `PUBLIC_URL` to the external HTTPS origin so sign-in links reach the correct deployment.
 
 Ticket notices include the number, a fixed event description, the laboratory name and a
-sign-in link. They are sent after the change commits. The `lab_ops.notifications` logger
-records delivery failures. An SMTP failure leaves the ticket change in place.
+sign-in link. Each is recorded with the change and sent after the change commits. An SMTP
+failure leaves the ticket change in place: the notice waits and the scheduled jobs retry it. The
+`lab_ops.notifications` logger records each failed attempt with the notice id, the ticket number,
+the recipient's account id and the error's class, never an address or the server's message.
+Administrators see failed notices and those waiting to be retried on the Scheduled jobs page.
+With `EMAIL_BACKEND` set to the dummy backend, notices are recorded as not sent and are never sent
+later, even after mail is configured. `EMAIL_TIMEOUT` (10 seconds by default) bounds how long a
+send waits for the mail server. The attempt right after a change stops at the first notice the
+server does not take, and once one timeout has been spent, so a slow server delays a save (a bulk
+action over many tickets included) by about one timeout, and the rest wait for the scheduled
+jobs. A run of `send_notices` stops after three failed sends in a row and leaves the
+rest for the next run.
+
+## Scheduled jobs
+
+Run `python manage.py run_scheduled_jobs` every five minutes from the host's scheduler, with the
+same image, settings and database as the web service. One run retries waiting notices, sends
+service target notices and closes resolved tickets after the period an administrator sets (none
+by default). Without it, notices are still sent once right after each change, but nothing else
+happens.
+
+- Overlap is safe: a run that starts while another holds the lock prints that nothing was done and
+  exits normally.
+- A failed job exits with an error status, so the scheduler can alert. The `lab_ops.jobs` logger
+  records each job's counts and any error's class and frames.
+- The Scheduled jobs page (Setup) shows each job's last run and warns when no run started in the
+  last 30 minutes.
+- Use `--job <name>` to run one job by hand, for example `--job send_notices`.
+
+On Render, a cron job with the web service's image works: schedule `*/5 * * * *`, command
+`python manage.py run_scheduled_jobs`, and the web service's `DATABASE_URL`, `SECRET_KEY`,
+`TIME_ZONE` and mail settings. It is a separate paid service that `render.yaml` does not create.
+Deploy it from the same release as the web service.
+
+Upgrade note: clocks already past their target when this release is installed are marked as
+noticed by migration `service_levels.0003`, so the first run does not notify old breaches.
 
 ## Logs
 

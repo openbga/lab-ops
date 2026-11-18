@@ -1,0 +1,191 @@
+{
+  "id": "jobs-overview",
+  "routes": [
+    "jobs:overview"
+  ],
+  "title": "Scheduled jobs",
+  "purpose": "Check that the background jobs run, set when resolved tickets close automatically, and find email notices that could not be sent.",
+  "summary": "Whether the background jobs run, when resolved tickets close on their own, and which email notices could not be sent. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Check that the jobs run",
+      "steps": [
+        "Look for a [[Not running]] notice at the top. Without one, the jobs ran in the last 30 minutes.",
+        "In [[Jobs]], read [[Last run]] and [[Outcome]] for each job. A failed job shows the error's name."
+      ]
+    },
+    {
+      "title": "Close resolved tickets automatically",
+      "steps": [
+        "In [[Settings]], select [[Edit]].",
+        "Enter the number of days in [[Close resolved tickets after]] and select [[Save changes]]. Leave it empty to turn automatic closing off."
+      ]
+    },
+    {
+      "title": "Find notices that were not sent",
+      "steps": [
+        "In [[Email notices]], read the counts, then the table of notices that failed or wait to be retried.",
+        "Select a ticket number to open the ticket."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Without a scheduler, notices are still sent right after each change, but nothing is retried, no service target notice is sent and nothing closes automatically.",
+    "When email is off on this deployment, notices are recorded but never sent, even after email is turned on.",
+    "A complaint stays resolved until its review is recorded, whatever the period.",
+    "Automatic changes are recorded under the Scheduled jobs account, which nobody can sign in as.",
+    "A notice shows its error's name only, never the mail server's message."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role can open this page and its settings form. Other staff roles and client portal accounts are refused, and the Scheduled jobs item is not in their menu. Signed-out visitors are sent to sign in."
+      ]
+    },
+    {
+      "title": "Not running notice",
+      "items": [
+        {
+          "label": "Never run",
+          "description": "Shown when no scheduled job has ever started on this deployment. Notices are still sent right after each change, but retries, service target notices and automatic closing need a scheduler that runs python manage.py run_scheduled_jobs every few minutes, as the operations guide describes."
+        },
+        {
+          "label": "No run in the last 30 minutes",
+          "description": "Shown when the most recent start of any job is more than 30 minutes ago, with that start time. Check that the scheduler still runs the command."
+        },
+        {
+          "label": "No notice",
+          "description": "A job started within the last 30 minutes."
+        }
+      ]
+    },
+    {
+      "title": "Jobs",
+      "paragraphs": [
+        "Each run of the command runs every job in this order. A job that fails is recorded and the others still run. Only the last run of each job is kept."
+      ],
+      "items": [
+        {
+          "label": "Close resolved tickets",
+          "description": "Closes tickets that were resolved at least the number of days in Close resolved tickets after, as the Scheduled jobs account. Off while the setting is empty. A complaint is kept open until its review is recorded. A ticket someone is changing at that moment is left for the next run. The ticket's timeline reads Status: Resolved → Closed (closed automatically N days after it was resolved)."
+        },
+        {
+          "label": "Service target breaches",
+          "description": "Records one email notice when a ticket passes its first-response or resolution target: to the assignee and the leads of the ticket's team, or to every member of the team when it has neither. Each target is noticed once."
+        },
+        {
+          "label": "Send email notices",
+          "description": "Sends notices that are waiting and retries those that could not be sent: after 5, 15 and 30 minutes, then 1, 2, 4 and 8 hours. After the eighth failed attempt a notice is marked failed."
+        },
+        {
+          "label": "Last run",
+          "description": "The date and time the job's last run started, in the laboratory's time zone, or Never."
+        },
+        {
+          "label": "Outcome",
+          "description": "Succeeded, Failed with the name of the error (and how many runs in a row failed), or Running while a run is in progress."
+        },
+        {
+          "label": "Last run did",
+          "description": "What the last successful run did, in words, for example 3 tickets closed or 2 notices sent. Nothing to do when it found no work. Left for the next run counts records someone was changing at that moment and, for email notices, those not tried because the mail server failed three times in a row."
+        }
+      ]
+    },
+    {
+      "title": "Settings",
+      "items": [
+        {
+          "label": "Close resolved tickets after",
+          "description": "The number of days after which a resolved ticket closes automatically, or Never (tickets stay resolved until someone closes them). Never is the default."
+        },
+        {
+          "label": "Edit",
+          "description": "Opens Edit scheduled job settings in a dialog."
+        }
+      ]
+    },
+    {
+      "title": "Email notices",
+      "paragraphs": [
+        "Every email notice is recorded with the change that raised it and sent once that change is saved. Before each attempt the application checks that the notice still applies and that the recipient may still read the ticket; a notice that no longer applies is marked not sent."
+      ],
+      "items": [
+        {
+          "label": "Email is off",
+          "description": "Shown when this deployment has no outgoing email. Notices are recorded as not sent and are never sent later."
+        },
+        {
+          "label": "Waiting to send",
+          "description": "Notices not sent yet, with how many of them are waiting to be retried after a failed attempt."
+        },
+        {
+          "label": "Failed",
+          "description": "Notices that failed eight attempts and will not be tried again."
+        },
+        {
+          "label": "Sent in the last 7 days",
+          "description": "Notices recorded in the last 7 days that were sent."
+        },
+        {
+          "label": "Not sent in the last 7 days",
+          "description": "Notices recorded in the last 7 days that were not sent because they no longer applied or email is off."
+        },
+        {
+          "label": "Notices that need attention",
+          "description": "The 25 most recent notices that failed or are waiting to be retried, newest first. Nothing needs attention when there are none."
+        },
+        {
+          "label": "Recorded",
+          "description": "When the notice was recorded."
+        },
+        {
+          "label": "Ticket",
+          "description": "The ticket number, which opens the ticket. Not available to you when you may not open the ticket; the page then also hides who the notice was for."
+        },
+        {
+          "label": "For",
+          "description": "The full name of the person the notice was for, or their username when the account has no name. A name or username that holds an email address is not shown; the account's number is shown instead (Account 42)."
+        },
+        {
+          "label": "Notice",
+          "description": "What the notice was about: Reply, Waiting on client, Resolved, Assigned, Client reply, First-response target passed or Resolution target passed."
+        },
+        {
+          "label": "Status",
+          "description": "Failed, or Waiting to retry."
+        },
+        {
+          "label": "Attempts",
+          "description": "How many times sending was tried."
+        },
+        {
+          "label": "Last error",
+          "description": "The name of the last error. The mail server's message is not kept, because it can contain addresses."
+        },
+        {
+          "label": "Next attempt",
+          "description": "When a waiting notice is tried next. Blank for a failed notice."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "jobs/urls.py",
+    "jobs/views.py",
+    "jobs/selectors.py",
+    "jobs/models.py",
+    "jobs/registry.py",
+    "jobs/runner.py",
+    "jobs/outbox.py",
+    "jobs/actor.py",
+    "jobs/templates/jobs/overview.html",
+    "desk/jobs.py",
+    "desk/services.py",
+    "desk/timeline.py",
+    "desk/notifications.py",
+    "service_levels/jobs.py",
+    "docs/product.md"
+  ]
+}
