@@ -1,0 +1,94 @@
+{
+  "id": "core-lab-contact-form",
+  "routes": [
+    "lab-contact-edit"
+  ],
+  "title": "Edit security contact / Edit privacy contact",
+  "purpose": "Record, change or clear the laboratory's security contact or privacy contact, with a reason.",
+  "summary": "Record who staff turn to about security or about the privacy of patient information, or change or clear it, with a reason. Only the admin role can do this.",
+  "tasks": [
+    {
+      "title": "Record or change the contact",
+      "steps": [
+        "Enter [[Name or office]] and any [[Title or role]], [[Email]] and [[Phone]].",
+        "Explain why in [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Remove the contact",
+      "steps": [
+        "Clear every field except [[Reason]], explain why and select [[Save changes]]. The contact then shows Not recorded."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Name or office is needed whenever any other detail is filled in.",
+    "Your reason is kept with the change in the laboratory profile's history and on Security settings.",
+    "If someone saved this contact after you opened the form, your change is refused and what you typed stays. Reload and compare before saving again.",
+    "Client portal accounts do not see these contacts."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role may open this form; anyone else is refused. It opens from the contact's name on the laboratory profile or on Security settings, as a dialog or a full page, and returns to the page it was opened from. The title names the contact: Edit security contact or Edit privacy contact. An unknown contact answers Not found. When the laboratory is not set up yet, the form shows No laboratory configured and saves nothing."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Name or office",
+          "description": "The person or office, up to 160 characters. Required when any other field has a value: Give the name of the person or office."
+        },
+        {
+          "label": "Title or role",
+          "description": "Optional, up to 160 characters, as your laboratory names the role."
+        },
+        {
+          "label": "Email",
+          "description": "Optional. Must be a valid email address."
+        },
+        {
+          "label": "Phone",
+          "description": "Optional, up to 40 characters. Phones open the dial pad."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Kept with the change in the laboratory profile's history."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves the contact, confirms Security contact saved. or Privacy contact saved. and returns to the page the form was opened from. When nothing differs from the contact as it stands it shows No changes to save. and records nothing. Extra spaces inside and around each value are removed."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the page the form was opened from without saving."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Stale form",
+          "description": "The form remembers the version of the contact it showed. If the contact was saved after you opened the form, saving is refused, nothing is written and your input stays on the form. Reload and compare the current details before saving again."
+        },
+        {
+          "label": "History",
+          "description": "Each change records the values before and after, the reason, the time and the administrator, as Lab contact changed with the contact's name in the laboratory profile's history and on Security settings."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/lab_profile_views.py",
+    "core/lab_profile_forms.py",
+    "core/lab_profile.py",
+    "core/models.py",
+    "templates/core/lab_contact_form.html",
+    "templates/core/_contacts_panel.html",
+    "tests/test_security_settings_pages.py"
+  ]
+}

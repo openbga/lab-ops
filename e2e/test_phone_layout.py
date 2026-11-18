@@ -25,6 +25,8 @@ STAFF = [
     "/lab/profile/edit/",
     "/lab/profile/logo/",
     "/lab/profile/certificates/new/",
+    "/lab/contacts/privacy/",
+    "/lab/security/",
     "/lab/announcements/",
     "/lab/announcements/new/",
     "/lab/record-retention/",

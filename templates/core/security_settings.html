@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Security settings (the admin role): an overview of facts, read from the running deployment when the
+page opens. It changes nothing itself; the contacts open the laboratory profile's contact form,
+which returns here. Context: toc (anchor, label pairs), contacts and can_edit_contacts (for
+core/_contacts_panel.html), groups (core.security_settings.in_force(): each with key, title and
+facts of label, value, source_label, setting, note), history (lab.contact_changed AuditEvents,
+newest first, at most 20, each with detail naming the contact).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">What protects sign-in, sessions and patient information in this deployment, and who sets each part.</p>{% endblock %}
+{% block content %}
+{% page_toc items=toc %}
+{% include "core/_contacts_panel.html" with contact_from="security" %}
+
+{% for group in groups %}
+{% with heading_id="security-"|add:group.key|add:"-heading" %}
+{% panel title=group.title heading_id=heading_id table=True flush=True class="mb-3" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="{{ heading_id }}">
+      <thead><tr>
+        <th scope="col">Setting</th>
+        <th scope="col">In force</th>
+        <th scope="col">Set by</th>
+        <th scope="col">Details</th>
+      </tr></thead>
+      <tbody>
+        {% for fact in group.facts %}
+        <tr>
+          <th scope="row" class="vr-wrap">{{ fact.label }}</th>
+          <td class="vr-wrap">{{ fact.value }}</td>
+          <td>{{ fact.source_label }}{% if fact.setting %}<br><code>{{ fact.setting }}</code>{% endif %}</td>
+          <td class="vr-wrap">{% if fact.note %}{{ fact.note }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endpanel %}
+{% endwith %}
+{% endfor %}
+
+{% panel title="About this page" heading_id="about-heading" class="mb-3" %}
+    <ul>
+      <li>Each value is read from the running application when the page opens. Nothing on this page changes a setting.</li>
+      <li>Set by names where a value is changed: fixed in this release, a deployment setting (the environment variable named), each person for their own account, or another page of the application.</li>
+      <li>The page states what is in force. It does not rate the deployment or say whether it meets any rule or standard.</li>
+    </ul>
+{% endpanel %}
+
+{% history_panel events=history newest_first=True empty_title="No changes recorded" empty_body="Changes to the security contact and the privacy contact are listed here with their reasons." %}{% endhistory_panel %}
+{% endblock %}

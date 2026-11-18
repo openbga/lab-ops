@@ -6,7 +6,14 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
-from core import announcement_views, lab_profile_views, lookups, preferences, views
+from core import (
+    announcement_views,
+    lab_profile_views,
+    lookups,
+    preferences,
+    security_settings_views,
+    views,
+)
 from desk.notification_views import email_notices
 
 
@@ -76,6 +83,16 @@ urlpatterns = [
         name="lab-certificate-remove",
     ),
     path("lab/modules/<slug:key>/", lab_profile_views.lab_module, name="lab-module"),
+    path(
+        "lab/contacts/<slug:kind>/",
+        lab_profile_views.lab_contact_edit,
+        name="lab-contact-edit",
+    ),
+    path(
+        "lab/security/",
+        security_settings_views.security_settings_page,
+        name="security-settings",
+    ),
     path("ready/", views.ready, name="ready"),
     path("lookups/<slug:name>/", lookups.lookup, name="lookup"),
     path("preferences/", preferences.preference, name="preference"),

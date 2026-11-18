@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.cache import add_never_cache_headers
 from django.views.decorators.http import require_GET, require_POST
@@ -18,8 +19,14 @@ from accounts.roles import require_role, require_staff
 from . import lab_profile as service
 from . import modules
 from .concurrency import protect_form, record_token
-from .lab_profile_forms import LabCertificateForm, LabIdentityForm, LabLogoForm, ModuleSwitchForm
-from .models import AuditEvent, Lab, LabCertificate
+from .lab_profile_forms import (
+    LabCertificateForm,
+    LabContactForm,
+    LabIdentityForm,
+    LabLogoForm,
+    ModuleSwitchForm,
+)
+from .models import AuditEvent, Lab, LabCertificate, LabContact
 
 CERTIFICATE_ACTIONS = (
     "lab.certificate_added",
@@ -27,7 +34,11 @@ CERTIFICATE_ACTIONS = (
     "lab.certificate_removed",
 )
 MODULE_ACTIONS = ("module.enabled", "module.disabled")
+CONTACT_ACTION = "lab.contact_changed"
 HISTORY_LIMIT = 20
+# A contact form opened from another page returns there: the fixed marker in ?from= names a
+# route, so no address is ever taken from the request.
+CONTACT_RETURNS = {"security": "security-settings"}
 
 
 def _lab():
@@ -74,6 +85,27 @@ def _history():
         elif event.action in MODULE_ACTIONS:
             key = (event.after or {}).get("key", "")
             event.detail = modules.MODULES.get(key, ("",))[0]
+        elif event.action == CONTACT_ACTION:
+            event.detail = contact_label(event)
+    return events
+
+
+def contact_label(event):
+    """Which contact a lab.contact_changed event changed: "Security contact", "Privacy contact"."""
+    kind = (event.after or event.before or {}).get("kind", "")
+    return dict(LabContact.Kind.choices).get(kind, "")
+
+
+def contact_history(limit=HISTORY_LIMIT):
+    """The newest changes to the security and privacy contacts, newest first, each with `detail`
+    naming the contact."""
+    events = list(
+        AuditEvent.objects.filter(action=CONTACT_ACTION)
+        .select_related("actor")
+        .order_by("-occurred_at")[:limit]
+    )
+    for event in events:
+        event.detail = contact_label(event)
     return events
 
 
@@ -97,6 +129,7 @@ def lab_profile(request):
             "certificates": certificates,
             "can_manage": can_manage,
             "lab_token": record_token(lab) if can_manage else "",
+            "contacts": service.contacts() if lab else [],
             "history": _history() if lab else [],
             "modules": modules.states(),
             "can_manage_modules": modules.can_manage(request.user),
@@ -156,6 +189,55 @@ def lab_module(request, key):
         },
     )
     add_never_cache_headers(response)  # a refused form shows the reason typed again
+    return response
+
+
+@login_required
+def lab_contact_edit(request, kind):
+    """Record, change or clear the security contact or the privacy contact (the admin role), with
+    a reason. The title, the initial values and the revision the form carries all come from one
+    reading of the contact; a change saved in between is refused with the input kept."""
+    require_role(request.user, *service.PROFILE_ROLES)
+    if kind not in LabContact.Kind.values:
+        raise Http404("No such contact.")
+    origin = request.GET.get("from", "")
+    back = CONTACT_RETURNS.get(origin, "lab-profile")
+    contact = next(row for row in service.contacts() if row.kind == kind)
+    label = contact.get_kind_display()
+    form = None
+    if _lab() is not None:
+        form = LabContactForm(
+            request.POST if request.method == "POST" else None,
+            initial={**service.contact_values(contact), "expected_revision": contact.revision},
+        )
+        if request.method == "POST" and form.is_valid():
+            try:
+                _, changed = service.save_contact(
+                    actor=request.user,
+                    kind=kind,
+                    values={name: form.cleaned_data[name] for name in service.CONTACT_FIELDS},
+                    expected_revision=form.cleaned_data["expected_revision"],
+                    reason=form.cleaned_data["reason"],
+                )
+            except ValidationError as exc:
+                _service_errors(form, exc)
+            else:
+                if changed:
+                    messages.success(request, f"{label} saved.")
+                else:
+                    messages.info(request, "No changes to save.")
+                return redirect(back)
+    response = render(
+        request,
+        "core/lab_contact_form.html",
+        {
+            "page_title": f"Edit {label.lower()}",
+            "form": form,
+            "contact_label": label,
+            "cancel_url": reverse(back),
+        },
+    )
+    add_never_cache_headers(response)  # a refused form shows what was typed again
     return response
 
 

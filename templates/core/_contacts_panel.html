@@ -1,0 +1,34 @@
+{% load ui %}{% comment %}
+The "Security and privacy contacts" panel (core.lab_profile.contacts()): the people or offices the
+laboratory names as its security contact and its privacy contact, as it records them. Shown on the
+laboratory profile (every staff role) and on Security settings (the admin role); never on the
+client portal. Context: contacts (the list from one call to core.lab_profile.contacts(); a contact
+never recorded has blank fields), can_edit_contacts (the admin role with a laboratory set up:
+the row header links to core/lab_contact_form.html, ui-standards section 5 rule 3), contact_from (optional fixed marker,
+"security", so the form returns to Security settings).
+{% endcomment %}
+{% panel title="Security and privacy contacts" heading_id="contacts-heading" table=True flush=True class="mb-3" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="contacts-heading">
+      <thead><tr>
+        <th scope="col">Contact</th>
+        <th scope="col">Name or office</th>
+        <th scope="col">Title or role</th>
+        <th scope="col">Email</th>
+        <th scope="col">Phone</th>
+      </tr></thead>
+      <tbody>
+        {% for c in contacts %}
+        <tr>
+          <th scope="row">{% if can_edit_contacts %}<a class="vr-row-link" href="{% url 'lab-contact-edit' c.kind %}{% if contact_from %}?from={{ contact_from|urlencode }}{% endif %}">{{ c.get_kind_display }}</a>{% else %}{{ c.get_kind_display }}{% endif %}</th>
+          <td class="vr-wrap">{% if c.name %}{{ c.name }}{% else %}<span class="vr-muted">Not recorded</span>{% endif %}</td>
+          <td class="vr-wrap">{% if c.title %}{{ c.title }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+          <td class="vr-nowrap">{% if c.phone %}{{ c.phone }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% fill footer %}<p class="vr-muted small mb-0">Who staff turn to about the security of the laboratory's systems and about the privacy of patient information. Client portal accounts do not see them. Only the admin role changes them, with a reason.</p>{% endfill %}
+{% endpanel %}

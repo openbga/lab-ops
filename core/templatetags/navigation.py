@@ -224,8 +224,10 @@ STAFF_NAV = (
             "lab-certificate-create",
             "lab-certificate-edit",
             "lab-module",
+            "lab-contact-edit",
         ),
     ),
+    NavItem("security-settings", "Security settings", "security-settings", "shield-lock"),
     NavItem("record-retention", "Record retention", "record-retention", "archive"),
     NavItem(
         "scheduled-jobs",
@@ -282,6 +284,7 @@ STAFF_SECTIONS = (
             "external-systems",
             "request-forms",
             "lab-profile",
+            "security-settings",
             "record-retention",
             "scheduled-jobs",
             "announcements",
@@ -305,6 +308,7 @@ STAFF_MENU_ROLES = {
     "external-systems": ("admin",),
     "request-forms": ("admin",),
     "lab-profile": ROLES,  # every staff role reads it; the admin role changes it
+    "security-settings": ("admin",),  # core.security_settings.SECURITY_ROLES
     "record-retention": ("admin",),
     "scheduled-jobs": ("admin",),
     "announcements": ("admin",),
