@@ -617,11 +617,36 @@ def test_a_successful_change_advances_the_revision_by_one(ctx, name):
     assert current(ctx).revision == before + 1
 
 
+# Linking and unlinking a ticket change the ticket too: it gets an audit event of its own.
+TICKET_CHANGES = {
+    "link_ticket": "request.nonconformance_linked",
+    "unlink_ticket": "request.nonconformance_unlinked",
+}
+
+
 @names("name", sorted(CHANGES))
 def test_a_successful_change_writes_one_audit_event(ctx, name):
-    before = audit_count()
+    before = (
+        AuditEvent.objects.exclude(object_type="desk.servicerequest").count(),
+        AuditEvent.objects.filter(object_type="desk.servicerequest").count(),
+    )
     CHANGES[name](ctx, ctx.lead)
-    assert audit_count() == before + 1
+    after = (
+        AuditEvent.objects.exclude(object_type="desk.servicerequest").count(),
+        AuditEvent.objects.filter(object_type="desk.servicerequest").count(),
+    )
+    ticket_events = 1 if name in TICKET_CHANGES else 0
+    assert after == (before[0] + 1, before[1] + ticket_events)
+
+
+@names("name", sorted(TICKET_CHANGES))
+def test_a_ticket_change_is_in_the_ticket_audit_history_with_ids_only(ctx, name):
+    CHANGES[name](ctx, ctx.lead)
+    event = AuditEvent.objects.filter(
+        object_type="desk.servicerequest", action=TICKET_CHANGES[name]
+    ).latest("occurred_at")
+    assert event.actor == ctx.lead
+    assert set(event.after) == {"nonconformance_id", "number"}
 
 
 def test_closing_and_reopening_each_advance_the_revision_by_one(ctx):

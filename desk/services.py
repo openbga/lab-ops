@@ -445,12 +445,14 @@ def _save(request):
 
 def record_related_event(*, actor, request, action, **data):
     """Another app's change that concerns `request` (a nonconformance opened from it or linked to
-    it): an event on its timeline and a new revision, so a page of the ticket opened before the
-    change is refused. The caller holds `request` locked in its transaction (staff_requests and
-    select_for_update) and has authorized the change. `data` holds ids and codes only."""
+    it): an event on its timeline, an audit event of the ticket (`request.<action>`, for its
+    history) and a new revision, so a page of the ticket opened before the change is refused.
+    The caller holds `request` locked in its transaction (staff_requests and select_for_update)
+    and has authorized the change. `data` holds ids and codes only."""
     if not connection.in_atomic_block:
         raise RuntimeError("Related events share the caller's transaction.")
     _event(request, actor, action, **data)
+    record_event(actor=actor, action=f"request.{action}", obj=request, after=dict(data))
     _save(request)
 
 
