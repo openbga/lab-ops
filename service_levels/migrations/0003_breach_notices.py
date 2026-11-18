@@ -1,6 +1,6 @@
 """Breach notices of the scheduled job (service_levels.jobs).
 
-Adds when each clock's breach was noticed. Clocks already running past their due time when this
+Adds when each clock's breach was noticed and the run it belongs to. Clocks already running past their due time when this
 migration runs are marked noticed now, so the first run of the job does not send a notice for
 every breach that happened before it was installed. Reversing drops the columns.
 """
@@ -41,6 +41,16 @@ class Migration(migrations.Migration):
             model_name="requestclock",
             name="resolution_breach_noticed_at",
             field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name="requestclock",
+            name="first_response_breach_run",
+            field=models.UUIDField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name="requestclock",
+            name="resolution_breach_run",
+            field=models.UUIDField(blank=True, null=True),
         ),
         migrations.RunPython(mark_existing_breaches, migrations.RunPython.noop),
     ]

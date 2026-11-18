@@ -17,16 +17,17 @@ compares the mark it was recorded with). Clocks already past due when this relea
 were marked by migration 0003 so the first run does not send a notice for every old breach.
 """
 
+import uuid
 from collections import Counter
-from datetime import UTC
 
-from django.db import transaction
+from django.db import OperationalError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from core.audit import record_event
 from jobs import outbox
 from jobs.actor import system_account
+from jobs.locks import is_lock_unavailable, share_lock
 
 from .models import RequestClock
 from .rules import STOPPED_STATUSES
@@ -53,8 +54,6 @@ def breached_filter(now):
 
 
 def notice_breaches(now=None):
-    from desk import notifications
-    from desk.models import ServiceRequest
 
     now = now or timezone.now()
     request_ids = list(
@@ -67,65 +66,82 @@ def notice_breaches(now=None):
         return dict(counts)
     actor = system_account()
     for request_id in request_ids:
-        with transaction.atomic():
-            request = (
-                ServiceRequest.objects.select_for_update(of=("self",), skip_locked=True)
-                .filter(pk=request_id)
-                .exclude(status__in=STOPPED_STATUSES)
-                .first()
-            )
-            if request is None:  # being changed right now, or resolved since: next run
-                counts["busy"] += 1
-                continue
-            clock = (
-                RequestClock.objects.select_for_update(skip_locked=True)
-                .filter(request=request)
-                .first()
-            )
-            if clock is None:  # being changed right now: next run
-                counts["busy"] += 1
-                continue
-            changed, recorded = [], []
-            for which in CLOCKS:
-                noticed_field = f"{which}_breach_noticed_at"
-                if getattr(clock, noticed_field) is not None:
-                    continue
-                if not notifications.breach_still_running(clock, which, now):
-                    continue
-                due = getattr(clock, f"{which}_due_at")
-                notices = [
-                    outbox.record(
-                        recipient=user,
-                        topic=notifications.BREACH_TOPIC,
-                        object_id=request.pk,
-                        reference=request.number,
-                        events=[notifications.BREACH_EVENTS[which]],
-                        # The run this notice belongs to: sending checks the mark is unchanged.
-                        data={
-                            "clock": which,
-                            "role": role,
-                            "noticed_at": now.astimezone(UTC).isoformat(),
-                        },
-                    )
-                    for user, role in notifications.breach_recipients(request)
-                ]
-                setattr(clock, noticed_field, now)
-                changed.append(noticed_field)
-                recorded += [notice.pk for notice in notices]
-                record_event(
-                    actor=actor,
-                    action="clock.breach_noticed",
-                    obj=clock,
-                    after={
-                        "request_id": request.pk,
-                        "clock": which,
-                        "due_at": due.isoformat(),
-                        "notices": len(notices),
-                    },
-                )
-                counts["breaches"] += 1
-                counts["notices"] += len(notices)
-            if changed:
-                clock.save(update_fields=changed)
-                outbox.send_after_commit(recorded)
+        try:
+            outcome = _notice_request(request_id, actor, now)
+        except OperationalError as exc:
+            if not is_lock_unavailable(exc):
+                raise
+            # A person to tell is being changed right now (an account edit that may also need
+            # this request): the transaction let go of everything; the next run decides again.
+            outcome = {"busy": 1}
+        counts.update(outcome)
     return dict(counts)
+
+
+def _notice_request(request_id, actor, now):
+    """Record the breach notices of one request, in one transaction: the request, then its clock,
+    then the people to tell are locked without waiting, so the job never waits for a row while
+    holding another a writer may need."""
+    from accounts.models import User
+    from desk import notifications
+    from desk.models import ServiceRequest
+
+    counts = Counter()
+    with transaction.atomic():
+        request = (
+            ServiceRequest.objects.select_for_update(of=("self",), skip_locked=True)
+            .filter(pk=request_id)
+            .exclude(status__in=STOPPED_STATUSES)
+            .first()
+        )
+        if request is None:  # being changed right now, or resolved since: next run
+            return {"busy": 1}
+        clock = RequestClock.objects.select_for_update(skip_locked=True).filter(request=request)
+        clock = clock.first()
+        if clock is None:  # being changed right now: next run
+            return {"busy": 1}
+        recipients = notifications.breach_recipients(request)
+        # Their accounts are referenced by the notices: held now, without waiting, rather than
+        # at commit behind an account change that may be waiting for this request.
+        share_lock(User, [user.pk for user, _role in recipients], nowait=True)
+        changed, recorded = [], []
+        for which in CLOCKS:
+            noticed_field = f"{which}_breach_noticed_at"
+            if getattr(clock, noticed_field) is not None:
+                continue
+            if not notifications.breach_still_running(clock, which, now):
+                continue
+            due = getattr(clock, f"{which}_due_at")
+            run = uuid.uuid4()  # this run of the clock; sending checks it is unchanged
+            notices = [
+                outbox.record(
+                    recipient=user,
+                    topic=notifications.BREACH_TOPIC,
+                    object_id=request.pk,
+                    reference=request.number,
+                    events=[notifications.BREACH_EVENTS[which]],
+                    data={"clock": which, "role": role, "run": str(run)},
+                )
+                for user, role in recipients
+            ]
+            setattr(clock, noticed_field, now)
+            setattr(clock, f"{which}_breach_run", run)
+            changed += [noticed_field, f"{which}_breach_run"]
+            recorded += [notice.pk for notice in notices]
+            record_event(
+                actor=actor,
+                action="clock.breach_noticed",
+                obj=clock,
+                after={
+                    "request_id": request.pk,
+                    "clock": which,
+                    "due_at": due.isoformat(),
+                    "notices": len(notices),
+                },
+            )
+            counts["breaches"] += 1
+            counts["notices"] += len(notices)
+        if changed:
+            clock.save(update_fields=changed)
+            outbox.send_after_commit(recorded)
+    return counts

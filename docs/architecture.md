@@ -83,7 +83,9 @@ A job that changes a record acts as a dedicated "Scheduled jobs" account ([jobs/
 created on first use, inactive, with no usable password, role or deliverable address. Its id is
 stored in the job settings, not looked up by name. A job decides from records read under its own
 locks: the automatic close locks the settings row and then the ticket, and the breach notice
-locks the ticket and then its clock, the same order as the ticket services. Later items add their
+locks the ticket and then its clock, the same order as the ticket services, and then, without
+waiting, the accounts of the people to tell. Each breach run has its own identifier, which a
+waiting notice must still match when it is sent. Later items add their
 periodic work and their notice topics to the registry.
 
 ## Ticket forms

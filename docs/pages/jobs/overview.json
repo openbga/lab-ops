@@ -145,7 +145,7 @@
         },
         {
           "label": "For",
-          "description": "The full name of the person the notice was for, or their username when the account has no name. A username that is an email address is not shown; the account's number is shown instead (Account 42)."
+          "description": "The full name of the person the notice was for, or their username when the account has no name. A name or username that holds an email address is not shown; the account's number is shown instead (Account 42)."
         },
         {
           "label": "Notice",

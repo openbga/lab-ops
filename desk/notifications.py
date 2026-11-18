@@ -303,20 +303,24 @@ def _batch(request, connection):
 
 def _hold(notice):
     """Hold, until the attempt's transaction ends, the rows the decision about `notice` rests on:
-    the request, the recipient's account, the request's category (restriction) and the
-    recipient's team memberships, roles and portal access grants. A change to any of them
-    (reassignment, a reply withdrawn, a status change, deactivation, a role or grant removed, an
-    organization move, a category restricted, a lead role removed) waits until the notice has been
-    sent, and the notice is decided from this reading. The request is waited for briefly (the
+    the request, the recipient's account, the request's category (restriction), the request's
+    team and every membership of it (who is responsible: the leads, or the members while there
+    is no assignee and no lead), the recipient's own memberships, roles and portal access grants.
+    A change to any of them (reassignment, a reply withdrawn, a status change, deactivation, a
+    role or grant removed, an organization move, a category restricted, a lead appointed or
+    removed, a member added) waits until the notice has been sent, and the notice is decided from
+    this reading. The request is waited for briefly (the
     outbox's lock_timeout); the rest are taken without waiting, so the attempt never waits while
     holding a lock a writer needs, and a busy row leaves the notice for a later attempt.
 
     Returns (request, user), freshly read under the locks, or (None, None)."""
+    from django.db.models import Q
+
     from accounts.models import User
     from clients.models import PortalAccess
     from jobs.locks import share_lock
     from taxonomy.models import RequestCategory
-    from teams.models import TeamMembership
+    from teams.models import Team, TeamMembership
 
     from .models import ServiceRequest
 
@@ -328,8 +332,12 @@ def _hold(notice):
     if request is None or user is None:
         return None, None
     share_lock(RequestCategory, [request.category_id], nowait=True)
+    share_lock(Team, [request.team_id], nowait=True)  # teams.services.add_member locks it
     for model, rows in (
-        (TeamMembership, TeamMembership.objects.filter(user=user)),
+        (
+            TeamMembership,
+            TeamMembership.objects.filter(Q(user=user) | Q(team_id=request.team_id)),
+        ),
         (User.groups.through, User.groups.through.objects.filter(user=user)),
         (PortalAccess, PortalAccess.objects.filter(user=user)),
     ):
@@ -436,17 +444,12 @@ def breach_still_running(clock, which, now):
     return due is not None and met is None and not paused and due < now
 
 
-def _same_run(clock, which, noticed_at):
-    """Whether the clock's breach mark is still the one this notice was recorded with: resolving,
-    or a recalculated due time, ends the run the notice belongs to."""
-    from datetime import datetime
-
-    mark = getattr(clock, f"{which}_breach_noticed_at")
-    try:
-        recorded = datetime.fromisoformat(noticed_at)
-    except TypeError, ValueError:
-        return False
-    return mark is not None and mark == recorded
+def _same_run(clock, which, run):
+    """Whether the clock's breach run is still the one this notice was recorded in: resolving,
+    or a recalculated due time, ends the run the notice belongs to, and a later breach starts a
+    new one (service_levels.jobs), even at the same instant."""
+    current = getattr(clock, f"{which}_breach_run")
+    return current is not None and run is not None and str(current) == str(run)
 
 
 def prepare_breach_notice(notice):
@@ -467,7 +470,7 @@ def prepare_breach_notice(notice):
     clock = RequestClock.objects.filter(request=request).first()
     if not (
         breach_still_running(clock, which, timezone.now())
-        and _same_run(clock, which, notice.data.get("noticed_at"))
+        and _same_run(clock, which, notice.data.get("run"))
     ):
         return None
     if not (

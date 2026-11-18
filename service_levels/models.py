@@ -201,6 +201,10 @@ class RequestClock(models.Model):
     # that passes its target again is noticed again.
     first_response_breach_noticed_at = models.DateTimeField(null=True, blank=True)
     resolution_breach_noticed_at = models.DateTimeField(null=True, blank=True)
+    # The run a breach notice belongs to, new with each mark: a notice still waiting from an
+    # earlier run (even one marked at the same instant) no longer applies.
+    first_response_breach_run = models.UUIDField(null=True, blank=True)
+    resolution_breach_run = models.UUIDField(null=True, blank=True)
 
     class Meta:
         verbose_name = "ticket clock"

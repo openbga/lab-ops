@@ -23,7 +23,13 @@ def _days(value):
     elif isinstance(value, int):
         days = value
     elif isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
-        days = int(value.strip())
+        digits = value.strip().lstrip("0") or "0"
+        # More digits than the largest period has is out of range, without converting it.
+        days = (
+            int(digits)
+            if len(digits) <= len(str(CLOSE_AFTER_DAYS_MAX))
+            else CLOSE_AFTER_DAYS_MAX + 1
+        )
     else:
         days = None
     if days is None:

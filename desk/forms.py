@@ -35,15 +35,21 @@ def person_name(user):
 
 def assign_choices(empty_label=None):
     """Grouped choices "<team id>:" (the team, nobody yet) and "<team id>:<user id>"."""
+    from accounts.roles import ROLES
     from jobs.actor import system_account_id
 
     members = {}
     for membership in (
         TeamMembership.objects.filter(
-            team__is_active=True, user__is_active=True, user__client__isnull=True
+            team__is_active=True,
+            user__is_active=True,
+            user__client__isnull=True,
+            # Only staff who can open the team's tickets: a member without a role cannot.
+            user__groups__name__in=ROLES,
         )
         .exclude(user_id=system_account_id())
         .select_related("user")
+        .distinct()
     ):
         members.setdefault(membership.team_id, []).append(membership.user)
     choices = [("", empty_label)] if empty_label else []

@@ -98,8 +98,8 @@ def test_the_assignee_and_the_teams_leads_are_told_once_each(breached, crew, lat
         assert notice.data == {
             "clock": "first_response",
             "role": notice.data["role"],
-            # The clock run it belongs to: the breach mark set with it.
-            "noticed_at": clock_of(breached).first_response_breach_noticed_at.isoformat(),
+            # The clock run it belongs to (service_levels.jobs), checked again at sending.
+            "run": str(clock_of(breached).first_response_breach_run),
         }
         assert notice.status == NoticeStatus.WAITING and notice.attempts == 0
 

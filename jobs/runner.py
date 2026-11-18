@@ -52,6 +52,7 @@ def _unlock():
 def run(*, only=None, now=None):
     """Run every job, or those named in `only`, and return their Results. Raises Busy when
     another run is in progress. `now` fixes the time each job sees (tests)."""
+    only = list(only) if only is not None else None
     if only:
         unknown = set(only) - set(JOBS_BY_NAME)
         if unknown:

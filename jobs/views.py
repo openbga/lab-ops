@@ -91,13 +91,12 @@ def _job(row):
 
 
 def recipient_label(user):
-    """Who a notice was for: the full name, else the username, never an email address (an
-    account can use its address as its username): then "Account" and its number."""
-    name = user.get_full_name()
-    if name:
-        return name
-    if "@" not in user.username:
-        return user.username
+    """Who a notice was for: the full name, else the username, never anything that holds an
+    email address (an account can use its address as its username, or type it as its name):
+    then "Account" and its number."""
+    for label in (user.get_full_name(), user.username):
+        if label and "@" not in label:
+            return label
     return f"Account {user.pk}"
 
 

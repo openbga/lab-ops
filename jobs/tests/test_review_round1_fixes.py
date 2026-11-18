@@ -337,12 +337,13 @@ def test_the_admin_form_refuses_a_permission_on_the_jobs_account():
     assert not form.is_valid()
 
 
-def test_the_admin_form_accepts_a_harmless_change_that_leaves_it_inactive():
+def test_the_admin_form_refuses_even_a_name_change_to_the_jobs_account():
+    # Its name labels every change the jobs made (verification V08): it is not edited at all.
     user = system_account()
     form = account_form(user, first_name="Renamed")
-    assert form.is_valid(), form.errors
-    saved = form.save()
-    assert saved.first_name == "Renamed" and saved.is_active is False
+    assert not form.is_valid()
+    user.refresh_from_db()
+    assert user.first_name == "Scheduled" and user.is_active is False
 
 
 @pytest.mark.parametrize("through", ["assign", "create"])
@@ -397,7 +398,7 @@ def test_the_last_human_superuser_cannot_be_removed_when_only_the_jobs_account_r
 ):
     form = account_form(last_owner_setup, is_active=False, is_superuser=True)
     assert not form.is_valid()
-    assert "Keep at least one active superuser." in str(form.errors)
+    assert "Keep at least one active superuser with staff status" in str(form.errors)
 
 
 def test_a_human_superuser_can_be_removed_when_another_human_remains(last_owner_setup):

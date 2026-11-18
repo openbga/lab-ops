@@ -119,9 +119,15 @@ def send_after_commit(notice_ids):
 
 def send_now(notice_ids):
     """A first attempt for each waiting notice, stopping at the first one the mail server does
-    not take (the rest wait for the scheduled job). Returns the outcomes counted. Never raises."""
+    not take, and once one wait for the mail server (EMAIL_TIMEOUT) has been spent: the rest wait
+    for the scheduled job. Returns the outcomes counted. Never raises."""
     counts = Counter()
-    for pk in notice_ids:
+    started = timezone.now()
+    budget = timedelta(seconds=settings.EMAIL_TIMEOUT or 0)
+    for index, pk in enumerate(notice_ids):
+        if index and timezone.now() - started >= budget:
+            counts["left_for_next_run"] += len(notice_ids) - index
+            break
         try:
             outcome = attempt(pk)
         except Exception as exc:
@@ -149,7 +155,12 @@ def deliver_due(now=None):
     for pk in list(due):
         outcome = attempt(pk, now=now)
         counts[outcome] += 1
-        failures_in_a_row = failures_in_a_row + 1 if outcome in FAILED_OUTCOMES else 0
+        # Only a send the mail server took ends a streak of failures; a notice that no longer
+        # applies, or a busy one, never reached it.
+        if outcome in FAILED_OUTCOMES:
+            failures_in_a_row += 1
+        elif outcome == "sent":
+            failures_in_a_row = 0
         if failures_in_a_row >= STOP_AFTER_FAILURES:
             counts["left_for_next_run"] = Notice.objects.filter(
                 status=NoticeStatus.WAITING, next_attempt_at__lte=now
@@ -171,11 +182,18 @@ def attempt(pk, now=None):
     (a row the decision rests on is being changed; tried again a minute later, uncounted) or
     "skipped" (locked by another sender, no longer waiting, or not due yet)."""
     now = now or timezone.now()
-    seen = None  # (attempts, last attempt) as this attempt found them
+    seen = None  # (attempts, last attempt, next attempt) as this attempt found them
     try:
         with transaction.atomic():
             with connection.cursor() as cursor:
                 cursor.execute(f"SET LOCAL lock_timeout = '{LOCK_WAIT}'")
+                # The write lock this attempt needs on the outbox to record its outcome, taken
+                # first: a whole-database maintenance lock (core.demo.lock_application_tables)
+                # then waits for the attempt instead of the two waiting on each other.
+                cursor.execute(
+                    f"LOCK TABLE {connection.ops.quote_name(Notice._meta.db_table)} "
+                    "IN ROW EXCLUSIVE MODE"
+                )
             notice = (
                 Notice.objects.select_for_update(skip_locked=True)
                 .filter(pk=pk, status=NoticeStatus.WAITING, next_attempt_at__lte=now)
@@ -183,7 +201,7 @@ def attempt(pk, now=None):
             )
             if notice is None:
                 return "skipped"
-            seen = (notice.attempts, notice.last_attempt_at)
+            seen = (notice.attempts, notice.last_attempt_at, notice.next_attempt_at)
             if not mail_enabled():
                 return _not_sent(notice, NotSentReason.MAIL_OFF, now)
             # Takes the shared locks and decides from that reading; they hold until commit.
@@ -206,11 +224,11 @@ def attempt(pk, now=None):
         if seen is None:
             raise
         with transaction.atomic():
-            # Only the notice as this attempt found it: another sender may have attempted it
-            # since this one let go of it, and its later outcome stands.
-            attempts, last = seen
+            # Only the notice as this attempt found it: another sender may have attempted or
+            # deferred it since this one let go of it, and its later outcome stands.
+            attempts, last, next_at = seen
             found = Notice.objects.select_for_update(skip_locked=True).filter(
-                pk=pk, status=NoticeStatus.WAITING, attempts=attempts
+                pk=pk, status=NoticeStatus.WAITING, attempts=attempts, next_attempt_at=next_at
             )
             if last is None:
                 found = found.filter(last_attempt_at__isnull=True)

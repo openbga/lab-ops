@@ -38,7 +38,7 @@
   "good_to_know": [
     "Staff status and Superuser status grant no laboratory role and no capability.",
     "Clear the client link before giving an account staff flags, groups or permissions.",
-    "You cannot demote or deactivate the last active superuser.",
+    "You cannot deactivate the last active staff superuser or remove their Staff or Superuser status. The Scheduled jobs account cannot be changed.",
     "There is no protection against another administrator's save: a later save replaces earlier values.",
     "Account and role changes are recorded in the audit history, without password values."
   ],

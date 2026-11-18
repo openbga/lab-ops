@@ -40,6 +40,11 @@ def email_notices(request):
             # A notice being sent to this account holds the account's row (jobs.outbox): the
             # change waits for it, and every later attempt reads the new choice.
             User.objects.select_for_update().filter(pk=request.user.pk).first()
+            # Compare with what is stored, not this session's copy: another session may have
+            # changed it since this one signed in.
+            request.session.pop(preferences.SESSION_KEY, None)
+            if hasattr(request, "_vr_preferences"):
+                del request._vr_preferences
             preferences.save(request, OPT_OUT_KEY, None if enabled else False)
         messages.success(request, "Email notice preference saved.")
         return redirect("email-notices")
