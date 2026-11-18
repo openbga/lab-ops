@@ -235,12 +235,13 @@ kept in the profile's history with the details before and after. The application
 one and checks nothing against a contact.
 
 The Security settings page, for administrators, lists what protects sign-in, sessions and patient
-information in the running deployment and who sets each item: fixed in this release, a deployment
-setting, each person, the admin console or a setup page. It shows the password rule, the failed
-sign-in limit, sign-in with an emailed code, session length and what ends a session, how many
-active staff accounts can view patient information and have a second factor, how many form fields
-hold patient information, and the HTTPS and content security policy settings. It reports facts
-and gives no score. Settings a laboratory changes are added to this page by later roadmap items,
+information in the running deployment and who sets each item: this release's code, the
+application's configuration, a deployment setting, each person, the admin console or a setup page.
+It shows the password rule, the failed sign-in limit, sign-in with an emailed code, session length
+and what ends a session, how many active staff accounts with a role can view patient information
+and have a second factor, how many form fields hold patient information, and the HTTPS and content
+security policy settings. Each value is worked out from the configuration the deployment runs. It
+reports facts and gives no score. Settings a laboratory changes are added to this page by later roadmap items,
 each change with a reason and an audit event. The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
 laboratory and its host.

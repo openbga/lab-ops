@@ -24,7 +24,7 @@
     {
       "title": "See who has turned on a second sign-in factor",
       "steps": [
-        "Under Sign-in read the details of Second sign-in factor. It counts active staff and client portal accounts that have an authenticator app."
+        "Under Sign-in read the details of Second sign-in factor. It counts active staff and client portal accounts that have a second factor (recovery codes alone do not count)."
       ]
     }
   ],
@@ -65,7 +65,7 @@
       "title": "Groups of settings",
       "paragraphs": [
         "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
-        "Sessions: how long a session lasts, sign-out after a period without activity, what closing the browser does, what deactivating an account or setting a new password does to its other sessions, and how the session cookie is sent.",
+        "Sessions: how long a session lasts, sign-out after a period without activity, what closing the browser does, what deactivating an account and setting a new password do to its sessions, and how the session cookie is sent.",
         "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
       ],
@@ -80,7 +80,7 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. Fixed in this release: it changes only with a new release of the application. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration file (config/settings.py), which a deployment changes only by changing that file. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",
@@ -93,7 +93,7 @@
       "items": [
         {
           "label": "History",
-          "description": "The newest 20 changes to the security contact and the privacy contact, shown oldest first: Lab contact changed, with the contact it changed, the reason given, the time and the administrator who made it. The laboratory profile's history lists them too."
+          "description": "The newest 20 changes to the security contact and the privacy contact, shown oldest first: Lab contact changed, with the contact it changed and the name before and after, the reason given, the time and the administrator who made it. The laboratory profile's history lists them too."
         }
       ]
     }

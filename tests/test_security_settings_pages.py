@@ -193,7 +193,10 @@ def test_history_shows_contact_changes_with_reason_newest_first(client, lab, adm
     client.force_login(admin)
     response = client.get(reverse("security-settings"))
     events = response.context["history"]
-    assert [event.detail for event in events] == ["Privacy contact", "Security contact"]
+    assert [event.detail.split(":")[0] for event in events] == [
+        "Privacy contact",
+        "Security contact",
+    ]
     text = response.content.decode()
     assert "Synthetic reason for the test." in text
     assert "Lab contact changed" in text
@@ -347,7 +350,7 @@ def test_profile_history_names_the_contact(client, lab, admin):
     client.force_login(admin)
     response = client.get(reverse("lab-profile"))
     event = next(e for e in response.context["history"] if e.action == "lab.contact_changed")
-    assert event.detail == "Privacy contact"
+    assert event.detail.startswith("Privacy contact")
     assert "Synthetic reason for the test." in response.content.decode()
 
 

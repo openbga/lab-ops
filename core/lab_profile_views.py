@@ -4,9 +4,12 @@ Who may change what, and every rule on a change, live in core.lab_profile; these
 collect input, show the service's errors on the form and redirect to the profile.
 """
 
+from functools import wraps
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.handlers.exception import response_for_exception
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -18,7 +21,7 @@ from accounts.roles import require_role, require_staff
 
 from . import lab_profile as service
 from . import modules
-from .concurrency import protect_form, record_token
+from .concurrency import one_reading, protect_form, record_token
 from .lab_profile_forms import (
     LabCertificateForm,
     LabContactForm,
@@ -91,9 +94,17 @@ def _history():
 
 
 def contact_label(event):
-    """Which contact a lab.contact_changed event changed: "Security contact", "Privacy contact"."""
-    kind = (event.after or event.before or {}).get("kind", "")
-    return dict(LabContact.Kind.choices).get(kind, "")
+    """Which contact a lab.contact_changed event changed and who it names, from the event alone:
+    "Privacy contact: Compliance Office", "...: Compliance Office, now Example Privacy Desk",
+    "...: Compliance Office, cleared"."""
+    before, after = event.before or {}, event.after or {}
+    label = dict(LabContact.Kind.choices).get(after.get("kind") or before.get("kind", ""), "")
+    old, new = before.get("name", ""), after.get("name", "")
+    if old and not new:
+        return f"{label}: {old}, cleared"
+    if old and new and old != new:
+        return f"{label}: {old}, now {new}"
+    return f"{label}: {new}" if new else label
 
 
 def contact_history(limit=HISTORY_LIMIT):
@@ -112,29 +123,31 @@ def contact_history(limit=HISTORY_LIMIT):
 @login_required
 def lab_profile(request):
     require_staff(request.user)
-    lab = _lab()
-    can_manage = lab is not None and service.can_manage(request.user)
-    certificates = service.certificates_with_state(timezone.localdate()) if lab else []
-    for row in certificates:
-        row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
-        row.label = f"{row.authority} {row.number}"
-        row.token = record_token(row) if can_manage else ""
-    return render(
-        request,
-        "core/lab_profile.html",
-        {
-            "page_title": "Laboratory profile",
-            "lab": lab,
-            "logo": service.logo_facts(lab),
-            "certificates": certificates,
-            "can_manage": can_manage,
-            "lab_token": record_token(lab) if can_manage else "",
-            "contacts": service.contacts() if lab else [],
-            "history": _history() if lab else [],
-            "modules": modules.states(),
-            "can_manage_modules": modules.can_manage(request.user),
-        },
-    )
+    # One reading for the whole page: the panels and the history agree.
+    with one_reading():
+        lab = _lab()
+        can_manage = lab is not None and service.can_manage(request.user)
+        certificates = service.certificates_with_state(timezone.localdate()) if lab else []
+        for row in certificates:
+            row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
+            row.label = f"{row.authority} {row.number}"
+            row.token = record_token(row) if can_manage else ""
+        return render(
+            request,
+            "core/lab_profile.html",
+            {
+                "page_title": "Laboratory profile",
+                "lab": lab,
+                "logo": service.logo_facts(lab),
+                "certificates": certificates,
+                "can_manage": can_manage,
+                "lab_token": record_token(lab) if can_manage else "",
+                "contacts": service.contacts() if lab else [],
+                "history": _history() if lab else [],
+                "modules": modules.states(),
+                "can_manage_modules": modules.can_manage(request.user),
+            },
+        )
 
 
 def _module_title(enable, name):
@@ -192,6 +205,23 @@ def lab_module(request, key):
     return response
 
 
+def _never_stored(view):
+    """Every answer of the view, its refusals included (a 403, a 404, the sign-in redirect), is
+    marked never to be stored by the browser or a proxy: a refused form shows what was typed."""
+
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        try:
+            response = view(request, *args, **kwargs)
+        except (Http404, PermissionDenied) as exc:
+            response = response_for_exception(request, exc)
+        add_never_cache_headers(response)
+        return response
+
+    return wrapped
+
+
+@_never_stored
 @login_required
 def lab_contact_edit(request, kind):
     """Record, change or clear the security contact or the privacy contact (the admin role), with
@@ -237,7 +267,6 @@ def lab_contact_edit(request, kind):
             "cancel_url": reverse(back),
         },
     )
-    add_never_cache_headers(response)  # a refused form shows what was typed again
     return response
 
 

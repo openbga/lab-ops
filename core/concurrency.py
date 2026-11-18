@@ -1,9 +1,12 @@
-"""Opaque original-state tokens for forms editing existing configuration records."""
+"""Opaque original-state tokens for forms editing existing configuration records, and one
+reading of the database for pages whose parts must agree."""
 
 import json
+from contextlib import contextmanager
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db import connection, transaction
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 from .audit import snapshot
@@ -32,3 +35,18 @@ def check_original_state(instance, expected):
             "This record changed after you opened it. Your input has been kept; "
             "reload and compare the current values before saving again."
         )
+
+
+@contextmanager
+def one_reading():
+    """Reads that must agree with each other, such as a page's panels and its history: one
+    snapshot of the database. Outside a transaction this opens a REPEATABLE READ transaction, so
+    every query inside sees the same committed state, whatever commits meanwhile. Inside a
+    transaction already (a write, a test) it adds nothing and that transaction decides."""
+    if connection.in_atomic_block:
+        yield
+        return
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        yield

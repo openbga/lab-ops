@@ -6,7 +6,7 @@ reads it; change controls are rendered for the admin role only (core.lab_profile
 Context: lab (or None), logo (sha256, content_type, width, height, or None), certificates (list
 order, each with state, state_label, state_tone, label and token (stale-edit token for removing
 it)), can_manage, lab_token (stale-edit token for removing the logo), contacts (the security
-and privacy contacts, for core/_contacts_panel.html; Edit for can_manage),
+and privacy contacts, for core/_contacts_panel.html; their names link to the contact form for can_manage),
 history (AuditEvent newest first; certificate, contact and module events carry detail), modules
 (core.modules.states(): key, name, description, is_enabled) and can_manage_modules (the admin
 role, core.modules.can_manage: renders Turn on / Turn off, which open core/lab_module_form.html).

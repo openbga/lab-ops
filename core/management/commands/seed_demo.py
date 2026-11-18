@@ -154,6 +154,10 @@ class Command(BaseCommand):
         it is.
         """
         admin = User.objects.get(username="demo_admin")
+        # Every profile change locks the laboratory row first (core.lab_profile), so with the row
+        # locked here a change committed before is seen by the check below, and one that starts
+        # later waits for this seed's transaction.
+        Lab.objects.select_for_update().filter(pk=1).first()
         if AuditEvent.objects.filter(
             action__in=lab_profile.PROFILE_ACTIONS
         ).exists() or not lab_profile.can_manage(admin):

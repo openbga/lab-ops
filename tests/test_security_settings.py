@@ -105,31 +105,39 @@ def test_session_length_follows_the_setting():
         assert fact("session-length").value == "2 weeks"
 
 
+CODE_ENDS = "ends a sign-in with an emailed code"
+CODE_KEEPS = "does not end a sign-in with an emailed code"
+UNLESS = "Ends a password sign-in, unless Remember me was ticked"
+
+
 @pytest.mark.parametrize(
-    ("expire", "remember", "value", "source", "note"),
+    ("expire", "remember", "value", "source"),
     [
-        (True, None, "Ends the session", "application", True),
-        (False, False, "Ends the session", "application", True),
-        (True, False, "Ends the session", "application", True),
-        (
-            False,
-            None,
-            "Ends the session, unless Remember me was ticked at sign-in",
-            "person",
-            True,
-        ),
-        (False, True, "Does not end the session", "application", False),
+        # A password sign-in follows Remember me; an emailed-code sign-in follows
+        # SESSION_EXPIRE_AT_BROWSER_CLOSE (allauth sets the expiry only for a password sign-in).
+        (True, None, f"{UNLESS}; {CODE_ENDS}", "person"),
+        (False, None, f"{UNLESS}; {CODE_KEEPS}", "person"),
+        (False, False, f"Ends a password sign-in; {CODE_KEEPS}", "configuration"),
+        (True, False, f"Ends a password sign-in; {CODE_ENDS}", "configuration"),
+        (False, True, f"Does not end a password sign-in; {CODE_KEEPS}", "configuration"),
+        (True, True, f"Does not end a password sign-in; {CODE_ENDS}", "configuration"),
     ],
 )
-def test_closing_the_browser_follows_expiry_and_remember_me(expire, remember, value, source, note):
+def test_closing_the_browser_follows_expiry_and_remember_me(expire, remember, value, source):
     with override_settings(
-        SESSION_EXPIRE_AT_BROWSER_CLOSE=expire, ACCOUNT_SESSION_REMEMBER=remember
+        SESSION_EXPIRE_AT_BROWSER_CLOSE=expire,
+        ACCOUNT_SESSION_REMEMBER=remember,
+        ACCOUNT_LOGIN_BY_CODE_ENABLED=True,
     ):
         stated = fact("browser-close")
     assert stated.value == value and stated.source == source
-    assert stated.note == (
-        "Some browsers keep the session when they reopen the last one." if note else ""
-    )
+    assert stated.note == "Some browsers keep a session when they reopen the last one."
+    with override_settings(
+        SESSION_EXPIRE_AT_BROWSER_CLOSE=expire,
+        ACCOUNT_SESSION_REMEMBER=remember,
+        ACCOUNT_LOGIN_BY_CODE_ENABLED=False,
+    ):
+        assert fact("browser-close").value == value.split(";")[0]
 
 
 def test_a_session_that_ends_with_the_browser_follows_remember_me_at_sign_in(make_staff):
@@ -184,10 +192,14 @@ def test_content_security_policy_default_or_replaced():
 def test_session_cookie_wording_follows_the_secure_flag():
     with override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True):
         assert fact("session-cookie").value == "Sent over HTTPS only and hidden from page scripts"
-    with override_settings(SESSION_COOKIE_SECURE=False):
+    with override_settings(SESSION_COOKIE_SECURE=False, DEBUG=True):
         stated = fact("session-cookie")
-    assert stated.value == "Hidden from page scripts, also sent over plain HTTP"
+    assert stated.value == "Also sent over plain HTTP and hidden from page scripts"
     assert "local development" in stated.note
+    with override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=False, DEBUG=False):
+        stated = fact("session-cookie")
+    assert stated.value == "Sent over HTTPS only and readable by page scripts"
+    assert stated.note == ""
 
 
 def test_password_rule_follows_the_validators():
@@ -200,13 +212,16 @@ def test_password_rule_follows_the_validators():
     with override_settings(AUTH_PASSWORD_VALIDATORS=validators):
         assert fact("passwords").value == "At least 12 characters"
     with override_settings(AUTH_PASSWORD_VALIDATORS=[]):
-        assert fact("passwords").value == "No rule"
+        # allauth's own minimum applies while Django has no validators.
+        assert fact("passwords").value == "At least 6 characters"
+    with override_settings(AUTH_PASSWORD_VALIDATORS=[], ACCOUNT_PASSWORD_MIN_LENGTH=0):
+        assert fact("passwords").value == "Any password"
 
 
 def test_failed_sign_in_limit_reads_the_rate_limit_setting_at_call_time():
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": "3/10m/key"}):
         stated = fact("failed-sign-ins")
-    assert "3 failures for one account within 10 minutes" in stated.value
+    assert "3 failures within 10 minutes for one username or email address" in stated.value
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": False}):
         assert fact("failed-sign-ins").value == "No limit"
 
@@ -214,10 +229,13 @@ def test_failed_sign_in_limit_reads_the_rate_limit_setting_at_call_time():
 def test_per_process_note_only_for_a_local_memory_cache():
     caches = {"default": {"BACKEND": DEFAULT_ENGINE}}
     with override_settings(CACHES=caches):
-        assert "separately by each server process" in fact("failed-sign-ins").note
+        assert "Each server process keeps its own count." in fact("failed-sign-ins").note
+    caches = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache"}}
+    with override_settings(CACHES=caches):
+        assert "server process" not in fact("failed-sign-ins").note
     caches = {"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
     with override_settings(CACHES=caches):
-        assert fact("failed-sign-ins").note == ""
+        assert fact("failed-sign-ins").value == "Not enforced"
 
 
 # counts
@@ -243,13 +261,13 @@ def grant():
 
 def test_patient_capability_holders_count_each_account_once(make_staff, grant, client_org):
     assert patient_capability_holders() == 0
-    direct = make_staff("holder-direct")
+    direct = make_staff("holder-direct", "technical")
     direct.user_permissions.add(grant)
-    through_group = make_staff("holder-group")
+    through_group = make_staff("holder-group", "client_services")
     group = Group.objects.create(name="patient-viewers")
     group.permissions.add(grant)
     through_group.groups.add(group)
-    both = make_staff("holder-both")
+    both = make_staff("holder-both", "supervisor")
     both.user_permissions.add(grant)
     both.groups.add(group)
     assert patient_capability_holders() == 3
@@ -259,6 +277,8 @@ def test_patient_capability_holders_count_each_account_once(make_staff, grant, c
     portal = make_staff("holder-portal", client=client_org)
     portal.user_permissions.add(grant)
     superuser = make_staff("holder-super", is_superuser=True)
+    # A grant opens nothing without a laboratory role (may_see_patient_information).
+    make_staff("holder-roleless").user_permissions.add(grant)
     assert patient_capability_holders() == 3
     assert not has_capability(superuser, "view_patient_information")
     assert not has_capability(portal, "view_patient_information")
@@ -267,7 +287,7 @@ def test_patient_capability_holders_count_each_account_once(make_staff, grant, c
 
 
 def test_patient_capability_value_is_singular_for_one(make_staff, grant):
-    make_staff("holder-only").user_permissions.add(grant)
+    make_staff("holder-only", "technical").user_permissions.add(grant)
     assert fact("patient-capability").value == "1 active staff account"
 
 
@@ -351,12 +371,14 @@ def is_signed_out(browser):
 
 
 def test_the_page_states_what_the_sessions_tests_below_prove():
-    stated = fact("account-changes")
-    assert "deactivated account is signed out at its next request" in stated.note
-    assert "except the one that set it" in stated.note
+    stated = fact("deactivation")
+    assert stated.value == "Refused at its next request" and "not deleted" in stated.note
+    stated = fact("new-password")
+    assert stated.value == "Signs out the account's other sessions"
+    assert "stays signed in where they changed it" in stated.note
 
 
-def test_a_deactivated_account_is_signed_out_at_its_next_request(make_staff, signed_in):
+def test_a_deactivated_account_is_refused_at_its_next_request(make_staff, signed_in):
     user = make_staff("session-inactive", "admin")
     browser = signed_in(user)
     other = signed_in(user)
