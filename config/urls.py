@@ -50,6 +50,7 @@ urlpatterns = [
         announcement_views.announcement_withdraw,
         name="announcement-withdraw",
     ),
+    path("lab/scheduled-jobs/", include("jobs.urls")),
     path("lab/profile/", lab_profile_views.lab_profile, name="lab-profile"),
     path("lab/profile/edit/", lab_profile_views.lab_profile_edit, name="lab-profile-edit"),
     path("lab/profile/logo/", lab_profile_views.lab_logo_edit, name="lab-logo-edit"),

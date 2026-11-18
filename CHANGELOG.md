@@ -28,6 +28,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
+- **Added:** Retry email notices and run scheduled jobs (2026-11-18, Scheduled jobs)
+
+  Notices the mail server refuses are retried. Teams hear when a ticket passes a service target, and resolved tickets can close after a set number of days.
+
+  <details><summary>Technical notes</summary>
+
+  Run `python manage.py run_scheduled_jobs` every five minutes from the host's scheduler, with the web service's image, database and mail settings (see docs/operations.md, "Scheduled jobs"). Without it, notices are still sent once after each change, but nothing is retried or closed automatically. Migrations add the `jobs` app's tables and two columns to ticket clocks; clocks already past their target at upgrade are marked as noticed so the first run does not notify old breaches. Notices are now recorded before sending: with the dummy mail backend they are recorded as not sent and never sent later. New setting `EMAIL_TIMEOUT` (seconds, default 10) bounds each wait for the mail server.
+
+  </details>
+
 ### Medium impact
 
 - **Fixed:** Clarify account recovery and email availability (2026-11-18)

@@ -41,6 +41,7 @@ testpaths = [
     "request_forms/tests",
     "dataimport/tests",
     "attachments/tests",
+    "jobs/tests",
     "nonconformance/tests",
 ]
 

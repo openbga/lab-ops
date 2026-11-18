@@ -119,10 +119,19 @@ def _current_assignee(assignee, team):
     deactivation that comes first makes this check fail, and one that comes after waits, then
     finds the new assignment and returns it to the queue (release_assignments)."""
     from accounts.models import User
+    from accounts.roles import ROLES, has_role
+    from jobs.actor import is_system_account
+    from jobs.locks import share_lock
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
+    if current is not None:
+        # The roles this check reads, held until the assignment commits: removing one waits.
+        roles = User.groups.through.objects.filter(user_id=current.pk).values_list("pk", flat=True)
+        share_lock(User.groups.through, roles, mode="key share")
     if not (
         current is not None
+        and not is_system_account(current)  # it does no work, even if someone gave it a role
+        and has_role(current, *ROLES)  # a member without a staff role cannot open the ticket
         and current.is_active
         and current.client_id is None
         and TeamMembership.objects.select_for_update(no_key=True)
@@ -564,8 +573,9 @@ def take(*, actor, request, expected_revision):
     return request
 
 
-def _change_status(request, actor, new, *, summary="", reason=""):
-    """Move a locked request to status `new` under the life-cycle rules; returns the old one."""
+def _change_status(request, actor, new, *, summary="", reason="", event_data=None):
+    """Move a locked request to status `new` under the life-cycle rules; returns the old one.
+    `event_data` (ids and codes only) is added to the timeline event."""
     old = request.status
     if new not in Status.values:
         raise ValidationError({"status": "Choose a status."})
@@ -595,7 +605,7 @@ def _change_status(request, actor, new, *, summary="", reason=""):
     else:
         request.resolved_at = None
     request.status = new
-    _event(request, actor, "status_changed", old=old, new=new)
+    _event(request, actor, "status_changed", **(event_data or {}), old=old, new=new)
     record_event(
         actor=actor,
         action="request.status_changed",
@@ -1000,3 +1010,52 @@ def release_assignments(*, actor, user, team=None, reason):
         _save(request)
         released += 1
     return released
+
+
+def close_resolved_automatically(*, actor, request_id, now=None):
+    """The scheduled job's close of one resolved request (desk.jobs.close_resolved_tickets).
+
+    Decided from one reading taken under the locks of the change: the laboratory's period
+    (jobs.models.JobSettings, locked so a change to it waits for this close and the close sees
+    the period in force) and the request (locked, skipped when someone else holds it). The
+    request closes only if it is still resolved and was resolved at least the period ago, under
+    the same rules as closing by hand: a complaint closes only after its review counts.
+
+    `actor` is the scheduled jobs' account (jobs.actor) and nothing else: the job acts for the
+    laboratory, is started only from the server (manage.py run_scheduled_jobs) and reads every
+    request, so no person's scope applies. Returns "closed", "not_due" or "busy"; raises
+    ValidationError when a rule keeps the request open (a complaint awaiting its review).
+    """
+    from datetime import timedelta
+
+    from jobs.actor import is_system_account
+    from jobs.models import JobSettings
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("Close a resolved ticket inside the job's transaction.")
+    if not is_system_account(actor):
+        raise PermissionDenied("Only the scheduled jobs close tickets automatically.")
+    now = now or timezone.now()
+    settings_row = JobSettings.objects.select_for_update(no_key=True).filter(pk=1).first()
+    days = settings_row.close_resolved_after_days if settings_row else None
+    if not days:
+        return "not_due"
+    request = (
+        ServiceRequest.objects.select_for_update(of=("self",), skip_locked=True)
+        .filter(pk=request_id)
+        .first()
+    )
+    if request is None:
+        return "busy"
+    if request.status != Status.RESOLVED or request.resolved_at > now - timedelta(days=days):
+        return "not_due"
+    old = _change_status(
+        request,
+        actor,
+        Status.CLOSED,
+        reason=f"Closed automatically {days} day{'' if days == 1 else 's'} after it was resolved.",
+        event_data={"automatic": True, "after_days": days},
+    )
+    _save(request)
+    _after_status(request, actor, old)
+    return "closed"

@@ -228,6 +228,13 @@ STAFF_NAV = (
     ),
     NavItem("record-retention", "Record retention", "record-retention", "archive"),
     NavItem(
+        "scheduled-jobs",
+        "Scheduled jobs",
+        "jobs:overview",
+        "arrow-counterclockwise",
+        ("jobs:settings-edit",),
+    ),
+    NavItem(
         "announcements",
         "Announcements",
         "announcement-list",
@@ -276,6 +283,7 @@ STAFF_SECTIONS = (
             "request-forms",
             "lab-profile",
             "record-retention",
+            "scheduled-jobs",
             "announcements",
             "accounts-roles",
         ),
@@ -298,6 +306,7 @@ STAFF_MENU_ROLES = {
     "request-forms": ("admin",),
     "lab-profile": ROLES,  # every staff role reads it; the admin role changes it
     "record-retention": ("admin",),
+    "scheduled-jobs": ("admin",),
     "announcements": ("admin",),
     "accounts-roles": (),  # deployment-owner access is separate from lab roles
 }

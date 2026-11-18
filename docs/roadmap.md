@@ -59,6 +59,7 @@ ships, move it to Built in the same change.
 | Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
+| Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The public demonstration has no scheduler and keeps email off |
 
 ## Why this order
 
@@ -70,8 +71,8 @@ server log, and nobody can review activity across records. Each of these answers
 HIPAA Security Rule names, and none needs anything unbuilt.
 
 Nonconformance and corrective action, the first of the quality modules, is built, with the module
-switch the others reuse. Scheduled jobs follow, because reminders, retries and sealed audit records
-all need them. Controlled documents come before training, because an acknowledgement and a training record
+switch the others reuse, and so are the scheduled jobs that reminders, retries and sealed audit
+records need. Controlled documents come before training, because an acknowledgement and a training record
 point at a document version.
 
 The privacy records, encryption inside the application and tamper-evident audit records complete the
@@ -216,18 +217,6 @@ matter once a laboratory uses the desk every day, so they come last.
 - **Depends on:** access records for sensitive reads; audit review workspace.
 - **Leaves out:** access while the application is unavailable, which belongs to the laboratory's
   contingency plan, and emergency access for portal accounts.
-
-### Scheduled jobs and the notification outbox
-
-- **Delivers:** one management command, run by a scheduler every few minutes, that sends
-  notifications from a durable outbox with retries, so that a mail failure is retried and not only
-  logged; closes resolved tickets after a period each laboratory sets, none by default; and tells
-  the responsible team when a service clock is breached. Later items add their periodic work to the
-  same command.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** a job queue or worker process, and digests. Also the scheduler on the public
-  demonstration, which is new spending for the maintainers to approve: build and test the command
-  without it, and the demonstration keeps email off.
 
 ### Sign-off record and controlled documents
 

@@ -4,8 +4,8 @@
     "email-notices"
   ],
   "title": "Email notices",
-  "purpose": "Turn your own ticket notices on or off. A notice tells you that a ticket was assigned to you or that a client replied on a ticket assigned to you.",
-  "summary": "Choose whether you receive short emails when a ticket is assigned to you or a client replies on one of your tickets.",
+  "purpose": "Turn your own ticket notices on or off. A notice tells you that a ticket was assigned to you, that a client replied on a ticket assigned to you, or that a ticket you are responsible for passed a service target.",
+  "summary": "Choose whether you receive short emails when a ticket is assigned to you, a client replies on one of your tickets, or a ticket you are responsible for passes a service target.",
   "tasks": [
     {
       "title": "Stop ticket notices",
@@ -24,6 +24,7 @@
   "good_to_know": [
     "Notices are on until you turn them off.",
     "A notice names only the ticket number, what happened and the laboratory. Sign in to read the ticket.",
+    "Service target notices go to the ticket's assignee and its team's leads. When a ticket has neither, every member of the team is told.",
     "When outgoing email is off, the page tells you. You can still save your preference for when delivery is enabled.",
     "This page is for laboratory staff. Client portal accounts always receive their notices and cannot open it."
   ],
@@ -33,7 +34,7 @@
       "items": [
         {
           "label": "Email me ticket notices",
-          "description": "Ticked: you are emailed when someone else assigns a ticket to you, and when a client replies on a ticket assigned to you, provided you can read that ticket. Cleared: you receive neither. Assigning a ticket to yourself never sends a notice."
+          "description": "Ticked: you are emailed when someone else assigns a ticket to you, when a client replies on a ticket assigned to you, and once when a ticket passes its first-response or resolution target if you are its assignee or a lead of its team, or a member of its team when the ticket has no assignee and the team no lead; in each case only while you can read that ticket. Cleared: you receive none of these. Assigning a ticket to yourself never sends a notice."
         },
         {
           "label": "Save",
@@ -44,7 +45,8 @@
     {
       "title": "Rules",
       "paragraphs": [
-        "Notices are sent after the change that causes them is saved; a failed send is logged and does not undo the change. The notice carries a link to the sign-in page, which then opens the ticket. It never contains the subject, messages, organization, site, contact, category or any identifier."
+        "Notices are recorded with the change that causes them and sent after it is saved; a failed send never undoes the change. A notice the mail server does not accept is retried by the scheduled jobs and marked failed after the eighth attempt. Before each attempt the application checks again that the notice still applies and that you can still read the ticket. Service target notices are sent only when the scheduled jobs run.",
+        "The notice carries a link to the sign-in page, which then opens the ticket. It never contains the subject, messages, organization, site, contact, category or any identifier."
       ]
     }
   ],
@@ -54,6 +56,8 @@
     "desk/templates/desk/email/preferences.html",
     "desk/templates/desk/email/notice_body.txt",
     "core/preferences.py",
-    "core/context_processors.py"
+    "core/context_processors.py",
+    "jobs/outbox.py",
+    "service_levels/jobs.py"
   ]
 }

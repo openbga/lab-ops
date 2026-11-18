@@ -21,6 +21,7 @@ FORM_SURFACES = {
     "lab-logo-edit": "lg",
     "lab-certificate-create": "lg",
     "lab-certificate-edit": "lg",
+    "jobs:settings-edit": "lg",
     # Request desk
     "desk:request-create": "lg",
     "desk:request-assign": "lg",

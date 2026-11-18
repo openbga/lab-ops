@@ -1,0 +1,72 @@
+{
+  "id": "jobs-settings-form",
+  "routes": [
+    "jobs:settings-edit"
+  ],
+  "title": "Edit scheduled job settings",
+  "purpose": "Set how many days after resolution the scheduled jobs close a resolved ticket, or turn automatic closing off.",
+  "summary": "Set how many days a ticket stays resolved before it closes automatically. Only the admin role can change this.",
+  "tasks": [
+    {
+      "title": "Close resolved tickets after a period",
+      "steps": [
+        "Enter a whole number of days from 1 to 365 in [[Close resolved tickets after]].",
+        "Select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Turn automatic closing off",
+      "steps": [
+        "Clear [[Close resolved tickets after]] and select [[Save changes]]. Resolved tickets then stay resolved until someone closes them."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The period counts from when each ticket was resolved, so a shorter period can close older resolved tickets on the next run.",
+    "A complaint closes only after its review is recorded, whatever the period.",
+    "Nothing closes unless a scheduler runs the scheduled jobs. The Scheduled jobs page warns when they are not running.",
+    "If someone changed the settings after you opened the form, saving is refused and your input kept. Reload and check them first."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "paragraphs": [
+        "Only the admin role can open or submit this form. Other staff roles and client portal accounts are refused."
+      ],
+      "items": [
+        {
+          "label": "Close resolved tickets after",
+          "description": "Optional, in days: a whole number from 1 to 365. Empty means never: resolved tickets stay resolved until someone closes them. Each run of the scheduled jobs closes the tickets resolved at least this many days earlier, under the same rules as closing by hand, so a complaint closes only after its review. Other values are refused with a message under the field and your input kept."
+        }
+      ]
+    },
+    {
+      "title": "Saving",
+      "items": [
+        {
+          "label": "Save changes",
+          "description": "Saves and returns to Scheduled jobs with Settings saved. The change is audited with the administrator, the time and the value before and after. Saving the value already in force returns with No changes to save and records nothing."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Scheduled jobs without saving."
+        },
+        {
+          "label": "Changed by someone else",
+          "description": "If the settings changed after you opened the form, saving is refused with a message at the top and your input stays on the form. Reload and check the current value before saving again."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "jobs/urls.py",
+    "jobs/views.py",
+    "jobs/forms.py",
+    "jobs/services.py",
+    "jobs/models.py",
+    "jobs/templates/jobs/settings_form.html",
+    "desk/jobs.py",
+    "desk/services.py"
+  ]
+}
