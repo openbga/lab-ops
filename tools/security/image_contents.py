@@ -8,11 +8,14 @@ so the listing does not depend on the SBOM tool it is used to check. Standard li
 """
 
 import json
+import os
 import platform
 import sys
 import sysconfig
 from importlib import metadata
 from pathlib import Path
+
+PROGRAM_DIRS = ("/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin")
 
 
 def os_release(path=Path("/etc/os-release")):
@@ -38,6 +41,33 @@ def deb_packages(path=Path("/var/lib/dpkg/status")):
     return {name: sorted(versions) for name, versions in found.items()}
 
 
+def dpkg_files(info=Path("/var/lib/dpkg/info")):
+    """The real paths of every file the Debian packages installed."""
+    owned = set()
+    for listing in info.glob("*.list"):
+        for line in listing.read_text(errors="replace").splitlines():
+            if line.strip() and os.path.lexists(line.strip()):
+                owned.add(os.path.realpath(line.strip()))
+    return owned
+
+
+def unpackaged_programs(directories, owned):
+    """The real paths of the executable programs (ELF files) in `directories` that no Debian
+    package installed, such as a tool the Dockerfile copies in or Python built from source."""
+    found = set()
+    for directory in directories:
+        if not os.path.isdir(directory):
+            continue
+        for entry in os.listdir(directory):
+            path = os.path.realpath(os.path.join(directory, entry))
+            if path in owned or not os.path.isfile(path):
+                continue
+            with open(path, "rb") as program:
+                if program.read(4) == b"\x7fELF":
+                    found.add(path)
+    return sorted(found)
+
+
 def python_packages():
     """{name: [versions]} installed in the interpreter's environment and its base installation."""
     paths = []
@@ -53,11 +83,13 @@ def python_packages():
 
 
 def main():
+    directories = [*os.environ.get("PATH", "").split(os.pathsep), *PROGRAM_DIRS]
     contents = {
         "os": os_release(),
         "python": platform.python_version(),
         "deb": deb_packages(),
         "pypi": python_packages(),
+        "programs": unpackaged_programs(dict.fromkeys(filter(None, directories)), dpkg_files()),
     }
     json.dump(contents, sys.stdout, indent=1, sort_keys=True)
     print()

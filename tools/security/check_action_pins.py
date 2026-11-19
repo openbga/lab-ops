@@ -19,25 +19,48 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 USES = re.compile(
-    r"^\s*(?:-\s+)?uses:\s*(?P<repo>[\w.-]+/[\w.-]+)(?:/[\w./-]+)?@(?P<sha>[0-9a-f]{40})"
+    r"^\s*(?:-\s+)?uses:\s*(?P<repo>[\w.-]+/[\w.-]+)(?P<path>/[\w./-]+)?@(?P<sha>[0-9a-f]{40})"
     r"\s+#\s*(?P<tag>v\d[\w.+-]*)\s*$"
 )
-ANY_USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<ref>\S+)")
+LOCAL = re.compile(r"^\s*(?:-\s+)?uses:\s*\./[\w./-]+\s*$")
+# `uses` as a key in any layout YAML allows: bare or quoted, at the start of a line (after a
+# dash) or inside a flow mapping, with its value on the same line or the next. Each one must be
+# in the single-line form above.
+ANY_USES = re.compile(r"""^\s*(?:-\s+)?["']?uses["']?\s*:|[{,]\s*["']?uses["']?\s*:""")
+READ_AS = "write it as `uses: owner/repo@<40-hex commit> # vX.Y.Z` on one line"
+
+
+def workflow_files(root=None):
+    """Every workflow GitHub runs: .yml and .yaml files in .github/workflows."""
+    folder = (root or ROOT) / ".github/workflows"
+    return sorted([*folder.glob("*.yml"), *folder.glob("*.yaml")])
+
+
+def _code(line):
+    """The line without a trailing comment (a `#` after whitespace)."""
+    return re.split(r"\s#", line, maxsplit=1)[0]
 
 
 def pins(text, name="workflow"):
-    """[(location, repo, sha, tag)] for each pinned action, and the `uses:` lines not in that
-    form (other than local actions)."""
+    """[(location, repo, sha, tag)] for each pinned action, and a problem for every other line
+    that uses `uses` as a key. Failing closed keeps a layout this cannot read from going
+    unchecked. Local actions (`./...`) are allowed."""
     found, unreadable = [], []
     for number, line in enumerate(text.splitlines(), 1):
-        if not ANY_USES.match(line) or ANY_USES.match(line)["ref"].startswith("./"):
+        if line.lstrip().startswith("#") or not ANY_USES.search(_code(line)):
             continue
         match = USES.match(line)
         if match:
-            found.append((f"{name}:{number}", match["repo"], match["sha"], match["tag"]))
-        else:
-            unreadable.append(f"{name}:{number}: not a commit pin with a version comment")
+            repo = match["repo"] + (match["path"] or "")
+            found.append((f"{name}:{number}", repo, match["sha"], match["tag"]))
+        elif not LOCAL.match(line):
+            unreadable.append(f"{name}:{number}: {READ_AS}")
     return found, unreadable
+
+
+def repository(action):
+    """owner/repo of an action reference that may name a path inside the repository."""
+    return "/".join(action.split("/")[:2])
 
 
 def github(path, token=None):
@@ -64,7 +87,8 @@ def tag_commit(repo, tag, fetch=github):
 def problems(pinned, resolve):
     """Lines naming each pin whose comment's tag is not the pinned commit."""
     lines, cache = [], {}
-    for location, repo, sha, tag in pinned:
+    for location, action, sha, tag in pinned:
+        repo = repository(action)
         key = (repo, tag)
         if key not in cache:
             try:
@@ -72,14 +96,16 @@ def problems(pinned, resolve):
             except (urllib.error.URLError, KeyError, ValueError) as error:
                 cache[key] = f"unresolved ({error})"
         if cache[key] != sha:
-            lines.append(f"{location}: {repo}@{sha[:12]} is commented {tag}, which is {cache[key]}")
+            lines.append(
+                f"{location}: {action}@{sha[:12]} is commented {tag}, which is {cache[key]}"
+            )
     return lines
 
 
 def main():
     token = os.environ.get("GITHUB_TOKEN")
     pinned, lines = [], []
-    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+    for path in workflow_files():
         found, unreadable = pins(path.read_text(), path.relative_to(ROOT))
         pinned += found
         lines += unreadable

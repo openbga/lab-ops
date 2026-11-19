@@ -16,6 +16,11 @@ SPEC = importlib.util.spec_from_file_location(
 )
 coverage = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(coverage)
+PINS = importlib.util.spec_from_file_location(
+    "check_action_pins", ROOT / "tools/security/check_action_pins.py"
+)
+action_pins = importlib.util.module_from_spec(PINS)
+PINS.loader.exec_module(action_pins)
 
 UV_LOCK = {
     "package": [
@@ -47,11 +52,41 @@ CONTENTS = {
         "asgiref": ["3.8.1"],
         "pip": ["25.1"],
     },
+    # A program no Debian package installed: the Dockerfile copies uv into /bin.
+    "programs": ["/usr/local/bin/uv"],
+}
+PROGRAMS = ["/usr/local/bin/uv"]
+SHA_A = "6b208ae046db98c579e8a3aa621ab581ff575935"
+SHA_B = "fa0a91b85d4f404e444e00e005971372dc801d16"
+# The workflows whose pinned actions a dependency listing must hold: one action, one action named
+# by a path inside its repository, and a local action, which is not listed anywhere.
+WORKFLOWS = {
+    "w.yml": (
+        "jobs:\n"
+        "  a:\n"
+        "    steps:\n"
+        f"      - uses: actions/checkout@{SHA_A} # v7.0.1\n"
+        f"      - uses: github/codeql-action/init@{SHA_B} # v4.39.3\n"
+        f"      - uses: github/codeql-action/analyze@{SHA_B} # v4.39.3\n"
+        "      - uses: ./.github/actions/local\n"
+    )
 }
 
 
-def sbom(*purls, operating_system=("debian", "13")):
+def sbom(*purls, operating_system=("debian", "13"), paths=()):
+    """A CycloneDX document: a component for each package URL, one found at each path (the
+    properties Syft writes), and the operating system."""
     components = [{"purl": purl} for purl in purls]
+    components += [
+        {
+            "name": path.rsplit("/", 1)[-1],
+            "properties": [
+                {"name": "syft:package:type", "value": "binary"},
+                {"name": "syft:location:0:path", "value": path},
+            ],
+        }
+        for path in paths
+    ]
     if operating_system:
         name, version = operating_system
         components.append({"type": "operating-system", "name": name, "version": version})
@@ -64,6 +99,8 @@ LOCKED_PURLS = [
     "pkg:pypi/pytest@9.0.0",
     "pkg:npm/htmx.org@2.0.11",
     "pkg:npm/%40fontsource-variable/overpass@5.3.0",
+    "pkg:github/actions/checkout@v7.0.1",
+    "pkg:github/github/codeql-action@v4.39.3#init",
 ]
 LOCKED = sbom(*LOCKED_PURLS)
 IMAGE_PURLS = [
@@ -77,7 +114,12 @@ IMAGE_PURLS = [
     "pkg:deb/debian/libssl3@1%3A3.5.1-1?arch=amd64&distro=debian-13",
     "pkg:generic/python@3.14.10",
 ]
-IMAGE = sbom(*IMAGE_PURLS)
+IMAGE = sbom(*IMAGE_PURLS, paths=PROGRAMS)
+
+
+def image_sbom(*purls, **changes):
+    """A listing of the image that holds the program paths unless `paths` says otherwise."""
+    return sbom(*purls, **{"paths": PROGRAMS, **changes})
 
 
 def without(purls, *fragments):
@@ -85,8 +127,8 @@ def without(purls, *fragments):
     return [p for p in purls if not any(f in p for f in fragments)]
 
 
-def check_locked(document, uv_lock=UV_LOCK):
-    return coverage.check_locked(document, uv_lock, VENDOR)
+def check_locked(document, uv_lock=UV_LOCK, workflows=WORKFLOWS):
+    return coverage.check_locked(document, uv_lock, VENDOR, workflows)
 
 
 def check_image(document, contents=CONTENTS, pyproject=PYPROJECT):
@@ -98,7 +140,7 @@ def check_image(document, contents=CONTENTS, pyproject=PYPROJECT):
 
 def test_a_complete_locked_listing_passes():
     problems, expected = check_locked(LOCKED)
-    assert problems == [] and expected == 5
+    assert problems == [] and expected == 7  # three Python, two npm and two actions
 
 
 def test_the_project_itself_is_not_expected():
@@ -118,7 +160,11 @@ def test_a_different_version_is_reported():
 
 def test_vendored_browser_packages_are_required():
     document = sbom(
-        "pkg:pypi/django@5.2.19", "pkg:pypi/psycopg-binary@3.3.8", "pkg:pypi/pytest@9.0.0"
+        "pkg:pypi/django@5.2.19",
+        "pkg:pypi/psycopg-binary@3.3.8",
+        "pkg:pypi/pytest@9.0.0",
+        "pkg:github/actions/checkout@v7.0.1",
+        "pkg:github/github/codeql-action@v4.39.3",
     )
     problems, _ = check_locked(document)
     assert problems == [
@@ -129,7 +175,7 @@ def test_vendored_browser_packages_are_required():
 
 def test_an_empty_sbom_fails():
     problems, expected = check_locked({"components": []})
-    assert len(problems) == expected == 5
+    assert len(problems) == expected == 7
 
 
 def test_a_package_locked_at_two_versions_needs_both_listed():
@@ -141,7 +187,7 @@ def test_a_package_locked_at_two_versions_needs_both_listed():
     }
     assert coverage.locked_python(forked)["django"] == {"5.2.19", "4.2.24"}
     problems, expected = check_locked(LOCKED, forked)
-    assert problems == ["pypi django 4.2.24: the SBOM lists 5.2.19"] and expected == 6
+    assert problems == ["pypi django 4.2.24: the SBOM lists 5.2.19"] and expected == 8
     both = sbom("pkg:pypi/django@4.2.24", *LOCKED_PURLS)
     assert check_locked(both, forked)[0] == []
     only_old = sbom("pkg:pypi/django@4.2.24", *without(LOCKED_PURLS, "django"))
@@ -163,13 +209,69 @@ def test_package_urls_decode_by_ecosystem():
             "pkg:generic/python@3.14.10",
             "pkg:golang/example.com/x@v1.0.0",
             "pkg:github/actions/checkout@v7",
+            "pkg:github/github/codeql-action@v4.39.3#init",
         )
     )
     assert found == {
         ("deb", "libssl3"): {"1:2.38-1"},
         ("npm", "@scope/name"): {"1.0.0"},
         ("generic", "python"): {"3.14.10"},
+        ("github", "actions/checkout"): {"v7"},
+        ("github", "github/codeql-action"): {"v4.39.3"},
     }
+
+
+# ----------------------------------------------------------- pinned actions, locked mode
+
+
+def test_the_pinned_actions_are_read_from_the_workflows_by_repository():
+    actions, problems = coverage.pinned_actions(WORKFLOWS)
+    assert problems == []
+    assert actions == {"actions/checkout": {"v7.0.1"}, "github/codeql-action": {"v4.39.3"}}
+    more = {
+        **WORKFLOWS,
+        "x.yaml": f"      - uses: actions/checkout@{SHA_B} # v7.1.0\n",
+    }
+    assert coverage.pinned_actions(more)[0]["actions/checkout"] == {"v7.0.1", "v7.1.0"}
+
+
+def test_an_action_missing_from_the_sbom_is_reported_by_name_and_release():
+    problems, _ = check_locked(sbom(*without(LOCKED_PURLS, "actions/checkout")))
+    assert problems == ["github actions/checkout v7.0.1: not in the SBOM"]
+
+
+def test_a_sub_path_action_counts_for_its_repository():
+    # Syft lists github/codeql-action/init as pkg:github/github/codeql-action@v4.39.3#init, and
+    # the workflow also uses .../analyze at the same release: one entry covers both.
+    assert check_locked(LOCKED)[0] == []
+    problems, _ = check_locked(sbom(*without(LOCKED_PURLS, "codeql-action")))
+    assert problems == ["github github/codeql-action v4.39.3: not in the SBOM"]
+    stale = sbom("pkg:github/github/codeql-action@v4.39.0#init", *without(LOCKED_PURLS, "codeql"))
+    assert check_locked(stale)[0] == ["github github/codeql-action v4.39.3: the SBOM lists v4.39.0"]
+
+
+def test_an_action_pinned_at_two_releases_needs_both_listed():
+    workflows = {
+        **WORKFLOWS,
+        "other.yml": f"      - uses: actions/checkout@{SHA_B} # v7.1.0\n",
+    }
+    problems, expected = check_locked(LOCKED, workflows=workflows)
+    assert problems == ["github actions/checkout v7.1.0: the SBOM lists v7.0.1"]
+    assert expected == 8
+
+
+def test_a_uses_line_the_pin_reader_cannot_read_fails_the_listing_check():
+    workflows = {"bad.yml": "      - uses:\n          actions/checkout@v7\n"}
+    problems, _ = check_locked(LOCKED, workflows=workflows)
+    assert len(problems) == 1 and problems[0].startswith("bad.yml:1:")
+    assert "one line" in problems[0]
+    flow = {"flow.yaml": "      - {uses: actions/checkout@v7}\n"}
+    assert check_locked(LOCKED, workflows=flow)[0][0].startswith("flow.yaml:1:")
+
+
+def test_no_workflows_means_no_actions_are_expected():
+    problems, expected = check_locked(sbom(*without(LOCKED_PURLS, "pkg:github")), workflows={})
+    assert problems == [] and expected == 5
 
 
 # -------------------------------------------------------------------------- image mode
@@ -178,39 +280,40 @@ def test_package_urls_decode_by_ecosystem():
 def test_a_complete_image_listing_passes():
     problems, expected = check_image(IMAGE)
     assert problems == []
-    assert expected == 2 + 4 + 1 + 1 + 2  # deb, pypi, Python, operating system, vendored
+    # deb, pypi, Python, operating system, vendored and programs
+    assert expected == 2 + 4 + 1 + 1 + 2 + 1
 
 
 def test_a_missing_debian_package_is_reported():
-    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "libc6")))
+    problems, _ = check_image(image_sbom(*without(IMAGE_PURLS, "libc6")))
     assert problems == ["deb libc6 2.41-12: not in the SBOM"]
 
 
 def test_a_missing_transitive_python_package_is_reported():
-    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "asgiref")))
+    problems, _ = check_image(image_sbom(*without(IMAGE_PURLS, "asgiref")))
     assert problems == ["pypi asgiref 3.8.1: not in the SBOM"]
 
 
 def test_a_missing_python_interpreter_is_reported():
-    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "pkg:generic/python")))
+    problems, _ = check_image(image_sbom(*without(IMAGE_PURLS, "pkg:generic/python")))
     assert problems == ["generic python 3.14.10: not in the SBOM"]
 
 
 def test_a_missing_operating_system_component_is_reported():
-    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=None))
+    problems, _ = check_image(image_sbom(*IMAGE_PURLS, operating_system=None))
     assert problems == ["operating system debian 13: not in the SBOM"]
-    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=("alpine", "3.22")))
+    problems, _ = check_image(image_sbom(*IMAGE_PURLS, operating_system=("alpine", "3.22")))
     assert problems == ["operating system debian 13: not in the SBOM"]
 
 
 def test_an_operating_system_listed_with_a_point_release_matches():
-    assert check_image(sbom(*IMAGE_PURLS, operating_system=("debian", "13.1")))[0] == []
-    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=("debian", "130")))
+    assert check_image(image_sbom(*IMAGE_PURLS, operating_system=("debian", "13.1")))[0] == []
+    problems, _ = check_image(image_sbom(*IMAGE_PURLS, operating_system=("debian", "130")))
     assert problems
 
 
 def test_a_missing_vendored_package_is_reported():
-    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "pkg:npm/htmx.org")))
+    problems, _ = check_image(image_sbom(*without(IMAGE_PURLS, "pkg:npm/htmx.org")))
     assert problems == ["npm htmx.org 2.0.11: not in the SBOM"]
 
 
@@ -218,14 +321,14 @@ def test_a_deb_version_with_an_epoch_decodes():
     found = coverage.sbom_packages(sbom("pkg:deb/debian/libssl3@1%3A2.38?arch=amd64"))
     assert found[("deb", "libssl3")] == {"1:2.38"}
     contents = {**CONTENTS, "deb": {"libc6": ["2.41-12"], "libssl3": ["1:2.38"]}}
-    document = sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@1%3A2.38")
+    document = image_sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@1%3A2.38")
     assert check_image(document, contents)[0] == []
-    stale = sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@2.38")
+    stale = image_sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@2.38")
     assert check_image(stale, contents)[0] == ["deb libssl3 1:2.38: the SBOM lists 2.38"]
 
 
 def test_python_names_in_the_listing_are_normalised():
-    document = sbom(*without(IMAGE_PURLS, "psycopg"), "pkg:pypi/psycopg_binary@3.3.8")
+    document = image_sbom(*without(IMAGE_PURLS, "psycopg"), "pkg:pypi/psycopg_binary@3.3.8")
     assert check_image(document)[0] == []
 
 
@@ -251,12 +354,59 @@ def test_a_runtime_dependency_not_installed_in_the_image_fails():
         {**CONTENTS, "os": {}},
         {**CONTENTS, "os": {"id": "debian"}},
         {key: value for key, value in CONTENTS.items() if key != "os"},
+        {key: value for key, value in CONTENTS.items() if key != "programs"},
     ],
-    ids=["empty", "no deb", "no pypi", "no python", "no os", "no os version", "os key missing"],
+    ids=[
+        "empty",
+        "no deb",
+        "no pypi",
+        "no python",
+        "no os",
+        "no os version",
+        "os key missing",
+        "programs key missing",
+    ],
 )
 def test_an_incomplete_image_listing_fails(contents):
     problems, expected = check_image(IMAGE, contents)
     assert expected == 0 and len(problems) == 1 and "image listing is incomplete" in problems[0]
+
+
+def test_a_program_no_package_installed_needs_an_sbom_entry_found_in_it():
+    problems, _ = check_image(sbom(*IMAGE_PURLS))
+    assert problems == ["program /usr/local/bin/uv: no SBOM entry was found in it"]
+    elsewhere = image_sbom(*IMAGE_PURLS, paths=["/usr/bin/other"])
+    assert check_image(elsewhere)[0] == problems
+
+
+def test_the_locations_of_an_sbom_are_every_syft_location_property():
+    document = {
+        "components": [
+            {"properties": [{"name": "syft:location:0:path", "value": "/a"}]},
+            {
+                "properties": [
+                    {"name": "syft:location:1:path", "value": "/b"},
+                    {"name": "syft:location:1:layerID", "value": "sha256:x"},
+                    {"name": "syft:package:type", "value": "/not-a-location"},
+                ]
+            },
+            {"purl": "pkg:pypi/x@1"},
+        ]
+    }
+    assert coverage.locations(document) == {"/a", "/b"}
+
+
+def test_an_image_without_programs_outside_the_packages_still_needs_the_key():
+    contents = {**CONTENTS, "programs": []}
+    assert check_image(sbom(*IMAGE_PURLS), contents)[0] == []
+    assert check_image(sbom(*IMAGE_PURLS), {**CONTENTS, "programs": None})[0] != []
+
+
+def test_every_missing_program_is_reported():
+    contents = {**CONTENTS, "programs": ["/usr/local/bin/uv", "/usr/local/bin/uvx"]}
+    problems, expected = check_image(image_sbom(*IMAGE_PURLS), contents)
+    assert problems == ["program /usr/local/bin/uvx: no SBOM entry was found in it"]
+    assert expected == 2 + 4 + 1 + 1 + 2 + 2
 
 
 # ------------------------------------------------------------------- command and files
@@ -307,9 +457,20 @@ def test_the_command_exits_0_for_a_listing_of_the_repository_locks(tmp_path, cap
         f"pkg:npm/{name.replace('@', '%40')}@{next(iter(versions))}"
         for name, versions in coverage.vendored(vendor).items()
     ]
+    # Every action the repository's workflows pin, as Syft lists them (a path in the repository
+    # becomes a purl fragment).
+    workflows = {path.name: path.read_text() for path in action_pins.workflow_files(ROOT)}
+    purls += [
+        f"pkg:github/{repo}@{tag}#init"
+        for repo, tags in coverage.pinned_actions(workflows)[0].items()
+        for tag in tags
+    ]
     path = write(tmp_path, "deps.cdx.json", sbom(*purls))
     assert coverage.main([path, "--locked"]) == 0
     assert "lists all" in capsys.readouterr().out
+    without_actions = write(tmp_path, "no-actions.cdx.json", sbom(*without(purls, "pkg:github")))
+    assert coverage.main([without_actions, "--locked"]) == 1
+    assert "github actions/checkout" in capsys.readouterr().out
 
 
 def test_the_repository_lockfiles_parse_and_name_the_runtime_dependencies():

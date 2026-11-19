@@ -103,10 +103,14 @@ python3 tools/security/sbom_coverage.py build/dependencies.cdx.json --locked
 python3 tools/security/grype_gate.py dependencies --grype "$(command -v grype)" build/dependencies.cdx.json
 ```
 
-The secret scan reads the history, merge commits included:
+The secret scan reads the history as text, merge commits included, file by file and then as one
+stream so that no file is skipped by its name:
 
 ```sh
-gitleaks git --log-opts="--diff-merges=first-parent HEAD" --redact --config .gitleaks.toml .
+gitleaks git --log-opts="--text --diff-merges=first-parent HEAD" --ignore-gitleaks-allow \
+  --redact --config .gitleaks.toml .
+git log -p --text --diff-merges=first-parent HEAD \
+  | gitleaks stdin --ignore-gitleaks-allow --redact --config .gitleaks.toml
 ```
 
 The image scan builds the image, lists it and checks the listing against what the image reports:

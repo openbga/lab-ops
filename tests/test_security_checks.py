@@ -2,13 +2,17 @@
 step pinned to a movable tag, a token that gained write access, a gitleaks allowlist that excuses a
 whole file, or a vendored package missing from the lockfile each weaken a check without failing
 any build. These tests pin the settings the checks rely on (.github/workflows, .gitleaks.toml,
-.grype.yaml, .syft.yaml, static/vendor/package-lock.json, .github/dependabot.yml).
+.grype.yaml, .syft.yaml, static/vendor, .github/dependabot.yml).
 
-No YAML parser is installed, so the workflow helpers read the files as text. They rely on the
-layout the repository's workflows use (two-space indentation, block style keys) and are pure
-(text in, problems out) so the negative tests can feed them bad snippets.
+YAML files are parsed with PyYAML, so every spelling GitHub reads as the same key or value reads
+the same here (quoted keys, flow style, a value on the next line, escapes) and the tests compare
+whole parsed structures instead of lines of text. GitHubLoader below reads YAML as GitHub does:
+only `true` and `false` (in any letter case) are booleans, so `on`, `yes` and `no` stay strings,
+and a mapping with the same key twice is an error. The helpers are pure (text in, problems out) so
+the negative tests can feed them bad snippets.
 """
 
+import collections.abc
 import importlib.util
 import json
 import re
@@ -17,229 +21,199 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from django.conf import settings
 
 ROOT = Path(settings.BASE_DIR)
 WORKFLOWS = ".github/workflows"
 
-# ---------------------------------------------------------------- text helpers
+# ------------------------------------------------------------------ YAML as GitHub reads it
+
+BOOL_TAG = "tag:yaml.org,2002:bool"
 
 
-def _indent(line):
-    return len(line) - len(line.lstrip(" "))
+class GitHubLoader(yaml.SafeLoader):
+    """SafeLoader with YAML 1.2 booleans, as GitHub Actions reads workflow files, that rejects
+    a mapping holding one key twice (a later key would silently replace an earlier one)."""
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            seen = set()
+            for key_node, _ in node.value:
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    continue
+                key = self.construct_object(key_node, deep=True)
+                if not isinstance(key, collections.abc.Hashable):
+                    continue  # SafeLoader reports an unhashable key itself
+                if (type(key), key) in seen:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping",
+                        node.start_mark,
+                        f"found the key {key!r} twice",
+                        key_node.start_mark,
+                    )
+                seen.add((type(key), key))
+        return super().construct_mapping(node, deep=deep)
 
 
-def _code(line):
-    """The line without a trailing ` # comment` (comment text never holds settings)."""
-    return re.sub(r"\s+#.*$", "", line).rstrip()
+# A copy of the resolvers without the YAML 1.1 boolean, which reads on, off, yes, no, y and n.
+GitHubLoader.yaml_implicit_resolvers = {
+    first: [(tag, regexp) for tag, regexp in resolvers if tag != BOOL_TAG]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+GitHubLoader.add_implicit_resolver(
+    BOOL_TAG, re.compile(r"^(?:true|false)$", re.IGNORECASE), list("tTfF")
+)
 
 
-def _meaningful(line):
-    return bool(line.strip()) and not line.lstrip().startswith("#")
+def parse_yaml(text):
+    """The document as GitHub reads it. Raises yaml.YAMLError for text that is not one YAML
+    document or that repeats a key."""
+    return yaml.load(text, Loader=GitHubLoader)
 
 
-def _value(raw):
-    return _code(raw).strip().strip("\"'")
+def load_mapping(text):
+    """(parsed mapping or None, problems) for the text of a YAML file whose root is a mapping."""
+    try:
+        document = parse_yaml(text)
+    except yaml.YAMLError as error:
+        return None, [f"not readable as YAML: {' '.join(str(error).split())}"]
+    if not isinstance(document, dict):
+        return None, [f"the document is {type(document).__name__}, expected a mapping"]
+    return document, []
 
 
-def top_level_block(text, key):
-    """(inline value, body lines) of the column-0 `key:`, or None when absent. The body runs to
-    the next column-0 line that is not a comment."""
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        match = re.match(rf"^{re.escape(key)}:(.*)$", line)
-        if not match:
-            continue
-        body = []
-        for nxt in lines[i + 1 :]:
-            if nxt.strip() and not nxt.startswith((" ", "#")):
-                break
-            body.append(nxt)
-        return _value(match.group(1)), body
-    return None
+def entries(value, path="$"):
+    """(path, mapping, key) for every key of every mapping in a parsed document."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield path, value, key
+            yield from entries(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from entries(item, f"{path}[{index}]")
 
 
-def child_keys(lines, indent):
-    """Map each `key:` at exactly `indent` spaces to the lines nested under it."""
-    keys, current = {}, None
-    for line in lines:
-        if not _meaningful(line):
-            continue
-        match = re.match(rf"^ {{{indent}}}([\w.-]+):(.*)$", line)
-        if match:
-            current = match.group(1)
-            keys[current] = [line] if _value(match.group(2)) else []
-        elif current is not None and _indent(line) > indent:
-            keys[current].append(line)
-    return keys
-
-
-def triggers(text):
-    """Map each trigger under `on:` to the lines nested under it."""
-    block = top_level_block(text, "on")
-    return child_keys(block[1], 2) if block else {}
-
-
-def jobs(text):
-    """Map each job id to the lines of its block."""
-    block = top_level_block(text, "jobs")
-    return child_keys(block[1], 2) if block else {}
-
-
-def split_steps(job_lines):
-    """The steps of a job as lists of lines (a step starts at a `- ` under `steps:`)."""
-    steps, start_indent, in_steps = [], None, False
-    for line in job_lines:
-        if not _meaningful(line):
-            continue
-        if re.match(r"^\s+steps:\s*$", line):
-            in_steps = True
-            continue
-        if not in_steps:
-            continue
-        if start_indent is None and line.lstrip().startswith("- "):
-            start_indent = _indent(line)
-        if start_indent is not None and _indent(line) == start_indent and "- " in line:
-            steps.append([line])
-        elif steps:
-            steps[-1].append(line)
-    return steps
-
-
-def step_uses(step):
-    for line in step:
-        match = re.match(r"^\s*(?:-\s+)?uses:\s*([^\s@]+)", line)
-        if match:
-            return match.group(1)
-    return None
-
-
-def step_with(step):
-    """The `with:` inputs of a step, first level only (a literal block value is not parsed)."""
-    values, with_indent = {}, None
-    for line in step:
-        match = re.match(r"^(\s*)with:\s*$", line)
-        if match:
-            with_indent = len(match.group(1))
-            continue
-        if with_indent is None:
-            continue
-        if _indent(line) <= with_indent:
-            break
-        match = re.match(rf"^ {{{with_indent + 2}}}([\w-]+):(.*)$", line)
-        if match:
-            values[match.group(1)] = _value(match.group(2))
-    return values
-
-
-def workflow_steps(text):
-    """(job id, action name, with-inputs, step lines) for every step that uses an action."""
-    found = []
-    for job_id, lines in jobs(text).items():
-        for step in split_steps(lines):
-            action = step_uses(step)
-            if action:
-                found.append((job_id, action, step_with(step), step))
-    return found
+def differences(actual, expected, path="$"):
+    """Where a parsed structure differs from the expected one: every mapping key, list item and
+    value, scalar types included (1 is not true), so an added key anywhere is reported."""
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return [f"{path}: is {actual!r}, expected a mapping"]
+        found = [f"{path}: unexpected key {key!r}" for key in actual if key not in expected]
+        found += [f"{path}: missing key {key!r}" for key in expected if key not in actual]
+        for key in expected:
+            if key in actual:
+                found += differences(actual[key], expected[key], f"{path}.{key}")
+        return found
+    if isinstance(expected, list):
+        if not isinstance(actual, list) or len(actual) != len(expected):
+            return [f"{path}: is {actual!r}, expected {expected!r}"]
+        found = []
+        for index, (have, want) in enumerate(zip(actual, expected, strict=True)):
+            found += differences(have, want, f"{path}[{index}]")
+        return found
+    if type(actual) is not type(expected) or actual != expected:
+        return [f"{path}: is {actual!r}, expected {expected!r}"]
+    return []
 
 
 # ------------------------------------------------------ checks on workflow text
 
-USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<ref>\S+)(?P<rest>.*)$")
 PINNED_REF = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
-VERSION_COMMENT = re.compile(r"^\s+#\s*v\d[\w.+-]*\s*$")
+VERSION_COMMENT = r"\s+#\s*v\d[\w.+-]*\s*$"
 
 
 def unpinned_uses(text):
-    """(line number, message) for each `uses:` not pinned to a full commit SHA with a `# v...`
-    comment. Local actions (`./...`) are exempt."""
-    problems = []
-    for number, line in enumerate(text.splitlines(), 1):
-        match = USES.match(line)
-        if not match or match["ref"].startswith("./"):
+    """Problems with the `uses` of the parsed workflow, at any depth (a step or a job calling a
+    reusable workflow): each must be pinned to a full commit SHA and, on its own line written
+    `uses: owner/repo@sha # v...`, name the release. Local actions (`./...`) are exempt."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    lines = text.splitlines()
+    for path, mapping, key in entries(document):
+        if key != "uses":
             continue
-        if not PINNED_REF.match(match["ref"]):
-            problems.append((number, f"{match['ref']} is not pinned to a 40-hex commit SHA"))
-        elif not VERSION_COMMENT.match(match["rest"]):
-            problems.append((number, f"{match['ref']} lacks a trailing '# v...' version comment"))
+        value = mapping[key]
+        if not isinstance(value, str):
+            problems.append(f"{path}.uses is {value!r}, not a string")
+        elif value.startswith("./"):
+            continue
+        elif not PINNED_REF.match(value):
+            problems.append(f"{path}.uses {value} is not pinned to a 40-hex commit SHA")
+        elif not any(
+            re.match(rf"^\s*(?:-\s+)?uses:\s*{re.escape(value)}{VERSION_COMMENT}", line)
+            for line in lines
+        ):
+            problems.append(
+                f"{path}.uses {value} has no line `uses: {value} # v...` naming its release"
+            )
     return problems
 
 
 def checkouts_keeping_credentials(text):
-    """Line numbers of `actions/checkout` steps that do not set `persist-credentials: false`."""
-    problems = []
-    lines = text.splitlines()
-    for number, line in enumerate(lines, 1):
-        if not re.match(r"^\s*(?:-\s+)?uses:\s*actions/checkout@", line):
-            continue
-        # The step starts at this line when it is `- uses:`, else at the `- ` line above it.
-        first = number - 1
-        if not line.lstrip().startswith("- "):
-            while first > 0 and not lines[first].lstrip().startswith("- "):
-                first -= 1
-        dash_indent = _indent(lines[first])
-        step = [lines[first]]
-        for nxt in lines[first + 1 :]:
-            if _meaningful(nxt) and _indent(nxt) <= dash_indent:
-                break
-            step.append(nxt)
-        if not any(re.match(r"^\s+persist-credentials:\s*false\s*$", _code(s)) for s in step):
-            problems.append(number)
-    return problems
-
-
-def top_level_permissions(text):
-    """The workflow's top-level `permissions:` as a dict, None when absent. An inline value
-    such as `write-all` comes back as {"*": value}."""
-    block = top_level_block(text, "permissions")
-    if block is None:
-        return None
-    inline, body = block
-    if inline:
-        return {"*": inline}
-    found = {}
-    for line in body:
-        match = re.match(r"^\s+([\w-]+):\s*(\S+)", _code(line)) if _meaningful(line) else None
-        if match:
-            found[match.group(1)] = match.group(2)
+    """Paths of the `actions/checkout` steps that do not set `persist-credentials: false`."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    found = []
+    for path, mapping, key in entries(document):
+        value = mapping[key]
+        if key == "uses" and isinstance(value, str) and value.startswith("actions/checkout@"):
+            inputs = mapping.get("with")
+            if not isinstance(inputs, dict) or inputs.get("persist-credentials") is not False:
+                found.append(path)
     return found
 
 
+def triggers(text):
+    """The workflow's `on:` mapping ({} when it is absent or not a mapping)."""
+    document, _ = load_mapping(text)
+    on = document.get("on") if document else None
+    return on if isinstance(on, dict) else {}
+
+
 def permission_problems(text):
-    permissions = top_level_permissions(text)
-    if permissions is None:
+    """The workflow's top-level `permissions:` must be exactly `contents: read`."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    if "permissions" not in document:
         return ["no top-level 'permissions:' block (the default token is broader)"]
-    if permissions != {"contents": "read"}:
-        return [f"top-level permissions are {permissions}, expected only contents: read"]
+    if document["permissions"] != {"contents": "read"}:
+        return [f"top-level permissions are {document['permissions']!r}, expected contents: read"]
     return []
 
 
 def write_grants(text):
-    """(line number, scope, job id or None) for every write grant in any `permissions:` block,
-    block style or flow style (`permissions: { contents: write }`), and `write-all`."""
-    grants, job, perm_indent, in_jobs = [], None, None, False
-    for number, line in enumerate(text.splitlines(), 1):
-        if not _meaningful(line):
-            continue
-        if re.match(r"^jobs:", line):
-            in_jobs = True
-        if in_jobs and re.match(r"^  [\w-]+:\s*$", line):
-            job = line.strip().rstrip(":")
-        if perm_indent is not None and _indent(line) <= perm_indent:
-            perm_indent = None
-        match = re.match(r"^(\s*)permissions:\s*(.*)$", _code(line))
-        if match:
-            perm_indent = len(match.group(1))
-            inline = match.group(2).strip().strip("\"'")
-            if inline == "write-all":
-                grants.append((number, "*", job))
-            for scope in re.findall(r"([\w-]+)\s*:\s*[\"']?write\b", inline):
-                grants.append((number, scope, job))
-            continue
-        if perm_indent is not None:
-            grant = re.match(r"^\s+([\w-]+):\s*[\"']?write\b", _code(line))
-            if grant:
-                grants.append((number, grant.group(1), job))
+    """(scope, job id or None) for every write grant in the top-level or a job's `permissions:`:
+    `write-all`, a scope set to `write`, and ("?", job) for a value that is neither a mapping nor
+    `read-all`, which no token setting reads as a safe one."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return [("?", None)]
+    grants = []
+
+    def scan(permissions, job):
+        if permissions is None or permissions == "read-all":
+            return
+        if permissions == "write-all":
+            grants.append(("*", job))
+        elif isinstance(permissions, dict):
+            for scope, level in permissions.items():
+                if level == "write":
+                    grants.append((str(scope), job))
+                elif level not in ("read", "none"):
+                    grants.append(("?", job))
+        else:
+            grants.append(("?", job))
+
+    scan(document.get("permissions"), None)
+    jobs = document.get("jobs")
+    for job_id, job in jobs.items() if isinstance(jobs, dict) else []:
+        if isinstance(job, dict):
+            scan(job.get("permissions"), job_id)
     return grants
 
 
@@ -253,11 +227,11 @@ INTENDED_WRITES = {
 
 
 def unintended_writes(name, text):
-    problems = []
-    for number, scope, job in write_grants(text):
-        if INTENDED_WRITES.get(scope) != (name, job):
-            problems.append(f"{name}:{number} grants '{scope}: write' (job {job or 'top level'})")
-    return problems
+    return [
+        f"{name} grants '{scope}: write' (job {job or 'top level'})"
+        for scope, job in write_grants(text)
+        if INTENDED_WRITES.get(scope) != (name, job)
+    ]
 
 
 # ------------------------------------------------------------- gitleaks config
@@ -339,65 +313,70 @@ def allowlisted_values(config):
     return values
 
 
-# ------------------------------------------------------------------ grype config
+# ------------------------------------------------------------- grype and syft config
 
-GRYPE_ID = r"(?:CVE-\d{4}-\d+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})"
-GRYPE_ORDER = ["vulnerability", "package", "name", "version", "reason"]
-GRYPE_LINES = [
-    ("vulnerability", re.compile(rf"^  - vulnerability: {GRYPE_ID}$")),
-    ("package", re.compile(r"^    package:$")),
+GRYPE_FIELDS = {
+    "vulnerability": re.compile(r"(?:CVE-\d{4}-\d{4,}|GHSA(?:-[23456789cfghjmpqrvwx]{4}){3})"),
     # Grype reads a name containing anything but these characters as a regular expression.
-    ("name", re.compile(r"^      name: [A-Za-z0-9_-]+$")),
-    ("version", re.compile(r"^      version: [^\s*]+$")),
-    ("reason", re.compile(r"^    reason: >-$")),
-    ("reason", re.compile(r"^    reason: (?![>|][+-]?$)\S.*$")),
-]
+    "name": re.compile(r"[A-Za-z0-9_-]+"),
+    "version": re.compile(r"[A-Za-z0-9][A-Za-z0-9.+:~-]*"),
+}
+GRYPE_REASON_MINIMUM = 40
+
+
+def grype_field_problems(label, field, value, pattern=None):
+    """Problems with one value of a .grype.yaml entry: a non-empty string (YAML reads "", ~ and
+    null as empty, which Grype takes for "any"), and the pattern for its kind."""
+    if not isinstance(value, str) or not value.strip():
+        return [f"{label}: {field} is {value!r}, expected a non-empty string"]
+    if pattern is not None and not pattern.fullmatch(value):
+        return [f"{label}: {field} {value!r} does not match {pattern.pattern}"]
+    return []
 
 
 def grype_problems(text):
-    """Problems in .grype.yaml, which may hold only comments and `ignore:` entries of exactly
-    this shape: a vulnerability id, the package's name and version, and a reason."""
-    problems, seen_ignore, stage, in_block, block_lines = [], False, None, False, 0
-
-    def finish(number):
-        if stage is not None and stage < len(GRYPE_ORDER):
-            problems.append(f"line {number}: the entry lacks {GRYPE_ORDER[stage]}")
-        if in_block and not block_lines:
-            problems.append(f"line {number}: the reason is empty")
-
-    lines = text.splitlines()
-    for number, line in enumerate(lines, 1):
-        line = line.rstrip()
-        if not line:
+    """Problems in .grype.yaml, which must parse to exactly {"ignore": [entries]}, each entry
+    naming a vulnerability, the package's name and version, and a reason."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    if set(document) != {"ignore"}:
+        problems.append(f"top-level keys are {sorted(map(str, document))}, expected only ignore")
+    ignore = document.get("ignore")
+    if not isinstance(ignore, list):
+        return [*problems, f"ignore is {ignore!r}, expected a list of entries"]
+    for index, entry in enumerate(ignore, 1):
+        label = f"entry {index}"
+        if not isinstance(entry, dict) or set(entry) != {"vulnerability", "package", "reason"}:
+            keys = sorted(map(str, entry)) if isinstance(entry, dict) else entry
+            problems.append(
+                f"{label}: is {keys!r}, expected the keys vulnerability, package, reason"
+            )
             continue
-        if in_block and _indent(line) >= 6:
-            block_lines += 1
-            continue
-        if line.lstrip().startswith("#"):
-            continue
-        if in_block and not block_lines:
-            problems.append(f"line {number}: the reason is empty")
-        in_block = False
-        if line == "ignore:":
-            if seen_ignore:
-                problems.append(f"line {number}: a second ignore:")
-            seen_ignore = True
-            continue
-        key = next((name for name, pattern in GRYPE_LINES if pattern.match(line)), None)
-        if key is None or not seen_ignore:
-            problems.append(f"line {number}: not an allowed .grype.yaml line: {line.strip()!r}")
-            continue
-        if key == "vulnerability":
-            finish(number)
-            stage = 1
-        elif stage is None or GRYPE_ORDER[stage] != key:
-            problems.append(f"line {number}: {key} is out of place in its entry")
-            continue
+        problems += grype_field_problems(
+            label, "vulnerability", entry["vulnerability"], GRYPE_FIELDS["vulnerability"]
+        )
+        package = entry["package"]
+        if not isinstance(package, dict) or set(package) != {"name", "version"}:
+            problems.append(f"{label}: package is {package!r}, expected only name and version")
         else:
-            stage += 1
-        if key == "reason":
-            in_block, block_lines = line.endswith(">-"), 0
-    finish(len(lines) + 1)
+            for field in ("name", "version"):
+                problems += grype_field_problems(label, field, package[field], GRYPE_FIELDS[field])
+        problems += grype_field_problems(label, "reason", entry["reason"])
+        reason = entry["reason"]
+        if isinstance(reason, str) and len(reason.strip()) < GRYPE_REASON_MINIMUM:
+            problems.append(f"{label}: the reason is under {GRYPE_REASON_MINIMUM} characters")
+    return problems
+
+
+def syft_problems(text):
+    """Problems in .syft.yaml, which may only add the lockfile cataloger: no exclude or other
+    setting can drop a package from a listing the coverage check trusts."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    if document != {"select-catalogers": ["+javascript-lock-cataloger"]}:
+        problems.append(f"the document is {document!r}, expected only select-catalogers")
     return problems
 
 
@@ -422,6 +401,8 @@ VENDOR_DIRS = {
     "vanilla-calendar-pro-3.4.0": {"vanilla-calendar-pro"},
 }
 NOT_VENDORED = {"bootstrap-icons"}
+# The only files that may sit directly in static/vendor/; every other entry is a directory above.
+VENDOR_FILES = {"README.md", "package-lock.json"}
 # (file, package, banner the file carries for the locked version, bytes searched or None)
 VENDOR_BANNERS = [
     ("bootstrap-5.3.8/css/bootstrap.min.css", "bootstrap", "v{version}", 400),
@@ -517,8 +498,14 @@ def vendor_problems(lock, vendor):
         if key
     }
     present = {path.name for path in vendor.iterdir() if path.is_dir()}
-    for name in sorted(present - set(VENDOR_DIRS)):
-        problems.append(f"static/vendor/{name} is not a known vendored directory")
+    for entry in sorted(vendor.iterdir()):
+        if entry.is_dir() and entry.name not in VENDOR_DIRS:
+            problems.append(f"static/vendor/{entry.name} is not a known vendored directory")
+        elif not entry.is_dir() and entry.name not in VENDOR_FILES:
+            problems.append(
+                f"static/vendor/{entry.name} is a file outside the known directories, "
+                "README.md and package-lock.json"
+            )
     for name in sorted(set(VENDOR_DIRS) - present):
         problems.append(f"static/vendor/{name} is missing")
     covered = set().union(*VENDOR_DIRS.values())
@@ -555,7 +542,12 @@ def vendor_problems(lock, vendor):
 
 
 def workflow_texts():
-    texts = {path.name: path.read_text() for path in sorted((ROOT / WORKFLOWS).glob("*.yml"))}
+    """{file name: text} of every workflow GitHub runs: .yml and .yaml files."""
+    folder = ROOT / WORKFLOWS
+    texts = {
+        path.name: path.read_text()
+        for path in sorted([*folder.glob("*.yml"), *folder.glob("*.yaml")])
+    }
     assert texts, f"no workflows found in {WORKFLOWS}"
     return texts
 
@@ -573,7 +565,7 @@ def load_tool(name):
     return module
 
 
-# --------------------------------------------- the security workflow, compared exactly
+# ------------------------------------- the three security workflows, compared exactly
 
 
 def normalize_script(text):
@@ -584,420 +576,417 @@ def normalize_script(text):
     return "\n".join(line for line in lines if line)
 
 
-def key_values(lines):
-    """{key: value} of the `key: value` lines nested under a key (comments removed)."""
-    found = {}
-    for line in lines:
-        match = re.match(r"^\s+([\w.-]+):\s*(.*)$", _code(line))
-        if match:
-            found[match.group(1)] = match.group(2).strip()
-    return found
+def canonical(value):
+    """A parsed workflow with each `uses` value (already checked by unpinned_uses) reduced to
+    the action it names, and each `run` script normalized, so only what the workflow does is
+    compared with the expected document."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key == "uses" and isinstance(item, str) and PINNED_REF.match(item):
+                item = item.partition("@")[0]
+            elif key == "run" and isinstance(item, str):
+                item = normalize_script(item)
+            result[key] = canonical(item)
+        return result
+    if isinstance(value, list):
+        return [canonical(item) for item in value]
+    return value
 
 
-def step_summary(step):
-    """Everything about a step that decides what it does, as a dict comparable with step()."""
-    first = re.sub(r"^(\s*)- ", r"\1  ", step[0])
-    fields = child_keys([first, *step[1:]], _indent(step[0]) + 2)
-    run = None
-    if "run" in fields:
-        header = re.match(r"^\s*run:\s*(.*)$", fields["run"][0]).group(1).strip()
-        if header in ("|", "|-", ">", ">-", "|+"):
-            body = fields["run"][1:]
-            cut = min(_indent(line) for line in body)
-            run = normalize_script("\n".join(line[cut:] for line in body))
-        else:
-            run = normalize_script(header)
-
-    def scalar(key):
-        return _value(fields[key][0].partition(":")[2]) if key in fields else None
-
-    return {
-        "keys": list(fields),
-        "name": scalar("name"),
-        "id": scalar("id"),
-        "uses": step_uses(step),
-        "with": step_with(step),
-        "env": key_values(fields["env"]) if "env" in fields else {},
-        "run": run,
-    }
+def exact_workflow_problems(name, text):
+    """unpinned_uses() problems, plus every difference between the whole parsed workflow and the
+    document the tests hold for it: any added key, changed value or changed script."""
+    problems = unpinned_uses(text)
+    document, unreadable = load_mapping(text)
+    if document is None:
+        return problems
+    return [*problems, *differences(canonical(document), EXPECTED_WORKFLOWS[name])]
 
 
-def step(keys, name=None, id=None, uses=None, with_=None, env=None, run=None):
-    return {
-        "keys": keys.split(),
-        "name": name,
-        "id": id,
-        "uses": uses,
-        "with": with_ or {},
-        "env": env or {},
-        "run": normalize_script(run) if run else None,
-    }
+def sh(script):
+    return normalize_script(script)
 
 
-def job_summary(lines):
-    fields = child_keys(lines, 4)
-
-    def scalar(key):
-        """The inline value of `key:` (child_keys keeps its line only when it has one)."""
-        if key in fields and re.match(rf"^\s*{re.escape(key)}:", fields[key][0]):
-            return _code(fields[key][0].partition(":")[2]).strip()
-        return None
-
-    def mapping(key):
-        return key_values(fields[key]) if key in fields else None
-
-    permissions = scalar("permissions") or mapping("permissions")
-    return {
-        "keys": list(fields),
-        "runs-on": scalar("runs-on"),
-        "if": scalar("if"),
-        "needs": scalar("needs"),
-        "permissions": permissions,
-        "env": mapping("env"),
-        "outputs": mapping("outputs"),
-        "steps": [step_summary(s) for s in split_steps(lines)],
-    }
+def action(uses, /, **inputs):
+    """A step that runs an action; the expected form of a pinned `uses` is the action's name."""
+    return {"uses": uses, "with": inputs} if inputs else {"uses": uses}
 
 
-CHECKOUT = {"persist-credentials": "false"}
-GITLEAKS = "$RUNNER_TEMP/gitleaks"
+CHECKOUT = action("actions/checkout", **{"persist-credentials": False})
 GRYPE_ENV = {"GRYPE": "${{ steps.grype.outputs.cmd }}"}
 SYFT_ENV = {"SYFT": "${{ steps.syft.outputs.cmd }}"}
-DOWNLOAD_SYFT = step("id uses", id="syft", uses="anchore/sbom-action/download-syft")
-DOWNLOAD_GRYPE = step("id uses", id="grype", uses="anchore/scan-action/download-grype")
+DOWNLOAD_SYFT = {"id": "syft", "uses": "anchore/sbom-action/download-syft"}
+DOWNLOAD_GRYPE = {"id": "grype", "uses": "anchore/scan-action/download-grype"}
+SCHEDULE = [{"cron": "41 5 * * 1"}]
+READ_ONLY = {"contents": "read"}
 
-EXPECTED_JOBS = {
-    "dependencies": {
-        "keys": ["name", "runs-on", "timeout-minutes", "steps"],
-        "runs-on": "ubuntu-latest",
-        "if": None,
-        "needs": None,
-        "permissions": None,
-        "env": None,
-        "outputs": None,
-        "steps": [
-            step("uses with", uses="actions/checkout", with_=CHECKOUT),
-            step(
-                "name env run",
-                name="Check that each pinned action is the release its comment names",
-                env={"GITHUB_TOKEN": "${{ github.token }}"},
-                run="python3 tools/security/check_action_pins.py",
-            ),
-            DOWNLOAD_SYFT,
-            DOWNLOAD_GRYPE,
-            step(
-                "name env run",
-                name="List the locked and vendored dependencies",
-                env=SYFT_ENV,
-                run=r"""
-                "$SYFT" scan dir:. --config .syft.yaml \
-                  --output "cyclonedx-json@1.6=$RUNNER_TEMP/dependencies.cdx.json"
-                """,
-            ),
-            step(
-                "name run",
-                name="Check that every locked package is listed",
-                run=(
-                    'python3 tools/security/sbom_coverage.py "$RUNNER_TEMP/dependencies.cdx.json"'
-                    " --locked"
-                ),
-            ),
-            step(
-                "name env run",
-                name="Audit them",
-                env=GRYPE_ENV,
-                run=r"""
-                python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \
-                  "$RUNNER_TEMP/dependencies.cdx.json"
-                """,
-            ),
-        ],
+SECURITY_WORKFLOW = {
+    "name": "security",
+    "on": {
+        "pull_request": None,
+        "schedule": SCHEDULE,
+        "workflow_dispatch": None,
+        "release": {"types": ["published"]},
     },
-    "secrets": {
-        "keys": ["name", "runs-on", "timeout-minutes", "env", "steps"],
-        "runs-on": "ubuntu-latest",
-        "if": None,
-        "needs": None,
-        "permissions": None,
-        "env": {
-            "GITLEAKS_VERSION": "8.30.1",
-            "GITLEAKS_SHA256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+    "permissions": READ_ONLY,
+    "jobs": {
+        "dependencies": {
+            "name": "dependency audit",
+            "runs-on": "ubuntu-latest",
+            "timeout-minutes": 10,
+            "steps": [
+                CHECKOUT,
+                {
+                    "name": "Check that each pinned action is the release its comment names",
+                    "env": {"GITHUB_TOKEN": "${{ github.token }}"},
+                    "run": sh("python3 tools/security/check_action_pins.py"),
+                },
+                DOWNLOAD_SYFT,
+                DOWNLOAD_GRYPE,
+                {
+                    "name": "List the locked and vendored dependencies",
+                    "env": SYFT_ENV,
+                    "run": sh(
+                        r"""
+                        "$SYFT" scan dir:. --config .syft.yaml \
+                          --output "cyclonedx-json@1.6=$RUNNER_TEMP/dependencies.cdx.json"
+                        """
+                    ),
+                },
+                {
+                    "name": "Check that every locked package is listed",
+                    "run": sh(
+                        "python3 tools/security/sbom_coverage.py"
+                        ' "$RUNNER_TEMP/dependencies.cdx.json" --locked'
+                    ),
+                },
+                {
+                    "name": "Audit them",
+                    "env": GRYPE_ENV,
+                    "run": sh(
+                        r"""
+                        python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \
+                          "$RUNNER_TEMP/dependencies.cdx.json"
+                        """
+                    ),
+                },
+            ],
         },
-        "outputs": None,
-        "steps": [
-            step(
-                "uses with",
-                uses="actions/checkout",
-                with_={"fetch-depth": "0", "persist-credentials": "false"},
-            ),
-            step(
-                "name run",
-                name="Install gitleaks",
-                run=r"""
-                archive="$RUNNER_TEMP/gitleaks.tar.gz"
-                curl --fail --silent --show-error --location --retry 3 --output "$archive" \
-                  "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-                echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
-                tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
-                """,
-            ),
-            step(
-                "name run",
-                name="Check that the settings still report a secret",
-                run=r"""
-                canary="$RUNNER_TEMP/canary"
-                mkdir -p "$canary"
-                token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
-                printf 'token = "%s"\n' "$token" > "$canary/settings_local.py"
-                status=0
-                "$RUNNER_TEMP/gitleaks" dir --redact --no-banner --config .gitleaks.toml "$canary" \
-                  || status=$?
-                if [ "$status" -ne 1 ]; then
-                  echo "::error::gitleaks exited $status on a generated token instead of 1"
-                  exit 1
-                fi
-                """,
-            ),
-            step(
-                "name run",
-                name="Scan the history for secrets",
-                run=r"""
-                "$RUNNER_TEMP/gitleaks" git --log-opts="--diff-merges=first-parent HEAD" \
-                  --redact --verbose --no-banner --config .gitleaks.toml .
-                """,
-            ),
-            step(
-                "name run",
-                name="Scan the files gitleaks skips by name",
-                run=r"""
-                git log -p --diff-merges=first-parent HEAD -- .gitleaks.toml static/vendor/package-lock.json \
-                  | "$RUNNER_TEMP/gitleaks" stdin --redact --verbose --no-banner --config .gitleaks.toml
-                """,  # noqa: E501
-            ),
-        ],
-    },
-    "image": {
-        "keys": ["name", "runs-on", "timeout-minutes", "outputs", "steps"],
-        "runs-on": "ubuntu-latest",
-        "if": None,
-        "needs": None,
-        "permissions": None,
-        "env": None,
-        "outputs": {"sbom-complete": "${{ steps.coverage.outputs.complete }}"},
-        "steps": [
-            step("uses with", uses="actions/checkout", with_=CHECKOUT),
-            DOWNLOAD_SYFT,
-            DOWNLOAD_GRYPE,
-            step(
-                "name env run",
-                name="Build the application image (no push)",
-                env={"REVISION": "${{ github.event.release.tag_name || github.sha }}"},
-                run=r"""
-                revision="${REVISION//[^A-Za-z0-9._-]/-}"
-                echo "IMAGE=lab-ops:${revision}" >> "$GITHUB_ENV"
-                docker build --tag "lab-ops:${revision}" .
-                """,
-            ),
-            step(
-                "name env run",
-                name="SBOM in SPDX and CycloneDX",
-                env=SYFT_ENV,
-                run=r"""
-                mkdir -p sbom
-                "$SYFT" scan "docker:$IMAGE" --config .syft.yaml \
-                  --output spdx-json=sbom/lab-ops.spdx.json \
-                  --output cyclonedx-json@1.6=sbom/lab-ops.cdx.json
-                """,
-            ),
-            step(
-                "name run",
-                name="List what the image contains, without the SBOM tool",
-                run=r"""
-                docker run --rm --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
-                  "$IMAGE" /probe/image_contents.py > "$RUNNER_TEMP/image-contents.json"
-                """,
-            ),
-            step(
-                "name id run",
-                name="Check that the SBOM lists all of it",
-                id="coverage",
-                run=r"""
-                python3 tools/security/sbom_coverage.py sbom/lab-ops.cdx.json \
-                  --image "$RUNNER_TEMP/image-contents.json"
-                echo "complete=true" >> "$GITHUB_OUTPUT"
-                """,
-            ),
-            step(
-                "uses with",
-                uses="actions/upload-artifact",
-                with_={
-                    "name": "sbom",
-                    "path": "sbom/",
-                    "if-no-files-found": "error",
-                    "retention-days": "90",
+        "image": {
+            "name": "image scan and SBOM",
+            "runs-on": "ubuntu-latest",
+            "timeout-minutes": 20,
+            "outputs": {"sbom-complete": "${{ steps.coverage.outputs.complete }}"},
+            "steps": [
+                CHECKOUT,
+                DOWNLOAD_SYFT,
+                DOWNLOAD_GRYPE,
+                {
+                    "name": "Build the application image (no push)",
+                    "env": {"REVISION": "${{ github.event.release.tag_name || github.sha }}"},
+                    "run": sh(
+                        r"""
+                        revision="${REVISION//[^A-Za-z0-9._-]/-}"
+                        echo "IMAGE=lab-ops:${revision}" >> "$GITHUB_ENV"
+                        docker build --tag "lab-ops:${revision}" .
+                        """
+                    ),
                 },
-            ),
-            step(
-                "name env run",
-                name="Fail on a fixable High or Critical vulnerability",
-                env=GRYPE_ENV,
-                run=(
-                    'python3 tools/security/grype_gate.py image --grype "$GRYPE"'
-                    " sbom/lab-ops.cdx.json"
+                {
+                    "name": "SBOM in SPDX and CycloneDX",
+                    "env": SYFT_ENV,
+                    "run": sh(
+                        r"""
+                        mkdir -p sbom
+                        "$SYFT" scan "docker:$IMAGE" --config .syft.yaml \
+                          --output spdx-json=sbom/lab-ops.spdx.json \
+                          --output cyclonedx-json@1.6=sbom/lab-ops.cdx.json
+                        """
+                    ),
+                },
+                {
+                    "name": "List what the image contains, without the SBOM tool",
+                    "run": sh(
+                        r"""
+                        docker run --rm --entrypoint python \
+                          --volume "$PWD/tools/security:/probe:ro" "$IMAGE" \
+                          /probe/image_contents.py > "$RUNNER_TEMP/image-contents.json"
+                        """
+                    ),
+                },
+                {
+                    "name": "Check that the SBOM lists all of it",
+                    "id": "coverage",
+                    "run": sh(
+                        r"""
+                        python3 tools/security/sbom_coverage.py sbom/lab-ops.cdx.json \
+                          --image "$RUNNER_TEMP/image-contents.json" \
+                          && echo "complete=true" >> "$GITHUB_OUTPUT"
+                        """
+                    ),
+                },
+                action(
+                    "actions/upload-artifact",
+                    **{
+                        "name": "sbom",
+                        "path": "sbom/",
+                        "if-no-files-found": "error",
+                        "retention-days": 90,
+                    },
                 ),
-            ),
-        ],
-    },
-    "release-sbom": {
-        "keys": ["name", "if", "needs", "runs-on", "timeout-minutes", "permissions", "steps"],
-        "runs-on": "ubuntu-latest",
-        "if": (
-            "${{ github.event_name == 'release' && needs.image.outputs.sbom-complete == 'true'"
-            " && !cancelled() }}"
-        ),
-        "needs": "image",
-        "permissions": {"contents": "write"},
-        "env": None,
-        "outputs": None,
-        "steps": [
-            step(
-                "uses with",
-                uses="actions/download-artifact",
-                with_={"name": "sbom", "path": "sbom"},
-            ),
-            step(
-                "name env run",
-                name="Upload the SBOM as release assets",
-                env={
-                    "GH_TOKEN": "${{ github.token }}",
-                    "TAG": "${{ github.event.release.tag_name }}",
+                {
+                    "name": "Fail on a fixable High or Critical vulnerability",
+                    "env": GRYPE_ENV,
+                    "run": sh(
+                        'python3 tools/security/grype_gate.py image --grype "$GRYPE"'
+                        " sbom/lab-ops.cdx.json"
+                    ),
                 },
-                run=r"""
-                case "$TAG" in
-                  "" | -*) echo "::error::Unexpected release tag name"; exit 1 ;;
-                esac
-                name="lab-ops-${TAG//[^A-Za-z0-9._-]/-}"
-                mv sbom/lab-ops.spdx.json "sbom/${name}.spdx.json"
-                mv sbom/lab-ops.cdx.json "sbom/${name}.cdx.json"
-                gh release upload "$TAG" "sbom/${name}.spdx.json" "sbom/${name}.cdx.json" \
-                  --clobber --repo "$GITHUB_REPOSITORY"
-                """,
+            ],
+        },
+        "release-sbom": {
+            "name": "attach SBOM to release",
+            "if": (
+                "${{ github.event_name == 'release' && needs.image.outputs.sbom-complete == 'true'"
+                " && !cancelled() }}"
             ),
-        ],
+            "needs": "image",
+            "runs-on": "ubuntu-latest",
+            "timeout-minutes": 5,
+            "permissions": {"contents": "write"},
+            "steps": [
+                action("actions/download-artifact", name="sbom", path="sbom"),
+                {
+                    "name": "Upload the SBOM as release assets",
+                    "env": {
+                        "GH_TOKEN": "${{ github.token }}",
+                        "TAG": "${{ github.event.release.tag_name }}",
+                    },
+                    "run": sh(
+                        r"""
+                        case "$TAG" in
+                          "" | -*) echo "::error::Unexpected release tag name"; exit 1 ;;
+                        esac
+                        name="lab-ops-${TAG//[^A-Za-z0-9._-]/-}"
+                        mv sbom/lab-ops.spdx.json "sbom/${name}.spdx.json"
+                        mv sbom/lab-ops.cdx.json "sbom/${name}.cdx.json"
+                        gh release upload "$TAG" "sbom/${name}.spdx.json" "sbom/${name}.cdx.json" \
+                          --clobber --repo "$GITHUB_REPOSITORY"
+                        """
+                    ),
+                },
+            ],
+        },
     },
 }
 
+SECRETS_WORKFLOW = {
+    "name": "secrets",
+    "on": {
+        "push": {"branches": ["**"]},
+        "pull_request": None,
+        "schedule": SCHEDULE,
+        "workflow_dispatch": None,
+    },
+    "permissions": READ_ONLY,
+    "jobs": {
+        "secrets": {
+            "name": "secret scan",
+            "runs-on": "ubuntu-latest",
+            "timeout-minutes": 10,
+            "env": {
+                "GITLEAKS_VERSION": "8.30.1",
+                "GITLEAKS_SHA256": (
+                    "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+                ),
+            },
+            "steps": [
+                action("actions/checkout", **{"fetch-depth": 0, "persist-credentials": False}),
+                {
+                    "name": "Install gitleaks",
+                    "run": sh(
+                        r"""
+                        archive="$RUNNER_TEMP/gitleaks.tar.gz"
+                        curl --fail --silent --show-error --location --retry 3 --output "$archive" \
+                          "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+                        echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
+                        tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+                        """  # noqa: E501
+                    ),
+                },
+                {
+                    "name": "Check that only .gitleaks.toml can excuse a finding",
+                    "run": sh(
+                        r"""
+                        if find . -name .gitleaksignore -not -path ./.git/\* | grep .; then
+                          echo "::error::Remove .gitleaksignore; record a synthetic value in .gitleaks.toml"
+                          exit 1
+                        fi
+                        """  # noqa: E501
+                    ),
+                },
+                {
+                    "name": "Check that the settings still report a secret",
+                    "run": sh(
+                        r"""
+                        canary="$RUNNER_TEMP/canary"
+                        mkdir -p "$canary"
+                        token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+                        printf 'token = "%s"\n' "$token" > "$canary/settings_local.py"
+                        status=0
+                        "$RUNNER_TEMP/gitleaks" dir --ignore-gitleaks-allow --redact --no-banner \
+                          --config .gitleaks.toml "$canary" || status=$?
+                        if [ "$status" -ne 1 ]; then
+                          echo "::error::gitleaks exited $status on a generated token instead of 1"
+                          exit 1
+                        fi
+                        """
+                    ),
+                },
+                {
+                    "name": "Scan the history for secrets, file by file",
+                    "run": sh(
+                        r"""
+                        "$RUNNER_TEMP/gitleaks" git --log-opts="--text --diff-merges=first-parent HEAD" \
+                          --ignore-gitleaks-allow --redact --verbose --no-banner --config .gitleaks.toml .
+                        """  # noqa: E501
+                    ),
+                },
+                {
+                    "name": "Scan the history for secrets as one text stream",
+                    "run": sh(
+                        r"""
+                        git log -p --text --diff-merges=first-parent HEAD \
+                          | "$RUNNER_TEMP/gitleaks" stdin --ignore-gitleaks-allow \
+                            --redact --verbose --no-banner --config .gitleaks.toml
+                        """
+                    ),
+                },
+            ],
+        },
+    },
+}
 
-def top_level_keys(text):
-    return [m.group(1) for line in text.splitlines() if (m := re.match(r"^([\w-]+):", line))]
+CODEQL_WORKFLOW = {
+    "name": "codeql",
+    "on": {
+        "push": {"branches": ["main"]},
+        "pull_request": None,
+        "schedule": [{"cron": "17 5 * * 1"}],
+        "workflow_dispatch": None,
+    },
+    "permissions": READ_ONLY,
+    "concurrency": {
+        "group": "codeql-${{ github.event_name }}-${{ github.ref }}",
+        "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+    },
+    "jobs": {
+        "analyze": {
+            "name": "analyze (${{ matrix.language }})",
+            "runs-on": "ubuntu-latest",
+            "timeout-minutes": 30,
+            "permissions": {"contents": "read", "security-events": "write"},
+            "strategy": {
+                "fail-fast": False,
+                "matrix": {"language": ["python", "javascript-typescript", "actions"]},
+            },
+            "steps": [
+                CHECKOUT,
+                action(
+                    "github/codeql-action/init",
+                    languages="${{ matrix.language }}",
+                    **{"build-mode": "none"},
+                    queries="security-extended",
+                    config=(
+                        'paths-ignore:\n  - "**/tests/**"\n  - "e2e/**"\n  - "static/vendor/**"\n'
+                    ),
+                ),
+                action("github/codeql-action/analyze", category="/language:${{ matrix.language }}"),
+            ],
+        },
+    },
+}
 
-
-def mentions(text, word):
-    """Line numbers of the non-comment lines that hold `word`."""
-    return [
-        number
-        for number, line in enumerate(text.splitlines(), 1)
-        if _meaningful(line) and word in _code(line)
-    ]
-
-
-def security_workflow_problems(text):
-    """Differences between security.yml and the exact jobs, steps and scripts expected above."""
-    problems = []
-    if top_level_keys(text) != ["name", "on", "permissions", "jobs"]:
-        problems.append(f"top-level keys are {top_level_keys(text)}")
-    for word in ("continue-on-error", "concurrency"):
-        if mentions(text, word):
-            problems.append(f"security.yml uses {word} (lines {mentions(text, word)})")
-    actual = jobs(text)
-    if list(actual) != list(EXPECTED_JOBS):
-        return [*problems, f"jobs are {list(actual)}, expected {list(EXPECTED_JOBS)}"]
-    for job_id, expected in EXPECTED_JOBS.items():
-        got = job_summary(actual[job_id])
-        for key, value in expected.items():
-            if key == "steps":
-                continue
-            if got[key] != value:
-                problems.append(f"{job_id}: {key} is {got[key]!r}, expected {value!r}")
-        if len(got["steps"]) != len(expected["steps"]):
-            problems.append(
-                f"{job_id}: {len(got['steps'])} steps, expected {len(expected['steps'])}: "
-                f"{[s['name'] or s['uses'] for s in got['steps']]}"
-            )
-            continue
-        for index, (have, want) in enumerate(zip(got["steps"], expected["steps"], strict=True), 1):
-            for key, value in want.items():
-                if have[key] != value:
-                    problems.append(
-                        f"{job_id} step {index} ({want['name'] or want['uses']}): {key} is "
-                        f"{have[key]!r}, expected {value!r}"
-                    )
-    return problems
-
-
-# ------------------------------------------------------ codeql.yml, as text
-
-
-def paths_ignore(text):
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        match = re.match(r"^(\s*)paths-ignore:\s*$", line)
-        if match:
-            found = []
-            for nxt in lines[i + 1 :]:
-                item = re.match(r"^\s+-\s+[\"']?(.*?)[\"']?\s*$", _code(nxt))
-                if _indent(nxt) <= len(match.group(1)) or not item:
-                    break
-                found.append(item.group(1))
-            return found
-    return []
-
-
-def codeql_problems(text):
-    problems = []
-    on = triggers(text)
-    if set(on) != {"push", "pull_request", "schedule", "workflow_dispatch"}:
-        problems.append(f"triggers are {sorted(on)}")
-    if mentions(text, "continue-on-error"):
-        problems.append("codeql.yml uses continue-on-error")
-    languages = re.search(r"^\s+language:\s*\[(.*?)\]", text, re.M)
-    found = {v.strip() for v in languages.group(1).split(",")} if languages else set()
-    if found != {"python", "javascript-typescript", "actions"}:
-        problems.append(f"languages are {sorted(found)}")
-    init = [s for s in workflow_steps(text) if s[1] == "github/codeql-action/init"]
-    if len(init) != 1:
-        problems.append(f"{len(init)} codeql init steps, expected one")
-    else:
-        if init[0][2].get("queries") != "security-extended":
-            problems.append(f"queries are {init[0][2].get('queries')!r}")
-        if init[0][2].get("languages") != "${{ matrix.language }}":
-            problems.append("the init step does not use the matrix language")
-    if "static/vendor/**" not in paths_ignore(text):
-        problems.append("paths-ignore does not list static/vendor/**")
-    if not any(s[1] == "github/codeql-action/analyze" for s in workflow_steps(text)):
-        problems.append("no analyze step")
-    return problems
+EXPECTED_WORKFLOWS = {
+    "security.yml": SECURITY_WORKFLOW,
+    "secrets.yml": SECRETS_WORKFLOW,
+    "codeql.yml": CODEQL_WORKFLOW,
+}
 
 
 # ------------------------------------------------------------ tests: all workflows
 
 
+def test_the_loader_reads_yaml_as_github_does():
+    assert parse_yaml("on: push\nyes: 1\nno: [on, off, y, n]\n") == {
+        "on": "push",
+        "yes": 1,
+        "no": ["on", "off", "y", "n"],
+    }
+    assert parse_yaml("[true, True, TRUE, false, False, FALSE, tRuE]") == [True] * 3 + [
+        False
+    ] * 3 + [True]
+    assert parse_yaml('"concurrenc\\x79": 1\n') == {"concurrency": 1}
+    assert parse_yaml("a: ~\nb: null\nc:\nd: ''\n") == {"a": None, "b": None, "c": None, "d": ""}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a: 1\na: 2\n",
+        "a: 1\n'a': 2\n",
+        'a: 1\n"\\x61": 2\n',
+        "x:\n  b: 1\n  b: 2\n",
+        "{a: 1, a: 2}\n",
+        "a: 1\n---\nb: 2\n",
+    ],
+    ids=["twice", "quoted twice", "escaped twice", "nested", "flow", "two documents"],
+)
+def test_the_loader_rejects_a_repeated_key_and_a_second_document(text):
+    with pytest.raises(yaml.YAMLError):
+        parse_yaml(text)
+    assert load_mapping(text)[0] is None
+
+
+def test_every_workflow_file_is_a_mapping_with_github_keys():
+    for name, text in workflow_texts().items():
+        document, problems = load_mapping(text)
+        assert document is not None, (name, problems)
+        assert {"name", "on", "jobs"} <= set(document), (name, sorted(map(str, document)))
+        assert True not in document and None not in document, name
+
+
 def test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment():
     problems = [
-        f"{WORKFLOWS}/{name}:{number}: {message}"
+        f"{WORKFLOWS}/{name}: {problem}"
         for name, text in workflow_texts().items()
-        for number, message in unpinned_uses(text)
+        for problem in unpinned_uses(text)
     ]
     assert not problems, "Pin each action to a full commit SHA plus '# vX.Y.Z':\n" + "\n".join(
         problems
     )
 
 
+def test_the_pin_check_script_reads_every_uses_line_of_every_workflow():
+    action_pins = load_tool("check_action_pins")
+    for name, text in workflow_texts().items():
+        found, unreadable = action_pins.pins(text, name)
+        assert not unreadable, (name, unreadable)
+        assert not unpinned_uses(text), name
+        parsed = [
+            mapping["uses"]
+            for _, mapping, key in entries(parse_yaml(text))
+            if key == "uses" and not mapping["uses"].startswith("./")
+        ]
+        assert len(parsed) == len(found), (name, "the script sees a different number of pins")
+
+
 def test_every_checkout_drops_the_token():
     problems = [
-        f"{WORKFLOWS}/{name}:{number}: actions/checkout without 'persist-credentials: false'"
+        f"{WORKFLOWS}/{name}: {path}: actions/checkout without 'persist-credentials: false'"
         for name, text in workflow_texts().items()
-        for number in checkouts_keeping_credentials(text)
+        for path in checkouts_keeping_credentials(text)
     ]
     assert not problems, "\n".join(problems)
 
@@ -1020,43 +1009,65 @@ def test_write_permissions_appear_only_where_intended():
     ]
     assert not problems, "\n".join(problems)
     # The intended grants exist (a missing one would silently break the job that needs it).
-    assert {s for _, s, _ in write_grants(texts["codeql.yml"])} == {"security-events"}
-    assert {(s, j) for _, s, j in write_grants(texts["security.yml"])} == {
-        ("contents", "release-sbom")
-    }
+    assert set(write_grants(texts["codeql.yml"])) == {("security-events", "analyze")}
+    assert set(write_grants(texts["security.yml"])) == {("contents", "release-sbom")}
+    assert set(write_grants(texts["pages.yml"])) == {("pages", "deploy"), ("id-token", "deploy")}
+    assert not write_grants(texts["checks.yml"]) and not write_grants(texts["changelog.yml"])
+    assert not write_grants(texts["secrets.yml"])
 
 
 def test_no_workflow_of_the_security_checks_continues_on_error():
-    for name in ("security.yml", "codeql.yml"):
-        assert not mentions(read(f"{WORKFLOWS}/{name}"), "continue-on-error"), name
+    for name in ("security.yml", "secrets.yml", "codeql.yml"):
+        document = parse_yaml(workflow_texts()[name])
+        assert not [key for _, _, key in entries(document) if key == "continue-on-error"], name
 
 
-# ----------------------------------------------------------- tests: security.yml
+# ------------------------------------------------- tests: the three workflows, exactly
 
 
-def test_security_workflow_triggers():
-    on = triggers(read(f"{WORKFLOWS}/security.yml"))
-    assert set(on) == {"pull_request", "schedule", "workflow_dispatch", "release"}, sorted(on)
-    assert "push" not in on, "a push trigger would let a new advisory block the demo deploy"
-    assert re.search(r"types:\s*\[\s*published\s*\]", "\n".join(on["release"])), on["release"]
-    assert any("cron:" in line for line in on["schedule"]), "schedule has no cron"
-
-
-def test_security_workflow_jobs_steps_and_scripts_are_exactly_the_expected_ones():
-    """Every script that decides a gate, the order of the steps, the release job's condition,
-    needs, permissions and steps, the image job's outputs and the secret scan's full checkout."""
-    problems = security_workflow_problems(read(f"{WORKFLOWS}/security.yml"))
+def test_security_workflow_is_exactly_the_expected_document():
+    """Every key, value and script of security.yml: the gates, the order of the steps, the
+    release job's condition, needs and permissions, and the image job's outputs."""
+    problems = exact_workflow_problems("security.yml", workflow_texts()["security.yml"])
     assert not problems, "security.yml differs from what the tests pin:\n" + "\n".join(problems)
 
 
-def test_security_workflow_has_no_concurrency_block():
-    assert not mentions(read(f"{WORKFLOWS}/security.yml"), "concurrency"), (
-        "a newer push would cancel the run, and its secret scan, of an earlier push"
-    )
+def test_secrets_workflow_is_exactly_the_expected_document():
+    problems = exact_workflow_problems("secrets.yml", workflow_texts()["secrets.yml"])
+    assert not problems, "secrets.yml differs from what the tests pin:\n" + "\n".join(problems)
+
+
+def test_codeql_workflow_is_exactly_the_expected_document():
+    problems = exact_workflow_problems("codeql.yml", workflow_texts()["codeql.yml"])
+    assert not problems, "codeql.yml differs from what the tests pin:\n" + "\n".join(problems)
+
+
+def test_security_workflow_triggers():
+    on = triggers(workflow_texts()["security.yml"])
+    assert set(on) == {"pull_request", "schedule", "workflow_dispatch", "release"}, sorted(on)
+    assert "push" not in on, "a push trigger would let a new advisory block the demo deploy"
+    assert on["release"] == {"types": ["published"]} and on["schedule"][0]["cron"]
+
+
+def test_the_secret_scan_runs_on_every_push_and_only_in_its_own_workflow():
+    texts = workflow_texts()
+    on = triggers(texts["secrets.yml"])
+    assert on["push"] == {"branches": ["**"]}, "a push to any branch must be scanned"
+    assert {"pull_request", "schedule", "workflow_dispatch"} <= set(on)
+    scanning = [name for name, text in texts.items() if "gitleaks" in text]
+    assert scanning == ["secrets.yml"], scanning
+
+
+def test_no_security_workflow_has_a_concurrency_group_that_cancels_a_run():
+    for name in ("security.yml", "secrets.yml"):
+        document = parse_yaml(workflow_texts()[name])
+        assert "concurrency" not in document, (
+            f"{name}: a newer push would cancel the run, and its secret scan, of an earlier push"
+        )
 
 
 def test_every_grype_scan_goes_through_the_gate_script():
-    text = read(f"{WORKFLOWS}/security.yml")
+    text = workflow_texts()["security.yml"]
     assert not re.search(r"scan-action@|anchore/scan-action/[^d]|\bgrype\s+(sbom|dir):", text)
     calls = re.findall(r"tools/security/grype_gate\.py (\w+)", text)
     assert calls == ["dependencies", "image"], calls
@@ -1067,7 +1078,13 @@ def test_the_gate_script_fails_the_levels_the_security_policy_names():
     assert gate.GATES == {
         "dependencies": {
             "args": ["--fail-on", "low"],
-            "canary": {"django", "ecdsa", "bootstrap", "actions/download-artifact"},
+            "canary": {
+                "django",
+                "ecdsa",
+                "bootstrap",
+                "actions/download-artifact",
+                "github/codeql-action",
+            },
         },
         "image": {"args": ["--only-fixed", "--fail-on", "high"], "canary": {"django"}},
     }
@@ -1078,18 +1095,7 @@ def test_the_gate_script_fails_the_levels_the_security_policy_names():
         assert gate.CANARY.resolve() == (ROOT / "tools/security/canary.cdx.json").resolve()
 
 
-# ------------------------------------------------------------ tests: codeql.yml
-
-
-def test_codeql_workflow_triggers_and_configuration():
-    problems = codeql_problems(read(f"{WORKFLOWS}/codeql.yml"))
-    assert not problems, "\n".join(problems)
-    assert re.search(
-        r"branches:\s*\[\s*main\s*\]", "\n".join(triggers(read(f"{WORKFLOWS}/codeql.yml"))["push"])
-    )
-
-
-# ------------------------------------------------------- tests: gitleaks / grype
+# ------------------------------------------------------- tests: gitleaks / grype / syft
 
 
 def gitleaks_config():
@@ -1120,6 +1126,12 @@ def test_every_allowlisted_gitleaks_value_still_occurs_in_a_test():
 def test_grype_config_holds_only_exact_ignore_entries():
     problems = grype_problems(read(".grype.yaml"))
     assert not problems, ".grype.yaml:\n" + "\n".join(problems)
+    assert parse_yaml(read(".grype.yaml"))["ignore"], "the shipped entry is the positive control"
+
+
+def test_syft_config_only_adds_the_lockfile_cataloger():
+    assert not syft_problems(read(".syft.yaml"))
+    assert parse_yaml(read(".syft.yaml")) == {"select-catalogers": ["+javascript-lock-cataloger"]}
 
 
 # ---------------------------------------------------- tests: lockfile, dependabot
@@ -1138,51 +1150,119 @@ def test_vendored_files_are_the_locked_versions():
 
 
 def test_dependabot_keeps_the_pinned_actions_current():
-    text = read(".github/dependabot.yml")
-    entries = re.split(r"^  - (?=package-ecosystem:)", text, flags=re.M)[1:]
-    actions = [e for e in entries if re.match(r"package-ecosystem:\s*github-actions\s*$", e, re.M)]
+    updates = parse_yaml(read(".github/dependabot.yml"))["updates"]
+    actions = [u for u in updates if u.get("package-ecosystem") == "github-actions"]
     assert actions, "dependabot.yml has no github-actions ecosystem"
-    assert any(re.search(r"^\s+directory:\s*/\s*$", e, re.M) for e in actions), "directory is not /"
+    assert any(u.get("directory") == "/" for u in actions), "directory is not /"
 
 
 # ------------------------------------------------- tests: the helpers catch bad input
 
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+HEAD = (
+    "name: w\non: push\npermissions:\n  contents: read\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
+)
+
+
+def steps(*lines):
+    return HEAD + "    steps:\n" + "".join(f"      {line}\n" for line in lines)
 
 
 def test_helper_flags_tag_pinned_and_uncommented_uses():
-    bad = (
-        "steps:\n"
-        "  - uses: actions/checkout@v4\n"
-        f"  - uses: actions/setup-node@{SHA}\n"
-        "  - uses: ./local-action\n"
-        f"  - uses: actions/cache@{SHA} # v4.0.0\n"
+    bad = steps(
+        "- uses: actions/checkout@v4",
+        f"- uses: actions/setup-node@{SHA}",
+        "- uses: ./local-action",
+        f"- uses: actions/cache@{SHA} # v4.0.0",
+        "- uses: docker://alpine:3",
     )
-    assert [number for number, _ in unpinned_uses(bad)] == [2, 3]
+    found = unpinned_uses(bad)
+    assert len(found) == 3, found
+    assert "actions/checkout@v4" in found[0] and "setup-node" in found[1]
+    assert "docker://alpine:3" in found[2]
+    assert not unpinned_uses(steps(f"- uses: actions/cache@{SHA} # v4.0.0"))
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ["- uses:", "    evil/action@main"],
+        ["- {uses: evil/action@main}"],
+        ["- 'uses': evil/action@main"],
+        ['- "uses": evil/action@main'],
+        [f"- 'uses': actions/cache@{SHA} # v4.0.0"],
+        ["- uses:", f"    actions/cache@{SHA} # v4.0.0"],
+        [f"- {{uses: actions/cache@{SHA}}}"],
+        ["- uses: evil/action@main # v1"],
+        ["- uses: [evil/action@main]"],
+        ["- uses: 7"],
+    ],
+    ids=lambda lines: " | ".join(lines),
+)
+def test_helper_flags_every_layout_of_uses_that_is_not_one_pinned_line(lines):
+    assert unpinned_uses(steps(*lines))
+
+
+def test_helper_flags_an_unpinned_job_level_reusable_workflow():
+    text = HEAD.replace(
+        "    runs-on: ubuntu-latest\n", "    uses: evil/repo/.github/workflows/w.yml@main\n"
+    )
+    assert unpinned_uses(text)
+    pinned = text.replace("@main", f"@{SHA} # v1.0.0")
+    assert not unpinned_uses(pinned)
 
 
 def test_helper_flags_checkout_without_persist_credentials():
-    bad = (
-        "    steps:\n"
-        f"      - uses: actions/checkout@{SHA} # v7.0.1\n"
-        "        with:\n"
-        "          fetch-depth: 0\n"
-        f"      - uses: actions/checkout@{SHA} # v7.0.1\n"
-        "        with:\n"
-        "          persist-credentials: false\n"
-        "      - name: Use it\n"
-        "        uses: actions/checkout@v7 # v7\n"
+    bad = steps(
+        f"- uses: actions/checkout@{SHA} # v7.0.1",
+        "  with:",
+        "    fetch-depth: 0",
+        f"- uses: actions/checkout@{SHA} # v7.0.1",
+        "  with:",
+        "    persist-credentials: false",
+        "- name: Use it",
+        f"  uses: actions/checkout@{SHA} # v7.0.1",
+        f"- uses: actions/checkout@{SHA} # v7.0.1",
+        "  with: {persist-credentials: 'false'}",
+        f"- uses: actions/checkout@{SHA} # v7.0.1",
+        "  with: {persist-credentials: true}",
+        f"- uses: actions/checkout@{SHA} # v7.0.1",
+        "  with:",
+        "    'persist-credentials': false",
     )
-    assert checkouts_keeping_credentials(bad) == [2, 9]
+    assert [path for path in checkouts_keeping_credentials(bad)] == [
+        "$.jobs.a.steps[0]",
+        "$.jobs.a.steps[2]",
+        "$.jobs.a.steps[3]",
+        "$.jobs.a.steps[4]",
+    ]
 
 
-def test_helper_flags_top_level_write_permissions():
-    assert permission_problems("permissions:\n  contents: write\n")
-    assert permission_problems("permissions: write-all\n")
-    assert permission_problems("permissions: { contents: write }\n")
-    assert permission_problems("on: push\n")
-    assert permission_problems("permissions:\n  contents: read\n  packages: read\n")
-    assert not permission_problems("permissions:\n  contents: read\n")
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name: w\npermissions:\n  contents: write\n",
+        "name: w\npermissions: write-all\n",
+        "name: w\n'permissions': write-all\n",
+        "name: w\npermissions: { contents: write }\n",
+        "name: w\non: push\n",
+        "name: w\npermissions:\n  contents: read\n  packages: read\n",
+        "name: w\npermissions: read-all\n",
+        "name: w\npermissions:\n",
+        "name: w\npermissions: {}\n",
+        "name: w\npermissions:\n  contents: read\npermissions:\n  contents: read\n",
+    ],
+)
+def test_helper_flags_top_level_permissions_that_are_not_contents_read(text):
+    assert permission_problems(text)
+
+
+def test_helper_accepts_top_level_contents_read_only():
+    assert not permission_problems("name: w\npermissions:\n  contents: read\n")
+    assert not permission_problems("name: w\n\"permissions\": {'contents': 'read'}\n")
+
+
+def test_helper_reports_writes_outside_the_intended_jobs():
     bad = (
         "permissions:\n  contents: read\njobs:\n  a:\n"
         "    permissions:\n      security-events: write\n"
@@ -1191,22 +1271,49 @@ def test_helper_flags_top_level_write_permissions():
     assert unintended_writes("codeql.yml", "permissions:\n  contents: write\njobs:\n  a:\n")
     ok = "jobs:\n  analyze:\n    permissions:\n      security-events: write # upload\n"
     assert not unintended_writes("codeql.yml", ok)
+    assert unintended_writes("codeql.yml", ok.replace("analyze", "other"))
 
 
-def test_helper_sees_flow_style_and_inline_write_grants():
+def test_helper_sees_every_spelling_of_a_write_grant():
     head = "permissions:\n  contents: read\njobs:\n  image:\n"
-    assert write_grants(head + "    permissions: { contents: write }\n") == [
-        (5, "contents", "image")
-    ]
-    assert write_grants(head + "    permissions: {contents: read, packages: write}\n") == [
-        (5, "packages", "image")
-    ]
-    assert write_grants(head + "    permissions: write-all\n") == [(5, "*", "image")]
-    assert write_grants(head + "    permissions:\n      contents: 'write'\n") == [
-        (6, "contents", "image")
-    ]
+    for grant, scope in (
+        ("    permissions: { contents: write }\n", "contents"),
+        ("    permissions: {contents: read, packages: write}\n", "packages"),
+        ("    permissions:\n      contents: 'write'\n", "contents"),
+        ("    permissions:\n      'contents': write\n", "contents"),
+        ('    permissions: { "contents": write }\n', "contents"),
+        ("    'permissions':\n      contents: write\n", "contents"),
+        ("    permissions: write-all\n", "*"),
+        ("    'permissions': write-all\n", "*"),
+        ("    permissions: 'write-all'\n", "*"),
+    ):
+        assert write_grants(head + grant) == [(scope, "image")], grant
+        assert unintended_writes("security.yml", head + grant), grant
     assert not write_grants(head + "    permissions: { contents: read }\n")
-    assert unintended_writes("security.yml", head + "    permissions: { contents: write }\n")
+    assert not write_grants(head + "    permissions: read-all\n")
+    assert not write_grants(head + "    permissions: {}\n")
+    assert write_grants(head + "    permissions: write\n") == [("?", "image")]
+    assert write_grants(head + "    permissions: {contents: admin}\n") == [("?", "image")]
+    assert write_grants("permissions:\n  contents: write\n") == [("contents", None)]
+
+
+def test_a_yaml_extension_workflow_is_read_by_every_workflow_test(monkeypatch, tmp_path):
+    shutil.copytree(ROOT / WORKFLOWS, tmp_path / WORKFLOWS)
+    (tmp_path / WORKFLOWS / "extra.yaml").write_text(
+        "name: extra\non: pull_request_target\npermissions: write-all\njobs:\n  a:\n"
+        "    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n"
+    )
+    monkeypatch.setitem(globals(), "ROOT", tmp_path)
+    assert "extra.yaml" in workflow_texts()
+    for test in (
+        test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment,
+        test_every_checkout_drops_the_token,
+        test_every_workflow_defaults_to_read_only_contents,
+        test_write_permissions_appear_only_where_intended,
+    ):
+        with pytest.raises(AssertionError) as failure:
+            test()
+        assert "extra.yaml" in str(failure.value), test.__name__
 
 
 GOOD_ALLOWLIST = {
@@ -1267,56 +1374,378 @@ GOOD_GRYPE = (
     "      name: python\n"
     "      version: 3.14.10\n"
     "    reason: >-\n"
-    "      Because.\n"
-    "      More.\n"
-    "  - vulnerability: GHSA-abcd-1234-wxyz\n"
+    "      Affects only an option the image does not use. Remove this entry when the base\n"
+    "      image moves to the fixed release.\n"
+    "  - vulnerability: GHSA-cfgh-2345-jmpq\n"
     "    package:\n"
     "      name: some_pkg-2\n"
-    "      version: 1.0\n"
-    "    reason: Not used.\n"
+    "      version: 1:2.0+b1~rc-3\n"
+    "    reason: Not reachable, the application never calls the affected function.\n"
 )
 
 
 def test_helper_accepts_exact_grype_entries():
     assert not grype_problems(GOOD_GRYPE)
-    assert not grype_problems("# only a comment\n")
+    assert not grype_problems("ignore: []\n")
+    flow = (
+        "ignore:\n  - {vulnerability: CVE-2026-1234, package: {name: python, version: '3.14'},"
+        " reason: 'Not used by the image: its option is never enabled here.'}\n"
+    )
+    assert not grype_problems(flow)
 
 
 @pytest.mark.parametrize(
     "text",
     [
+        "# only a comment\n",
+        "",
+        "ignore:\n",
+        "ignore: ~\n",
+        "ignore: {}\n",
         GOOD_GRYPE + "only-fixed: true\n",
         "only-fixed: true\n" + GOOD_GRYPE,
         GOOD_GRYPE.replace("ignore:", "ignore:\n  fix-state: fixed"),
+        GOOD_GRYPE.replace("ignore:", "match:\n  ignore-states: [unknown]\nignore:"),
+        GOOD_GRYPE + "ignore:\n",
+        "'ignore': [{vulnerability: CVE-2026-1234, reason: x}]\n",
         "ignore:\n- vulnerability: CVE-2026-1234\n  reason: x\n",
-        "ignore: [{vulnerability: CVE-2026-1234, reason: x}]\n",
+        "ignore: [{vulnerability: CVE-2026-1234, reason: unused}]\n",
         GOOD_GRYPE.replace(
             "      version: 3.14.10\n", "      version: 3.14.10\n      type: python\n"
         ),
         GOOD_GRYPE.replace("    reason: >-", "    fix-state: fixed\n    reason: >-"),
+        GOOD_GRYPE.replace("name: python", 'name: ""'),
+        GOOD_GRYPE.replace("name: python", "name: ''"),
+        GOOD_GRYPE.replace("name: python", "name: ~"),
+        GOOD_GRYPE.replace("name: python", "name: null"),
+        GOOD_GRYPE.replace("name: python", "name: 1"),
         GOOD_GRYPE.replace("name: python", "name: py.*"),
         GOOD_GRYPE.replace("name: python", "name: ^python$"),
+        GOOD_GRYPE.replace("version: 3.14.10", 'version: ""'),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: ~"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: null"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version:"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: 1.10"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: 3"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: true"),
         GOOD_GRYPE.replace("version: 3.14.10", "version: '*'"),
         GOOD_GRYPE.replace("version: 3.14.10", "version: 3.*"),
-        GOOD_GRYPE.replace("version: 3.14.10", "version:"),
+        GOOD_GRYPE.replace("version: 3.14.10", "version: '>=3'"),
         GOOD_GRYPE.replace("      version: 3.14.10\n", ""),
         GOOD_GRYPE.replace("      name: python\n", ""),
         GOOD_GRYPE.replace("CVE-2026-1234", "*"),
         GOOD_GRYPE.replace("CVE-2026-1234", "CVE-2026"),
-        GOOD_GRYPE.replace("    reason: >-\n      Because.\n      More.\n", ""),
-        GOOD_GRYPE.replace("    reason: >-\n      Because.\n      More.\n", "    reason: >-\n"),
-        GOOD_GRYPE.replace("    reason: Not used.\n", "    reason:\n"),
-        GOOD_GRYPE.replace("    reason: >-", "    reason: |"),
+        GOOD_GRYPE.replace("CVE-2026-1234", "CVE-2026-123"),
+        GOOD_GRYPE.replace("GHSA-cfgh-2345-jmpq", "GHSA-cfgh-2345-jmp"),
+        GOOD_GRYPE.replace("GHSA-cfgh-2345-jmpq", "GHSA-CFGH-2345-JMPQ"),
+        GOOD_GRYPE.replace("CVE-2026-1234", "~"),
+        GOOD_GRYPE.replace(
+            "    reason: Not reachable, the application never calls the affected function.\n", ""
+        ),
+        GOOD_GRYPE.replace(
+            "Not reachable, the application never calls the affected function.", "Not used."
+        ),
+        GOOD_GRYPE.replace(
+            "Not reachable, the application never calls the affected function.", "~"
+        ),
+        GOOD_GRYPE.replace(
+            "Not reachable, the application never calls the affected function.", '""'
+        ),
+        GOOD_GRYPE.replace(
+            "    reason: >-\n", "    reason: >-\n      Short.\n  # x\n  - 1\n    reason:\n"
+        ),
         GOOD_GRYPE.replace("    package:\n      name: python", "    package:\n    name: python"),
-        GOOD_GRYPE + "ignore:\n",
-        GOOD_GRYPE.replace("ignore:", "ignore: []"),
-        GOOD_GRYPE.replace("ignore:", "match:\n  ignore-states: [unknown]"),
-        "  - vulnerability: CVE-2026-1234\n" + GOOD_GRYPE,
+        GOOD_GRYPE.replace(
+            "    package:\n      name: python\n      version: 3.14.10\n", "    package: python\n"
+        ),
+        GOOD_GRYPE.replace(
+            "  - vulnerability: GHSA",
+            "  - vulnerability: GHSA-cfgh-2345-jmpq\n    vulnerability: GHSA",
+        ),
+        GOOD_GRYPE + "---\nignore: []\n",
     ],
-    ids=lambda text: text[-50:].replace("\n", "|"),
+    ids=lambda text: text[-60:].replace("\n", "|"),
 )
 def test_helper_rejects_grype_settings_that_excuse_more_than_one_package_version(text):
     assert grype_problems(text)
+
+
+def test_helper_accepts_only_the_lockfile_cataloger_in_the_syft_config():
+    assert not syft_problems('# c\nselect-catalogers:\n  - "+javascript-lock-cataloger"\n')
+    assert not syft_problems("'select-catalogers': ['+javascript-lock-cataloger']\n")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "select-catalogers: []\n",
+        "select-catalogers:\n  - '+javascript-lock-cataloger'\n  - '-python-package-cataloger'\n",
+        "select-catalogers: ['+javascript-lock-cataloger']\nexclude: ['./.github/**']\n",
+        "select-catalogers: ['+javascript-lock-cataloger']\n'exclude': ['./.github/**']\n",
+        "select-catalogers: ['+javascript-lock-cataloger']\nenrich: [go]\n",
+        "select-catalogers: ['javascript-lock-cataloger']\n",
+        "select-catalogers: ['+javascript-lock-cataloger']\nselect-catalogers: ['x']\n",
+        "exclude: ['./.github/**']\n",
+        "- select-catalogers\n",
+    ],
+)
+def test_helper_rejects_syft_settings_that_can_drop_a_package_from_a_listing(text):
+    assert syft_problems(text)
+
+
+def test_vendor_helper_flags_a_file_outside_the_known_directories(vendor_copy):
+    assert not vendor_problems(lock_with(), vendor_copy)
+    (vendor_copy / "jquery-3.4.1.min.js").write_text("/*! jQuery v3.4.1 */\n")
+    problems = vendor_problems(lock_with(), vendor_copy)
+    assert any("jquery-3.4.1.min.js" in problem for problem in problems), problems
+
+
+def test_vendor_helper_accepts_only_the_two_known_files(vendor_copy):
+    assert {p.name for p in vendor_copy.iterdir() if p.is_file()} == VENDOR_FILES
+    (vendor_copy / "NOTICE.txt").write_text("x\n")
+    assert any("NOTICE.txt" in problem for problem in vendor_problems(lock_with(), vendor_copy))
+
+
+# ------------------------------------- tests: the exact workflow comparison catches changes
+
+
+def moved_upload(text):
+    start = text.index("      - uses: actions/upload-artifact")
+    end = text.index("      - name: Fail on a fixable")
+    block, text = text[start:end], text[:start] + text[end:]
+    marker = "\n  release-sbom:"
+    return text.replace(marker, "\n" + block.rstrip("\n") + "\n" + marker, 1).replace(
+        "\n\n\n", "\n\n"
+    )
+
+
+def drop_line(needle):
+    def mutate(text):
+        assert needle in text, needle
+        return "".join(line for line in text.splitlines(True) if needle not in line)
+
+    return mutate
+
+
+def replace(old, new, count=1):
+    def mutate(text):
+        assert old in text, old
+        return text.replace(old, new, count)
+
+    return mutate
+
+
+def after(anchor, addition):
+    return replace(anchor, anchor + addition)
+
+
+TOP = "permissions:\n  contents: read\n"
+JOB_FIELDS = "    runs-on: ubuntu-latest\n"
+SCAN_STEP = "      - name: Scan the history for secrets, file by file\n"
+
+# (workflow file, label) -> a change of that file's text. Each must be reported.
+WORKFLOW_MUTATIONS = {
+    ("security.yml", "gate result ignored"): replace(
+        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json',
+        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json || true',
+    ),
+    ("security.yml", "audit result ignored"): replace(
+        '"$RUNNER_TEMP/dependencies.cdx.json"\n\n  image:',
+        '"$RUNNER_TEMP/dependencies.cdx.json" || true\n\n  image:',
+    ),
+    ("security.yml", "gate looser"): replace("grype_gate.py dependencies", "grype_gate.py image"),
+    ("security.yml", "continue-on-error"): after(JOB_FIELDS, "    continue-on-error: true\n"),
+    ("security.yml", "coverage mode dropped"): replace(
+        'dependencies.cdx.json" --locked', 'dependencies.cdx.json"'
+    ),
+    ("security.yml", "image coverage dropped"): replace(
+        '--image "$RUNNER_TEMP/image-contents.json"', ""
+    ),
+    ("security.yml", "pin check removed"): drop_line("check_action_pins.py"),
+    ("security.yml", "listing config dropped"): replace(
+        "scan dir:. --config .syft.yaml", "scan dir:."
+    ),
+    ("security.yml", "upload before coverage"): moved_upload,
+    ("security.yml", "coverage id dropped"): drop_line("id: coverage"),
+    ("security.yml", "complete output dropped"): drop_line('echo "complete=true"'),
+    ("security.yml", "complete written whatever the check says"): replace(
+        '            && echo "complete=true"', '            ; echo "complete=true"'
+    ),
+    ("security.yml", "outputs dropped"): replace(
+        "    outputs:\n      sbom-complete: ${{ steps.coverage.outputs.complete }}\n", ""
+    ),
+    ("security.yml", "release if widened"): replace(
+        "github.event_name == 'release' &&",
+        "(github.event_name == 'release' || github.event_name == 'pull_request') &&",
+    ),
+    ("security.yml", "release if without coverage"): replace(
+        " && needs.image.outputs.sbom-complete == 'true'", ""
+    ),
+    ("security.yml", "release needs dropped"): drop_line("    needs: image"),
+    ("security.yml", "image job can write (flow style)"): after(
+        "    name: image scan and SBOM\n", "    permissions: { contents: write }\n"
+    ),
+    ("security.yml", "release job also gets packages"): after(
+        "      contents: write # upload release assets\n", "      packages: write\n"
+    ),
+    ("security.yml", "release job runs a script"): replace(
+        '          gh release upload "$TAG"',
+        '          bash sbom/attach.sh\n          gh release upload "$TAG"',
+    ),
+    ("security.yml", "release job checks out"): replace(
+        "    steps:\n      - uses: actions/download-artifact",
+        "    steps:\n      - uses: actions/checkout@"
+        "3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n"
+        "      - uses: actions/download-artifact",
+    ),
+    ("security.yml", "upload may find nothing"): drop_line("if-no-files-found: error"),
+    ("security.yml", "tool downloaded elsewhere"): replace(
+        "anchore/scan-action/download-grype", "anchore/scan-action"
+    ),
+    ("security.yml", "a push trigger"): replace("\non:\n", "\non:\n  push:\n"),
+    ("security.yml", "quoted 'if': false on a step"): after(
+        "      - name: Audit them\n", "        'if': false\n"
+    ),
+    ("security.yml", "quoted 'if' on a job"): after(
+        "    name: image scan and SBOM\n", "    'if': ${{ false }}\n"
+    ),
+    ("security.yml", "quoted 'permissions': write-all"): after(
+        "    name: image scan and SBOM\n", "    'permissions': write-all\n"
+    ),
+    ("security.yml", "top-level defaults (quoted)"): after(
+        TOP, "'defaults':\n  run:\n    shell: bash {0}\n"
+    ),
+    ("security.yml", "top-level defaults"): after(TOP, "defaults:\n  run:\n    shell: bash {0}\n"),
+    ("security.yml", "escaped key concurrency"): after(
+        TOP, '"concurrenc\\x79":\n  group: ${{ github.ref }}\n  cancel-in-progress: true\n'
+    ),
+    ("security.yml", "concurrency added"): after(TOP, "concurrency: x\n"),
+    ("security.yml", "shell on a step"): after(
+        "      - name: Audit them\n", "        shell: bash {0}\n"
+    ),
+    ("security.yml", "env var on a job"): after(JOB_FIELDS, "    env:\n      PYTHONPATH: x\n"),
+    ("security.yml", "env var on a step"): after(
+        "        env:\n          GRYPE: ${{ steps.grype.outputs.cmd }}\n",
+        "          GRYPE_DB_AUTO_UPDATE: true\n",
+    ),
+    ("security.yml", "continue-on-error (quoted) on a step"): after(
+        "      - name: Audit them\n", "        'continue-on-error': true\n"
+    ),
+    ("security.yml", "top-level permissions widened"): replace(
+        TOP, "permissions:\n  contents: read\n  packages: write\n"
+    ),
+    ("security.yml", "a key repeated"): after(TOP, TOP),
+    ("security.yml", "a step key repeated"): after(
+        "      - name: Audit them\n", "        name: Audit them\n"
+    ),
+    ("security.yml", "a second document"): lambda text: text + "---\nname: other\n",
+    ("security.yml", "timeout removed"): drop_line("timeout-minutes: 5"),
+    ("security.yml", "timeout as a boolean"): replace(
+        "timeout-minutes: 5", "timeout-minutes: true"
+    ),
+    ("secrets.yml", "exit code"): replace(
+        "--no-banner --config", "--no-banner --exit-code 0 --config"
+    ),
+    ("secrets.yml", "not redacting"): replace("--redact --verbose", "--redact=0 --verbose"),
+    ("secrets.yml", "history narrowed"): replace(
+        '--log-opts="--text --diff-merges=first-parent HEAD"', "--log-opts=-1"
+    ),
+    ("secrets.yml", "history without first-parent"): replace(
+        "--text --diff-merges=first-parent HEAD", "--text HEAD"
+    ),
+    ("secrets.yml", "history read without --text"): replace(
+        '--log-opts="--text --diff-merges', '--log-opts="--diff-merges'
+    ),
+    ("secrets.yml", "gitleaks:allow honoured"): replace(
+        "            --ignore-gitleaks-allow --redact --verbose --no-banner",
+        "            --redact --verbose --no-banner",
+    ),
+    ("secrets.yml", "shallow checkout"): replace("fetch-depth: 0", "fetch-depth: 1"),
+    ("secrets.yml", "token kept"): replace(
+        "persist-credentials: false", "persist-credentials: true"
+    ),
+    ("secrets.yml", "canary not required to fail"): replace(
+        'if [ "$status" -ne 1 ]', 'if [ "$status" -ne 0 ]'
+    ),
+    ("secrets.yml", "text stream scan removed"): drop_line("stdin --ignore-gitleaks-allow"),
+    ("secrets.yml", ".gitleaksignore guard removed"): replace(
+        "find . -name .gitleaksignore", "find . -name .gitleaksignore-none"
+    ),
+    ("secrets.yml", "download not verified"): drop_line("sha256sum --check"),
+    ("secrets.yml", "checksum changed"): replace("551f6fc8", "661f6fc8"),
+    ("secrets.yml", "push trigger removed"): replace('  push:\n    branches: ["**"]\n', ""),
+    ("secrets.yml", "push limited to main"): replace('branches: ["**"]', "branches: [main]"),
+    ("secrets.yml", "schedule removed"): drop_line("cron:"),
+    ("secrets.yml", "concurrency added"): after(
+        TOP, "concurrency:\n  group: x\n  cancel-in-progress: true\n"
+    ),
+    ("secrets.yml", "quoted 'if': false on the history scan"): after(
+        SCAN_STEP, "        'if': false\n"
+    ),
+    ("secrets.yml", "quoted 'if' on the job"): after(
+        "    name: secret scan\n", "    'if': ${{ false }}\n"
+    ),
+    ("secrets.yml", "continue-on-error"): after(JOB_FIELDS, "    continue-on-error: true\n"),
+    ("secrets.yml", "job can write"): after(JOB_FIELDS, "    permissions: write-all\n"),
+    ("secrets.yml", "defaults shell"): after(TOP, "defaults:\n  run:\n    shell: bash {0}\n"),
+    ("secrets.yml", "a step removed"): drop_line("      - name: Scan the history for secrets as"),
+    ("codeql.yml", "a language dropped"): replace(
+        "[python, javascript-typescript, actions]", "[python, actions]"
+    ),
+    ("codeql.yml", "queries"): replace("queries: security-extended", "queries: default"),
+    ("codeql.yml", "vendored paths analysed"): drop_line('- "static/vendor/**"'),
+    ("codeql.yml", "continue-on-error"): after(JOB_FIELDS, "    continue-on-error: true\n"),
+    ("codeql.yml", "job can write contents"): replace(
+        "      contents: read # check out the code\n",
+        "      contents: write # check out the code\n",
+    ),
+    ("codeql.yml", "if added"): after(JOB_FIELDS, "    'if': false\n"),
+    ("codeql.yml", "build mode"): replace("build-mode: none", "build-mode: autobuild"),
+    ("codeql.yml", "pull request trigger removed"): drop_line("  pull_request:"),
+    ("codeql.yml", "no longer cancels on a pull request only"): replace(
+        "${{ github.event_name == 'pull_request' }}", "true"
+    ),
+}
+
+
+def test_the_exact_comparison_accepts_the_real_workflows():
+    for name, text in workflow_texts().items():
+        if name in EXPECTED_WORKFLOWS:
+            assert not exact_workflow_problems(name, text), name
+
+
+@pytest.mark.parametrize(("name", "label"), WORKFLOW_MUTATIONS, ids=lambda part: part)
+def test_the_exact_comparison_rejects_a_changed_workflow(name, label):
+    original = read(f"{WORKFLOWS}/{name}")
+    mutated = WORKFLOW_MUTATIONS[(name, label)](original)
+    assert mutated != original, "mutation did not apply"
+    assert exact_workflow_problems(name, mutated), (name, label)
+
+
+def test_the_comparison_names_the_difference_and_ignores_layout():
+    original = read(f"{WORKFLOWS}/security.yml")
+    problems = exact_workflow_problems(
+        "security.yml", original.replace("name: security", "name: security\n'if': false", 1)
+    )
+    assert any("unexpected key 'if'" in problem for problem in problems), problems
+    reflowed = original.replace('"$SYFT" scan dir:. --config', '"$SYFT"   scan dir:.   --config')
+    assert reflowed != original and not exact_workflow_problems("security.yml", reflowed)
+    assert not differences({"a": [1, {"b": None}]}, {"a": [1, {"b": None}]})
+    assert differences({"a": 1}, {"a": True}) and differences({"a": 0}, {"a": False})
+    assert differences({"a": [1]}, {"a": [1, 2]}) and differences({"a": 1, "b": 2}, {"a": 1})
+
+
+def test_the_normalizer_ignores_layout_and_not_commands():
+    assert normalize_script("a \\\n   b   c\n\n  d\n") == "a b c\nd"
+    assert normalize_script("a b\nc") != normalize_script("a b c")
+
+
+def test_a_pin_comment_that_names_no_release_is_reported_for_the_real_workflows():
+    original = read(f"{WORKFLOWS}/codeql.yml")
+    assert not unpinned_uses(original)
+    assert unpinned_uses(original.replace(" # v4.39.3", "", 1))
+    assert unpinned_uses(original.replace("@33d7b85da1a04171e211befe2c739303b9a4c066", "@v4", 1))
 
 
 def lock_with(**changes):
@@ -1464,131 +1893,3 @@ def test_vendor_helper_flags_a_banner_only_far_into_the_file(vendor_copy):
     data = path.read_bytes().replace(b"v3.4.0", b"v3.3.0", 1)
     path.write_bytes(data + b"\n" + b" " * 500 + b"/* v3.4.0 */")
     assert vendor_problems(lock_with(), vendor_copy)
-
-
-# ------------------------------------- tests: the exact workflow comparison catches changes
-
-
-def moved_upload(text):
-    start = text.index("      - uses: actions/upload-artifact")
-    end = text.index("      - name: Fail on a fixable")
-    block, text = text[start:end], text[:start] + text[end:]
-    marker = "\n  release-sbom:"
-    return text.replace(marker, "\n" + block.rstrip("\n") + "\n" + marker, 1).replace(
-        "\n\n\n", "\n\n"
-    )
-
-
-def drop_line(needle):
-    def mutate(text):
-        return "".join(line for line in text.splitlines(True) if needle not in line)
-
-    return mutate
-
-
-def replace(old, new):
-    def mutate(text):
-        assert old in text, old
-        return text.replace(old, new, 1)
-
-    return mutate
-
-
-WORKFLOW_MUTATIONS = {
-    "gate result ignored": replace(
-        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json',
-        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json || true',
-    ),
-    "audit result ignored": replace(
-        '"$RUNNER_TEMP/dependencies.cdx.json"\n\n  secrets:',
-        '"$RUNNER_TEMP/dependencies.cdx.json" || true\n\n  secrets:',
-    ),
-    "gate looser": replace("grype_gate.py dependencies", "grype_gate.py image"),
-    "continue-on-error": replace(
-        "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    continue-on-error: true\n"
-    ),
-    "gitleaks exit code": replace("--no-banner --config", "--no-banner --exit-code 0 --config"),
-    "gitleaks not redacting": replace("--redact --verbose", "--redact=0 --verbose"),
-    "history narrowed": replace('--log-opts="--diff-merges=first-parent HEAD"', "--log-opts=-1"),
-    "history without first-parent": replace("--diff-merges=first-parent HEAD", "HEAD"),
-    "shallow checkout": replace("fetch-depth: 0", "fetch-depth: 1"),
-    "canary removed": replace('if [ "$status" -ne 1 ]', 'if [ "$status" -ne 0 ]'),
-    "stdin scan removed": drop_line("stdin --redact"),
-    "stdin scan path narrowed": replace(
-        ".gitleaks.toml static/vendor/package-lock.json", "static/vendor/package-lock.json"
-    ),
-    "coverage mode dropped": replace('dependencies.cdx.json" --locked', 'dependencies.cdx.json"'),
-    "image coverage dropped": replace('--image "$RUNNER_TEMP/image-contents.json"', ""),
-    "pin check removed": drop_line("check_action_pins.py"),
-    "listing config dropped": replace("scan dir:. --config .syft.yaml", "scan dir:."),
-    "upload before coverage": moved_upload,
-    "coverage id dropped": drop_line("id: coverage"),
-    "complete output dropped": drop_line('echo "complete=true"'),
-    "outputs dropped": replace(
-        "    outputs:\n      sbom-complete: ${{ steps.coverage.outputs.complete }}\n", ""
-    ),
-    "release if widened": replace(
-        "github.event_name == 'release' &&",
-        "(github.event_name == 'release' || github.event_name == 'pull_request') &&",
-    ),
-    "release if without coverage": replace(" && needs.image.outputs.sbom-complete == 'true'", ""),
-    "release needs dropped": drop_line("    needs: image"),
-    "image job can write (flow style)": replace(
-        "    name: image scan and SBOM\n",
-        "    name: image scan and SBOM\n    permissions: { contents: write }\n",
-    ),
-    "release job also gets packages": replace(
-        "      contents: write # upload release assets\n",
-        "      contents: write # upload release assets\n      packages: write\n",
-    ),
-    "release job runs a script": replace(
-        '          gh release upload "$TAG"',
-        '          bash sbom/attach.sh\n          gh release upload "$TAG"',
-    ),
-    "release job checks out": replace(
-        "    steps:\n      - uses: actions/download-artifact",
-        "    steps:\n      - uses: actions/checkout@"
-        "3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n"
-        "      - uses: actions/download-artifact",
-    ),
-    "concurrency added": replace(
-        "permissions:\n  contents: read\n", "concurrency: x\npermissions:\n  contents: read\n"
-    ),
-    "upload may find nothing": replace("          if-no-files-found: error\n", ""),
-    "tool downloaded elsewhere": replace(
-        "anchore/scan-action/download-grype", "anchore/scan-action"
-    ),
-}
-
-
-def test_the_exact_comparison_accepts_the_real_workflow_text():
-    assert not security_workflow_problems(read(f"{WORKFLOWS}/security.yml"))
-
-
-@pytest.mark.parametrize("label", WORKFLOW_MUTATIONS)
-def test_the_exact_comparison_rejects_a_changed_workflow(label):
-    original = read(f"{WORKFLOWS}/security.yml")
-    mutated = WORKFLOW_MUTATIONS[label](original)
-    assert mutated != original, "mutation did not apply"
-    assert security_workflow_problems(mutated), label
-
-
-def test_the_normalizer_ignores_layout_and_not_commands():
-    assert normalize_script("a \\\n   b   c\n\n  d\n") == "a b c\nd"
-    assert normalize_script("a b\nc") != normalize_script("a b c")
-
-
-def test_codeql_comparison_rejects_weaker_configurations():
-    text = read(f"{WORKFLOWS}/codeql.yml")
-    assert not codeql_problems(text)
-    for old, new in (
-        ("[python, javascript-typescript, actions]", "[python, actions]"),
-        ("queries: security-extended", "queries: default"),
-        ('              - "static/vendor/**"\n', ""),
-        (
-            "    runs-on: ubuntu-latest\n",
-            "    runs-on: ubuntu-latest\n    continue-on-error: true\n",
-        ),
-    ):
-        assert old in text
-        assert codeql_problems(text.replace(old, new, 1)), old

@@ -5,11 +5,12 @@ no vulnerabilities, so the security workflow runs this on each SBOM before trust
 of it (SECURITY.md, "What is checked"). Standard library only.
 
     python3 tools/security/sbom_coverage.py SBOM --locked
-        every package version in uv.lock and static/vendor/package-lock.json
+        every package version in uv.lock and static/vendor/package-lock.json, and every action
+        the workflows pin, at the release its comment names
     python3 tools/security/sbom_coverage.py SBOM --image CONTENTS
         everything image_contents.py found in the image: the operating system and its packages,
-        Python, and every installed Python package; the project's runtime dependencies among
-        them; and the vendored browser packages
+        Python, every installed Python package and every program no Debian package installed;
+        the project's runtime dependencies among them; and the vendored browser packages
 
 SBOM is a CycloneDX JSON file. Exit status 1 lists what is missing.
 """
@@ -21,6 +22,9 @@ import sys
 import tomllib
 from pathlib import Path
 from urllib.parse import unquote
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_action_pins  # noqa: E402  (a sibling script, standard library only)
 
 ROOT = Path(__file__).resolve().parents[2]
 PURL = re.compile(r"^pkg:(?P<type>[\w.+-]+)/(?P<path>[^@?#]+)@(?P<version>[^?#]+)")
@@ -44,12 +48,33 @@ def sbom_packages(sbom):
             name = normalize(path)
         elif kind == "deb":
             name = path.rsplit("/", 1)[-1]
-        elif kind in ("npm", "generic"):
+        elif kind in ("npm", "generic", "github"):
             name = path
         else:
             continue
         found.setdefault((kind, name), set()).add(unquote(match["version"]))
     return found
+
+
+def locations(sbom):
+    """Every file path an SBOM component was found at."""
+    found = set()
+    for component in sbom.get("components", []):
+        for prop in component.get("properties", []):
+            if re.fullmatch(r"syft:location:\d+:path", prop.get("name", "")):
+                found.add(prop.get("value", ""))
+    return found
+
+
+def pinned_actions(texts):
+    """({owner/repo: {release tags}}, problems) for the actions the given workflows pin."""
+    actions, problems = {}, []
+    for name, text in texts.items():
+        found, unreadable = check_action_pins.pins(text, name)
+        problems += unreadable
+        for _, action, _, tag in found:
+            actions.setdefault(check_action_pins.repository(action), set()).add(tag)
+    return actions, problems
 
 
 def operating_systems(sbom):
@@ -102,12 +127,16 @@ def missing(found, ecosystem, expected):
     return lines
 
 
-def check_locked(sbom, uv_lock, vendor_lock):
-    """(problems, expected count): every locked and vendored package version is listed."""
+def check_locked(sbom, uv_lock, vendor_lock, workflows):
+    """(problems, expected count): every locked and vendored package version, and every pinned
+    action, is listed. `workflows` maps a workflow's name to its text."""
     found = sbom_packages(sbom)
     python, browser = locked_python(uv_lock), vendored(vendor_lock)
-    problems = missing(found, "pypi", python) + missing(found, "npm", browser)
-    return problems, sum(len(v) for v in python.values()) + len(browser)
+    actions, problems = pinned_actions(workflows)
+    problems += missing(found, "pypi", python) + missing(found, "npm", browser)
+    problems += missing(found, "github", actions)
+    expected = sum(len(v) for v in (*python.values(), *actions.values())) + len(browser)
+    return problems, expected
 
 
 def check_image(sbom, contents, pyproject, vendor_lock):
@@ -118,10 +147,13 @@ def check_image(sbom, contents, pyproject, vendor_lock):
         pypi.setdefault(normalize(name), set()).update(versions)
     system = contents.get("os", {})
     python = contents.get("python", "")
-    if not (deb and pypi and python and system.get("id") and system.get("version_id")):
+    programs = contents.get("programs")
+    if not (deb and pypi and python and system.get("id") and system.get("version_id")) or (
+        programs is None
+    ):
         return [
-            "the image listing is incomplete: it must name the operating system, Python and "
-            "the Debian and Python packages"
+            "the image listing is incomplete: it must name the operating system, Python, the "
+            "Debian and Python packages and the programs no Debian package installed"
         ], 0
     problems = []
     absent = sorted(runtime_names(pyproject) - set(pypi))
@@ -133,6 +165,10 @@ def check_image(sbom, contents, pyproject, vendor_lock):
     problems += missing(found, "pypi", pypi)
     problems += missing(found, "generic", {"python": {python}})
     problems += missing(found, "npm", browser)
+    located = locations(sbom)
+    problems += [
+        f"program {path}: no SBOM entry was found in it" for path in programs if path not in located
+    ]
     name, release = system["id"], system["version_id"]
     if not any(
         os_name == name and (version == release or version.startswith(release + "."))
@@ -140,7 +176,7 @@ def check_image(sbom, contents, pyproject, vendor_lock):
     ):
         problems.append(f"operating system {name} {release}: not in the SBOM")
     expected = sum(len(v) for v in deb.values()) + sum(len(v) for v in pypi.values())
-    return problems, expected + 2 + len(browser)
+    return problems, expected + 2 + len(browser) + len(programs)
 
 
 def main(argv=None):
@@ -154,7 +190,11 @@ def main(argv=None):
     vendor_lock = json.loads((ROOT / "static/vendor/package-lock.json").read_text())
     if args.locked:
         uv_lock = tomllib.loads((ROOT / "uv.lock").read_text())
-        problems, expected = check_locked(sbom, uv_lock, vendor_lock)
+        workflows = {
+            str(path.relative_to(ROOT)): path.read_text()
+            for path in check_action_pins.workflow_files(ROOT)
+        }
+        problems, expected = check_locked(sbom, uv_lock, vendor_lock, workflows)
     else:
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
         contents = json.loads(args.image.read_text())

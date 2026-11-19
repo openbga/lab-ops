@@ -30,11 +30,13 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from django.conf import settings
 from packaging.markers import Marker
 
 ROOT = Path(settings.BASE_DIR)
 SECURITY_YML = ".github/workflows/security.yml"
+SECRETS_YML = ".github/workflows/secrets.yml"
 TOOLS = Path(os.environ.get("LABOPS_REVIEW_TOOLS", "/tmp/labops-rsc-tools/bin"))
 SCANNER_ENV = {
     **os.environ,
@@ -169,9 +171,11 @@ def _shell_words(command):
     return shlex.split(" ".join(line.strip().removesuffix("\\") for line in command))
 
 
+# Adapted: the secret scan moved out of security.yml into secrets.yml (it runs on every push), so
+# the secret-scan helpers read that file.
 def _workflow_command(marker):
-    """The lines of the first logical command in security.yml that holds `marker`."""
-    lines = read(SECURITY_YML).splitlines()
+    """The lines of the first logical command in secrets.yml that holds `marker`."""
+    lines = read(SECRETS_YML).splitlines()
     start = next(i for i, line in enumerate(lines) if marker in line)
     command = []
     for line in lines[start:]:
@@ -182,11 +186,11 @@ def _workflow_command(marker):
 
 
 # Adapted: the reviewer's helper ran only the history command. The workflow's secret scan is
-# two commands (the history scan, and a stdin scan of the history of the files gitleaks skips by
-# name), so RC-10 is judged on the job. This runs both as the workflow writes them, with the
-# quoted --log-opts="..." read as one argument, and the repository's config unless one is given.
+# two commands (the history scan, and a scan of the whole history as one text stream), so RC-10 is
+# judged on the job. This runs both as secrets.yml writes them, with the quoted --log-opts="..."
+# read as one argument, and the repository's config unless one is given.
 def secret_scan_commands(config=None):
-    """[(git command or None, gitleaks arguments)] of security.yml's secret scan, with the
+    """[(git command or None, gitleaks arguments)] of secrets.yml's secret scan, with the
     gitleaks binary left out and the config path replaced by `config`."""
     config = str(config or ROOT / ".gitleaks.toml")
 
@@ -259,18 +263,22 @@ def test_secret_added_in_a_merge_commit_fails_the_secret_scan(tmp_path):
     assert code == 1, f"the secret scan passed a token committed in a merge commit:\n{output}"
 
 
-def test_a_newer_push_does_not_cancel_the_secret_scan_of_an_earlier_one():
+# Adapted: the secret scan job is now in secrets.yml, so both files are checked for a cancelling
+# concurrency group; a workflow that holds the `secrets` job must not have one.
+@pytest.mark.parametrize("path", [SECURITY_YML, SECRETS_YML])
+def test_a_newer_push_does_not_cancel_the_secret_scan_of_an_earlier_one(path):
     """CONTRIBUTING: anything pushed to a public branch must be treated as exposed. With
     cancel-in-progress, a push that replaces a leaking commit cancels the only run that would
     have reported it; the next run scans a history that no longer contains the commit."""
-    text = read(SECURITY_YML)
+    text = read(path)
     cancels = re.search(
         r"cancel-in-progress:\s*\$\{\{\s*github\.event_name == 'pull_request'\s*\}\}", text
     )
     has_secret_job = re.search(r"^  secrets:\s*$", text, re.M)
     assert not (cancels and has_secret_job), (
-        "security.yml cancels an in-progress pull request run, including its secret scan"
+        f"{path} cancels an in-progress pull request run, including its secret scan"
     )
+    assert "concurrency" not in yaml.safe_load(text), f"{path} has a concurrency group"
 
 
 # =========================================================== RC-02 Grype configuration check
@@ -372,15 +380,19 @@ def test_a_gitleaks_config_the_repository_accepts_still_reports_a_real_token(
 # Adapted: the candidate's module now also holds parametrized tests and tests with fixtures
 # (they need arguments and test the helpers, not the workflow). Only the tests that take no
 # arguments are run, as before.
-def candidate_failures(checks, monkeypatch, security_yml):
-    """Names of the candidate's tests that fail when security.yml reads as `security_yml`."""
+# Adapted: a mutation can now change either security.yml or secrets.yml (the secret scan moved), so
+# the file whose text is replaced is a parameter (security.yml unless a path is given).
+def candidate_failures(checks, monkeypatch, workflow_text, path=SECURITY_YML):
+    """Names of the candidate's tests that fail when the workflow at `path` reads as
+    `workflow_text`."""
     real_read, texts = checks.read, checks.workflow_texts()
+    file_name = Path(path).name
 
     def fake_read(relative):
-        return security_yml if relative == SECURITY_YML else real_read(relative)
+        return workflow_text if relative == path else real_read(relative)
 
     monkeypatch.setattr(checks, "read", fake_read)
-    monkeypatch.setattr(checks, "workflow_texts", lambda: {**texts, "security.yml": security_yml})
+    monkeypatch.setattr(checks, "workflow_texts", lambda: {**texts, file_name: workflow_text})
     failures = []
     for name in sorted(dir(checks)):
         if name.startswith("test_") and not inspect.signature(getattr(checks, name)).parameters:
@@ -395,32 +407,49 @@ def _insert_after(anchor, addition):
     return lambda text: text.replace(anchor, anchor + addition)
 
 
-# Adapted: the workflow changed, so the strings these mutations edit changed. The behaviour each
-# one switches off is the reviewer's: a Grype result that cannot fail the job (`|| true` after a
+# Adapted: the workflow changed, so the strings these mutations edit changed, and the gitleaks
+# ones now edit secrets.yml (each mutation is (workflow path, edit)). The behaviour each one
+# switches off is the reviewer's: a Grype result that cannot fail the job (`|| true` after a
 # grype_gate.py call replaces fail-build: false), continue-on-error, gitleaks exit code and
 # redaction, and a narrowed history. Each mutated text must differ from the original.
 GATE_MUTATIONS = {
-    "Grype result ignored (|| true after the image gate)": lambda text: text.replace(
-        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json',
-        'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json || true',
+    "Grype result ignored (|| true after the image gate)": (
+        SECURITY_YML,
+        lambda text: text.replace(
+            'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json',
+            'grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json || true',
+        ),
     ),
-    "Grype result ignored (|| true after the dependency gate)": lambda text: text.replace(
-        '          python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \\\n'
-        '            "$RUNNER_TEMP/dependencies.cdx.json"',
-        '          python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \\\n'
-        '            "$RUNNER_TEMP/dependencies.cdx.json" || true',
+    "Grype result ignored (|| true after the dependency gate)": (
+        SECURITY_YML,
+        lambda text: text.replace(
+            '          python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \\\n'
+            '            "$RUNNER_TEMP/dependencies.cdx.json"',
+            '          python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \\\n'
+            '            "$RUNNER_TEMP/dependencies.cdx.json" || true',
+        ),
     ),
-    "every job may fail without failing the run (continue-on-error)": _insert_after(
-        "    runs-on: ubuntu-latest\n", "    continue-on-error: true\n"
+    "every job may fail without failing the run (continue-on-error)": (
+        SECURITY_YML,
+        _insert_after("    runs-on: ubuntu-latest\n", "    continue-on-error: true\n"),
     ),
-    "gitleaks exits 0 on a leak (--exit-code 0)": lambda text: text.replace(
-        "--no-banner", "--no-banner --exit-code 0"
+    "the secret scan may fail without failing the run (continue-on-error)": (
+        SECRETS_YML,
+        _insert_after("    runs-on: ubuntu-latest\n", "    continue-on-error: true\n"),
     ),
-    "gitleaks prints secrets in the public log (--redact=0)": lambda text: text.replace(
-        "--redact ", "--redact=0 "
+    "gitleaks exits 0 on a leak (--exit-code 0)": (
+        SECRETS_YML,
+        lambda text: text.replace("--no-banner", "--no-banner --exit-code 0"),
     ),
-    "gitleaks scans only the last commit (--log-opts narrowed)": lambda text: text.replace(
-        '--log-opts="--diff-merges=first-parent HEAD"', "--log-opts=-1"
+    "gitleaks prints secrets in the public log (--redact=0)": (
+        SECRETS_YML,
+        lambda text: text.replace("--redact ", "--redact=0 "),
+    ),
+    "gitleaks scans only the last commit (--log-opts narrowed)": (
+        SECRETS_YML,
+        lambda text: text.replace(
+            '--log-opts="--text --diff-merges=first-parent HEAD"', "--log-opts=-1"
+        ),
     ),
 }
 BOUNDARY_MUTATIONS = {
@@ -446,10 +475,13 @@ def test_control_the_candidate_tests_pass_on_the_real_workflow(checks, monkeypat
 def test_the_candidate_tests_fail_when_a_gate_is_disabled(checks, monkeypatch, label):
     """tests/test_security_checks.py: a setting that weakens a check without failing any build
     is what these tests pin."""
-    original = read(SECURITY_YML)
-    mutated = GATE_MUTATIONS[label](original)
+    path, mutate = GATE_MUTATIONS[label]
+    original = read(path)
+    mutated = mutate(original)
     assert mutated != original, "mutation did not apply"
-    assert candidate_failures(checks, monkeypatch, mutated), f"no candidate test fails: {label}"
+    assert candidate_failures(checks, monkeypatch, mutated, path), (
+        f"no candidate test fails: {label}"
+    )
 
 
 @pytest.mark.parametrize("label", BOUNDARY_MUTATIONS)
@@ -568,6 +600,9 @@ def sbom_of(python, vendored):
     return cyclonedx(*components)
 
 
+# Adapted: the listing now also names the programs no Debian package installed (`programs`), and
+# the SBOM components the extras add include one found at that path, so a test still removes only
+# what it examines.
 def image_inputs(lock, python):
     """What image_contents.py would report for an image holding `python` ({name: versions}), one
     Debian package, Python and Debian 13, and the SBOM components that list the Debian package,
@@ -577,11 +612,17 @@ def image_inputs(lock, python):
         "python": "3.14.10",
         "deb": {"libc6": ["2.41-12"]},
         "pypi": {name: sorted(versions) for name, versions in python.items()},
+        "programs": ["/usr/local/bin/uv"],
     }
     extras = [
         component("pkg:deb/debian/libc6@2.41-12?arch=amd64", "libc6", "2.41-12"),
         component("pkg:generic/python@3.14.10", "python", "3.14.10", type="application"),
         {"type": "operating-system", "name": "debian", "version": "13"},
+        {
+            "type": "application",
+            "name": "uv",
+            "properties": [{"name": "syft:location:0:path", "value": "/usr/local/bin/uv"}],
+        },
     ]
     return contents, extras
 
@@ -631,27 +672,25 @@ def test_runtime_coverage_requires_the_operating_system_packages_and_python():
 
 # Adapted: success() is no longer what keeps a bad SBOM from a release. The coverage step now runs
 # before the upload, and release-sbom requires the coverage step's `complete` output
-# (needs.image.outputs.sbom-complete == 'true'), which only a passing coverage step sets.
+# (needs.image.outputs.sbom-complete == 'true'), which only a passing coverage step sets. The
+# workflow is read as parsed YAML (the candidate's tests no longer have line-based job helpers).
 def test_an_sbom_that_fails_its_coverage_check_is_not_attached_to_a_release(checks):
     """SECURITY.md: the coverage check stops a listing the scanner could not complete from
     passing. release-sbom runs whenever the run is not cancelled (`!cancelled()` replaces the
     implicit success()), and the artifact is uploaded before the coverage step."""
-    text = read(SECURITY_YML)
-    steps = checks.split_steps(checks.jobs(text)["image"])
-    names = ["\n".join(step) for step in steps]
-    upload = next(i for i, s in enumerate(names) if "actions/upload-artifact" in s)
-    check = next(i for i, s in enumerate(names) if "sbom_coverage.py" in s)
-    condition = next(
-        line for line in checks.jobs(text)["release-sbom"] if re.match(r"^\s+if:", line)
-    )
+    jobs = checks.parse_yaml(read(SECURITY_YML))["jobs"]
+    steps = jobs["image"]["steps"]
+    upload = next(i for i, s in enumerate(steps) if "actions/upload-artifact" in s.get("uses", ""))
+    check = next(i for i, s in enumerate(steps) if "sbom_coverage.py" in s.get("run", ""))
+    condition = jobs["release-sbom"]["if"]
     requires_complete = "needs.image.outputs.sbom-complete == 'true'" in condition
     assert check < upload and requires_complete, (
-        f"release-sbom ({condition.strip()}) attaches the artifact uploaded at step {upload} "
+        f"release-sbom ({condition}) attaches the artifact uploaded at step {upload} "
         f"even when the coverage check at step {check} fails"
     )
-    coverage_step = names[check]
-    assert "id: coverage" in coverage_step and 'echo "complete=true"' in coverage_step
-    assert "steps.coverage.outputs.complete" in "\n".join(checks.jobs(text)["image"])
+    coverage_step = steps[check]
+    assert coverage_step["id"] == "coverage" and 'echo "complete=true"' in coverage_step["run"]
+    assert jobs["image"]["outputs"] == {"sbom-complete": "${{ steps.coverage.outputs.complete }}"}
 
 
 # ===================================== RC-09 the SPDX SBOM and the operations instructions
@@ -851,19 +890,11 @@ def test_the_documented_local_dependency_audit_reports_what_ci_reports(tmp_path)
 # ================================================================ sound: checked and held
 
 
+# Adapted: the script of a step is its parsed `run` value (the checks module reads YAML now; the
+# old helper cut the script out of the lines of the file).
 def run_block(checks, job, step_name):
-    lines = checks.jobs(read(SECURITY_YML))[job]
-    start = next(i for i, line in enumerate(lines) if f"name: {step_name}" in line)
-    block, inside = [], False
-    for line in lines[start + 1 :]:
-        if re.match(r"^\s+run: \|\s*$", line):
-            inside = True
-            continue
-        if inside:
-            if line.strip() and len(line) - len(line.lstrip()) <= 8:
-                break
-            block.append(line[10:])
-    return "\n".join(block)
+    steps = checks.parse_yaml(read(SECURITY_YML))["jobs"][job]["steps"]
+    return next(step["run"] for step in steps if step.get("name") == step_name)
 
 
 HOSTILE = 'v1.0"\nX=1 $(touch pwned) ../../a/b'
@@ -916,8 +947,9 @@ def test_sound_release_asset_names_are_sanitised_and_the_tag_stays_quoted(checks
     assert not (tmp_path / "pwned").exists()
 
 
+# Adapted: secrets.yml now holds the secret scan, so its run scripts are checked as well.
 def test_sound_no_workflow_expands_a_template_inside_a_run_script():
-    for name in ("security.yml", "codeql.yml"):
+    for name in ("security.yml", "secrets.yml", "codeql.yml"):
         text = read(f".github/workflows/{name}")
         for block in re.findall(r"run: \|\n((?:\s{10,}.*\n?)+)", text):
             assert "${{" not in block, (name, block)

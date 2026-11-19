@@ -168,6 +168,7 @@ checks. The contributor guide lists the test commands. [Contributing](../CONTRIB
 
 Pull requests and a weekly run on `main` also go through static analysis, a dependency audit, a
 secret scan and a scan of the container image, and build a software bill of materials. The audit
-and the two scans do not run on pushes to `main`, so an advisory published for a dependency does
-not stop an unrelated fix from deploying. Static analysis does run on those pushes, but an alert
-never fails it. [Security policy](../SECURITY.md#what-is-checked)
+and the image scan do not run on pushes to `main`, so an advisory published for a dependency does
+not stop an unrelated fix from deploying. Static analysis and the secret scan do run on those
+pushes: an alert never fails static analysis, and the secret scan depends only on the commits
+pushed. [Security policy](../SECURITY.md#what-is-checked)
