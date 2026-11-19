@@ -373,9 +373,12 @@ class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
         return ("name",) if obj is not None and obj.name in ROLES else ()
 
     def save_model(self, request, obj, form, change):
-        if change:
-            # Every member's access gate before the group's row: a capability taken from the
-            # role waits for its members' changes under way (accounts.acting).
+        chosen = form.cleaned_data.get("permissions")
+        stored = set(obj.permissions.values_list("pk", flat=True)) if change else set()
+        if change and chosen is not None and stored - {p.pk for p in chosen}:
+            # A permission taken away: every member's access gate before the group's row, so the
+            # removal waits for their changes under way (accounts.acting). Adding waits for
+            # nothing.
             from .acting import close_access, role_members
 
             close_access(role_members([obj.pk]))

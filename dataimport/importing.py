@@ -1276,6 +1276,8 @@ def commit_file(record_type, *, actor, data, filename, reason, state_token):
         _apply(record_type, actor, preview, reason)
         if not preview.ok:
             transaction.set_rollback(True)
+            if preview.file_errors:  # refused as a whole (LOCKS_REFUSED): say why
+                raise ValidationError(preview.file_errors)
             raise ValidationError(
                 f"The file has {preview.error_count} error(s). Nothing was imported."
             )

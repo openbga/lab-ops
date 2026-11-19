@@ -29,9 +29,11 @@ state and is refused:
 Additions wait for nothing: a role or a site granted meanwhile only widens what the reading
 allows. Paths that bypass save() (queryset.update, raw SQL) are not covered.
 
-FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-in's time, an
-assignment's FOR NO KEY UPDATE of its assignee), so two people assigning tickets to each other,
-or one person's two changes at once, never wait for each other here.
+FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-in's time, the
+email notice preference, an assignment's FOR NO KEY UPDATE of its assignee), so two people
+assigning tickets to each other, or one person's two changes at once, never wait for each other
+here. A full save of the account (its page in the administration, a password change) takes the
+gate and waits for the person's change under way.
 
 Row locks alone would let a change started while an access change waits overtake it: PostgreSQL
 grants a share lock on a row at once when the row carries only share locks, whoever waits for a
@@ -61,11 +63,18 @@ from .roles import CAPABILITIES
 ACCESS_GATE = 19553
 
 
+INT4 = 2**31 - 1
+
+
 def _gate(user_ids, *, shared):
+    """The gates of these accounts, in key order. The second key is the account id, folded into
+    PostgreSQL's integer range: an id beyond it shares a gate with a smaller one, which only makes
+    the two wait for each other."""
     function = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
+    keys = sorted({pk % INT4 for pk in user_ids if pk is not None})
     with connection.cursor() as cursor:
-        for user_id in sorted({pk for pk in user_ids if pk is not None}):
-            cursor.execute(f"SELECT {function}(%s, %s)", [ACCESS_GATE, user_id])
+        for key in keys:
+            cursor.execute(f"SELECT {function}(%s, %s)", [ACCESS_GATE, key])
 
 
 def close_access(user_ids):
@@ -74,8 +83,10 @@ def close_access(user_ids):
     exclusively, in id order, until the transaction ends. It waits for every change of theirs
     under way (hold_actor), and a change of theirs that starts meanwhile waits for it. With several
     accounts the gates are taken one at a time: an account not reached yet can still start a
-    change, which is then saved before this one. Call it before any other lock the access change
-    takes on those accounts' rows."""
+    change, which is then saved before this one. Each gate takes a slot of PostgreSQL's shared
+    lock table until the transaction ends (sized from max_locks_per_transaction and the number of
+    connections); a role of a few hundred members fits the defaults. Call it before any other
+    lock the access change takes on those accounts' rows."""
     if not connection.in_atomic_block:
         raise RuntimeError("An access gate is held for a transaction; open one first.")
     _gate(user_ids, shared=False)

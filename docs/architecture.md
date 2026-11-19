@@ -128,16 +128,20 @@ state and is refused. An access change that affects several accounts, such as th
 page, takes their gates one at a time in id order: a member it has not reached yet can still
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
-Other updates of the account, such as a sign-in, do not wait. Setup changes (teams, categories,
+Updates that take no access away, such as a sign-in or the email notice preference, do not wait;
+a full save of the account (its page, a password change) takes the gate and waits for the
+person's change under way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
 organization locks the organization in the ticket's place. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
-before its first row, so it and a link added at the same moment wait for each other one way. If
-taking those locks meets a change saved at the same moment in a deadlock, the file is refused
-and nothing is imported.
+before its first row, so it and a link added at the same moment wait for each other one way.
+A change of an organization's group walks up from the organization to its new parent, so it and
+an import naming the parent before the organization can still meet in a deadlock, which the
+database ends by failing whichever began waiting first: the file is then refused with nothing
+imported, or the organization change fails.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

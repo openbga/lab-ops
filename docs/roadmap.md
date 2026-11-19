@@ -89,15 +89,19 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
-### Review follow-up: a client's reply and the deactivation of the ticket's assignee
+### Review follow-up: deadlocks with a ticket's assignee and with an organization's group
 
-- **Delivers:** a change to a ticket that sends its assignee a notice, such as a client's reply,
-  and the deactivation of that assignee at the same moment wait for each other one way instead of
-  failing with a database deadlock. Today the change locks the ticket and records a notice that
-  names the assignee, whose account the database checks only when the change commits, while the
-  deactivation locks the account and then waits for that person's tickets: the deactivation
-  fails, and the administrator sees an error page. The change holds its own account until it
-  commits, but not the accounts its notices name.
+- **Delivers:** two pairs of changes that can meet in a database deadlock today wait for each
+  other one way instead. First, a change to a ticket that sends its assignee a notice, such as a
+  client's reply, and the deactivation of that assignee: the change locks the ticket and records
+  a notice naming the assignee, whose account the database checks only when the change commits,
+  while the deactivation locks the account and then waits for that person's tickets. Whichever
+  began waiting first fails: the administrator or the client sees an error page. The change holds
+  its own account until it commits, but not the accounts its notices name. Second, an import of
+  external identifiers that names a group before one of its member organizations, and putting
+  that organization into the group on its page: the organization change locks the organization
+  and then its new parent, the import the other way round. Whichever began waiting first fails:
+  the file is refused, or the organization page shows an error.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** nothing.
 
