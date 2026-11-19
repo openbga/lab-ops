@@ -59,9 +59,10 @@ this release's configuration and follows the deployment settings read from the e
 code-level settings a fact depends on are listed with their release values (`RELEASE`), and the
 settings module and the digests of `config/settings.py` and `config/logging.py` are pinned. The
 settings record both digests while the configuration loads, through each module's own loader
-(`config.digest`), so the comparison is of the configuration's sources as they loaded. Python runs
-code compiled from those sources unless bytecode was compiled in unchecked-hash mode, which this
-project does not use. When a deployment loads another settings module, the page names that module
+(`config.digest`), so the comparison is of the configuration's source files as read while it
+loads. It does not identify the bytecode Python ran: Python's cache can run older bytecode in rare
+cases (bytecode compiled in unchecked-hash mode, or a source replaced within the same second at the
+same size). The image writes no bytecode for its own source. When a deployment loads another settings module, the page names that module
 instead of the files. When a deployment changes one, the fact says so and names it instead of
 describing it. Whoever changes either file checks the
 facts and updates the pinned digest (a test fails until then). The page and the

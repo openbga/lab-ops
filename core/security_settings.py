@@ -75,9 +75,10 @@ _LOADED = {"config.settings": "SETTINGS_SHA256", "config.logging": "LOGGING_SHA2
 
 def module_digest(module_name):
     """SHA-256 of a configuration module's source as config/settings.py recorded it while the
-    configuration loaded (config.digest): exactly what this process runs, with nothing imported
-    or read here. "" when the source could not be read; None when the loaded settings record
-    nothing, which this release's config/settings.py always does."""
+    configuration loaded (config.digest): the source as read then, with nothing imported or read
+    here. It identifies the source file, not the bytecode Python may have run from its cache. ""
+    when the source could not be read; None when the loaded settings record nothing, which this
+    release's config/settings.py always does."""
     return getattr(settings, _LOADED[module_name], None)
 
 
@@ -269,7 +270,7 @@ def _file_reasons(reading, differ):
             reasons.append(f"this deployment's {name} could not be read")
         elif reading[name] is not None:
             reasons.append(f"this deployment's {name} differs from it")
-        elif name == "config/logging.py" and "config/settings.py" not in differ:
+        elif name == "config/logging.py":
             # No record of the logging file: the settings did not take one, not a changed file.
             reasons.append("this deployment's config/settings.py does not record config/logging.py")
         elif name == "config/settings.py":

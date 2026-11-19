@@ -2,7 +2,8 @@
 
 config/settings.py records the SHA-256 of its own source and of the logging configuration's
 source while it loads, through each module's own loader, so the Security settings page can tell
-whether the configuration this process runs is this release's without reading anything later.
+whether the configuration's source files are this release's without reading anything later. The
+digest identifies a source file, not the bytecode Python may run from its cache.
 """
 
 import hashlib
