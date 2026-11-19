@@ -279,9 +279,13 @@ def test_an_ending_that_comes_second_waits_then_returns_the_work_to_the_queue(
     assert _left_with_work(people[2], ending, team) == []
 
 
+# In a take the person is the acting account, whose rows the change holds from its start
+# (accounts.acting): there is no point before them (test_a_take_holds_the_persons_rows...).
+TAKES = [assignment for assignment in ASSIGNMENTS if assignment.startswith("take")]
 BEFORE_THE_PERSONS_ROWS = [
     (pause_after, assignment)
     for assignment, spec in ASSIGNMENTS.items()
+    if assignment not in TAKES
     for pause_after in (["_bulk_selection"] if spec.work is _bulk else ["_visible_request"])
 ]
 
@@ -302,8 +306,7 @@ def test_an_assignment_that_comes_second_decides_on_what_the_ending_saved(
     outcome = _run(assignment, ending, pause_after, agent, people, tickets, teams)
     assert outcome["during_pause"] == "ended", outcome
     assert outcome["ending"] == "done", outcome
-    taker_deactivated = assignment.startswith("take") and ending == "deactivation"
-    assert outcome["assignment"] == ("denied" if taker_deactivated else "refused"), outcome
+    assert outcome["assignment"] == "refused", outcome
     assert _left_with_work(person, ending, team) == []
     # The ending released the ticket the person held if it covered it; the refused assignment
     # changed nothing.
@@ -312,6 +315,25 @@ def test_an_assignment_that_comes_second_decides_on_what_the_ending_saved(
     assert (_fresh(held).assignee_id is None) == released
     assert _fresh(waiting).revision == before[waiting.pk]
     assert _fresh(waiting).assignee_id is None
+
+
+@pytest.mark.parametrize("ending", list(ENDINGS))
+@pytest.mark.parametrize("assignment", TAKES)
+def test_a_take_holds_the_persons_rows_from_its_start(
+    assignment, ending, agent, people, tickets, teams
+):
+    """In a take the person is the acting account, whose rows the change holds before its first
+    lock (accounts.acting). Paused before the ticket is even read, the take already holds them:
+    the ending waits, then finds what the take saved and returns it to the queue. Nothing is left
+    with the person, and neither fails with a deadlock."""
+    outcome = _run(assignment, ending, "_visible_request", agent, people, tickets, teams)
+    assert "40P01" not in outcome.values(), f"deadlock: {outcome}"
+    assert outcome["during_pause"] == "waiting", outcome
+    assert outcome["ending"] == "done", outcome
+    expected = "refused" if assignment == "take-their-own-ticket" else "done"
+    assert outcome["assignment"] == expected, outcome
+    team = teams[ASSIGNMENTS[assignment].team]
+    assert _left_with_work(people[2], ending, team) == []
 
 
 # The order itself -------------------------------------------------------------------------------

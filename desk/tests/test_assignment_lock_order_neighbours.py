@@ -424,95 +424,115 @@ def test_bulk_assign_with_one_out_of_scope_ticket_is_refused_before_any_person_l
     assert (rev(ordinary), rev(hidden), audit_count()) == before
 
 
-def _lose_access_while_holding(remove_access):
-    """A `_hold_assignment` that, after the real hold, ends the actor's access in an independent
-    session (committed), as if it happened while the assignment waited for the person's rows."""
-    real = services._hold_assignment
+def _try_to_end_access_while_holding(remove_access, seen):
+    """A `_hold_assignment` that, after the real hold, tries to end the actor's access in an
+    independent session (lock_timeout 450ms) and records what happened: "55P03" when it had to
+    wait for the assignment, "ended" when it went through."""
+    from django.db import OperationalError
 
-    done = []
+    real = services._hold_assignment
 
     def hold(team, assignee):
         held = real(team, assignee)
-        if not done:  # the patch is seen by every session
-            done.append(True)
-            independent(remove_access)
+        if not seen:  # the patch is seen by every session
+            try:
+                independent(remove_access)
+                seen.append("ended")
+            except OperationalError as exc:
+                seen.append(getattr(exc.__cause__, "sqlstate", None))
         return held
 
     return hold
 
 
+def _access_cases(team, actor):
+    return {
+        "membership": lambda: TeamMembership.objects.filter(team=team, user=actor).delete(),
+        "last-role": lambda: User.objects.get(pk=actor.pk).groups.clear(),
+    }
+
+
 @pytest.mark.django_db(transaction=True)
-def test_an_actor_whose_team_membership_ends_while_waiting_for_the_person_is_refused(
-    restricted, make_user, join
+@pytest.mark.parametrize("access", ["membership", "last-role"])
+def test_ending_an_actors_access_waits_for_their_assignment_under_way(
+    access, restricted, make_user, join
 ):
-    """The actor read the restricted ticket before the person's rows were held; their membership of
-    its team ends while the assignment waits for them. The decision taken under the ticket's lock
-    refuses them with DoesNotExist and saves nothing."""
+    """The actor's team membership, or their only role, is taken away while their assignment
+    waits for the person's rows. The assignment holds the actor's rows from its start
+    (accounts.acting), so the change of access cannot go through meanwhile: it waits for the
+    assignment (here it gives up after its bounded wait), and the assignment, decided by an actor
+    who still had that access, is saved."""
     ticket, team = restricted["ticket"], restricted["team"]
-    actor = make_user("quality_actor", "technical")
+    actor = make_user(f"quality_actor_{access}", "technical")
     join(actor, team)
-    person = make_user("quality_person", "technical")
+    person = make_user(f"quality_person_{access}", "technical")
+    join(person, team)
+    seen = []
+    attempt = _try_to_end_access_while_holding(_access_cases(team, actor)[access], seen)
+    with patch.object(services, "_hold_assignment", attempt):
+        services.assign(
+            actor=actor,
+            request=ticket,
+            expected_revision=ticket.revision,
+            team=team,
+            assignee=person,
+        )
+    assert seen == ["55P03"], seen  # it waited for the assignment
+    assert holder(ticket) == person.pk
+    assert TeamMembership.objects.filter(team=team, user=actor).exists()
+    assert User.objects.get(pk=actor.pk).groups.filter(name="technical").exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("access", ["membership", "last-role"])
+def test_an_assignment_by_an_actor_whose_access_ended_before_it_is_refused(
+    access, restricted, make_user, join
+):
+    """The actor's page was drawn while they had access; their membership of the restricted
+    ticket's team, or their only role, ended before they saved. The assignment reads the account
+    as it is held and refuses them (not found, or no longer staff), saving nothing."""
+    ticket, team = restricted["ticket"], restricted["team"]
+    actor = make_user(f"quality_actor_before_{access}", "technical")
+    join(actor, team)
+    person = make_user(f"quality_person_before_{access}", "technical")
     join(person, team)
     before = (rev(ticket), audit_count(), holder(ticket))
-    gone = _lose_access_while_holding(
-        lambda: TeamMembership.objects.filter(team=team, user=actor).delete()
-    )
-    with patch.object(services, "_hold_assignment", gone):
-        with pytest.raises(ServiceRequest.DoesNotExist):
-            services.assign(
-                actor=actor,
-                request=ticket,
-                expected_revision=ticket.revision,
-                team=team,
-                assignee=person,
-            )
+    _access_cases(team, actor)[access]()
+    expected = ServiceRequest.DoesNotExist if access == "membership" else PermissionDenied
+    with pytest.raises(expected):
+        services.assign(
+            actor=actor,
+            request=ticket,
+            expected_revision=ticket.revision,
+            team=team,
+            assignee=person,
+        )
     assert (rev(ticket), audit_count(), holder(ticket)) == before
 
 
 @pytest.mark.django_db(transaction=True)
-def test_an_actor_who_loses_their_last_role_while_waiting_for_the_person_is_refused(
+def test_a_bulk_assignment_by_an_actor_whose_access_ends_meanwhile_waits_or_is_refused(
     restricted, make_user, join
 ):
-    """The actor's only role ends while the assignment waits for the person's rows: they are no
-    longer staff, so the answer is PermissionDenied, and nothing is saved."""
-    ticket, team = restricted["ticket"], restricted["team"]
-    actor = make_user("quality_actor2", "technical")
-    join(actor, team)
-    person = make_user("quality_person2", "technical")
-    join(person, team)
-    before = (rev(ticket), audit_count(), holder(ticket))
-    gone = _lose_access_while_holding(lambda: User.objects.get(pk=actor.pk).groups.clear())
-    with patch.object(services, "_hold_assignment", gone):
-        with pytest.raises(PermissionDenied):
-            services.assign(
-                actor=actor,
-                request=ticket,
-                expected_revision=ticket.revision,
-                team=team,
-                assignee=person,
-            )
-    assert (rev(ticket), audit_count(), holder(ticket)) == before
-
-
-@pytest.mark.django_db(transaction=True)
-def test_a_bulk_assignment_refuses_an_actor_whose_access_ends_while_waiting(
-    restricted, make_user, join, category
-):
-    """The same in bulk: scope was read before the person's rows were held; the actor's membership
-    ends meanwhile; the locked recheck refuses the whole action and saves nothing."""
+    """The same in bulk. Ending the actor's membership while their bulk Assign waits for the
+    person's rows has to wait for it, and the assignment is saved; ended before the action
+    starts, the whole action is refused and nothing is saved."""
     ticket, team = restricted["ticket"], restricted["team"]
     actor = make_user("quality_actor3", "technical")
     join(actor, team)
     person = make_user("quality_person3", "technical")
     join(person, team)
-    pick = selection([ticket])
+    seen = []
+    attempt = _try_to_end_access_while_holding(_access_cases(team, actor)["membership"], seen)
+    with patch.object(services, "_hold_assignment", attempt):
+        services.bulk_assign(actor=actor, selected=selection([ticket]), team=team, assignee=person)
+    assert seen == ["55P03"], seen
+    assert holder(ticket) == person.pk
+    _access_cases(team, actor)["membership"]()
+    ticket = ServiceRequest.objects.get(pk=ticket.pk)
     before = (rev(ticket), audit_count(), holder(ticket))
-    gone = _lose_access_while_holding(
-        lambda: TeamMembership.objects.filter(team=team, user=actor).delete()
-    )
-    with patch.object(services, "_hold_assignment", gone):
-        with pytest.raises((PermissionDenied, ServiceRequest.DoesNotExist)):
-            services.bulk_assign(actor=actor, selected=pick, team=team, assignee=person)
+    with pytest.raises((PermissionDenied, ServiceRequest.DoesNotExist)):
+        services.bulk_assign(actor=actor, selected=selection([ticket]), team=team, assignee=None)
     assert (rev(ticket), audit_count(), holder(ticket)) == before
 
 

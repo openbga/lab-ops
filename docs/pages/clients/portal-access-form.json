@@ -83,7 +83,7 @@
       "items": [
         {
           "label": "Save access",
-          "description": "Saves and returns to the Portal accounts panel of the organization's page. Each save is audited with the person, the time, the reason and the before and after values (the contact and the scope, as identifiers and flags). A submission that changes nothing is refused with Change at least one detail before saving."
+          "description": "Saves and returns to the Portal accounts panel of the organization's page. Each save is audited with the person, the time, the reason and the before and after values (the contact and the scope, as identifiers and flags). A submission that changes nothing is refused with Change at least one detail before saving. If the account is saving a ticket or a reply at that moment, the save waits for it; what the account does after the save follows the new access."
         },
         {
           "label": "Cancel",
@@ -107,6 +107,7 @@
     "clients/models.py",
     "clients/services.py",
     "clients/permissions.py",
+    "accounts/acting.py",
     "clients/tests/test_organization_structure.py",
     "clients/templates/clients/portal_access_form.html",
     "clients/templates/clients/_portal_scope.html",

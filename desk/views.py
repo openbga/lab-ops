@@ -21,6 +21,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
+from accounts.acting import hold_actor
 from accounts.roles import require_staff
 from attachments.models import Attachment
 from attachments.selectors import with_files
@@ -366,10 +367,11 @@ def request_create(request):
     if form_valid and intake_valid:
         data = form.cleaned_data
         try:
-            # The named assignee's rows first (services.hold_intake_assignee), then the request
-            # form's locks, in the creating transaction: one lock order for every capture
-            # (request_forms.definition).
+            # The acting account first (accounts.acting), then the named assignee's rows
+            # (services.hold_intake_assignee), then the request form's locks, in the creating
+            # transaction: one lock order for every capture (request_forms.definition).
             with transaction.atomic():
+                hold_actor(request.user)
                 held = None
                 if intake is not None:
                     held = services.hold_intake_assignee(

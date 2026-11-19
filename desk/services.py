@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 
+from accounts.acting import acting_change
 from accounts.roles import require_staff
 from core.audit import record_event, snapshot
 from service_levels import hooks as clock_hooks
@@ -358,7 +359,7 @@ def _creator_after_locks(actor, *, portal, site):
     return current
 
 
-@transaction.atomic
+@acting_change
 def create_request(
     *,
     actor,
@@ -527,7 +528,7 @@ def _set_status(request, actor, new):
     return old
 
 
-@transaction.atomic
+@acting_change
 def add_entry(*, actor, request, kind, body, expected_revision, contact=None, new_status=None):
     """Add a reply, note or logged contact to `request` and return the entry.
 
@@ -723,7 +724,7 @@ def _assign(request, actor, team, held, reason):
     return True
 
 
-@transaction.atomic
+@acting_change
 def assign(*, actor, request, expected_revision, team, assignee=None, reason=""):
     """Give the request to `team` and optionally to one of its active members."""
     _visible_request(actor, request)
@@ -735,7 +736,7 @@ def assign(*, actor, request, expected_revision, team, assignee=None, reason="")
     return request
 
 
-@transaction.atomic
+@acting_change
 def take(*, actor, request, expected_revision):
     """Assign the request to the acting staff member, who must belong to its team."""
     # The team is read before the ticket's lock, so that the actor's membership of it is locked
@@ -805,7 +806,7 @@ def _after_status(request, actor, old):
     notifications.status_changed(request, old=old, new=request.status, actor=actor)
 
 
-@transaction.atomic
+@acting_change
 def change_status(*, actor, request, expected_revision, status, summary="", reason=""):
     """Set the status. Resolved needs a summary; reopening a resolved request needs a reason;
     Closed only follows Resolved, and a complaint closes only after its review."""
@@ -816,7 +817,7 @@ def change_status(*, actor, request, expected_revision, status, summary="", reas
     return request
 
 
-@transaction.atomic
+@acting_change
 def update_properties(*, actor, request, expected_revision, priority, category, reason=""):
     """Change priority and category. A complaint category makes the request a complaint; moving
     out of one never unmarks it (a supervisor does that)."""
@@ -854,7 +855,7 @@ def update_properties(*, actor, request, expected_revision, priority, category, 
     return request
 
 
-@transaction.atomic
+@acting_change
 def set_complaint(*, actor, request, expected_revision, is_complaint, reason):
     """Mark a request as a complaint (any staff role) or unmark it (supervisor only)."""
     request = _staff_request(actor, request, expected_revision)
@@ -951,7 +952,7 @@ def _complaint_record(request, actor):
     return review, actor
 
 
-@transaction.atomic
+@acting_change
 def decide_complaint(*, actor, request, expected_revision, decision, rationale):
     """Record (or revise, before the review) the investigation decision and its rationale."""
     request = _staff_request(actor, request, expected_revision)
@@ -980,7 +981,7 @@ COMPLAINT_FIELDS = (
 )
 
 
-@transaction.atomic
+@acting_change
 def update_complaint(*, actor, request, expected_revision, **data):
     """Record findings and actions, the corrective action reference and how the outcome was
     communicated."""
@@ -1015,7 +1016,7 @@ def update_complaint(*, actor, request, expected_revision, **data):
     return review
 
 
-@transaction.atomic
+@acting_change
 def review_complaint(*, actor, request, expected_revision, note):
     """Approve the complaint record as an independent reviewer: a supervisor who did not record
     the decision and has never been the request's assignee."""
@@ -1052,7 +1053,7 @@ def review_complaint(*, actor, request, expected_revision, note):
     return review
 
 
-@transaction.atomic
+@acting_change
 def withdraw_reply(*, actor, entry, reason, expected_revision):
     """Withdraw a reply from client view (supervisor, with a reason). Staff still see it.
     `expected_revision` is the request's revision the supervisor saw; a later change refuses."""
@@ -1124,7 +1125,7 @@ def _bulk_requests(actor, wanted):
     return found
 
 
-@transaction.atomic
+@acting_change
 def bulk_assign(*, actor, selected, team, assignee=None, reason=""):
     """Assign several requests at once; each is audited. Requests already there are skipped.
     The person's rows are locked before the tickets (_hold_assignment)."""
@@ -1141,7 +1142,7 @@ def bulk_assign(*, actor, selected, team, assignee=None, reason=""):
 BULK_STATUSES = frozenset({Status.OPEN, Status.WAITING_CLIENT, Status.WAITING_THIRD_PARTY})
 
 
-@transaction.atomic
+@acting_change
 def bulk_status(*, actor, selected, status):
     """Set Open or a waiting status on several requests that are not resolved or closed."""
     if status not in BULK_STATUSES:
@@ -1162,7 +1163,7 @@ def bulk_status(*, actor, selected, status):
     return changed
 
 
-@transaction.atomic
+@acting_change
 def bulk_close(*, actor, selected):
     """Close several resolved requests. All or nothing: a request that is not resolved, or a
     complaint without its review, stops the whole action."""

@@ -13,6 +13,7 @@ from django.db import IntegrityError, transaction
 from django.db.models.functions import Upper
 from django.utils import timezone
 
+from accounts.acting import acting_change
 from accounts.roles import has_capability, require_capability, require_role, require_staff
 from clients.models import Client
 from core.audit import record_event, snapshot
@@ -241,7 +242,7 @@ def _find_or_create_link(actor, *, system, record_type, scheme, identifier, labe
     return link, True
 
 
-@transaction.atomic
+@acting_change
 def add_link(
     *,
     actor,
@@ -395,7 +396,7 @@ def _locked_attachment(actor, attachment_id):
     return attachment, actor
 
 
-@transaction.atomic
+@acting_change
 def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
     """Detach a link with a reason. The attachment row stays, marked removed.
 
@@ -440,7 +441,7 @@ def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
     return attachment
 
 
-@transaction.atomic
+@acting_change
 def set_shown_to_client(*, actor, attachment_id, shown):
     require_staff(actor)
     attachment, actor = _locked_attachment(actor, attachment_id)
@@ -463,7 +464,7 @@ def set_shown_to_client(*, actor, attachment_id, shown):
     return attachment
 
 
-@transaction.atomic
+@acting_change
 def update_link(
     *, actor, link_id, expected_revision, display_label, url="", reason="", reason_code=""
 ):
@@ -526,7 +527,7 @@ def update_link(
     return link
 
 
-@transaction.atomic
+@acting_change
 def reveal_person_key(*, actor, attachment_id):
     """The full key of a person-level link on a request the actor may read. Audited; the event
     names the link and the request, never the key."""
@@ -571,7 +572,7 @@ def request_ids_for_identifier(user, term):
     )
 
 
-@transaction.atomic
+@acting_change
 def search_person_key(*, actor, key):
     """Ids of requests the actor may read that carry a current person-level link whose key is
     exactly `key`. Audited on the searching account with a keyed digest of the key."""

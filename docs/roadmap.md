@@ -50,7 +50,7 @@ ships, move it to Built in the same change.
 | Area | What is in place |
 | --- | --- |
 | Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview |
-| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
+| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; each change holds the acting account until it commits, so ending a person's access (deactivation, a role, a capability, a team or a portal site) waits for what they are saving and refuses what they start afterwards; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
 | Ticket forms | Forms per category with client, shared and staff-only fields and an optional patient field behind a capability; corrections with a reason; a service menu in the portal and "Request again"; supply orders from the laboratory's catalog and one-time pickups |
 | Links | Typed references to orders, samples, reports and other records in the laboratory's systems, and optional, masked person-level links |
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
@@ -88,24 +88,6 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
-
-### Review follow-up: the acting account until commit, and the import's link order
-
-- **Delivers:** a change holds the acting account's row from before its first lock until it
-  commits, so an account deactivated, left without a staff role or, for a portal account, without
-  the chosen site while the change waits is refused, and deactivating a person no longer fails
-  with a database deadlock against that person's own change to one of their tickets, such as a
-  note or handing it over. Today the account is read again after the change's locks, but the
-  database checks the rows a change names, such as its author and its creator, only when it
-  commits. That check can wait, and a deactivation that commits meanwhile is followed by the
-  change. The account administration saves every column of an account, so a deactivation holds
-  the person's row so strongly that those checks wait for it, while it waits for that person's
-  tickets. An external identifier import also locks each row's organization after the previous
-  row's system, so it and a link added on an organization's page at the same moment can end in a
-  database deadlock, which fails one of them; the import is to lock in the order the link services
-  use.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** nothing.
 
 ### Automatic sign-out and session control
 

@@ -19,6 +19,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.utils import timezone
 
+from accounts.acting import acting_change
 from accounts.roles import ROLES, has_role, require_staff
 from core.audit import record_event, snapshot
 from core.modules import lock_enabled
@@ -258,7 +259,7 @@ def _create(actor, *, owner, source_request=None, containment="", **details):
     return nc
 
 
-@transaction.atomic
+@acting_change
 def raise_nonconformance(
     *, actor, title, description, source, severity, area="", owner=None, containment=""
 ):
@@ -276,7 +277,7 @@ def raise_nonconformance(
     return _create(actor, owner=owner, containment=containment, **details)
 
 
-@transaction.atomic
+@acting_change
 def open_from_complaint(
     *, actor, request, expected_revision, title, description, severity, area="", containment=""
 ):
@@ -326,7 +327,7 @@ def open_from_complaint(
 # Working a record
 
 
-@transaction.atomic
+@acting_change
 def update_details(
     *, actor, nc, expected_revision, title, description, source, severity, area="", reason
 ):
@@ -343,7 +344,7 @@ def update_details(
     return nc
 
 
-@transaction.atomic
+@acting_change
 def set_owner(*, actor, nc, expected_revision, owner, reason=""):
     """Choose or change the owner (a supervisor)."""
     nc, actor = _lock(actor, nc, expected_revision)
@@ -369,7 +370,7 @@ def set_owner(*, actor, nc, expected_revision, owner, reason=""):
     return nc
 
 
-@transaction.atomic
+@acting_change
 def record_investigation(
     *, actor, nc, expected_revision, containment, root_cause, similar_cases=""
 ):
@@ -387,7 +388,7 @@ def record_investigation(
     return nc
 
 
-@transaction.atomic
+@acting_change
 def record_impact(
     *,
     actor,
@@ -443,7 +444,7 @@ def record_impact(
     return nc
 
 
-@transaction.atomic
+@acting_change
 def change_status(*, actor, nc, expected_revision, status, reason=""):
     """Move an open record between Open, Investigating, Corrective action and Verification.
     Closing and reopening have their own services. Leaving Verification clears its effectiveness
@@ -486,7 +487,7 @@ def _clear_effectiveness(nc):
     nc.effectiveness_checked_by, nc.effectiveness_checked_at = None, None
 
 
-@transaction.atomic
+@acting_change
 def record_effectiveness(*, actor, nc, expected_revision, result, note):
     """The effectiveness check, in Verification. "Effective" needs every action finished."""
     nc, actor = _work(actor, nc, expected_revision)
@@ -506,7 +507,7 @@ def record_effectiveness(*, actor, nc, expected_revision, result, note):
     return nc
 
 
-@transaction.atomic
+@acting_change
 def close(*, actor, nc, expected_revision, note):
     """Close the record: a supervisor who is not its owner, once it is in Verification with the
     decision on reported results, every action finished and an effectiveness check that allows
@@ -528,7 +529,7 @@ def close(*, actor, nc, expected_revision, note):
     return nc
 
 
-@transaction.atomic
+@acting_change
 def reopen(*, actor, nc, expected_revision, reason):
     """Reopen a closed record with a reason (a supervisor). It returns to Investigating; the
     closing and the effectiveness check are cleared from the record and kept in its history."""
@@ -576,7 +577,7 @@ def _locked_action(nc, action):
     return locked
 
 
-@transaction.atomic
+@acting_change
 def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
     nc, actor = _work(actor, nc, expected_revision)
     description, assignee, due_on = _action_values(description, assignee, due_on)
@@ -595,7 +596,7 @@ def add_action(*, actor, nc, expected_revision, description, assignee, due_on):
     return action
 
 
-@transaction.atomic
+@acting_change
 def update_action(*, actor, nc, expected_revision, action, description, assignee, due_on, reason):
     """Change an open action's text, person or due date, with a reason. A due date already past
     may stay as it is; a new one is today or later."""
@@ -627,7 +628,7 @@ def update_action(*, actor, nc, expected_revision, action, description, assignee
     return action
 
 
-@transaction.atomic
+@acting_change
 def finish_action(*, actor, nc, expected_revision, action, done, note):
     """Mark an open action done (its assignee, the owner or a supervisor) or cancel it (the owner
     or a supervisor), with what was done or why."""
@@ -661,7 +662,7 @@ def finish_action(*, actor, nc, expected_revision, action, done, note):
 # Linked tickets
 
 
-@transaction.atomic
+@acting_change
 def link_ticket(*, actor, nc, expected_revision, request):
     """Link a ticket the actor may read. The ticket's timeline records it."""
     nc, actor = _work(actor, nc, expected_revision)
@@ -673,7 +674,7 @@ def link_ticket(*, actor, nc, expected_revision, request):
     return link
 
 
-@transaction.atomic
+@acting_change
 def unlink_ticket(*, actor, nc, expected_revision, link, reason):
     """Remove a linked ticket, with a reason; the link is kept with who removed it. The ticket
     the record was opened from stays linked."""

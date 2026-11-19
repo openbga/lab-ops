@@ -9,9 +9,9 @@ Who may read a file is decided here once (`readable_attachment`) and used by the
 """
 
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
-from django.db import transaction
 from django.utils import timezone
 
+from accounts.acting import acting_change
 from accounts.roles import require_staff
 from core.audit import record_event
 from desk import services as desk_services
@@ -96,7 +96,7 @@ def _attach(actor, entry, files):
     return stored
 
 
-@transaction.atomic
+@acting_change
 def add_entry_with_files(*, actor, request, files=(), **entry_arguments):
     """desk.services.add_entry, plus the entry's files in the same transaction."""
     check_batch(files)
@@ -130,7 +130,7 @@ def attach_to_new_request(actor, request, files):
     return _attach(actor, first, files)
 
 
-@transaction.atomic
+@acting_change
 def create_request_with_files(*, actor, files=(), **request_arguments):
     """desk.services.create_request, plus files on its first entry, in the same transaction."""
     check_batch(files)
@@ -139,7 +139,7 @@ def create_request_with_files(*, actor, files=(), **request_arguments):
     return request
 
 
-@transaction.atomic
+@acting_change
 def withdraw_attachment(*, actor, attachment_id, reason):
     """A supervisor withdraws a file with a reason. Clients no longer reach it; staff see it
     labelled; only supervisors can still download it."""

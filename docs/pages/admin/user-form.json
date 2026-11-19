@@ -88,11 +88,11 @@
         },
         {
           "label": "Groups",
-          "description": "Optional assigned groups in Available groups and Chosen groups, with filter boxes, choose/remove controls and Choose all/Remove all. Built-in group names determine roles. Custom groups can carry explicit permissions without becoming operational roles."
+          "description": "Optional assigned groups in Available groups and Chosen groups, with filter boxes, choose/remove controls and Choose all/Remove all. Built-in group names determine roles. Custom groups can carry explicit permissions without becoming operational roles. Removing a role or a capability waits for a change the person is saving at that moment, which is kept; a change they start afterwards no longer has that role or capability."
         },
         {
           "label": "Active",
-          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused."
+          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused. A change the person is saving at that moment, such as a note, finishes first and your save waits for it; one they start after it is refused."
         },
         {
           "label": "Staff status",
@@ -104,7 +104,7 @@
         },
         {
           "label": "User permissions",
-          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities, such as the accounts permission Can view patient information. Groups can grant the same capability. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks."
+          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities, such as the accounts permission Can view patient information. Groups can grant the same capability. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks. Removing a capability waits for a change the person is saving at that moment."
         },
         {
           "label": "Last login",
@@ -153,6 +153,7 @@
     }
   ],
   "sources": [
+    "accounts/acting.py",
     "accounts/admin.py",
     "accounts/models.py",
     "accounts/roles.py",
