@@ -140,10 +140,27 @@ def _current_assignee(assignee, team):
     return current
 
 
+def _current_default_team():
+    """The default team as it stands now, locked. A move of the default (teams.services) locks the
+    team it moves from, so one in progress makes this wait; the team is then read again, and if it
+    is no longer the default, the new default is taken instead."""
+    for _attempt in range(3):
+        chosen = ensure_default_team()
+        team = Team.objects.select_for_update(no_key=True).filter(pk=chosen.pk).first()
+        if team is not None and team.is_default:
+            if not team.is_active:
+                raise ValidationError({"team": "This team is inactive."})
+            return team
+    raise ValidationError({"team": "The default team is being changed. Try again."})
+
+
 def _team_and_assignee(team, assignee, category):
     """The team and assignee for a new request, from current state: the caller's team, else
     the category's current default team, else the default team."""
-    team = _current_team(team or category.default_team or ensure_default_team())
+    if team is None and category.default_team is None:
+        team = _current_default_team()
+    else:
+        team = _current_team(team or category.default_team)
     if assignee is not None:
         assignee = _current_assignee(assignee, team)
     return team, assignee

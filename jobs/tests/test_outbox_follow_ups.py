@@ -511,3 +511,56 @@ def test_ordinary_staff_account_still_offers_its_password_link(client, make_user
     assert ">Reset password</a>" in html or ">Set password</a>" in html
     password_url = reverse("admin:auth_user_password_change", args=[member.pk])
     assert client.get(password_url).status_code == 200
+
+
+# V01 neighbours: the default team chosen under its lock ------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_portal_ticket_raised_while_the_default_team_moves_goes_to_the_new_default(
+    clinic_portal, category, make_user
+):
+    """A client's ticket whose category names no team waits for a move of the default team and
+    then goes to the team that is the default once the move commits."""
+    from teams.models import Team, ensure_default_team
+
+    from . import test_review_outbox_follow_ups_verify as verify
+
+    admin = make_user("v01_neighbour_admin", "admin")
+    old_default = ensure_default_team()
+    assert category.default_team_id is None
+
+    def move_default():
+        return team_services.create_team(
+            actor=admin, name="Synthetic new default", is_default=True
+        ).pk
+
+    with verify.held_open(move_default) as new_default_id:
+        created = verify._background(
+            lambda: (
+                new_request(
+                    clinic_portal, category, channel="portal", first_entry_kind="reply"
+                ).team_id
+            )
+        )
+        assert verify._until_someone_waits(), "the portal ticket did not wait for the move"
+    assert created.result(timeout=20) == new_default_id != old_default.pk
+    assert Team.objects.get(is_default=True).pk == new_default_id
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_default_team_move_waits_for_a_ticket_being_created_into_it(agent, category, make_user):
+    """While a ticket is being created into the default team, a move of the default waits, so the
+    ticket never lands in a team that stopped being the default before it committed."""
+    from teams.models import ensure_default_team
+
+    admin = make_user("v01_neighbour_mover", "admin")
+    default = ensure_default_team()
+    with transaction.atomic():
+        ticket = new_request(agent, category)
+        assert ticket.team_id == default.pk
+        assert prior.writer_waits(
+            lambda: team_services.create_team(
+                actor=admin, name="Synthetic waiting default", is_default=True
+            )
+        )
