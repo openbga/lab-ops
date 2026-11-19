@@ -135,7 +135,8 @@ job, see [Public demonstration](docs/operations.md#public-demonstration).
 ## Contributing
 
 See the [contributor guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
-Please report vulnerabilities privately using the [security policy](SECURITY.md).
+Please report vulnerabilities privately using the [security policy](SECURITY.md), which also
+lists the security checks every change goes through.
 
 ## Project and support
 

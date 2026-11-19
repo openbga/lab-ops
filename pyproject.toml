@@ -21,7 +21,12 @@ Documentation = "https://github.com/openbga/lab-ops#documentation"
 Issues = "https://github.com/openbga/lab-ops/issues"
 
 [dependency-groups]
-dev = ["pytest>=9,<10", "pytest-django>=4.14,<5", "ruff>=0.17.4,<0.18"]
+dev = [
+    "pytest>=9,<10",
+    "pytest-django>=4.14,<5",
+    "pyyaml>=6.0.3,<7",
+    "ruff>=0.17.4,<0.18",
+]
 e2e = [
     "pytest-playwright>=0.10,<0.11",
 ]

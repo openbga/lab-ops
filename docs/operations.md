@@ -181,6 +181,24 @@ and duration. Use the `X-Request-ID` response header to correlate an error.
 personal data. Set access and retention limits for platform and proxy logs too.
 Keep credentials, bodies, URLs carrying tokens and ticket contents out of operational logs.
 
+## Software bill of materials
+
+Each release published on GitHub carries a software bill of materials (SBOM) of the container
+image, in SPDX and CycloneDX formats, and each run of the security checks keeps one for 90 days
+([What is checked](../SECURITY.md#what-is-checked)). It lists the operating-system packages,
+Python, and the Python and browser packages in the image. An image built later, by you or by a
+host that builds from the Dockerfile, can contain newer operating-system packages from the
+updated base image. To describe what you run, generate an SBOM from your own image and scan it,
+from a checkout of the release you deploy (its `.syft.yaml` and `.grype.yaml` apply):
+
+```sh
+mkdir -p build
+syft scan docker:lab-ops:local --config .syft.yaml --output cyclonedx-json@1.6=build/lab-ops.cdx.json
+grype sbom:build/lab-ops.cdx.json --config .grype.yaml
+```
+
+The project's checks cover its source and image, not your host, configuration or network.
+
 ## Public demonstration
 
 Use a dedicated deployment with synthetic data. To display shared sign-in credentials,

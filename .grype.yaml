@@ -1,0 +1,17 @@
+# Vulnerability scan settings for Grype (see SECURITY.md, "What is checked").
+#
+# Each entry excuses one finding, for one package at one version, with the reason it does not
+# apply or cannot be fixed yet. Naming the version makes the entry lapse when the package
+# changes, so it cannot hide a later finding. No package type is named, because the SPDX and
+# CycloneDX SBOMs record the Python interpreter as different types. Nothing else belongs in this
+# file: tests/test_security_checks.py accepts only entries in this layout, each with a
+# vulnerability, a package name without pattern characters, a version and a reason.
+ignore:
+  - vulnerability: CVE-2026-119170
+    package:
+      name: python
+      version: 3.14.10
+    reason: >-
+      Affects only Python running OpenSSL in FIPS mode, which the image does not use. The fix is
+      announced for CPython 3.14.11, which had no release or base image when this was checked
+      (2026-11-19). Remove this entry when the Dockerfile moves to 3.14.11.

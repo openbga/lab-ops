@@ -1,0 +1,93 @@
+{
+ "bomFormat": "CycloneDX",
+ "specVersion": "1.6",
+ "version": 1,
+ "metadata": {
+  "component": {
+   "bom-ref": "canary",
+   "type": "application",
+   "name": "security-gate-canary",
+   "version": "0"
+  }
+ },
+ "components": [
+  {
+   "bom-ref": "django",
+   "type": "library",
+   "name": "django",
+   "version": "5.2.0",
+   "purl": "pkg:pypi/django@5.2.0",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "python"
+    }
+   ]
+  },
+  {
+   "bom-ref": "ecdsa",
+   "type": "library",
+   "name": "ecdsa",
+   "version": "0.19.2",
+   "purl": "pkg:pypi/ecdsa@0.19.2",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "python"
+    }
+   ]
+  },
+  {
+   "bom-ref": "bootstrap",
+   "type": "library",
+   "name": "bootstrap",
+   "version": "4.0.0",
+   "purl": "pkg:npm/bootstrap@4.0.0",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    }
+   ]
+  },
+  {
+   "bom-ref": "download-artifact",
+   "type": "library",
+   "name": "actions/download-artifact",
+   "version": "v4.1.1",
+   "purl": "pkg:github/actions/download-artifact@v4.1.1",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "github-action"
+    }
+   ]
+  },
+  {
+   "bom-ref": "codeql-action-init",
+   "type": "library",
+   "name": "github/codeql-action/init",
+   "version": "v3.28.0",
+   "purl": "pkg:github/github/codeql-action@v3.28.0#init",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "github-action"
+    }
+   ]
+  },
+  {
+   "bom-ref": "reusable-workflow",
+   "type": "library",
+   "name": "kartverket/github-workflows/.github/workflows/run-trivy.yml",
+   "version": "v2.7.4",
+   "purl": "pkg:github/kartverket/github-workflows@v2.7.4#.github/workflows/run-trivy.yml",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "github-action-workflow"
+    }
+   ]
+  }
+ ]
+}

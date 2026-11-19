@@ -85,6 +85,68 @@ On Linux, add `--with-deps` to the browser installation command. CI runs the app
 browser journeys and a container test for a fresh database migration, sign-in, static assets
 and health endpoints.
 
+### Security checks
+
+Every pull request also runs the security checks listed in the
+[security policy](SECURITY.md#what-is-checked): static analysis, a dependency audit, a secret scan
+and a container image scan. To run the last three before pushing, install
+[gitleaks](https://github.com/gitleaks/gitleaks), [Grype](https://github.com/anchore/grype) and
+[Syft](https://github.com/anchore/syft). The commands write their output under `build/`, which Git
+ignores. The dependency audit lists a copy of the files Git would commit, so that local state such
+as `.venv/` or `.local/` is not scanned:
+
+```sh
+rm -rf build/scan && mkdir -p build/scan
+git ls-files --cached --others --exclude-standard -z | tar --null -T - -cf - | tar -xf - -C build/scan
+syft scan "dir:$PWD/build/scan" --config .syft.yaml --output cyclonedx-json@1.6=build/dependencies.cdx.json
+python3 tools/security/sbom_coverage.py build/dependencies.cdx.json --locked
+python3 tools/security/grype_gate.py dependencies --grype "$(command -v grype)" build/dependencies.cdx.json
+```
+
+The secret scan reads the history as text, merge commits included, file by file. It uses
+gitleaks' default rules without the default list of files gitleaks never scans by name, built from
+the default configuration of the pinned release, checked against the checksum pinned in
+`secrets.yml`:
+
+```sh
+mkdir -p build
+curl -fsSL -o build/gitleaks-default.toml \
+  https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.1/config/gitleaks.toml
+echo "e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf  build/gitleaks-default.toml" \
+  | shasum -a 256 -c
+python3 tools/security/gitleaks_config.py build/gitleaks-default.toml .gitleaks.toml \
+  > build/gitleaks.toml
+gitleaks git --log-opts="--text --diff-merges=first-parent HEAD" --ignore-gitleaks-allow \
+  --redact --config build/gitleaks.toml .
+```
+
+The image scan builds the image, lists it and checks the listing against what the image reports:
+
+```sh
+docker build --tag lab-ops:local .
+syft scan docker:lab-ops:local --config .syft.yaml --output cyclonedx-json@1.6=build/lab-ops.cdx.json
+docker run --rm --user 0 --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
+  lab-ops:local /probe/image_contents.py > build/image-contents.json
+python3 tools/security/sbom_coverage.py build/lab-ops.cdx.json --image build/image-contents.json
+python3 tools/security/grype_gate.py image --grype "$(command -v grype)" build/lab-ops.cdx.json
+```
+
+When a check fails:
+
+- **A real secret**: revoke or rotate it first. Removing it from the branch does not remove it
+  from history, and anything pushed to a public branch must be treated as exposed.
+- **A synthetic test value**: add the exact value to `.gitleaks.toml` with a comment saying where
+  it is used.
+- **A vulnerable dependency**: update it (`uv lock --upgrade-package NAME`, a newer base image, or
+  a new vendored copy as `static/vendor/README.md` describes). If the vulnerability does not apply
+  or no fixed release exists yet, add an entry to `.grype.yaml` with the package version and the
+  reason, and say so in the pull request.
+- **A static analysis alert**: fix the code. A false positive is dismissed in the alert with the
+  reason, by a maintainer.
+- **"cannot be trusted"** or **"does not list"**: the check could not prove that it would find a
+  problem, so its clean result is not used. Read the message: a scanner or database that did not
+  load, a setting that hides the known finding, or a package the listing misses.
+
 ### Presentation website
 
 The [product website](https://openbga.github.io/lab-ops/) is built from `website/` and published

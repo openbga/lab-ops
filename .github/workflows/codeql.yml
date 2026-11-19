@@ -1,0 +1,55 @@
+name: codeql
+
+# Static analysis with CodeQL's security-extended queries of the application's own code (Python
+# and the JavaScript under static/js) and of these workflows (GitHub Actions); SECURITY.md ("What
+# is checked") describes it. Results are code scanning alerts in the repository's Security tab.
+# A pull request also gets a "CodeQL" check, which fails when the change adds an alert at the
+# repository's failure threshold. Pushes to main refresh the alerts the next pull request is
+# compared with; the analysis job fails only when the analysis itself cannot run, never because
+# of an alert.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out the code
+      security-events: write # upload the results as code scanning alerts
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          # Tests and browser journeys do not ship in the image; the vendored browser packages are
+          # third-party copies, covered by the dependency audit.
+          config: |
+            paths-ignore:
+              - "**/tests/**"
+              - "e2e/**"
+              - "static/vendor/**"
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}

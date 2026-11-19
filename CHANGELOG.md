@@ -4,7 +4,7 @@
 
 Changes to OpenBGA Lab Ops, grouped by month and impact.
 
-## November 2026 (2026-11-18)
+## November 2026 (2026-11-18 to 2026-11-19)
 
 ### High impact
 
@@ -83,6 +83,25 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   The dashboard shows each queue's count and oldest ticket in a compact row, with recent organizations alongside on wider screens.
 
 ### Low impact
+
+- **Added:** Security checks on every change (2026-11-19)
+
+  Each change is checked for vulnerable components, committed secrets and unsafe code, and each release lists its components.
+
+  <details><summary>Technical notes</summary>
+
+  Pull requests and a weekly run on `main` go through CodeQL static analysis of the Python code, the
+  JavaScript under `static/js/` and the workflows; a Grype audit of `uv.lock`, the vendored browser
+  packages and the workflows' actions; a gitleaks scan of the history, which also runs on every push;
+  and a Grype scan of the container image. Before trusting a clean result, each check compares its listing with what it must
+  contain and runs its settings against a known finding. Each run keeps a software bill of materials
+  of the image (SPDX 2.3 and CycloneDX 1.6) for 90 days, and each release published on GitHub
+  carries it as release assets. The security policy (`SECURITY.md`) lists what fails each check and
+  what is not checked. The vendored browser packages are now also recorded in
+  `static/vendor/package-lock.json`, which is served with the other static files. Nothing is
+  installed from it, and deployments need no change.
+
+  </details>
 
 - **Changed:** Give the ticket subject a full-width heading (2026-11-18, Tickets)
 

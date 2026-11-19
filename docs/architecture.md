@@ -186,3 +186,10 @@ recovery objectives and access policy. [Deployment](../README.md) and [operation
 Run server tests with PostgreSQL, collect static files before testing templates, and exercise
 staff and portal journeys at desktop and phone widths. Use a separate database for restore
 checks. The contributor guide lists the test commands. [Contributing](../CONTRIBUTING.md)
+
+Pull requests and a weekly run on `main` also go through static analysis, a dependency audit, a
+secret scan and a scan of the container image, and build a software bill of materials. The audit
+and the image scan do not run on pushes to `main`, so an advisory published for a dependency does
+not stop an unrelated fix from deploying. Static analysis and the secret scan do run on those
+pushes: an alert never fails static analysis, and the secret scan depends only on the commits
+pushed. [Security policy](../SECURITY.md#what-is-checked)

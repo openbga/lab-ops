@@ -2,10 +2,14 @@
 
 Pinned release files, copied unmodified from the npm registry tarballs. No build step and no
 runtime CDN. To upgrade, download the new tarball, check its `dist.integrity` against the
-registry, replace the directory, update this table and
+registry, replace the directory, update this table, `package-lock.json` and
 [Third-party notices](../../THIRD_PARTY_NOTICES.md), and update the paths in the templates that
 load the files (`templates/layouts/document.html`, `templates/500.html`). Collect static assets
 afterwards.
+
+`package-lock.json` records the same packages, versions and integrity in npm's lockfile format,
+so that the dependency audit and the software bill of materials include them (see
+[What is checked](../../SECURITY.md#what-is-checked)). Nothing is installed from it.
 
 | Package | Version | Files | License | Tarball integrity (sha512) |
 | --- | --- | --- | --- | --- |
