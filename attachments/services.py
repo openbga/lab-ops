@@ -150,7 +150,11 @@ def withdraw_attachment(*, actor, attachment_id, reason):
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     attachment = Attachment.objects.select_for_update().get(pk=attachment_id)
-    request = staff_requests(actor).select_for_update(of=("self",)).get(pk=attachment.request_id)
+    # The acting account read again after the ticket's lock: a supervisor role removed, or an
+    # account deactivated, while the change waited is refused.
+    request, actor = desk_services.locked_staff_request(actor, attachment.request_id)
+    if not is_supervisor(actor):
+        raise PermissionDenied("Only a supervisor can withdraw a file.")
     if attachment.withdrawn_at is not None:
         raise ValidationError("This file was already withdrawn.")
     attachment.withdrawn_at = timezone.now()

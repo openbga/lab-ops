@@ -84,6 +84,10 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### Low impact
 
+- **Fixed:** Assigning while someone's access ends (2026-11-19, Tickets)
+
+  An assignment and the assignee's deactivation or removal from the team at the same moment now wait for each other instead of failing with an error. A change saved while a colleague recategorizes the ticket is refused as changed, keeping what you typed, instead of showing the ticket as missing.
+
 - **Added:** Security checks on every change (2026-11-19)
 
   Each change is checked for vulnerable components, committed secrets and unsafe code, and each release lists its components.

@@ -366,10 +366,17 @@ def request_create(request):
     if form_valid and intake_valid:
         data = form.cleaned_data
         try:
-            # The request form's locks first, in the creating transaction: one lock order for
-            # every capture (request_forms.definition).
+            # The named assignee's rows first (services.hold_intake_assignee), then the request
+            # form's locks, in the creating transaction: one lock order for every capture
+            # (request_forms.definition).
             with transaction.atomic():
+                held = None
                 if intake is not None:
+                    held = services.hold_intake_assignee(
+                        team=data.get("team"),
+                        assignee=data.get("assignee"),
+                        category=data["category"],
+                    )
                     intake.lock()
                 created = create_request_with_files(
                     files=data.get("files") or [],
@@ -388,6 +395,7 @@ def request_create(request):
                     assignee=data.get("assignee"),
                     client_reference=data.get("client_reference", ""),
                     on_created=saver(intake, request.user) if intake is not None else None,
+                    held_assignee=held,
                     # What the category section told the person: refused if the
                     # category's protection or routing changed since; missing counts as changed.
                     drawn_terms=request.POST.get(terms.FIELD, ""),

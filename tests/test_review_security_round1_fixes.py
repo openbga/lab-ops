@@ -387,6 +387,9 @@ def _wait_until_blocked(seconds=10):
     deadline = time.monotonic() + seconds
     with connection.cursor() as cursor:
         while time.monotonic() < deadline:
+            # pg_stat_activity is read once per transaction: without this, a session that
+            # connected after the first reading in this transaction is never seen.
+            cursor.execute("SELECT pg_stat_clear_snapshot()")
             cursor.execute(
                 "SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid "
                 "WHERE NOT l.granted AND a.datname = current_database()"

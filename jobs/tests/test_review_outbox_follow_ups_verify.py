@@ -77,6 +77,9 @@ def held_open(work):
 
 def _waiting_locks():
     with connection.cursor() as cursor:
+        # pg_stat_activity is read once per transaction: without this, a session that connected
+        # after the first reading in this transaction is never seen.
+        cursor.execute("SELECT pg_stat_clear_snapshot()")
         cursor.execute(
             "SELECT count(*) FROM pg_locks WHERE NOT granted AND pid IN "
             "(SELECT pid FROM pg_stat_activity WHERE datname = current_database())"

@@ -86,6 +86,34 @@ state before writing. Its `on_created` callback lets the forms and attachment se
 with the ticket and its opening entry. A callback error rolls back the creation. The service also
 calls the clock and notification hooks. [Ticket services](../desk/services.py)
 
+A change that locks a person's rows and tickets locks the person's rows first. An assignment
+locks the assignee's account, roles and team membership, then the tickets, then the team, and
+decides from what it read once the acting account is read again; while it waits for a busy
+ticket it holds up only work about the same person. A new ticket naming an assignee locks that
+person's account, roles and membership of the ticket's team before anything else, its category
+and a request form's definition included; if the team changes in between, the ticket is refused
+and nothing is saved. Deactivating an account updates the account and then returns the
+person's open tickets to their queues ([desk/signals.py](../desk/signals.py)), and removing a
+member locks the membership and then those tickets. When an assignment and the end of the
+assignee's work meet, the second waits for the person's rows and then decides on what the first
+saved: the assignment is refused, or the deactivation or removal finds the new assignment and
+returns it to the queue. Neither fails with a deadlock. A nonconformance names people (its owner,
+an action's assignee) by locking the record and then the person, and never locks a ticket after a
+person.
+
+A ticket is locked by its id and the reader's scope is read again after the lock
+(`desk.selectors.locked_in_scope`), so a change that waited while a colleague recategorized the
+ticket is refused as changed, not answered as a missing ticket. A category is locked the same
+way, by its id, with its group held after it, and both are read after the locks. Every change
+reads the acting account again after its last lock and takes its checks of roles and
+capabilities from that reading: the ticket services through `settle`, a list's bulk action right
+after its tickets' locks, a new ticket's creation before it is written, the nonconformance module
+through its own recheck, and file withdrawal, links and form corrections through `settle` or
+`desk.services.locked_staff_request`; who asks is answered before anything about the ticket. The
+account is not held until the change commits: the database checks the rows a change names when
+it commits, and an account changed while that check waits is not seen. A link change locks the
+ticket first, then the link's system, then the link.
+
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.
 Queries use the same clock states for lists and counts. The notification hooks record one

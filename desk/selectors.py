@@ -35,6 +35,30 @@ def staff_requests(user, roles=None):
     return requests.filter(Q(category__is_restricted=False) | Exists(member))
 
 
+def locked_in_scope(scope, request_id):
+    """Request `request_id`, locked FOR UPDATE until the transaction ends, if `scope` (a reader's
+    staff_requests or portal_requests) holds it both before and after the lock; otherwise
+    ServiceRequest.DoesNotExist, which pages answer as 404.
+
+    The row is locked by its id alone and the scope is read again afterwards, in a new statement
+    that sees what committed while the lock was awaited. Locking through the scope query would
+    not do: a scope joined to other tables (the category, for staff without the supervisor role
+    and for portal accounts) is rechecked by PostgreSQL, for a row it waited for, against the
+    joined rows it read before waiting, so a ticket a colleague recategorized meanwhile would
+    drop out as if it had left the reader's scope. The first reading answers a reader who may not
+    open the ticket before any lock is taken.
+
+    `scope` was built from the reader's account before the wait (for a supervisor it filters
+    nothing), so the caller reads the account again right after this lock (desk.services.settle,
+    settle_portal), before deciding anything about the ticket."""
+    if not scope.filter(pk=request_id).exists():
+        raise ServiceRequest.DoesNotExist("No such ticket.")
+    locked = ServiceRequest.objects.select_for_update(of=("self",)).filter(pk=request_id).first()
+    if locked is None or not scope.filter(pk=request_id).exists():
+        raise ServiceRequest.DoesNotExist("No such ticket.")
+    return locked
+
+
 def portal_audience(request):
     """The active portal accounts that can read `request` (desk.portal_scope decides). Empty when
     a reply would reach nobody."""

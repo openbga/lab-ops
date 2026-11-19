@@ -235,7 +235,7 @@
         },
         {
           "label": "Assign to",
-          "description": "For Assign: choose a team, or a person from a team's list. Tickets already with that team and person are skipped, and closed tickets are refused. A person is offered only with the team they belong to. No reason is asked in bulk."
+          "description": "For Assign: choose a team, or a person from a team's list. Tickets already with that team and person are skipped, and closed tickets are refused. A person is offered only with the team they belong to. If the person is being deactivated or removed from the team at the same moment, the change saved second waits for the first: the assignment is refused, or their change returns the tickets to the queue. No reason is asked in bulk."
         },
         {
           "label": "Status",

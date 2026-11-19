@@ -66,6 +66,8 @@ def withdraw(request, pk):
             withdraw_attachment(
                 actor=request.user, attachment_id=attachment.pk, **form.cleaned_data
             )
+        except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
+            raise Http404 from error
         except ValidationError as error:
             form.add_error(None, error)
         else:

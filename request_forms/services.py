@@ -817,8 +817,14 @@ def create_request_with_form(
     passed to desk.services.create_request, which checks it; the values are stored through its
     `on_created`, so a refusal there undoes the whole creation.
     """
-    from desk.services import create_request
+    from desk.services import create_request, hold_intake_assignee
 
+    # A named assignee's rows before the form's locks (desk.services.hold_intake_assignee).
+    held = hold_intake_assignee(
+        team=create_request_kwargs.get("team"),
+        assignee=create_request_kwargs.get("assignee"),
+        category=template.category,
+    )
     defn = _usable_definition(actor, template, details_not_known, expected_definition)
     rows, missing = validate_values(defn, actor, values, enforce_required=not details_not_known)
 
@@ -833,6 +839,7 @@ def create_request_with_form(
         subject=(subject or "").strip() or label[:120],
         first_entry_body=(first_entry_body or "").strip() or DETAILS_IN_FORM.format(label=label),
         on_created=store,
+        held_assignee=held,
         **create_request_kwargs,
     )
 
@@ -891,13 +898,16 @@ def correct_values(
     definition compared is read with the items on them (definition.read_for_correction).
     """
     from desk.models import EntryKind, RequestEntry, ServiceRequest, Status
-    from desk.selectors import staff_requests
+    from desk.selectors import locked_in_scope, staff_requests
+    from desk.services import settle
 
     require_staff(actor)
     try:
-        locked = staff_requests(actor).select_for_update(of=("self",)).get(pk=request.pk)
+        locked = locked_in_scope(staff_requests(actor), request.pk)
     except ServiceRequest.DoesNotExist:
         raise ServiceRequest.DoesNotExist("No such ticket.") from None
+    # Who asks is answered before anything about the ticket, and again after the last lock below.
+    actor = settle(actor, locked)
     if locked.status == Status.CLOSED:
         raise ValidationError(CLOSED_MESSAGE, code="closed")
     filled = FilledForm.objects.filter(request=locked).select_related("template").first()
@@ -912,6 +922,9 @@ def correct_values(
         )
     }
     defn = _correction_definition(filled, expected_definition, kept_rows)
+    # The acting account read again after the change's last lock (the definition's, its
+    # category's among them); every check below uses this reading.
+    actor = settle(actor, locked)
     for template_field in defn.fillable(actor, new_request=False):
         if template_field.key in values:
             old = current.get(template_field.pk)

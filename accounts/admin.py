@@ -141,8 +141,10 @@ class AccessRules:
             if leaving and connection.in_atomic_block:
                 # Every owner row held until this save commits (the admin saves in one
                 # transaction): two owners stepping down at once take turns, and the second sees
-                # the first has gone.
-                list(owners.select_for_update().order_by("pk"))
+                # the first has gone. FOR NO KEY UPDATE, so that an owner's own change elsewhere
+                # (a ticket saved naming them as its author or actor) does not wait for this one
+                # while this one waits for that ticket.
+                list(owners.select_for_update(no_key=True).order_by("pk"))
             others = owners.exclude(pk__in=[self.instance.pk, system_account_id()])
             if leaving and not others.exists():
                 raise forms.ValidationError(

@@ -16,7 +16,7 @@ from django.utils import timezone
 from accounts.roles import has_capability, require_capability, require_role, require_staff
 from clients.models import Client
 from core.audit import record_event, snapshot
-from desk.selectors import staff_requests
+from desk.selectors import locked_in_scope, staff_requests
 
 from .identifiers import check_https_url, check_link_url, clean_identifier
 from .masking import check_label, is_person_type, key_digest, propose_label
@@ -185,8 +185,21 @@ def update_system(*, actor, system_id, expected_revision, reason, **data):
 
 
 def locked_request(actor, request_id):
-    """The request, locked, if `actor` may read it; DoesNotExist otherwise (the view's 404)."""
-    return staff_requests(actor).select_for_update(of=("self",)).get(pk=request_id)
+    """The request, locked, if `actor` may read it (desk.selectors.locked_in_scope);
+    DoesNotExist otherwise (the view's 404). The ticket is locked before anything else a link
+    change locks (the attachment, the system, the link). Read the acting account again after the
+    change's last lock with `_reread`."""
+    require_staff(actor)
+    return locked_in_scope(staff_requests(actor), request_id)
+
+
+def _reread(actor, request=None):
+    """The acting account read again after a change's last lock, as the ticket services do: with
+    a ticket, it must still be one that reading may open (desk.services.settle); without one, an
+    active staff account (current_staff). Checks after the locks use this reading."""
+    from desk.services import current_staff, settle
+
+    return settle(actor, request) if request is not None else current_staff(actor)
 
 
 CLOSED_MESSAGE = "This ticket is closed, so its links can no longer change."
@@ -255,11 +268,21 @@ def add_link(
         raise ValidationError({"role": "Choose a role."})
     request = locked_request(actor, request_id) if request_id is not None else None
     if request is not None:
+        # Who asks is answered before anything about the ticket (closed, its links), and again
+        # after the last lock below.
+        actor = _reread(actor, request)
         require_open(request)
     client = Client.objects.select_for_update().get(pk=client_id) if client_id is not None else None
     if client is not None and person:
         raise ValidationError({"record_type": "Add person-level links to a ticket."})
     system = ExternalSystem.objects.select_for_update().get(pk=system.pk)
+    if request is not None:
+        # The system's lock can be waited for: who asks (the account, and for a person-level link
+        # the capability) is answered again before the checks below about the ticket (its
+        # person-level link), and once more after the link's lock.
+        actor = _reread(actor, request)
+        if person:
+            require_capability(actor, CAPABILITY)
     if not system.is_active:
         raise ValidationError({"system": "This system is inactive and takes no new links."})
     errors = {}
@@ -311,6 +334,11 @@ def add_link(
         label=label,
         url=url,
     )
+    # The acting account read again after the change's last lock (the link's), and the
+    # capability for a person-level link checked on that reading.
+    actor = _reread(actor, request)
+    if person:
+        require_capability(actor, CAPABILITY)
     if created:
         record_event(
             actor=actor, action="external_link.created", obj=link, after=_link_snapshot(link)
@@ -349,14 +377,22 @@ def add_link(
 
 
 def _locked_attachment(actor, attachment_id):
+    """(attachment, current): the attachment's ticket locked first, as add_link locks it before
+    the link, then the attachment and its link; then the acting account read again after those
+    locks, and the capability for a person-level link checked on that reading."""
+    request_id = (
+        LinkAttachment.objects.filter(pk=attachment_id).values_list("request_id", flat=True).get()
+    )  # read without a lock: an attachment never moves to another ticket
+    request = locked_request(actor, request_id) if request_id is not None else None
     attachment = (
         LinkAttachment.objects.select_for_update().select_related("link").get(pk=attachment_id)
     )
-    if attachment.request_id is not None:
-        require_open(locked_request(actor, attachment.request_id))
+    actor = _reread(actor, request)  # after the last lock, before anything about the ticket
+    if request is not None:
+        require_open(request)
     if attachment.is_person:
         require_capability(actor, CAPABILITY)
-    return attachment
+    return attachment, actor
 
 
 @transaction.atomic
@@ -367,7 +403,7 @@ def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
     PersonRemovalReason and an optional `note`, kept on the attachment and shown only to holders
     of the capability; the audit event and the timeline carry the code only."""
     require_staff(actor)
-    attachment = _locked_attachment(actor, attachment_id)
+    attachment, actor = _locked_attachment(actor, attachment_id)
     if attachment.is_person:
         code = _person_reason(reason_code)
         reason, note = PersonRemovalReason(code).label, (note or "").strip()
@@ -407,7 +443,7 @@ def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
 @transaction.atomic
 def set_shown_to_client(*, actor, attachment_id, shown):
     require_staff(actor)
-    attachment = _locked_attachment(actor, attachment_id)
+    attachment, actor = _locked_attachment(actor, attachment_id)
     if attachment.removed_at is not None or attachment.request_id is None:
         raise ValidationError("Only a current link on a ticket can be shown to the client.")
     if attachment.is_person and shown:
@@ -435,7 +471,12 @@ def update_link(
     has no address and takes a `reason_code` (PersonRemovalReason) instead of free text, and
     only a reader of one of its carrier requests may change it."""
     require_staff(actor)
+    # The system before the link, as add_link takes them (a link's system never changes), then
+    # the acting account read again after both.
+    system_id = ExternalRecordLink.objects.values_list("system_id", flat=True).get(pk=link_id)
+    ExternalSystem.objects.select_for_update().get(pk=system_id)
     link = ExternalRecordLink.objects.select_for_update().select_related("system").get(pk=link_id)
+    actor = _reread(actor)
     if link.is_person:
         if not person_link_readable(actor, link):
             raise ExternalRecordLink.DoesNotExist

@@ -35,12 +35,13 @@ from .models import (
 )
 from .permissions import is_supervisor
 from .portal_scope import check_portal_site, portal_requests
-from .selectors import staff_requests
+from .selectors import locked_in_scope, staff_requests
 
 # Staff may set these with an entry; resolving and closing need their own service.
 ENTRY_STATUSES = frozenset({Status.OPEN, Status.WAITING_CLIENT, Status.WAITING_THIRD_PARTY})
 # A client reply sends the request back to the laboratory from these.
 REOPENED_BY_CLIENT = frozenset({Status.WAITING_CLIENT, Status.RESOLVED})
+STALE = "This ticket changed. Reload it and review the latest entries."
 
 
 def is_portal_account(user):
@@ -71,16 +72,22 @@ def _check_category(category, *, portal, drawn_terms=None):
     and routing (taxonomy.terms); the write is refused if the category no longer matches it. The
     comparison is made under the row lock, so a setup change either comes first and refuses the
     write or waits for it."""
+    # Locked by its id alone; its group and default team are read afterwards, in new statements.
+    # A lock taken through a join would, for a row it waited for, be rechecked against the joined
+    # rows read before the wait (selectors.locked_in_scope): a category moved to another group
+    # meanwhile would come back without one.
     current = (
-        RequestCategory.objects.select_for_update(of=("self",), no_key=True)
-        .select_related("parent", "default_team")
-        .filter(pk=category.pk)
-        .first()
+        RequestCategory.objects.select_for_update(no_key=True).filter(pk=category.pk).first()
         if category.pk
         else None
     )
     if current is None or current.parent_id is None:
         raise ValidationError({"category": "Choose a category, not a group."})
+    from jobs.locks import share_lock
+
+    # Its group held too (FOR SHARE, after the category, as a request form's definition holds
+    # it), so a group retired meanwhile either came first and is read here, or waits.
+    share_lock(RequestCategory, [current.parent_id])
     if not current.is_active or not current.parent.is_active:
         raise ValidationError({"category": "This category is no longer used."})
     if portal and not current.client_may_raise:
@@ -103,41 +110,104 @@ def _check_organization(client, site, contact):
         raise ValidationError({"contact": "This contact is inactive."})
 
 
-def _current_team(team):
-    """The team as it stands now, locked: an earlier copy's active flag is not trusted."""
-    current = Team.objects.select_for_update(no_key=True).filter(pk=team.pk).first()
+def _locked_team(team):
+    """The team as it stands now, locked until the transaction ends (None if it is gone)."""
+    return Team.objects.select_for_update(no_key=True).filter(pk=team.pk).first()
+
+
+def _active_team(current):
+    """`current` (a reading taken under its lock), if it may receive tickets."""
     if current is None or not current.is_active:
         raise ValidationError({"team": "This team is inactive."})
     return current
 
 
-def _current_assignee(assignee, team):
-    """The assignee as it stands now: an active staff account and an active member of `team`.
+def _current_team(team):
+    """The team as it stands now, locked: an earlier copy's active flag is not trusted."""
+    return _active_team(_locked_team(team))
 
-    Both rows are locked until the transaction ends, so an assignment and
-    the end of that membership or account serialize: a removal (teams.services.remove_member) or
-    deactivation that comes first makes this check fail, and one that comes after waits, then
-    finds the new assignment and returns it to the queue (release_assignments)."""
+
+class HeldAssignee:
+    """A person as an assignment reads them under its locks: the account, the roles held with it
+    (accounts.roles.held_roles) and whether the account is a member of the team named by
+    `team_id`. Every row stays locked until the transaction ends, so a decision taken later from
+    this reading still holds when the assignment commits."""
+
+    def __init__(self, user_id, account, roles):
+        self.user_id, self.account, self.roles = user_id, account, frozenset(roles)
+        self.team_id, self.member = None, False
+
+    def hold_membership(self, team):
+        """Read and lock the account's membership of `team`, after the account and its roles."""
+        self.team_id = team.pk
+        self.member = (
+            self.account is not None
+            and TeamMembership.objects.select_for_update(no_key=True)
+            .filter(team_id=team.pk, user=self.account)
+            .exists()
+        )
+        return self
+
+
+def _held_assignee(assignee, team=None):
+    """Read and lock, in this order, `assignee`'s account, its roles and, with `team`, its
+    membership of that team. Nothing is decided here (_eligible_assignee)."""
     from accounts.models import User
-    from accounts.roles import ROLES, held_roles
-    from jobs.actor import is_system_account
+    from accounts.roles import held_roles
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
-    # The roles this check decides from, read and held in one statement until the assignment
+    # The roles the decision rests on, read and held in one statement until the assignment
     # commits: removing one waits, and one granted after the reading does not count.
     roles = held_roles(current, mode="key share") if current is not None else set()
+    held = HeldAssignee(assignee.pk, current, roles)
+    return held.hold_membership(team) if team is not None else held
+
+
+def _eligible_assignee(held, team):
+    """The account of `held` if it may be assigned in `team`: an active staff account with a staff
+    role and an active member of that team, as read under the locks."""
+    from accounts.roles import ROLES
+    from jobs.actor import is_system_account
+
+    current = held.account
     if not (
         current is not None
         and not is_system_account(current)  # it does no work, even if someone gave it a role
-        and roles.intersection(ROLES)  # a member without a staff role cannot open the ticket
+        and held.roles.intersection(ROLES)  # a member without a staff role cannot open the ticket
         and current.is_active
         and current.client_id is None
-        and TeamMembership.objects.select_for_update(no_key=True)
-        .filter(team=team, user=current)
-        .exists()
+        and held.team_id == team.pk
+        and held.member
     ):
         raise ValidationError({"assignee": "Choose an active member of the ticket's team."})
     return current
+
+
+def _current_assignee(assignee, team):
+    """The assignee as it stands now: an active staff account and an active member of `team`.
+    The account, its roles and the membership stay locked until the transaction ends."""
+    return _eligible_assignee(_held_assignee(assignee, team), team)
+
+
+def _hold_assignment(team, assignee):
+    """Lock the rows of the person an assignment names, before any ticket: the account, its roles
+    and its membership of `team`. Returns the reading (HeldAssignee), or None without an assignee;
+    nothing is decided here.
+
+    Ending a person's work starts from the same rows and then locks that person's tickets: a
+    deactivation updates the account (desk.signals), a removal locks the membership
+    (teams.services.remove_member), and both then return the person's tickets to the queue
+    (release_assignments). With an assignment taking the person's rows before the tickets too,
+    the two never wait for each other in a cycle: whichever comes second waits for the person's
+    rows. An assignment that comes second reads the account or membership as the other change
+    left it and is refused; an ending that comes second finds the new assignment and returns it to
+    the queue. Only the person's rows are held this early: the team is locked after the tickets,
+    as the other ticket services lock what they need after the ticket, so an assignment waiting
+    for a busy ticket holds up nothing but work about the same person.
+
+    The caller decides after the tickets' locks and the actor's recheck (_assign), so who asks is
+    answered before what is wrong with the choice."""
+    return _held_assignee(assignee, team) if assignee is not None else None
 
 
 def _current_default_team():
@@ -159,15 +229,56 @@ def _current_default_team():
     raise ValidationError({"team": "The default team is being changed. Try again."})
 
 
-def _team_and_assignee(team, assignee, category):
+def _intake_team_id(team, category):
+    """The id of the team a new request in `category` goes to, read without a lock: the caller's
+    team, else the category's default team, else the default team (None on a database without
+    one yet). _team_and_assignee decides the team again under the locks."""
+    if team is not None:
+        return team.pk
+    default_id = (
+        RequestCategory.objects.filter(pk=category.pk)
+        .values_list("default_team_id", flat=True)
+        .first()
+    )
+    if default_id is not None:
+        return default_id
+    return Team.objects.filter(is_default=True).values_list("pk", flat=True).first()
+
+
+def hold_intake_assignee(*, team, assignee, category):
+    """For a new request naming `assignee`: lock that person's rows (account, roles and membership
+    of the team the request goes to) before anything else the intake locks, the category and a
+    request form's definition included, as an assignment locks the person's rows before anything
+    else (_hold_assignment). An intake that waits for the person then holds nothing that someone
+    waiting on that person needs. Returns the reading (HeldAssignee), or None without an assignee.
+
+    create_request calls it first. A caller that takes other locks before create_request (the
+    staff intake page, which locks the request form's definition) calls it before them, in the
+    same transaction; create_request's own call then finds the rows already held."""
+    if assignee is None:
+        return None
+    team_id = _intake_team_id(team, category)
+    return _held_assignee(assignee, Team(pk=team_id) if team_id is not None else None)
+
+
+def _team_and_assignee(team, held, category):
     """The team and assignee for a new request, from current state: the caller's team, else
-    the category's current default team, else the default team."""
+    the category's current default team, else the default team. `held` is the assignee as
+    hold_intake_assignee read and holds them, or None."""
     if team is None and category.default_team is None:
         team = _current_default_team()
     else:
         team = _current_team(team or category.default_team)
-    if assignee is not None:
-        assignee = _current_assignee(assignee, team)
+    assignee = None
+    if held is not None:
+        if held.team_id != team.pk:
+            # The routing changed between the reading the person's locks were taken for and the
+            # one under the category's lock; the membership of the new team is not locked
+            # after the category (one order: the person's rows first).
+            raise ValidationError(
+                {"assignee": "The ticket's team changed while it was saved. Choose again."}
+            )
+        assignee = _eligible_assignee(held, team)
     return team, assignee
 
 
@@ -229,6 +340,24 @@ def created_in_current_transaction(request):
     )
 
 
+def _creator_after_locks(actor, *, portal, site):
+    """The creating account read again after the creation's locks (the assignee's, the
+    category's, the team's), as settle does for a change to a ticket: a staff account deactivated
+    or left without a staff role while the creation waited is refused (current_staff); a portal
+    account must still be active, of the same organization, and allowed the chosen site."""
+    from accounts.models import User
+
+    if not portal:
+        return current_staff(actor)
+    current = User.objects.filter(
+        pk=actor.pk, is_active=True, client_id=actor.client_id, client__isnull=False
+    ).first()
+    if current is None:
+        raise PermissionDenied("This account is inactive.")
+    check_portal_site(current, site)
+    return current
+
+
 @transaction.atomic
 def create_request(
     *,
@@ -249,8 +378,12 @@ def create_request(
     follow_up_of=None,
     on_created=None,
     drawn_terms=None,
+    held_assignee=None,
 ):
     """Create a request with its first entry and return it.
+
+    `held_assignee`: the reading hold_intake_assignee returned to a caller that locked the
+    assignee before its own locks, in this transaction; the person's rows are then not read again.
 
     `on_created(request)`, when given, runs in the same transaction after the request, its first
     entry and its audit event are written and before the clock and notification hooks: the seam
@@ -284,11 +417,17 @@ def create_request(
             raise ValidationError({"channel": "Choose how the ticket arrived."})
         if first_entry_kind not in (EntryKind.REPLY, EntryKind.NOTE):
             raise ValidationError({"first_entry_kind": "Choose a reply or a note."})
+    # The assignee's rows first, before the category (hold_intake_assignee).
+    held = held_assignee
+    if held is None:
+        held = hold_intake_assignee(team=team, assignee=assignee, category=category)
+    elif assignee is None or held.user_id != assignee.pk:
+        raise ValueError("held_assignee is the reading of this request's assignee.")
     # Routing, the default priority and the complaint flag come from the category as it stands
     # at write time, never from the caller's copy.
     category = _check_category(category, portal=portal, drawn_terms=drawn_terms)
     _check_organization(client, site, contact)
-    team, assignee = _team_and_assignee(team, assignee, category)
+    team, assignee = _team_and_assignee(team, held, category)
     if priority is not None and priority not in Priority.values:
         raise ValidationError({"priority": "Choose a priority."})
     if follow_up_of is not None:
@@ -300,6 +439,7 @@ def create_request(
             raise ValidationError({"follow_up_of": "Only a closed ticket takes a follow-up."})
         if follow_up_of.client_id != (client.pk if client else None):
             raise ValidationError({"follow_up_of": "A follow-up stays with the organization."})
+    _creator_after_locks(actor, portal=portal, site=site)
     request = ServiceRequest.objects.create(
         client=client,
         site=site,
@@ -366,10 +506,7 @@ def create_request(
 
 def _locked_request(actor, request_id, *, portal):
     scope = portal_requests(actor) if portal else staff_requests(actor)
-    try:
-        return scope.select_for_update(of=("self",)).get(pk=request_id)
-    except ServiceRequest.DoesNotExist:
-        raise ServiceRequest.DoesNotExist("No such ticket.") from None
+    return locked_in_scope(scope, request_id)
 
 
 def _set_status(request, actor, new):
@@ -408,7 +545,7 @@ def add_entry(*, actor, request, kind, body, expected_revision, contact=None, ne
     else:
         settle(actor, request)
     if request.revision != expected_revision:
-        raise ValidationError("This ticket changed. Reload it and review the latest entries.")
+        raise ValidationError(STALE)
     fields = {}
     if portal:
         if kind != EntryKind.REPLY or new_status is not None or contact is not None:
@@ -504,8 +641,17 @@ def _staff_request(actor, request, expected_revision):
     locked = _locked_request(actor, request.pk, portal=False)
     settle(actor, locked)
     if expected_revision is None or locked.revision != expected_revision:
-        raise ValidationError("This ticket changed. Reload it and review the latest entries.")
+        raise ValidationError(STALE)
     return locked
+
+
+def locked_staff_request(actor, request_id):
+    """For another app's change to a ticket: the ticket locked (selectors.locked_in_scope) and
+    the acting account read again after the lock (settle), as the ticket services do. Returns
+    (request, current); every check of what the actor may do after the lock uses `current`."""
+    require_staff(actor)
+    request = locked_in_scope(staff_requests(actor), request_id)
+    return request, settle(actor, request)
 
 
 def _save(request):
@@ -526,23 +672,31 @@ def record_related_event(*, actor, request, action, **data):
     _save(request)
 
 
-def _is_member(user, team):
-    return TeamMembership.objects.filter(team=team, user=user, user__is_active=True).exists()
+def _visible_request(actor, request):
+    """`request` as `actor` may read it now, without a lock, or DoesNotExist (the same answer as
+    _locked_request). Checked before an assignment locks a person's rows, so someone who may not
+    open the ticket holds nobody's rows; the decision is still the one taken under the ticket's
+    lock."""
+    require_staff(actor)
+    found = staff_requests(actor).filter(pk=request.pk).first()
+    if found is None:
+        raise ServiceRequest.DoesNotExist("No such ticket.")
+    return found
 
 
-def _assign(request, actor, team, assignee, reason):
-    """Move `request` to `team` and `assignee` (None to leave it with the team). Returns whether
-    anything changed. Called with the request locked."""
+def _assign(request, actor, team, held, reason):
+    """Move `request` to `team` and the assignee read by _hold_assignment (`held`; None leaves it
+    with the team). Returns whether anything changed. Called with the request locked, after the
+    person's rows; the team is locked here, after the ticket."""
     if request.status == Status.CLOSED:
         raise ValidationError("A closed ticket cannot be reassigned.")
     try:
         team = _current_team(team)
-        if assignee is not None:
-            assignee = _current_assignee(assignee, team)
+        assignee = _eligible_assignee(held, team) if held is not None else None
     except ValidationError:
         settle(actor, request)  # who asks is decided before what is wrong with the choice
         raise
-    settle(actor, request)  # the team and person locks came after the ticket's
+    settle(actor, request)  # the team's lock came after the ticket's
     old_team_id, old_assignee_id = request.team_id, request.assignee_id
     if team.pk == old_team_id and (assignee.pk if assignee else None) == old_assignee_id:
         return False
@@ -572,8 +726,10 @@ def _assign(request, actor, team, assignee, reason):
 @transaction.atomic
 def assign(*, actor, request, expected_revision, team, assignee=None, reason=""):
     """Give the request to `team` and optionally to one of its active members."""
+    _visible_request(actor, request)
+    held = _hold_assignment(team, assignee)  # before the ticket's lock (_hold_assignment)
     request = _staff_request(actor, request, expected_revision)
-    if not _assign(request, actor, team, assignee, _reason(reason, required=False)):
+    if not _assign(request, actor, team, held, _reason(reason, required=False)):
         raise ValidationError("Choose another team or person.")
     _save(request)
     return request
@@ -582,12 +738,19 @@ def assign(*, actor, request, expected_revision, team, assignee=None, reason="")
 @transaction.atomic
 def take(*, actor, request, expected_revision):
     """Assign the request to the acting staff member, who must belong to its team."""
+    # The team is read before the ticket's lock, so that the actor's membership of it is locked
+    # first (_hold_assignment). A move to another team advances the revision, so a ticket that
+    # moved after this reading is refused below as changed.
+    team = Team(pk=_visible_request(actor, request).team_id)
+    held = _hold_assignment(team, actor)
     request = _staff_request(actor, request, expected_revision)
-    if not _is_member(actor, request.team):
+    if request.team_id != team.pk:
+        raise ValidationError(STALE)
+    if not (held.member and held.account is not None and held.account.is_active):
         raise ValidationError(
             f"Only members of {request.team} can take it. Move it to one of your teams first."
         )
-    if not _assign(request, actor, request.team, actor, ""):
+    if not _assign(request, actor, request.team, held, ""):
         raise ValidationError("This ticket is already yours.")
     _save(request)
     return request
@@ -918,11 +1081,14 @@ def withdraw_reply(*, actor, entry, reason, expected_revision):
     return entry
 
 
-def _bulk_requests(actor, selected):
-    """The selected requests, locked, in id order. `selected` maps each request id to the
-    revision the operator saw in the list. The whole action is refused if any request is outside
-    what the actor may read (a hidden or missing id is never acted on silently), if a revision is
-    missing, or if a request changed since the list was opened (named in the refusal)."""
+NOT_AVAILABLE = "Some selected tickets are not available to you."
+
+
+def _bulk_selection(actor, selected):
+    """`selected`, which maps each request id to the revision the operator saw in the list, as
+    {id: revision}, once the actor is staff and may read every selected request now (read
+    without a lock, so that nothing is locked for someone who may not; _bulk_requests decides
+    again under the locks). Refused if a revision is missing or the selection is empty."""
     require_staff(actor)
     try:
         wanted = {int(pk): int(revision) for pk, revision in dict(selected).items()}
@@ -930,11 +1096,26 @@ def _bulk_requests(actor, selected):
         raise ValidationError("This list is out of date. Reload it and select again.") from None
     if not wanted:
         raise ValidationError("Select at least one ticket.")
+    if staff_requests(actor).filter(pk__in=wanted).count() != len(wanted):
+        raise PermissionDenied(NOT_AVAILABLE)
+    return wanted
+
+
+def _bulk_requests(actor, wanted):
+    """The requests of `wanted` (_bulk_selection), locked, in id order. Then, before anything about
+    the tickets, the acting account is read again (current_staff: deactivated or left without a
+    staff role while the request waited is refused), and the whole action is refused if any
+    request is outside what that reading may read (a hidden or missing id is never acted on
+    silently) or changed since the list was opened (named in the refusal). The rows are locked
+    by id and the scope read afterwards, as for one ticket (selectors.locked_in_scope)."""
     found = list(
-        staff_requests(actor).filter(pk__in=wanted).select_for_update(of=("self",)).order_by("pk")
+        ServiceRequest.objects.filter(pk__in=wanted).select_for_update(of=("self",)).order_by("pk")
     )
-    if len(found) != len(wanted):
-        raise PermissionDenied("Some selected tickets are not available to you.")
+    current = current_staff(actor)
+    if len(found) != len(wanted) or staff_requests(current).filter(pk__in=wanted).count() != len(
+        wanted
+    ):
+        raise PermissionDenied(NOT_AVAILABLE)
     changed = [request.number for request in found if request.revision != wanted[request.pk]]
     if changed:
         raise ValidationError(
@@ -945,10 +1126,13 @@ def _bulk_requests(actor, selected):
 
 @transaction.atomic
 def bulk_assign(*, actor, selected, team, assignee=None, reason=""):
-    """Assign several requests at once; each is audited. Requests already there are skipped."""
+    """Assign several requests at once; each is audited. Requests already there are skipped.
+    The person's rows are locked before the tickets (_hold_assignment)."""
+    wanted = _bulk_selection(actor, selected)
+    held = _hold_assignment(team, assignee)
     changed = 0
-    for request in _bulk_requests(actor, selected):
-        if _assign(request, actor, team, assignee, _reason(reason, required=False)):
+    for request in _bulk_requests(actor, wanted):
+        if _assign(request, actor, team, held, _reason(reason, required=False)):
             _save(request)
             changed += 1
     return changed
@@ -962,7 +1146,7 @@ def bulk_status(*, actor, selected, status):
     """Set Open or a waiting status on several requests that are not resolved or closed."""
     if status not in BULK_STATUSES:
         raise ValidationError({"status": "Resolve and close tickets one at a time or with Close."})
-    requests = _bulk_requests(actor, selected)
+    requests = _bulk_requests(actor, _bulk_selection(actor, selected))
     blocked = [r.number for r in requests if r.status in (Status.RESOLVED, Status.CLOSED)]
     if blocked:
         raise ValidationError(
@@ -982,7 +1166,7 @@ def bulk_status(*, actor, selected, status):
 def bulk_close(*, actor, selected):
     """Close several resolved requests. All or nothing: a request that is not resolved, or a
     complaint without its review, stops the whole action."""
-    requests = _bulk_requests(actor, selected)
+    requests = _bulk_requests(actor, _bulk_selection(actor, selected))
     for request in requests:
         try:
             old = _change_status(request, actor, Status.CLOSED)
@@ -1004,7 +1188,10 @@ def release_assignments(*, actor, user, team=None, reason):
     """Return `user`'s requests that are not closed (in `team`, or every team) to their team's
     queue, with a timeline event and an audit event on each. Called inside the transaction that
     removes the membership or deactivates the account, so nobody
-    stays the assignee of a team they left. Returns how many requests were released."""
+    stays the assignee of a team they left. Returns how many requests were released.
+
+    The caller has already locked the person's row it changes (the membership or the account), so
+    the person's rows come before the tickets, as in an assignment (_hold_assignment)."""
     if not connection.in_atomic_block:
         raise RuntimeError("Release assignments in the transaction that ends the membership.")
     released = 0
