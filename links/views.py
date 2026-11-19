@@ -202,6 +202,8 @@ def request_link_add(request, pk):
             attachment, created = add_link(
                 actor=request.user, request_id=service_request.pk, **form.cleaned_data
             )
+        except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
+            raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
         else:
@@ -234,6 +236,8 @@ def client_link_add(request, pk):
             _attachment, created = add_link(
                 actor=request.user, client_id=client.pk, **form.cleaned_data
             )
+        except ObjectDoesNotExist as error:
+            raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
         else:
@@ -283,6 +287,8 @@ def attachment_remove(request, pk):
     if request.method == "POST" and form.is_valid():
         try:
             remove_link(actor=request.user, attachment_id=attachment.pk, **form.cleaned_data)
+        except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
+            raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
         else:
@@ -317,6 +323,8 @@ def attachment_shown(request, pk):
     shown = request.POST.get("shown") == "1"
     try:
         set_shown_to_client(actor=request.user, attachment_id=attachment.pk, shown=shown)
+    except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
+        raise Http404 from error
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
     else:
@@ -425,6 +433,8 @@ def link_edit(request, pk):
     if request.method == "POST" and form.is_valid():
         try:
             update_link(actor=request.user, link_id=link.pk, **form.cleaned_data)
+        except ObjectDoesNotExist as error:  # no longer readable while the change waited
+            raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
         else:

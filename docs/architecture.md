@@ -104,10 +104,13 @@ person.
 A ticket is locked by its id and the reader's scope is read again after the lock
 (`desk.selectors.locked_in_scope`), so a change that waited while a colleague recategorized the
 ticket is refused as changed, not answered as a missing ticket. A category is locked the same
-way, by its id, and its group and default team are read after the lock. Every change reads the
-acting account again after its ticket's lock and takes its checks of roles and capabilities from
-that reading: the ticket services through `settle`, a list's bulk action right after its tickets'
-locks, and the other apps through `desk.services.locked_staff_request`.
+way, by its id, with its group held after it, and both are read after the locks. Every change
+reads the acting account again after its last lock and takes its checks of roles and
+capabilities from that reading: the ticket services through `settle`, a list's bulk action right
+after its tickets' locks, a new ticket's creation before it is written, the nonconformance module
+through its own recheck, and file withdrawal, links and form corrections through `settle` or
+`desk.services.locked_staff_request`. A link change locks the ticket first, then the link's system,
+then the link.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

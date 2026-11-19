@@ -130,7 +130,7 @@
       "items": [
         {
           "label": "Refusals",
-          "description": "A group instead of a category, an inactive category, organization, site or contact, an inactive team, and an assignee who is not an active member of the chosen team are refused with a message beside the field. So is a category whose team, priority, complaint or restricted setting changed after its line was shown: the line is shown again as it is now and, with a ticket form, the form's fields are shown again empty. If the ticket's team changes while you save with an assignee, the assignee is refused (\"The ticket's team changed while it was saved. Choose again.\"). Everything else you typed stays in the form."
+          "description": "A group instead of a category, an inactive category, organization, site or contact, an inactive team, and an assignee who is not an active member of the chosen team are refused with a message beside the field. So is a category whose team, priority, complaint or restricted setting changed after its line was shown: the line is shown again as it is now and, with a ticket form, the form's fields are shown again empty. Everything else you typed stays in the form."
         },
         {
           "label": "Service clocks",

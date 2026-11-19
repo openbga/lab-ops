@@ -340,6 +340,24 @@ def created_in_current_transaction(request):
     )
 
 
+def _creator_after_locks(actor, *, portal, site):
+    """The creating account read again after the creation's locks (the assignee's, the
+    category's, the team's), as settle does for a change to a ticket: a staff account deactivated
+    or left without a staff role while the creation waited is refused (current_staff); a portal
+    account must still be active, of the same organization, and allowed the chosen site."""
+    from accounts.models import User
+
+    if not portal:
+        return current_staff(actor)
+    current = User.objects.filter(
+        pk=actor.pk, is_active=True, client_id=actor.client_id, client__isnull=False
+    ).first()
+    if current is None:
+        raise PermissionDenied("This account is inactive.")
+    check_portal_site(current, site)
+    return current
+
+
 @transaction.atomic
 def create_request(
     *,
@@ -421,6 +439,7 @@ def create_request(
             raise ValidationError({"follow_up_of": "Only a closed ticket takes a follow-up."})
         if follow_up_of.client_id != (client.pk if client else None):
             raise ValidationError({"follow_up_of": "A follow-up stays with the organization."})
+    _creator_after_locks(actor, portal=portal, site=site)
     request = ServiceRequest.objects.create(
         client=client,
         site=site,

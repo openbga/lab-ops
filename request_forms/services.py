@@ -898,12 +898,12 @@ def correct_values(
     definition compared is read with the items on them (definition.read_for_correction).
     """
     from desk.models import EntryKind, RequestEntry, ServiceRequest, Status
-    from desk.services import locked_staff_request
+    from desk.selectors import locked_in_scope, staff_requests
+    from desk.services import settle
 
     require_staff(actor)
     try:
-        # The acting account is read again after the ticket's lock; the checks below use it.
-        locked, actor = locked_staff_request(actor, request.pk)
+        locked = locked_in_scope(staff_requests(actor), request.pk)
     except ServiceRequest.DoesNotExist:
         raise ServiceRequest.DoesNotExist("No such ticket.") from None
     if locked.status == Status.CLOSED:
@@ -920,6 +920,9 @@ def correct_values(
         )
     }
     defn = _correction_definition(filled, expected_definition, kept_rows)
+    # The acting account read again after the change's last lock (the definition's, its
+    # category's among them); every check below uses this reading.
+    actor = settle(actor, locked)
     for template_field in defn.fillable(actor, new_request=False):
         if template_field.key in values:
             old = current.get(template_field.pk)
