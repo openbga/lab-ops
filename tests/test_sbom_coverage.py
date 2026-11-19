@@ -95,8 +95,26 @@ def test_an_empty_sbom_fails():
 def test_names_compare_as_python_normalizes_them():
     document = sbom("pkg:pypi/Django@5.2.19", "pkg:pypi/psycopg_binary@3.3.8")
     assert not coverage.missing(
-        coverage.sbom_packages(document), "pypi", {"django": "5.2.19", "psycopg-binary": "3.3.8"}
+        coverage.sbom_packages(document),
+        "pypi",
+        {"django": {"5.2.19"}, "psycopg-binary": {"3.3.8"}},
     )
+
+
+def test_a_package_locked_at_two_versions_needs_both_listed_but_the_image_only_one():
+    forked = {
+        "package": [
+            *UV_LOCK["package"],
+            {"name": "Django", "version": "4.2.24", "source": {"registry": "x"}},
+        ]
+    }
+    problems, expected = coverage.check(COMPLETE, "locked", forked, PYPROJECT, VENDOR)
+    assert problems == ["pypi django 4.2.24: the SBOM lists 5.2.19"] and expected == 6
+    problems, _ = coverage.check(COMPLETE, "runtime", forked, PYPROJECT, VENDOR)
+    assert problems == []
+    stale = sbom("pkg:pypi/django@5.1.0", *[c["purl"] for c in COMPLETE["components"][1:]])
+    problems, _ = coverage.check(stale, "runtime", forked, PYPROJECT, VENDOR)
+    assert problems == ["pypi django 4.2.24 or 5.2.19: the SBOM lists 5.1.0"]
 
 
 def test_a_runtime_dependency_absent_from_the_lock_is_reported():

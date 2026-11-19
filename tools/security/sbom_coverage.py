@@ -45,12 +45,13 @@ def sbom_packages(sbom):
 
 
 def locked_python(lock):
-    """{name: version} for every package in a parsed uv.lock except the project itself."""
-    return {
-        normalize(package["name"]): package["version"]
-        for package in lock.get("package", [])
-        if not {"editable", "virtual"} & set(package.get("source", {}))
-    }
+    """{name: {versions}} for every package in a parsed uv.lock except the project itself. A
+    name can have several versions when the resolution differs by platform or Python version."""
+    found = {}
+    for package in lock.get("package", []):
+        if not {"editable", "virtual"} & set(package.get("source", {})):
+            found.setdefault(normalize(package["name"]), set()).add(package["version"])
+    return found
 
 
 def runtime_names(pyproject):
@@ -62,24 +63,32 @@ def runtime_names(pyproject):
 
 
 def vendored(lock):
-    """{name: version} for each package recorded in static/vendor/package-lock.json."""
+    """{name: {version}} for each package recorded in static/vendor/package-lock.json."""
     return {
-        key.removeprefix("node_modules/"): entry["version"]
+        key.removeprefix("node_modules/"): {entry["version"]}
         for key, entry in lock.get("packages", {}).items()
         if key
     }
 
 
-def missing(found, ecosystem, expected):
-    """Lines naming each expected (name, version) the SBOM does not list."""
+def missing(found, ecosystem, expected, every_version=True):
+    """Lines naming what the SBOM lacks. With every_version, each expected version must be
+    listed; otherwise one of them is enough (an image installs one version per platform)."""
     lines = []
-    for name, version in sorted(expected.items()):
-        versions = found.get((ecosystem, name))
-        if not versions:
-            lines.append(f"{ecosystem} {name} {version}: not in the SBOM")
-        elif version not in versions:
-            listed = ", ".join(sorted(versions))
-            lines.append(f"{ecosystem} {name} {version}: the SBOM lists {listed}")
+    for name, versions in sorted(expected.items()):
+        listed = found.get((ecosystem, name), set())
+        wanted = sorted(versions)
+        if not listed:
+            lines.append(f"{ecosystem} {name} {' or '.join(wanted)}: not in the SBOM")
+        elif every_version:
+            lines.extend(
+                f"{ecosystem} {name} {version}: the SBOM lists {', '.join(sorted(listed))}"
+                for version in wanted
+                if version not in listed
+            )
+        elif not versions & listed:
+            shown = ", ".join(sorted(listed))
+            lines.append(f"{ecosystem} {name} {' or '.join(wanted)}: the SBOM lists {shown}")
     return lines
 
 
@@ -87,15 +96,20 @@ def check(sbom, mode, uv_lock, pyproject, vendor_lock):
     """(problems, expected count) for an SBOM in mode 'locked' or 'runtime'."""
     found = sbom_packages(sbom)
     python = locked_python(uv_lock)
+    browser = vendored(vendor_lock)
     if mode == "runtime":
         names = runtime_names(pyproject)
         absent = sorted(names - set(python))
         if absent:
             return [f"runtime dependencies missing from uv.lock: {absent}"], 0
         python = {name: python[name] for name in names}
-    browser = vendored(vendor_lock)
-    problems = missing(found, "pypi", python) + missing(found, "npm", browser)
-    return problems, len(python) + len(browser)
+        problems = missing(found, "pypi", python, every_version=False)
+        expected = len(python)
+    else:
+        problems = missing(found, "pypi", python)
+        expected = sum(len(versions) for versions in python.values())
+    problems += missing(found, "npm", browser)
+    return problems, expected + len(browser)
 
 
 def main(argv=None):
