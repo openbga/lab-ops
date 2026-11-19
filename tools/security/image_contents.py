@@ -3,19 +3,22 @@
 It runs inside the image with the image's own Python and reads the package databases directly,
 so the listing does not depend on the SBOM tool it is used to check. Standard library only.
 
-    docker run --rm --entrypoint python -v "$PWD/tools/security:/probe:ro" IMAGE \\
+    docker run --rm --user 0 --entrypoint python -v "$PWD/tools/security:/probe:ro" IMAGE \\
         /probe/image_contents.py > image-contents.json
 """
 
 import json
 import os
 import platform
+import re
+import stat
 import sys
 import sysconfig
 from importlib import metadata
 from pathlib import Path
 
-PROGRAM_DIRS = ("/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin")
+PSEUDO_FILESYSTEMS = ("/proc", "/sys", "/dev")
+SHARED_OBJECT = re.compile(r"\.so(\.|$)")
 
 
 def os_release(path=Path("/etc/os-release")):
@@ -51,21 +54,27 @@ def dpkg_files(info=Path("/var/lib/dpkg/info")):
     return owned
 
 
-def unpackaged_programs(directories, owned):
-    """The real paths of the executable programs (ELF files) in `directories` that no Debian
-    package installed, such as a tool the Dockerfile copies in or Python built from source."""
-    found = set()
-    for directory in directories:
-        if not os.path.isdir(directory):
-            continue
-        for entry in os.listdir(directory):
-            path = os.path.realpath(os.path.join(directory, entry))
-            if path in owned or not os.path.isfile(path):
+def unpackaged_programs(root, owned, skip=PSEUDO_FILESYSTEMS):
+    """The paths of the executable programs (ELF files with an execute bit, not shared objects)
+    anywhere under `root` that no Debian package installed, such as a tool the Dockerfile copies
+    in or Python built from source. Run as root, so that no directory is unreadable."""
+    found = []
+    for top, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if os.path.join(top, d) not in skip)
+        for name in sorted(files):
+            path = os.path.join(top, name)
+            try:
+                info = os.lstat(path)
+                if not stat.S_ISREG(info.st_mode) or not info.st_mode & 0o111:
+                    continue
+                if SHARED_OBJECT.search(name) or os.path.realpath(path) in owned:
+                    continue
+                with open(path, "rb") as program:
+                    if program.read(4) == b"\x7fELF":
+                        found.append(path)
+            except OSError:
                 continue
-            with open(path, "rb") as program:
-                if program.read(4) == b"\x7fELF":
-                    found.add(path)
-    return sorted(found)
+    return found
 
 
 def python_packages():
@@ -83,13 +92,12 @@ def python_packages():
 
 
 def main():
-    directories = [*os.environ.get("PATH", "").split(os.pathsep), *PROGRAM_DIRS]
     contents = {
         "os": os_release(),
         "python": platform.python_version(),
         "deb": deb_packages(),
         "pypi": python_packages(),
-        "programs": unpackaged_programs(dict.fromkeys(filter(None, directories)), dpkg_files()),
+        "programs": unpackaged_programs("/", dpkg_files()),
     }
     json.dump(contents, sys.stdout, indent=1, sort_keys=True)
     print()

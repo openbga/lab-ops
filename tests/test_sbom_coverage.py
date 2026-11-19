@@ -4,6 +4,7 @@ database reports no vulnerabilities rather than an error. These tests hold the s
 
 import importlib.util
 import json
+import shutil
 import tomllib
 from pathlib import Path
 
@@ -471,6 +472,85 @@ def test_the_command_exits_0_for_a_listing_of_the_repository_locks(tmp_path, cap
     without_actions = write(tmp_path, "no-actions.cdx.json", sbom(*without(purls, "pkg:github")))
     assert coverage.main([without_actions, "--locked"]) == 1
     assert "github actions/checkout" in capsys.readouterr().out
+
+
+def composite_repository(tmp_path):
+    """A repository root with the real lockfiles, a workflow pinning actions/checkout, and a local
+    composite action pinning actions/download-artifact; its listing without the two actions."""
+    root = tmp_path / "repo"
+    (root / "static/vendor").mkdir(parents=True)
+    shutil.copy(ROOT / "uv.lock", root / "uv.lock")
+    shutil.copy(ROOT / "static/vendor/package-lock.json", root / "static/vendor/package-lock.json")
+    (root / ".github/workflows").mkdir(parents=True)
+    (root / ".github/workflows/w.yml").write_text(
+        f"jobs:\n  a:\n    steps:\n      - uses: actions/checkout@{SHA_A} # v7.0.1\n"
+        "      - uses: ./.github/actions/fetch\n"
+    )
+    action = root / ".github/actions/fetch/action.yml"
+    action.parent.mkdir(parents=True)
+    action.write_text(
+        "name: fetch\ndescription: d\nruns:\n  using: composite\n  steps:\n"
+        f"    - uses: actions/download-artifact@{SHA_B} # v4.1.8\n"
+    )
+    uv_lock, _, vendor = repository_lists()
+    purls = [
+        f"pkg:pypi/{name}@{version}"
+        for name, versions in coverage.locked_python(uv_lock).items()
+        for version in versions
+    ] + [
+        f"pkg:npm/{name.replace('@', '%40')}@{next(iter(versions))}"
+        for name, versions in coverage.vendored(vendor).items()
+    ]
+    return root, action, purls
+
+
+def test_the_command_requires_the_actions_a_composite_action_uses(tmp_path, monkeypatch, capsys):
+    root, _, purls = composite_repository(tmp_path)
+    monkeypatch.setattr(coverage, "ROOT", root)
+    checkout = "pkg:github/actions/checkout@v7.0.1"
+    download = "pkg:github/actions/download-artifact@v4.1.8"
+    # Without the composite action's pin read, the first listing would pass.
+    workflows_only = {p.name: p.read_text() for p in action_pins.workflow_files(root)}
+    assert coverage.pinned_actions(workflows_only)[0] == {"actions/checkout": {"v7.0.1"}}
+    only_workflow = write(tmp_path, "a.cdx.json", sbom(*purls, checkout))
+    assert coverage.main([only_workflow, "--locked"]) == 1
+    assert "github actions/download-artifact v4.1.8: not in the SBOM" in capsys.readouterr().out
+    both = write(tmp_path, "b.cdx.json", sbom(*purls, checkout, download))
+    assert coverage.main([both, "--locked"]) == 0
+    assert "lists all" in capsys.readouterr().out
+    # The release in the composite action's comment is the one the listing must hold.
+    stale = write(
+        tmp_path,
+        "c.cdx.json",
+        sbom(*purls, checkout, "pkg:github/actions/download-artifact@v4.1.1"),
+    )
+    assert coverage.main([stale, "--locked"]) == 1
+    assert "actions/download-artifact v4.1.8: the SBOM lists v4.1.1" in capsys.readouterr().out
+
+
+def test_the_command_fails_for_a_line_it_cannot_read_in_a_composite_action(
+    tmp_path, monkeypatch, capsys
+):
+    root, action, purls = composite_repository(tmp_path)
+    monkeypatch.setattr(coverage, "ROOT", root)
+    action.write_text(action.read_text() + "    - uses: evil/action@main\n")
+    listing = write(
+        tmp_path,
+        "d.cdx.json",
+        sbom(
+            *purls,
+            "pkg:github/actions/checkout@v7.0.1",
+            "pkg:github/actions/download-artifact@v4.1.8",
+        ),
+    )
+    assert coverage.main([listing, "--locked"]) == 1
+    assert ".github/actions/fetch/action.yml:7:" in capsys.readouterr().out
+    # An action file in a directory the pin script skips is not read.
+    skipped = root / "node_modules/dep/action.yml"
+    skipped.parent.mkdir(parents=True)
+    skipped.write_text("runs:\n  steps:\n    - uses: evil/action@main\n")
+    action.write_text(action.read_text().replace("    - uses: evil/action@main\n", ""))
+    assert coverage.main([listing, "--locked"]) == 0
 
 
 def test_the_repository_lockfiles_parse_and_name_the_runtime_dependencies():

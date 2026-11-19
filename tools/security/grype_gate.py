@@ -25,7 +25,8 @@ CANARY = Path(__file__).resolve().with_name("canary.cdx.json")
 # What fails each gate, and the canary packages each must report: django 5.2.0 has fixed High
 # and Critical advisories, ecdsa 0.19.2 a High advisory with no fixed release, bootstrap 4.0.0
 # fixed Medium advisories, actions/download-artifact v4.1.1 a fixed High advisory, and
-# github/codeql-action v3.28.0, listed as its init action, a fixed High advisory.
+# github/codeql-action v3.28.0, listed as its init action, a fixed High advisory, and
+# kartverket/github-workflows v2.7.4, called as a reusable workflow, a fixed High advisory.
 GATES = {
     "dependencies": {
         "args": ["--fail-on", "low"],
@@ -35,6 +36,7 @@ GATES = {
             "bootstrap",
             "actions/download-artifact",
             "github/codeql-action",
+            "kartverket/github-workflows",
         },
     },
     "image": {
@@ -44,10 +46,14 @@ GATES = {
 }
 
 
+ACTION_KINDS = {"github-action", "github-action-workflow"}
+
+
 def with_repository_actions(sbom):
-    """A copy of a CycloneDX SBOM in which each action named by a path inside its repository
-    (github/codeql-action/init) is also listed under the repository's name, the name advisories
-    for GitHub Actions use. Without it, no advisory would match such an action."""
+    """A copy of a CycloneDX SBOM in which each action or reusable workflow named by a path inside
+    its repository (github/codeql-action/init, owner/repo/.github/workflows/x.yml) is also listed
+    as an action under the repository's name, the name advisories for GitHub Actions use. Without
+    it, no advisory would match such a reference."""
     components = list(sbom.get("components", []))
     listed = {(component.get("name"), component.get("version")) for component in components}
     for component in sbom.get("components", []):
@@ -57,7 +63,7 @@ def with_repository_actions(sbom):
             if prop.get("name") == "syft:package:type"
         }
         name, version = component.get("name", ""), component.get("version", "")
-        if "github-action" not in kinds or name.count("/") < 2:
+        if not kinds & ACTION_KINDS or name.count("/") < 2:
             continue
         repository = "/".join(name.split("/")[:2])
         if (repository, version) in listed:

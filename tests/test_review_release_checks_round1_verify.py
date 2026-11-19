@@ -245,6 +245,12 @@ def secret_job(repo, tmp_path):
     if not binary.exists():
         binary.symlink_to(tool("gitleaks"))
     env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "HOME": str(tmp_path)}
+    # Adapted: the stream step runs `python3 tools/security/text_windows.py` from the checkout, so
+    # the repository under test gets an untracked copy of the script (never committed).
+    window = repo / "tools/security/text_windows.py"
+    if not window.exists():
+        window.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / "tools/security/text_windows.py", window)
     codes = {}
     for label, name in SECRET_STEPS.items():
         script = runner_temp / f"{label.replace(' ', '-')}.sh"

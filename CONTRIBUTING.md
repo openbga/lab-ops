@@ -109,7 +109,7 @@ stream so that no file is skipped by its name:
 ```sh
 gitleaks git --log-opts="--text --diff-merges=first-parent HEAD" --ignore-gitleaks-allow \
   --redact --config .gitleaks.toml .
-git log -p --text --diff-merges=first-parent HEAD \
+git log -p --text --diff-merges=first-parent HEAD | python3 tools/security/text_windows.py \
   | gitleaks stdin --ignore-gitleaks-allow --redact --config .gitleaks.toml
 ```
 
@@ -118,8 +118,8 @@ The image scan builds the image, lists it and checks the listing against what th
 ```sh
 docker build --tag lab-ops:local .
 syft scan docker:lab-ops:local --config .syft.yaml --output cyclonedx-json@1.6=build/lab-ops.cdx.json
-docker run --rm --entrypoint python --volume "$PWD/tools/security:/probe:ro" lab-ops:local \
-  /probe/image_contents.py > build/image-contents.json
+docker run --rm --user 0 --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
+  lab-ops:local /probe/image_contents.py > build/image-contents.json
 python3 tools/security/sbom_coverage.py build/lab-ops.cdx.json --image build/image-contents.json
 python3 tools/security/grype_gate.py image --grype "$(command -v grype)" build/lab-ops.cdx.json
 ```

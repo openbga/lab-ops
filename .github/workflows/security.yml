@@ -92,8 +92,9 @@ jobs:
             --output spdx-json=sbom/lab-ops.spdx.json \
             --output cyclonedx-json@1.6=sbom/lab-ops.cdx.json
       - name: List what the image contains, without the SBOM tool
+        # As root in a throwaway container, so that no directory is unreadable.
         run: |
-          docker run --rm --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
+          docker run --rm --user 0 --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
             "$IMAGE" /probe/image_contents.py > "$RUNNER_TEMP/image-contents.json"
       - name: Check that the SBOM lists all of it
         id: coverage

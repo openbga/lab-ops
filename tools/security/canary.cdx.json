@@ -75,6 +75,19 @@
      "value": "github-action"
     }
    ]
+  },
+  {
+   "bom-ref": "reusable-workflow",
+   "type": "library",
+   "name": "kartverket/github-workflows/.github/workflows/run-trivy.yml",
+   "version": "v2.7.4",
+   "purl": "pkg:github/kartverket/github-workflows@v2.7.4#.github/workflows/run-trivy.yml",
+   "properties": [
+    {
+     "name": "syft:package:type",
+     "value": "github-action-workflow"
+    }
+   ]
   }
  ]
 }

@@ -1,10 +1,15 @@
 """The scripts under tools/security/ that the security workflow runs: the Grype gate (which proves
-its settings can fail before trusting a clean scan), the action pin check and the image probe. The
+its settings can fail before trusting a clean scan), the action pin check, the image probe and
+the text window rewriter the secret scan reads its stream through. The
 workflow's steps are pinned by tests/test_security_checks.py; these hold each script's behaviour."""
 
 import importlib.util
+import io
 import json
+import os
+import random
 import subprocess
+import sys
 import urllib.error
 from pathlib import Path
 
@@ -26,6 +31,7 @@ def load(name):
 gate = load("grype_gate")
 action_pins = load("check_action_pins")
 image_contents = load("image_contents")
+text_windows = load("text_windows")
 
 # ------------------------------------------------------------------------- grype_gate
 
@@ -137,6 +143,12 @@ def test_the_gate_settings_and_canary_file():
         c["name"] for c in gate.with_repository_actions({"components": components})["components"]
     }
     assert set().union(*(g["canary"] for g in gate.GATES.values())) <= prepared
+    # The canary also calls a reusable workflow by its path; its advisory names the repository.
+    workflow = "kartverket/github-workflows/.github/workflows/run-trivy.yml"
+    assert workflow in listed and "kartverket/github-workflows" not in listed
+    assert "kartverket/github-workflows" in prepared
+    assert "kartverket/github-workflows" in gate.GATES["dependencies"]["canary"]
+    assert "kartverket/github-workflows" not in gate.GATES["image"]["canary"]
 
 
 def test_canary_problems_names_each_reason():
@@ -228,6 +240,43 @@ def test_with_repository_actions_leaves_top_level_actions_and_non_actions_alone(
     prepared = gate.with_repository_actions({"components": components})
     assert prepared["components"] == components
     assert gate.with_repository_actions({})["components"] == []
+
+
+WORKFLOW_KIND = {"name": "syft:package:type", "value": "github-action-workflow"}
+
+
+def test_the_action_kinds_are_the_two_syft_types_for_github_actions():
+    assert gate.ACTION_KINDS == {"github-action", "github-action-workflow"}
+
+
+def test_with_repository_actions_adds_the_repository_of_a_reusable_workflow():
+    name = "kartverket/github-workflows/.github/workflows/run-trivy.yml"
+    called = {
+        "bom-ref": "wf",
+        "type": "library",
+        "name": name,
+        "version": "v2.7.4",
+        "purl": "pkg:github/kartverket/github-workflows@v2.7.4#.github/workflows/run-trivy.yml",
+        "properties": [WORKFLOW_KIND],
+    }
+    original = {"components": [called]}
+    before = json.dumps(original)
+    prepared = gate.with_repository_actions(original)
+    assert json.dumps(original) == before
+    assert prepared["components"][0] == called
+    (added,) = prepared["components"][1:]
+    assert (added["name"], added["version"]) == ("kartverket/github-workflows", "v2.7.4")
+    # Advisories for GitHub Actions are matched on the `github-action` type.
+    assert added["purl"] == "pkg:github/kartverket/github-workflows@v2.7.4"
+    assert added["properties"] == [ACTION] and added["bom-ref"] == "repository-of-wf"
+    # Once per version, and not again when the repository itself is listed.
+    twice = {"components": [called, {**called, "bom-ref": "wf2", "name": name + "x"}]}
+    assert len(gate.with_repository_actions(twice)["components"]) == 3
+    listed = {"components": [called, action_component("kartverket/github-workflows", "v2.7.4")]}
+    assert gate.with_repository_actions(listed)["components"] == listed["components"]
+    # A path-named component of another kind is left alone.
+    other = {**called, "properties": [{"name": "syft:package:type", "value": "binary"}]}
+    assert gate.with_repository_actions({"components": [other]})["components"] == [other]
 
 
 def test_prepare_writes_the_prepared_copy_and_leaves_the_original(tmp_path):
@@ -360,6 +409,92 @@ def test_pins_reads_a_job_level_reusable_workflow_pin():
     assert action_pins.repository(found[0][1]) == "owner/repo"
     assert action_pins.repository("actions/checkout") == "actions/checkout"
     assert action_pins.repository("github/codeql-action/init") == "github/codeql-action"
+
+
+def test_action_files_hold_the_workflows_and_every_action_definition(tmp_path):
+    for relative in (
+        ".github/workflows/a.yml",
+        ".github/workflows/b.yaml",
+        ".github/actions/fetch/action.yml",
+        "tools/x/y/action.yaml",
+        "action.yml",
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("name: x\n")
+    skipped = [".git", ".venv", "node_modules", "build", "staticfiles", ".local"]
+    for folder in [*skipped, "app/node_modules/dep", ".local/worktrees/w"]:
+        for name in ("action.yml", "action.yaml"):
+            path = tmp_path / folder / "deep" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("name: x\n")
+    (tmp_path / "not-action.yml").write_text("name: x\n")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/action.yml.bak").write_text("name: x\n")
+    found = [path.relative_to(tmp_path).as_posix() for path in action_pins.action_files(tmp_path)]
+    assert found[:2] == [".github/workflows/a.yml", ".github/workflows/b.yaml"], found
+    assert sorted(found[2:]) == [
+        ".github/actions/fetch/action.yml",
+        "action.yml",
+        "tools/x/y/action.yaml",
+    ], found
+    assert action_pins.SKIPPED_DIRS == set(skipped)
+
+
+def test_action_files_of_the_repository_include_the_workflows():
+    names = {path.name for path in action_pins.action_files(ROOT)}
+    assert {"security.yml", "secrets.yml", "codeql.yml"} <= names
+    assert action_pins.action_files(ROOT) == action_pins.action_files()
+
+
+def test_a_skipped_directory_above_the_root_does_not_hide_its_actions(tmp_path):
+    # A checkout under a `.local` or `build` directory (a worktree, a CI workspace) is still read.
+    root = tmp_path / ".local" / "build" / "repo"
+    (root / ".github/actions/x").mkdir(parents=True)
+    (root / ".github/actions/x/action.yml").write_text("name: x\n")
+    assert [p.name for p in action_pins.action_files(root)] == ["action.yml"]
+
+
+def test_pins_reads_the_actions_a_composite_action_uses(tmp_path):
+    text = (
+        "name: fetch\ndescription: d\nruns:\n  using: composite\n  steps:\n"
+        f"    - uses: actions/download-artifact@{SHA_A} # v4.1.1\n"
+        "    - uses: evil/action@main\n"
+    )
+    found, unreadable = action_pins.pins(text, "fetch/action.yml")
+    assert [(repo, tag) for _, repo, _, tag in found] == [("actions/download-artifact", "v4.1.1")]
+    assert len(unreadable) == 1 and unreadable[0].startswith("fetch/action.yml:7:")
+
+
+def test_the_command_reads_and_fails_for_a_composite_action(monkeypatch, tmp_path, capsys):
+    folder = tmp_path / ".github/workflows"
+    folder.mkdir(parents=True)
+    (folder / "ok.yml").write_text(f"      - uses: actions/checkout@{SHA_A} # v4.1.1\n")
+    action = tmp_path / ".github/actions/fetch/action.yml"
+    action.parent.mkdir(parents=True)
+    action.write_text(f"runs:\n  steps:\n    - uses: actions/download-artifact@{SHA_B} # v4.1.8\n")
+    seen = []
+    monkeypatch.setattr(action_pins, "ROOT", tmp_path)
+    monkeypatch.setattr(action_pins, "github", lambda path, token=None: pytest.fail(path))
+    monkeypatch.setattr(action_pins, "problems", lambda pinned, resolve: seen.append(pinned) or [])
+    assert action_pins.main() == 0
+    assert "All 2 action pins" in capsys.readouterr().out
+    assert {repo for _, repo, _, _ in seen[0]} == {"actions/checkout", "actions/download-artifact"}
+    action.write_text("runs:\n  steps:\n    - uses: evil/action@main\n")
+    assert action_pins.main() == 1
+    assert ".github/actions/fetch/action.yml:3:" in capsys.readouterr().out
+
+
+def test_the_command_reports_a_misnamed_pin_in_a_composite_action(monkeypatch, tmp_path, capsys):
+    action = tmp_path / ".github/actions/fetch/action.yml"
+    action.parent.mkdir(parents=True)
+    (tmp_path / ".github/workflows").mkdir()
+    action.write_text(f"runs:\n  steps:\n    - uses: actions/download-artifact@{SHA_A} # v4.1.8\n")
+    monkeypatch.setattr(action_pins, "ROOT", tmp_path)
+    monkeypatch.setattr(action_pins, "tag_commit", lambda repo, tag, fetch=None: "f" * 40)
+    assert action_pins.main() == 1
+    output = capsys.readouterr().out
+    assert "action.yml:3: actions/download-artifact@6b208ae046db is commented v4.1.8" in output
 
 
 def test_workflow_files_include_both_yaml_extensions(tmp_path):
@@ -583,40 +718,96 @@ def test_dpkg_files_lists_the_real_paths_of_the_files_packages_installed(tmp_pat
     assert image_contents.dpkg_files(root / "no-such-folder") == set()
 
 
-def test_unpackaged_programs_reports_an_elf_file_no_package_installed(tmp_path):
+# Adapted: unpackaged_programs() now walks a whole tree (`root`, with `skip` for the pseudo
+# filesystems) instead of a list of directories, and looks at execute bits and names.
+def program(path, magic=ELF, mode=0o755):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(magic)
+    path.chmod(mode)
+    return str(path)
+
+
+def test_unpackaged_programs_finds_an_executable_elf_file_anywhere_under_the_root(tmp_path):
     root = tmp_path.resolve()
-    bin_dir, sbin_dir = make_tree(root)
-    owned = {str(bin_dir / "packaged")}
-    found = image_contents.unpackaged_programs([str(bin_dir), str(sbin_dir)], owned)
-    # A link is reported as the file it points at, once; a package's file (reached through a
-    # link too), a script, a short or empty file, a directory and a dangling link are not.
-    assert found == sorted([str(bin_dir / "copied-in"), str(sbin_dir / "admin-tool")])
+    expected = sorted(
+        [
+            program(root / "opt/report-tool/bin/report-tool"),
+            program(root / "usr/local/bin/uv"),
+            program(root / "srv/deep/er/tool.sound"),  # `.so` followed by other letters
+            program(root / "home/user/.cache/tool", mode=0o700),
+            program(root / "tool-at-the-top"),
+        ]
+    )
+    # Found at their own paths (a directory's files before its subdirectories).
+    assert sorted(image_contents.unpackaged_programs(str(root), set())) == expected
 
 
-def test_unpackaged_programs_skips_a_listed_file_a_script_and_a_missing_directory(tmp_path):
+def test_unpackaged_programs_ignores_what_is_not_an_executable_program(tmp_path):
     root = tmp_path.resolve()
-    bin_dir, sbin_dir = make_tree(root)
-    owned = {str(bin_dir / "packaged"), str(bin_dir / "copied-in"), str(sbin_dir / "admin-tool")}
-    assert image_contents.unpackaged_programs([str(bin_dir), str(root / "none")], owned) == []
-    assert image_contents.unpackaged_programs([], set()) == []
-    only_scripts = root / "scripts"
-    only_scripts.mkdir()
-    (only_scripts / "run").write_bytes(b"#!/usr/bin/env python\n")
-    assert image_contents.unpackaged_programs([str(only_scripts)], set()) == []
+    program(root / "opt/data/no-execute-bit", mode=0o644)
+    program(root / "opt/lib/libx.so.1")
+    program(root / "opt/lib/libx.so")
+    program(root / "opt/lib/libx.so.1.2.3", mode=0o644)
+    program(root / "opt/bin/script", b"#!/bin/sh\necho hi\n")
+    program(root / "opt/bin/tiny", b"\x7fEL")
+    program(root / "opt/bin/empty", b"")
+    (root / "opt/bin/subdirectory.d").mkdir()
+    (root / "opt/bin/link").symlink_to(root / "opt/bin/script")
+    (root / "opt/bin/dangling").symlink_to(root / "missing")
+    found = program(root / "opt/bin/real-tool")
+    (root / "opt/bin/alias-of-real-tool").symlink_to(found)
+    assert image_contents.unpackaged_programs(str(root), set()) == [found]
 
 
-def test_unpackaged_programs_resolves_a_link_into_a_package_directory(tmp_path):
+def test_unpackaged_programs_ignores_the_files_a_package_installed(tmp_path):
     root = tmp_path.resolve()
-    bin_dir, _ = make_tree(root)
-    elsewhere = root / "opt"
-    elsewhere.mkdir()
-    (elsewhere / "vendor-tool").write_bytes(ELF)
-    (bin_dir / "vendor-tool").symlink_to(elsewhere / "vendor-tool")
-    found = image_contents.unpackaged_programs([str(bin_dir)], {str(bin_dir / "packaged")})
-    assert str(elsewhere / "vendor-tool") in found and str(bin_dir / "vendor-tool") not in found
-    owned = {str(elsewhere / "vendor-tool"), str(bin_dir / "packaged")}
-    assert str(elsewhere / "vendor-tool") not in image_contents.unpackaged_programs(
-        [str(bin_dir)], owned
+    packaged = program(root / "usr/bin/packaged")
+    copied = program(root / "usr/local/bin/copied-in")
+    (root / "usr/bin/alias-of-packaged").symlink_to(packaged)
+    (root / "usr/local/bin/link-to-packaged").symlink_to(packaged)
+    assert image_contents.unpackaged_programs(str(root), {packaged}) == [copied]
+    assert image_contents.unpackaged_programs(str(root), {packaged, copied}) == []
+
+
+def test_a_link_into_a_package_directory_is_judged_by_the_file_it_points_at(tmp_path):
+    root = tmp_path.resolve()
+    target = program(root / "opt/vendor/vendor-tool")
+    (root / "usr/local/bin").mkdir(parents=True)
+    (root / "usr/local/bin/vendor-tool").symlink_to(target)
+    assert image_contents.unpackaged_programs(str(root), set()) == [target]
+    # The link is skipped as a link; ownership is judged on the real path of the file.
+    assert image_contents.unpackaged_programs(str(root), {target}) == []
+
+
+def test_unpackaged_programs_does_not_enter_the_skipped_directories(tmp_path):
+    root = tmp_path.resolve()
+    for folder in ("proc", "sys", "dev"):
+        program(root / folder / "hidden")
+    program(root / "usr/proc/visible")  # only the exact paths are skipped
+    kept = program(root / "opt/tool")
+    assert image_contents.PSEUDO_FILESYSTEMS == ("/proc", "/sys", "/dev")
+    skip = tuple(str(root / folder) for folder in ("proc", "sys", "dev"))
+    assert sorted(image_contents.unpackaged_programs(str(root), set(), skip=skip)) == sorted(
+        [kept, str(root / "usr/proc/visible")]
+    )
+    assert len(image_contents.unpackaged_programs(str(root), set(), skip=())) == 5
+
+
+def test_unpackaged_programs_skips_a_directory_it_cannot_read_and_a_missing_root(tmp_path):
+    root = tmp_path.resolve()
+    assert image_contents.unpackaged_programs(str(root / "none"), set()) == []
+    assert image_contents.unpackaged_programs(str(root), set()) == []
+    unreadable = root / "private"
+    kept = program(root / "opt/tool")
+    program(unreadable / "tool")
+    unreadable.chmod(0)
+    try:
+        found = image_contents.unpackaged_programs(str(root), set())
+    finally:
+        unreadable.chmod(0o755)
+    # As root (the probe runs with --user 0) nothing is unreadable, so the tool is found too.
+    assert sorted(found) == sorted(
+        [kept, str(unreadable / "tool")] if os.geteuid() == 0 else [kept]
     )
 
 
@@ -629,33 +820,129 @@ def test_the_probe_prints_json_in_the_shape_the_coverage_check_reads(monkeypatch
     monkeypatch.setattr(image_contents, "dpkg_files", lambda: {"/usr/bin/owned"})
     searched = []
 
-    def programs(directories, owned):
-        searched.append((list(directories), owned))
+    def programs(root, owned):
+        searched.append((root, owned))
         return ["/usr/local/bin/uv"]
 
     monkeypatch.setattr(image_contents, "unpackaged_programs", programs)
-    monkeypatch.setenv("PATH", "/app/.venv/bin::/usr/bin")
     image_contents.main()
     contents = json.loads(capsys.readouterr().out)
     assert set(contents) == {"os", "python", "deb", "pypi", "programs"}
     assert contents["programs"] == ["/usr/local/bin/uv"]
-    assert searched == [
-        (
-            [
-                "/app/.venv/bin",
-                "/usr/bin",
-                "/usr/local/sbin",
-                "/usr/local/bin",
-                "/usr/sbin",
-                "/sbin",
-                "/bin",
-            ],
-            {"/usr/bin/owned"},
-        )
-    ]
+    # Adapted: the whole tree is searched from "/", not PATH and fixed directories.
+    assert searched == [("/", {"/usr/bin/owned"})]
     assert contents["os"]["id"] == "debian" and contents["deb"]["libssl3"] == ["1:3.5.1-1"]
     coverage = load("sbom_coverage")
     problems, _ = coverage.check_image(
         {"components": []}, contents, {"project": {"dependencies": ["pytest"]}}, {"packages": {}}
     )
     assert not any("incomplete" in problem for problem in problems)
+
+
+# ------------------------------------------------------------------------ text_windows
+
+WIDTH, OVERLAP = text_windows.WIDTH, text_windows.OVERLAP
+STEP = WIDTH - OVERLAP
+
+
+def rewritten(data):
+    out = io.BytesIO()
+    text_windows.rewrite(io.BytesIO(data), out)
+    return out.getvalue()
+
+
+def long_line(length, seed=1):
+    return random.Random(seed).randbytes(length).replace(b"\n", b"x")
+
+
+def test_the_window_sizes():
+    assert (text_windows.WIDTH, text_windows.OVERLAP) == (20_000, 2_000)
+
+
+def test_a_short_line_is_unchanged_and_followed_by_a_blank_line():
+    assert text_windows.windows(b"+token = 1") == [b"+token = 1"]
+    assert text_windows.windows(b"") == [b""]
+    exact = b"x" * WIDTH
+    assert text_windows.windows(exact) == [exact]
+    assert rewritten(b"+a\n+b\n") == b"+a\n\n+b\n\n"
+    assert rewritten(b"+a\n+b") == b"+a\n\n+b\n\n", "a last line without a newline"
+    assert rewritten(b"") == b""
+    assert rewritten(b"\n") == b"\n\n"
+
+
+def test_every_line_gets_a_blank_line_after_it():
+    lines = [b"diff --git a/x b/x", b"+" + b"y" * 50_000, b"+short", b" context"]
+    out = rewritten(b"\n".join(lines) + b"\n")
+    pieces = out.split(b"\n")
+    assert pieces[-2:] == [b"", b""], "ends with a blank line"
+    body = pieces[:-1]  # every window is followed by one empty piece
+    assert body[1::2] == [b""] * (len(body) // 2) and all(body[0::2])
+    assert max(map(len, body)) <= WIDTH
+
+
+@pytest.mark.parametrize(
+    "length",
+    [WIDTH + 1, WIDTH + OVERLAP, 2 * WIDTH, STEP * 2 + OVERLAP, STEP * 2 + OVERLAP + 1, 300_000],
+)
+def test_a_long_line_is_split_into_overlapping_windows_that_cover_it(length):
+    line = long_line(length)
+    pieces = text_windows.windows(line)
+    assert len(pieces) > 1 and all(0 < len(piece) <= WIDTH for piece in pieces)
+    starts = [index * STEP for index in range(len(pieces))]
+    for start, piece in zip(starts, pieces, strict=True):
+        assert piece == line[start : start + WIDTH]
+    for before, after in zip(pieces, pieces[1:], strict=False):
+        assert before[-OVERLAP:] == after[:OVERLAP], "consecutive windows overlap"
+        assert len(before) == WIDTH
+    assert starts[0] == 0 and starts[-1] + len(pieces[-1]) == length, "the last reaches the end"
+    assert pieces[-1] and line.endswith(pieces[-1])
+    # Every slice of at most OVERLAP bytes lies whole in some window (a token cut by one window
+    # is whole in the next).
+    for first in range(0, length - OVERLAP + 1):
+        assert any(
+            start <= first and first + OVERLAP <= start + len(piece)
+            for start, piece in zip(starts, pieces, strict=True)
+        ), first
+    for first in list(range(0, length - OVERLAP + 1, 997)) + [length - OVERLAP]:
+        for size in (1, 100, OVERLAP):
+            wanted = line[first : first + size]
+            assert any(wanted in piece for piece in pieces), (first, size)
+
+
+def test_a_token_across_every_window_boundary_appears_whole():
+    line = b"a" * 70_000
+    pieces = text_windows.windows(line)
+    token = b"ghp_" + b"T" * (OVERLAP - 4)
+    for index in range(1, len(pieces)):
+        boundary = index * STEP + (WIDTH - STEP)  # where window `index - 1` ends
+        planted = line[: boundary - 700] + token + line[boundary - 700 + len(token) :]
+        assert any(token in piece for piece in text_windows.windows(planted)), boundary
+
+
+def test_the_rewritten_stream_holds_each_window_and_a_blank_line():
+    line = long_line(300_000)
+    pieces = text_windows.windows(line)
+    out = rewritten(b"before\n" + line + b"\nafter\n")
+    assert out == b"before\n\n" + b"".join(piece + b"\n\n" for piece in pieces) + b"after\n\n"
+    assert b"\n\n".join(out.split(b"\n\n")) == out
+    assert all(len(chunk) <= WIDTH for chunk in out.split(b"\n\n"))
+
+
+def test_bytes_that_are_not_utf_8_pass_through_unchanged():
+    raw = b"+caf\xe9 \xff\xfe\x80\x00 binary\r"
+    assert rewritten(raw + b"\n") == raw + b"\n\n"
+    huge = b"\xff\xfe" * 60_000
+    out = rewritten(huge + b"\n")
+    assert out == b"".join(piece + b"\n\n" for piece in text_windows.windows(huge))
+    assert out.replace(b"\n\n", b"")  # a window is cut by bytes, never decoded
+    with pytest.raises(UnicodeDecodeError):
+        raw.decode()
+
+
+def test_the_command_rewrites_standard_input_to_standard_output():
+    script = text_windows.__file__
+    data = b"+one\n+two \xff\n" + b"+" + b"z" * 25_000 + b"\n"
+    done = subprocess.run(
+        [sys.executable, "-I", script], input=data, capture_output=True, check=True
+    )
+    assert done.stdout == rewritten(data) and not done.stderr

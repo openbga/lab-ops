@@ -25,15 +25,15 @@ updates promptly.
 
 Every pull request goes through the checks below, and they run again each week on `main`, so a
 vulnerability published later for something already in use is reported. The secret scan also runs
-on every push to any branch. The workflows are [`security.yml`](.github/workflows/security.yml),
+on every push of a branch or a tag. The workflows are [`security.yml`](.github/workflows/security.yml),
 [`secrets.yml`](.github/workflows/secrets.yml) and [`codeql.yml`](.github/workflows/codeql.yml).
 
 | Check | What it covers | What fails it |
 | --- | --- | --- |
 | Static analysis (CodeQL, security-extended queries) | The application's Python code, its own JavaScript under `static/js/`, and the GitHub Actions workflows. Tests, browser journeys and the vendored third-party files are left out | A pull request that adds an alert at the repository's failure threshold. Alerts are listed in the repository's Security tab |
-| Dependency audit (Grype) | Every package in `uv.lock`, in all dependency groups; the browser packages under `static/vendor/`, recorded in its `package-lock.json`; the actions the workflows use, an action inside a repository (such as `github/codeql-action/init`) under its repository's name | Any published vulnerability, fixed or not, and an action whose pinned commit is not the release its version comment names |
+| Dependency audit (Grype) | Every package in `uv.lock`, in all dependency groups; the browser packages under `static/vendor/`, recorded in its `package-lock.json`; the actions the workflows use, directly or through a local composite action, an action or reusable workflow inside a repository (such as `github/codeql-action/init`) under its repository's name | Any published vulnerability, fixed or not, and an action whose pinned commit is not the release its version comment names |
 | Secret scan (gitleaks) | Every commit in the history of the change, merge commits included, read as text: file by file, and again as one stream so that no file is skipped by its name | A match for gitleaks' default rules that is not a listed synthetic test value, and any `.gitleaksignore` file |
-| Container image (Grype) | The image the Dockerfile builds: the operating system and its packages, Python, the installed Python packages, every other program no Debian package installed (such as uv), and the vendored browser packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
+| Container image (Grype) | The image the Dockerfile builds: the operating system and its packages, Python, the installed Python packages, every other program anywhere in the image that no Debian package installed (such as uv), and the vendored browser packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
 
 Before trusting a clean result, each check shows that it could have failed. The listing a scan
 reads is compared with what it must contain: every locked and vendored package and every pinned
@@ -68,6 +68,9 @@ version and its checksum.
   fail the check. To list every finding, run Grype on the SBOM.
 - Native libraries bundled inside Python wheels (for example in Pillow or psycopg) are not listed
   on their own. They are covered only through the advisories published for the wheel's package.
+- GitHub starts no workflow for a push whose commit message asks it to skip them (`[skip ci]` and
+  its variants). Such commits are scanned for secrets when a pull request, a later push or the
+  weekly run reaches them; a secret pushed that way and removed before then is not reported.
 - The SBOM describes the image built by the check. An image built elsewhere or later can contain
   newer operating-system packages, because the base image tag is updated for security fixes.
 - Licences of dependencies are not checked. The SBOM lists those its tool can identify.

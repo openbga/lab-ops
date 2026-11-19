@@ -1,5 +1,7 @@
 """Check that each action the workflows pin to a commit is the release its comment names.
 
+The workflows and any local composite actions they run (action.yml files) are read.
+
 The dependency audit reads an action's version from the `# vX.Y.Z` comment after its commit
 pin, so a stale or wrong comment would audit one release while another runs. This resolves each
 comment's tag on GitHub and fails when it does not point at the pinned commit (SECURITY.md, "What
@@ -34,6 +36,20 @@ def workflow_files(root=None):
     """Every workflow GitHub runs: .yml and .yaml files in .github/workflows."""
     folder = (root or ROOT) / ".github/workflows"
     return sorted([*folder.glob("*.yml"), *folder.glob("*.yaml")])
+
+
+SKIPPED_DIRS = {".git", ".venv", "node_modules", "build", "staticfiles", ".local"}
+
+
+def action_files(root=None):
+    """The workflows and every action definition (action.yml or action.yaml) in the repository: a
+    workflow can run a local composite action, and the actions that one uses run in the job."""
+    root = root or ROOT
+    found = list(workflow_files(root))
+    for path in sorted([*root.rglob("action.yml"), *root.rglob("action.yaml")]):
+        if not SKIPPED_DIRS & set(path.relative_to(root).parts[:-1]):
+            found.append(path)
+    return found
 
 
 def _code(line):
@@ -105,7 +121,7 @@ def problems(pinned, resolve):
 def main():
     token = os.environ.get("GITHUB_TOKEN")
     pinned, lines = [], []
-    for path in workflow_files():
+    for path in action_files():
         found, unreadable = pins(path.read_text(), path.relative_to(ROOT))
         pinned += found
         lines += unreadable

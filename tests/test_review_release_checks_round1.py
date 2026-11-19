@@ -189,9 +189,12 @@ def _workflow_command(marker):
 # two commands (the history scan, and a scan of the whole history as one text stream), so RC-10 is
 # judged on the job. This runs both as secrets.yml writes them, with the quoted --log-opts="..."
 # read as one argument, and the repository's config unless one is given.
+# Adapted again: the stream is now `git log ... | python3 tools/security/text_windows.py |
+# gitleaks stdin ...`, so the three commands of the pipe are returned, and the second is run from
+# the repository root (where the workflow finds tools/), between git and gitleaks.
 def secret_scan_commands(config=None):
-    """[(git command or None, gitleaks arguments)] of secrets.yml's secret scan, with the
-    gitleaks binary left out and the config path replaced by `config`."""
+    """[(git command or None, filter command or None, gitleaks arguments)] of secrets.yml's
+    secret scan, with the gitleaks binary left out and the config path replaced by `config`."""
     config = str(config or ROOT / ".gitleaks.toml")
 
     def with_config(args):
@@ -201,28 +204,34 @@ def secret_scan_commands(config=None):
     assert history[0] == "git" and history[-1] == ".", history
     assert any(arg.startswith("--log-opts=") for arg in history), history
     stdin = _workflow_command("git log -p ")
-    left, _, right = " ".join(line.strip().removesuffix("\\") for line in stdin).partition(" | ")
+    left, middle, right = " ".join(line.strip().removesuffix("\\") for line in stdin).split(" | ")
     pipe = _shell_words([right])[1:]
     assert pipe[0] == "stdin", pipe
-    return [(None, with_config(history[:-1])), (_shell_words([left]), with_config(pipe))]
+    window = _shell_words([middle])
+    assert window == ["python3", "tools/security/text_windows.py"], window
+    return [
+        (None, None, with_config(history[:-1])),
+        (_shell_words([left]), window, with_config(pipe)),
+    ]
 
 
 def secret_scan(repo, config=None):
     """Exit status (1 when either command reports a secret) and output of the workflow's scans."""
     codes, output = [], ""
-    for git_command, args in secret_scan_commands(config):
+    for git_command, window, args in secret_scan_commands(config):
         if git_command is None:
             command, stdin = [tool("gitleaks"), *args, str(repo)], None
         else:
             log = subprocess.run(
-                git_command, cwd=repo, capture_output=True, text=True, env=GIT_ENV, check=True
+                git_command, cwd=repo, capture_output=True, env=GIT_ENV, check=True
             )
-            command, stdin = [tool("gitleaks"), *args], log.stdout
-        result = subprocess.run(
-            command, input=stdin, capture_output=True, text=True, env=SCANNER_ENV
-        )
+            stream = subprocess.run(
+                window, cwd=ROOT, input=log.stdout, capture_output=True, check=True
+            )
+            command, stdin = [tool("gitleaks"), *args], stream.stdout
+        result = subprocess.run(command, input=stdin, capture_output=True, env=SCANNER_ENV)
         codes.append(result.returncode)
-        output += result.stdout + result.stderr
+        output += result.stdout.decode(errors="replace") + result.stderr.decode(errors="replace")
     return (1 if 1 in codes else next((c for c in codes if c), 0)), output
 
 

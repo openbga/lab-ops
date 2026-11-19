@@ -192,7 +192,7 @@ def main(argv=None):
         uv_lock = tomllib.loads((ROOT / "uv.lock").read_text())
         workflows = {
             str(path.relative_to(ROOT)): path.read_text()
-            for path in check_action_pins.workflow_files(ROOT)
+            for path in check_action_pins.action_files(ROOT)
         }
         problems, expected = check_locked(sbom, uv_lock, vendor_lock, workflows)
     else:

@@ -8,8 +8,9 @@ YAML files are parsed with PyYAML, so every spelling GitHub reads as the same ke
 the same here (quoted keys, flow style, a value on the next line, escapes) and the tests compare
 whole parsed structures instead of lines of text. GitHubLoader below reads YAML as GitHub does:
 only `true` and `false` (in any letter case) are booleans, so `on`, `yes` and `no` stay strings,
-and a mapping with the same key twice is an error. The helpers are pure (text in, problems out) so
-the negative tests can feed them bad snippets.
+a mapping with the same key twice is an error, and so is a merge key (`<<`), which GitHub refuses.
+Action names are compared without regard to letter case, as GitHub resolves them. The helpers
+are pure (text in, problems out) so the negative tests can feed them bad snippets.
 """
 
 import collections.abc
@@ -25,6 +26,8 @@ import yaml
 from django.conf import settings
 
 ROOT = Path(settings.BASE_DIR)
+# The repository's own tools; ROOT is replaced by a copy in the tests that read one.
+TOOLS = ROOT / "tools/security"
 WORKFLOWS = ".github/workflows"
 
 # ------------------------------------------------------------------ YAML as GitHub reads it
@@ -34,14 +37,20 @@ BOOL_TAG = "tag:yaml.org,2002:bool"
 
 class GitHubLoader(yaml.SafeLoader):
     """SafeLoader with YAML 1.2 booleans, as GitHub Actions reads workflow files, that rejects
-    a mapping holding one key twice (a later key would silently replace an earlier one)."""
+    a mapping holding one key twice (a later key would silently replace an earlier one) and a
+    merge key (`<<`), which PyYAML expands and GitHub refuses to run."""
 
     def construct_mapping(self, node, deep=False):
         if isinstance(node, yaml.MappingNode):
             seen = set()
             for key_node, _ in node.value:
                 if key_node.tag == "tag:yaml.org,2002:merge":
-                    continue
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping",
+                        node.start_mark,
+                        "found a merge key (<<), which GitHub Actions does not support",
+                        key_node.start_mark,
+                    )
                 key = self.construct_object(key_node, deep=True)
                 if not isinstance(key, collections.abc.Hashable):
                     continue  # SafeLoader reports an unhashable key itself
@@ -160,7 +169,11 @@ def checkouts_keeping_credentials(text):
     found = []
     for path, mapping, key in entries(document):
         value = mapping[key]
-        if key == "uses" and isinstance(value, str) and value.startswith("actions/checkout@"):
+        if (
+            key == "uses"
+            and isinstance(value, str)
+            and value.lower().startswith("actions/checkout@")
+        ):
             inputs = mapping.get("with")
             if not isinstance(inputs, dict) or inputs.get("persist-credentials") is not False:
                 found.append(path)
@@ -552,14 +565,41 @@ def workflow_texts():
     return texts
 
 
+def action_texts():
+    """{path relative to the repository: text} of every file whose `uses` run in a job: the
+    workflows and each action definition (action.yml or action.yaml), as the pin script reads
+    them."""
+    files = load_tool("check_action_pins").action_files(ROOT)
+    texts = {path.relative_to(ROOT).as_posix(): path.read_text() for path in files}
+    assert texts, "no workflows or actions found"
+    return texts
+
+
+def unresolved_local_actions(text, files, root):
+    """The local `uses: ./path` values of a parsed file that do not name an action.yml or
+    action.yaml (or, for a reusable workflow, a workflow file) that action_files() returns, so
+    that the pin and credentials tests read every one of them."""
+    document, problems = load_mapping(text)
+    if document is None:
+        return problems
+    read_files = {Path(path).resolve() for path in files}
+    for path, mapping, key in entries(document):
+        value = mapping[key]
+        if key != "uses" or not isinstance(value, str) or not value.startswith("./"):
+            continue
+        target = (root / value).resolve()
+        found = [target] if target.is_file() else [target / "action.yml", target / "action.yaml"]
+        if not any(candidate in read_files for candidate in found):
+            problems.append(f"{path}.uses {value} is not an action file the checks read")
+    return problems
+
+
 def read(relative):
     return (ROOT / relative).read_text()
 
 
 def load_tool(name):
-    spec = importlib.util.spec_from_file_location(
-        f"security_{name}", ROOT / f"tools/security/{name}.py"
-    )
+    spec = importlib.util.spec_from_file_location(f"security_{name}", TOOLS / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -578,13 +618,14 @@ def normalize_script(text):
 
 def canonical(value):
     """A parsed workflow with each `uses` value (already checked by unpinned_uses) reduced to
-    the action it names, and each `run` script normalized, so only what the workflow does is
+    the action it names in lower case (GitHub ignores the letter case of an owner and repository
+    name), and each `run` script normalized, so only what the workflow does is
     compared with the expected document."""
     if isinstance(value, dict):
         result = {}
         for key, item in value.items():
             if key == "uses" and isinstance(item, str) and PINNED_REF.match(item):
-                item = item.partition("@")[0]
+                item = item.partition("@")[0].lower()
             elif key == "run" and isinstance(item, str):
                 item = normalize_script(item)
             result[key] = canonical(item)
@@ -709,7 +750,7 @@ SECURITY_WORKFLOW = {
                     "name": "List what the image contains, without the SBOM tool",
                     "run": sh(
                         r"""
-                        docker run --rm --entrypoint python \
+                        docker run --rm --user 0 --entrypoint python \
                           --volume "$PWD/tools/security:/probe:ro" "$IMAGE" \
                           /probe/image_contents.py > "$RUNNER_TEMP/image-contents.json"
                         """
@@ -784,7 +825,7 @@ SECURITY_WORKFLOW = {
 SECRETS_WORKFLOW = {
     "name": "secrets",
     "on": {
-        "push": {"branches": ["**"]},
+        "push": {"branches": ["**"], "tags": ["**"]},
         "pull_request": None,
         "schedule": SCHEDULE,
         "workflow_dispatch": None,
@@ -857,7 +898,9 @@ SECRETS_WORKFLOW = {
                     "name": "Scan the history for secrets as one text stream",
                     "run": sh(
                         r"""
+                        set -o pipefail
                         git log -p --text --diff-merges=first-parent HEAD \
+                          | python3 tools/security/text_windows.py \
                           | "$RUNNER_TEMP/gitleaks" stdin --ignore-gitleaks-allow \
                             --redact --verbose --no-banner --config .gitleaks.toml
                         """
@@ -958,9 +1001,10 @@ def test_every_workflow_file_is_a_mapping_with_github_keys():
 
 
 def test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment():
+    # Every workflow and every local composite action: the actions inside one run in the job too.
     problems = [
-        f"{WORKFLOWS}/{name}: {problem}"
-        for name, text in workflow_texts().items()
+        f"{name}: {problem}"
+        for name, text in action_texts().items()
         for problem in unpinned_uses(text)
     ]
     assert not problems, "Pin each action to a full commit SHA plus '# vX.Y.Z':\n" + "\n".join(
@@ -970,7 +1014,7 @@ def test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment():
 
 def test_the_pin_check_script_reads_every_uses_line_of_every_workflow():
     action_pins = load_tool("check_action_pins")
-    for name, text in workflow_texts().items():
+    for name, text in action_texts().items():
         found, unreadable = action_pins.pins(text, name)
         assert not unreadable, (name, unreadable)
         assert not unpinned_uses(text), name
@@ -984,9 +1028,22 @@ def test_the_pin_check_script_reads_every_uses_line_of_every_workflow():
 
 def test_every_checkout_drops_the_token():
     problems = [
-        f"{WORKFLOWS}/{name}: {path}: actions/checkout without 'persist-credentials: false'"
-        for name, text in workflow_texts().items()
+        f"{name}: {path}: actions/checkout without 'persist-credentials: false'"
+        for name, text in action_texts().items()
         for path in checkouts_keeping_credentials(text)
+    ]
+    assert not problems, "\n".join(problems)
+
+
+def test_every_local_action_a_workflow_runs_is_read_by_the_checks():
+    """`uses: ./.github/actions/x` runs that action's action.yml, whose own `uses` the pin check
+    reads only if action_files() returns the file. A local action in a skipped directory or
+    under a name no check reads would run unchecked."""
+    files = load_tool("check_action_pins").action_files(ROOT)
+    problems = [
+        f"{name}: {problem}"
+        for name, text in action_texts().items()
+        for problem in unresolved_local_actions(text, files, ROOT)
     ]
     assert not problems, "\n".join(problems)
 
@@ -1052,7 +1109,9 @@ def test_security_workflow_triggers():
 def test_the_secret_scan_runs_on_every_push_and_only_in_its_own_workflow():
     texts = workflow_texts()
     on = triggers(texts["secrets.yml"])
-    assert on["push"] == {"branches": ["**"]}, "a push to any branch must be scanned"
+    assert on["push"] == {"branches": ["**"], "tags": ["**"]}, (
+        "a push to any branch or tag must be scanned"
+    )
     assert {"pull_request", "schedule", "workflow_dispatch"} <= set(on)
     scanning = [name for name, text in texts.items() if "gitleaks" in text]
     assert scanning == ["secrets.yml"], scanning
@@ -1084,6 +1143,7 @@ def test_the_gate_script_fails_the_levels_the_security_policy_names():
                 "bootstrap",
                 "actions/download-artifact",
                 "github/codeql-action",
+                "kartverket/github-workflows",
             },
         },
         "image": {"args": ["--only-fixed", "--fail-on", "high"], "canary": {"django"}},
@@ -1314,6 +1374,229 @@ def test_a_yaml_extension_workflow_is_read_by_every_workflow_test(monkeypatch, t
         with pytest.raises(AssertionError) as failure:
             test()
         assert "extra.yaml" in str(failure.value), test.__name__
+
+
+DOWNLOAD_V411 = "actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935"
+SETUP_UV = "      - uses: astral-sh/setup-uv@"
+
+
+def repository_copy(tmp_path, monkeypatch):
+    """A copy of .github (the tests read it as ROOT) that the pin script reads as well."""
+    shutil.copytree(ROOT / ".github", tmp_path / ".github")
+    monkeypatch.setitem(globals(), "ROOT", tmp_path)
+    return tmp_path
+
+
+def add_composite_action(copy, uses_lines, name="fetch"):
+    """A local composite action holding `uses_lines` (steps), run by a step added to checks.yml."""
+    action = copy / f".github/actions/{name}/action.yml"
+    action.parent.mkdir(parents=True)
+    steps = "".join(f"    {line}\n" for line in uses_lines)
+    action.write_text(
+        "name: fetch\ndescription: Fetch the build output\nruns:\n  using: composite\n"
+        f"  steps:\n{steps}"
+    )
+    workflow = copy / ".github/workflows/checks.yml"
+    text = workflow.read_text()
+    assert SETUP_UV in text
+    workflow.write_text(
+        text.replace(SETUP_UV, f"      - uses: ./.github/actions/{name}\n" + SETUP_UV, 1)
+    )
+    return action
+
+
+def test_a_composite_action_with_pinned_steps_passes_every_workflow_test(monkeypatch, tmp_path):
+    copy = repository_copy(tmp_path, monkeypatch)
+    add_composite_action(
+        copy,
+        [f"- uses: {DOWNLOAD_V411} # v4.1.1", f"- uses: actions/checkout@{SHA} # v7.0.1"]
+        + ["  with:", "    persist-credentials: false"],
+    )
+    assert "/fetch/action.yml" in "".join(action_texts())
+    for test in (
+        test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment,
+        test_the_pin_check_script_reads_every_uses_line_of_every_workflow,
+        test_every_checkout_drops_the_token,
+        test_every_local_action_a_workflow_runs_is_read_by_the_checks,
+    ):
+        test()
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["- uses: evil/action@main", f"- uses: {DOWNLOAD_V411}", "- uses: actions/cache@v4"],
+    ids=["tag", "no version comment", "major tag"],
+)
+def test_an_unpinned_action_in_a_composite_action_is_reported(monkeypatch, tmp_path, line):
+    copy = repository_copy(tmp_path, monkeypatch)
+    action = add_composite_action(copy, [line])
+    with pytest.raises(AssertionError) as failure:
+        test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment()
+    assert ".github/actions/fetch/action.yml" in str(failure.value)
+    found, unreadable = load_tool("check_action_pins").pins(action.read_text(), "action.yml")
+    assert unreadable and not found, "the pin script reports it too"
+
+
+def test_a_pin_commented_with_another_release_in_a_composite_action_is_reported_by_the_script(
+    monkeypatch, tmp_path
+):
+    """The v4.1.1 commit commented v4.1.8: the pin is a commit with a version comment, so the
+    workflow tests accept it, and the pin script's resolution of the comment reports it."""
+    copy = repository_copy(tmp_path, monkeypatch)
+    add_composite_action(copy, [f"- uses: {DOWNLOAD_V411} # v4.1.8"])
+    test_every_action_is_pinned_to_a_commit_sha_with_a_version_comment()
+    pin_script = load_tool("check_action_pins")
+    pinned = []
+    for path in pin_script.action_files(copy):
+        found, unreadable = pin_script.pins(path.read_text(), path.relative_to(copy).as_posix())
+        assert not unreadable
+        pinned += found
+    assert {(repo, tag) for _, repo, _, tag in pinned} >= {("actions/download-artifact", "v4.1.8")}
+    # Each comment resolves to the commit pinned for it, except v4.1.8: the real tag's commit.
+    resolved = {(pin_script.repository(repo), tag): sha for _, repo, sha, tag in pinned}
+    resolved[("actions/download-artifact", "v4.1.8")] = "a" * 40
+    lines = pin_script.problems(pinned, lambda repo, tag: resolved[(repo, tag)])
+    assert len(lines) == 1, lines
+    assert lines[0].startswith(".github/actions/fetch/action.yml:6: actions/download-artifact@")
+    assert "is commented v4.1.8" in lines[0]
+
+
+def test_a_checkout_that_keeps_the_token_in_a_composite_action_is_reported(monkeypatch, tmp_path):
+    copy = repository_copy(tmp_path, monkeypatch)
+    add_composite_action(copy, [f"- uses: actions/checkout@{SHA} # v7.0.1"])
+    with pytest.raises(AssertionError) as failure:
+        test_every_checkout_drops_the_token()
+    assert "fetch/action.yml" in str(failure.value)
+
+
+def test_a_layout_of_uses_the_script_cannot_read_in_a_composite_action_is_reported(
+    monkeypatch, tmp_path
+):
+    copy = repository_copy(tmp_path, monkeypatch)
+    add_composite_action(copy, ["- {uses: evil/action@main}"])
+    with pytest.raises(AssertionError) as failure:
+        test_the_pin_check_script_reads_every_uses_line_of_every_workflow()
+    assert "action.yml" in str(failure.value)
+
+
+def test_a_local_action_that_does_not_exist_is_reported(monkeypatch, tmp_path):
+    copy = repository_copy(tmp_path, monkeypatch)
+    workflow = copy / ".github/workflows/checks.yml"
+    text = workflow.read_text()
+    workflow.write_text(text.replace(SETUP_UV, "      - uses: ./missing\n" + SETUP_UV, 1))
+    with pytest.raises(AssertionError) as failure:
+        test_every_local_action_a_workflow_runs_is_read_by_the_checks()
+    assert "checks.yml" in str(failure.value) and "./missing" in str(failure.value)
+
+
+def test_a_local_action_the_checks_do_not_read_is_reported(monkeypatch, tmp_path):
+    """An action.yml in a skipped directory, or a directory with none, runs unchecked."""
+    copy = repository_copy(tmp_path, monkeypatch)
+    (copy / ".local/actions/x").mkdir(parents=True)
+    (copy / ".local/actions/x/action.yml").write_text("runs:\n  using: composite\n  steps: []\n")
+    (copy / "empty").mkdir()
+    files = load_tool("check_action_pins").action_files(copy)
+    workflow = (
+        "jobs:\n  a:\n    steps:\n      - uses: ./.local/actions/x\n      - uses: ./empty\n"
+        "      - uses: ./../outside\n      - uses: ./.github/workflows/checks.yml\n"
+    )
+    problems = unresolved_local_actions(workflow, files, copy)
+    assert [problem.split(".uses ")[1].split(" ")[0] for problem in problems] == [
+        "./.local/actions/x",
+        "./empty",
+        "./../outside",
+    ], problems
+
+
+def test_every_local_action_resolves_to_an_action_file_that_is_returned(tmp_path):
+    (tmp_path / ".github/actions/y").mkdir(parents=True)
+    action = tmp_path / ".github/actions/y/action.yaml"
+    action.write_text("runs:\n  using: composite\n  steps: []\n")
+    files = [action, tmp_path / "w.yml"]
+    ok = (
+        "jobs:\n  a:\n    steps:\n      - uses: ./.github/actions/y\n"
+        "      - uses: ./.github/actions/y/\n"
+    )
+    assert unresolved_local_actions(ok, files, tmp_path) == []
+    assert unresolved_local_actions("a: [", files, tmp_path)
+    assert unresolved_local_actions(ok, [], tmp_path)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a: &x {b: 1}\nc:\n  <<: *x\n",
+        "c:\n  <<: {a: 1}\n",
+        "<<: {a: 1}\n",
+        "c:\n  <<: [{a: 1}, {b: 2}]\n  d: 1\n",
+        "c: {<<: {a: 1}}\n",
+        "c:\n  '<<': 1\n  <<: {a: 1}\n",
+    ],
+    ids=["alias", "flow", "top level", "sequence", "inline", "after a quoted key"],
+)
+def test_the_loader_rejects_a_merge_key_which_github_refuses(text):
+    assert yaml.safe_load(text), "control: PyYAML expands it"
+    with pytest.raises(yaml.YAMLError, match="merge key"):
+        parse_yaml(text)
+    document, problems = load_mapping(text)
+    assert document is None and "merge key" in problems[0]
+
+
+def test_the_loader_keeps_anchors_aliases_and_a_quoted_merge_key_text():
+    assert parse_yaml("a: &x {b: 1}\nc: *x\n") == {"a": {"b": 1}, "c": {"b": 1}}
+    assert parse_yaml("'<<': 1\n") == {"<<": 1}
+    assert parse_yaml("a: '<<'\nb: x<<y\n") == {"a": "<<", "b": "x<<y"}
+
+
+def test_a_merge_key_in_a_workflow_fails_the_exact_comparison():
+    text = read(f"{WORKFLOWS}/secrets.yml")
+    old = "        with:\n          fetch-depth: 0\n          persist-credentials: false\n"
+    assert old in text
+    merged = text.replace(
+        old, "        with:\n          <<: {fetch-depth: 0, persist-credentials: false}\n", 1
+    )
+    assert yaml.safe_load(merged) == yaml.safe_load(text), "control: PyYAML expands it"
+    problems = exact_workflow_problems("secrets.yml", merged)
+    assert problems and "merge key" in problems[0]
+    assert not exact_workflow_problems("secrets.yml", text)
+
+
+@pytest.mark.parametrize("spelling", ["Actions/Checkout", "ACTIONS/CHECKOUT", "actions/Checkout"])
+def test_a_checkout_in_another_letter_case_is_still_found(spelling):
+    bad = steps(f"- uses: {spelling}@{SHA} # v7.0.1")
+    assert checkouts_keeping_credentials(bad) == ["$.jobs.a.steps[0]"]
+    kept = steps(f"- uses: {spelling}@{SHA} # v7.0.1", "  with:", "    persist-credentials: true")
+    assert checkouts_keeping_credentials(kept) == ["$.jobs.a.steps[0]"]
+    good = steps(f"- uses: {spelling}@{SHA} # v7.0.1", "  with:", "    persist-credentials: false")
+    assert checkouts_keeping_credentials(good) == []
+
+
+@pytest.mark.parametrize("spelling", ["Actions/Checkout", "ACTIONS/CHECKOUT"])
+def test_every_checkout_drops_the_token_whatever_the_letter_case(monkeypatch, tmp_path, spelling):
+    copy = repository_copy(tmp_path, monkeypatch)
+    workflow = copy / ".github/workflows/checks.yml"
+    text = workflow.read_text()
+    kept = re.sub(
+        r"uses: actions/checkout(@\w+ # v[\w.]+)\n\s+with:\n\s+persist-credentials: false\n",
+        rf"uses: {spelling}\1\n",
+        text,
+        count=1,
+    )
+    assert kept != text
+    workflow.write_text(kept)
+    with pytest.raises(AssertionError) as failure:
+        test_every_checkout_drops_the_token()
+    assert "checks.yml" in str(failure.value)
+    # With the setting the spelling is accepted, by the checkout test and the exact comparison.
+    secrets = read(f"{WORKFLOWS}/secrets.yml")
+    respelled = secrets.replace("uses: actions/checkout@", f"uses: {spelling}@", 1)
+    assert respelled != secrets
+    assert checkouts_keeping_credentials(respelled) == []
+    assert not exact_workflow_problems("secrets.yml", respelled)
+    without = respelled.replace("          persist-credentials: false\n", "", 1)
+    assert checkouts_keeping_credentials(without) and exact_workflow_problems(
+        "secrets.yml", without
+    )
 
 
 GOOD_ALLOWLIST = {
@@ -1669,6 +1952,20 @@ WORKFLOW_MUTATIONS = {
         'if [ "$status" -ne 1 ]', 'if [ "$status" -ne 0 ]'
     ),
     ("secrets.yml", "text stream scan removed"): drop_line("stdin --ignore-gitleaks-allow"),
+    ("secrets.yml", "text windows removed from the stream"): drop_line("text_windows.py"),
+    ("secrets.yml", "text windows script changed"): replace(
+        "tools/security/text_windows.py", "tools/security/other.py"
+    ),
+    ("secrets.yml", "tag pushes not scanned"): replace('    tags: ["**"]\n', ""),
+    ("secrets.yml", "tag pushes limited"): replace('tags: ["**"]', 'tags: ["v*"]'),
+    ("secrets.yml", "a merge key"): replace(
+        "        with:\n          fetch-depth: 0\n          persist-credentials: false\n",
+        "        with:\n          <<: {fetch-depth: 0, persist-credentials: false}\n",
+    ),
+    ("security.yml", "image probe not as root"): replace(
+        "docker run --rm --user 0 --entrypoint python", "docker run --rm --entrypoint python"
+    ),
+    ("security.yml", "image probe as another user"): replace("--user 0", "--user 1000"),
     ("secrets.yml", ".gitleaksignore guard removed"): replace(
         "find . -name .gitleaksignore", "find . -name .gitleaksignore-none"
     ),
