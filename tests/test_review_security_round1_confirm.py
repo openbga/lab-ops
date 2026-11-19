@@ -125,7 +125,7 @@ def test_logging_claim_tracks_delivery_to_the_configured_handler():
         """,
     )
     assert before and not after and accepts_info
-    assert value == CHANGED and "LOGGING" in note, (value, note)
+    assert_no_delivery_claim(value, note)
 
 
 @pytest.mark.parametrize("filename", ["settings.py", "logging.py"])
@@ -307,3 +307,12 @@ def test_lab_name_and_contact_actions_agree_on_lab_setup(page, client, staff, mo
     contact_url = reverse("lab-contact-edit", args=["security"])
     edit_link = f'href="{contact_url}'.encode() in response.content
     assert named == edit_link, (named, edit_link)
+
+
+def assert_no_delivery_claim(value, note):
+    """Decided after the second confirmation (security-settings-round-1-confirmation-2-resolution):
+    the sign-in record fact says only what the application passes to its sign-in log; where the
+    log goes is the logging configuration's, so no logging change can make it false."""
+    assert value == "Sign-in log, and the last sign-in time", value
+    assert "set by the logging configuration" in note, note
+    assert "written to" not in note and "writes" not in note, note

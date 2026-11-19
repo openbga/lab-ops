@@ -80,11 +80,11 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration (config/settings.py and the logging configuration in config/logging.py), which a deployment changes only by changing those files. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",
-          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means the deployment changed what the value depends on: a setting in config/settings.py, the file itself, config/logging.py or the settings module it loads; the details name it and the page describes it no further."
+          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means that what the value depends on differs from this release's, or could not be read: a setting, config/settings.py, config/logging.py or the settings module; the details name it, and the page describes the value no further."
         }
       ]
     },

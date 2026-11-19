@@ -188,7 +188,7 @@ def test_signin_record_fact_detects_an_in_place_logging_change(monkeypatch):
         assert not signin_logger.isEnabledFor(logging.INFO)
         rows = [f for group in security_settings.in_force() for f in group.facts]
         item = next(f for f in rows if f.key == "sign-in-records")
-        assert item.value == CHANGED and "LOGGING" in item.note
+        assert_no_delivery_claim(item.value, item.note)
     finally:
         signin_logger.setLevel(old_level)
 
@@ -291,3 +291,12 @@ def test_seed_refuses_a_rename_committed_before_the_name_lock(staff, monkeypatch
     assert not User.objects.filter(username__startswith="demo_").exists()
     assert not LabContact.objects.exists()
     assert not ServiceRequest.objects.exists()
+
+
+def assert_no_delivery_claim(value, note):
+    """Decided after the second confirmation (security-settings-round-1-confirmation-2-resolution):
+    the sign-in record fact says only what the application passes to its sign-in log; where the
+    log goes is the logging configuration's, so no logging change can make it false."""
+    assert value == "Sign-in log, and the last sign-in time", value
+    assert "set by the logging configuration" in note, note
+    assert "written to" not in note and "writes" not in note, note

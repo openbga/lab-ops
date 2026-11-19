@@ -23,6 +23,7 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 from importlib import import_module
+from importlib.util import find_spec
 from pathlib import Path
 
 from allauth import app_settings as allauth_settings
@@ -78,12 +79,18 @@ _digests = {}
 
 
 def module_digest(module_name):
-    """SHA-256 of a module's source, or "" when it cannot be read now. Only a digest that was
-    read is kept: a passing failure to read is tried again next time."""
+    """SHA-256 of the Python source of the module Python loads for `module_name`, found without
+    running it (an inactive module that would fail to import is still read); "" when there is no
+    readable source, such as a module shipped as bytecode only. Only a digest that was read is
+    kept: a passing failure is tried again next time."""
     if module_name not in _digests:
         try:
-            data = Path(import_module(module_name).__file__).read_bytes()
-        except Exception:  # a file that cannot be read is not this release's
+            spec = find_spec(module_name)
+            origin = Path(spec.origin) if spec and spec.origin else None
+            if origin is None or origin.suffix != ".py":
+                return ""
+            data = origin.read_bytes()
+        except ImportError, ValueError, OSError:  # no readable source: not this release's
             return ""
         _digests[module_name] = hashlib.sha256(data).hexdigest()
     return _digests[module_name]
@@ -529,16 +536,18 @@ def _sign_in(facts):
         _fact(
             "sign-in-records",
             "Record of sign-ins",
-            ["SESSION_ENGINE", "LOGGING"],
+            ["SESSION_ENGINE"],
             lambda: Fact(
                 "sign-in-records",
                 "Record of sign-ins",
-                "Application log, and the last sign-in time",
+                "Sign-in log, and the last sign-in time",
                 "release",
-                "Sign-ins, failures and sign-outs are written to the application log, with the "
-                "username when the account is known; the deployment's log retention applies. "
-                "The database keeps each account's last sign-in time and, in each session while "
-                "it lasts, how it signed in. There is no stored list of sign-ins.",
+                "The application passes each sign-in, failure and sign-out, with the username "
+                "when the account is known, to its sign-in log (lab_ops.signin). Where that log "
+                "goes and how long it is kept is set by the logging configuration and the host. "
+                "The "
+                "database keeps each account's last sign-in time and, in each session while it "
+                "lasts, how it signed in. There is no stored list of sign-ins.",
             ),
         ),
     ]
