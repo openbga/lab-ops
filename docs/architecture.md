@@ -94,8 +94,8 @@ person's account, roles and membership of the ticket's team before anything else
 and a request form's definition included; if the team changes in between, the ticket is refused
 and nothing is saved. Deactivating an account updates the account and then returns the
 person's open tickets to their queues ([desk/signals.py](../desk/signals.py)), and removing a
-member locks the membership and then those tickets. When an assignment and the end of that
-person's work meet, the second waits for the person's rows and then decides on what the first
+member locks the membership and then those tickets. When an assignment and the end of the
+assignee's work meet, the second waits for the person's rows and then decides on what the first
 saved: the assignment is refused, or the deactivation or removal finds the new assignment and
 returns it to the queue. Neither fails with a deadlock. A nonconformance names people (its owner,
 an action's assignee) by locking the record and then the person, and never locks a ticket after a
@@ -109,8 +109,10 @@ reads the acting account again after its last lock and takes its checks of roles
 capabilities from that reading: the ticket services through `settle`, a list's bulk action right
 after its tickets' locks, a new ticket's creation before it is written, the nonconformance module
 through its own recheck, and file withdrawal, links and form corrections through `settle` or
-`desk.services.locked_staff_request`. A link change locks the ticket first, then the link's system,
-then the link.
+`desk.services.locked_staff_request`; who asks is answered before anything about the ticket. The
+account is not held until the change commits: the database checks the rows a change names when
+it commits, and an account changed while that check waits is not seen. A link change locks the
+ticket first, then the link's system, then the link.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

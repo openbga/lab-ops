@@ -268,6 +268,9 @@ def add_link(
         raise ValidationError({"role": "Choose a role."})
     request = locked_request(actor, request_id) if request_id is not None else None
     if request is not None:
+        # Who asks is answered before anything about the ticket (closed, its links), and again
+        # after the last lock below.
+        actor = _reread(actor, request)
         require_open(request)
     client = Client.objects.select_for_update().get(pk=client_id) if client_id is not None else None
     if client is not None and person:
@@ -377,9 +380,9 @@ def _locked_attachment(actor, attachment_id):
     attachment = (
         LinkAttachment.objects.select_for_update().select_related("link").get(pk=attachment_id)
     )
+    actor = _reread(actor, request)  # after the last lock, before anything about the ticket
     if request is not None:
         require_open(request)
-    actor = _reread(actor, request)
     if attachment.is_person:
         require_capability(actor, CAPABILITY)
     return attachment, actor

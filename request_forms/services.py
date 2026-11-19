@@ -906,6 +906,8 @@ def correct_values(
         locked = locked_in_scope(staff_requests(actor), request.pk)
     except ServiceRequest.DoesNotExist:
         raise ServiceRequest.DoesNotExist("No such ticket.") from None
+    # Who asks is answered before anything about the ticket, and again after the last lock below.
+    actor = settle(actor, locked)
     if locked.status == Status.CLOSED:
         raise ValidationError(CLOSED_MESSAGE, code="closed")
     filled = FilledForm.objects.filter(request=locked).select_related("template").first()
