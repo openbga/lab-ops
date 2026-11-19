@@ -103,4 +103,5 @@ updates. Two documented design limits matter when assessing risk:
   owns its tables, so this includes anyone who holds the application's database credentials.
   This is not tamper evidence against database administrators.
 
-See [Operations](docs/operations.md) for both.
+See [Operations](docs/operations.md) for both. The [safeguards reference](docs/safeguards.md) lists, for each safeguard
+the roadmap cites, what the application records or enforces and what stays with the operator.

@@ -112,7 +112,7 @@ def test_field_form_explains_patient_information(client, admin, pickup):
     login(client, admin)
     page = client.get(reverse("request_forms:field-create", args=[pickup.pk])).content.decode()
     assert "This field holds patient information" in page
-    assert "never appear in email, lists, search, exports, logs" in page
+    assert "never appear in email, lists, search, logs" in page
 
 
 def test_changing_field_type_validates_only_the_settings_on_screen(client, admin, pickup):

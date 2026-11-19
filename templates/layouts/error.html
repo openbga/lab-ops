@@ -13,4 +13,6 @@ Usage: {% extends "layouts/error.html" %}{% block page_heading %}Page not found{
   {% page_help "documentation:unavailable" as error_help %}
   {% include "documentation/panel.html" with page_documentation=error_help %}
 {% endblock %}
+{# In the form dialog an error replaces the form, so its help does too: never the refused form's. #}
+{% block documentation_source %}{% page_help "documentation:unavailable" as error_help %}{% include "documentation/content.html" with page_documentation=error_help %}{% endblock %}
 {% block entrance_heading %}<h1 class="vr-page-title mb-2">{% block page_heading %}{% endblock %}</h1>{% endblock %}

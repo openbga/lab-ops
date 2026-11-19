@@ -124,6 +124,44 @@ class LabCertificate(models.Model):
         return f"{self.authority} {self.number}"
 
 
+class LabContact(models.Model):
+    """A person or office the laboratory names for one responsibility, as the laboratory records
+    it: its security contact and its privacy contact (core.lab_profile).
+
+    The application checks nothing against a contact and designates no one. A row is written the
+    first time an administrator saves that contact, never by a migration, so an empty database
+    stays empty (core.demo). `revision` is the stale-edit check of the contact's form.
+    """
+
+    class Kind(models.TextChoices):
+        SECURITY = "security", "Security contact"
+        PRIVACY = "privacy", "Privacy contact"
+
+    kind = models.CharField(max_length=20, choices=Kind.choices, unique=True)
+    name = models.CharField("Name or office", max_length=160, blank=True)
+    title = models.CharField("Title or role", max_length=160, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(name__gt="") | models.Q(title="", email="", phone=""),
+                name="lab_contact_named",
+                violation_error_message="Give the name of the person or office.",
+            )
+        ]
+
+    def __str__(self):
+        return self.get_kind_display()
+
+    @property
+    def is_recorded(self):
+        return bool(self.name)
+
+
 class LabModule(models.Model):
     """Whether one optional module is in use (core.modules). A module without a row is off: rows
     are written the first time an administrator switches it, never by a migration, so an empty

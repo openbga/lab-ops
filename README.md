@@ -128,6 +128,7 @@ job, see [Public demonstration](docs/operations.md#public-demonstration).
 | [Workflows](docs/workflows.md) | Staff and client journeys |
 | [Roadmap](docs/roadmap.md) | Planned work |
 | [Operations](docs/operations.md) | Hosting, backups, restore, mail and public demos |
+| [Safeguards reference](docs/safeguards.md) | What the application records or enforces for each cited safeguard, and what stays with the laboratory and its host |
 | [Architecture](docs/architecture.md) | Application boundaries, storage and integrity |
 | [UI standards](docs/ui-standards.md) | Interface conventions and phone support |
 

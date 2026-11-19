@@ -1,0 +1,113 @@
+{
+  "id": "core-security-settings",
+  "routes": [
+    "security-settings"
+  ],
+  "title": "Security settings",
+  "purpose": "See the laboratory's security and privacy contacts and what protects sign-in, sessions and patient information in this deployment, with who sets each part.",
+  "summary": "Your security and privacy contacts, and what protects sign-in, sessions and patient information here, with who sets each part. Only the admin role can open this page.",
+  "tasks": [
+    {
+      "title": "Record or change a contact",
+      "steps": [
+        "Under Security and privacy contacts select [[Security contact]] or [[Privacy contact]].",
+        "Enter the name or office and any title, email and phone, explain why in [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Find out who sets a protection",
+      "steps": [
+        "Find the setting in its group (Sign-in, Sessions, Patient information or Connection) and read [[Set by]].",
+        "A deployment setting names its environment variable. Ask whoever runs the deployment to change it."
+      ]
+    },
+    {
+      "title": "See who has turned on a second sign-in factor",
+      "steps": [
+        "Under Sign-in read the details of Second sign-in factor. It counts active staff and client portal accounts that have a second factor (recovery codes alone do not count)."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "This page changes no setting. Only the contacts are edited, in their own form.",
+    "Values are read from the running application each time the page opens, so they follow the deployment as it stands.",
+    "The page states what is in force. It does not rate the deployment or say whether it meets any rule or standard.",
+    "Staff see the contacts on the laboratory profile. Client portal accounts do not see them."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin laboratory role can open this page, and the Setup menu lists it only for that role. Other staff roles, client portal accounts and a superuser without a laboratory role are refused. Every staff role reads the contacts on the laboratory profile instead."
+      ]
+    },
+    {
+      "title": "Security and privacy contacts",
+      "paragraphs": [
+        "The person or office your laboratory names for questions about the security of its systems and the person or office it names for the privacy of patient information, as the laboratory records them. The application checks nothing against them and sends them nothing."
+      ],
+      "items": [
+        {
+          "label": "Contact",
+          "description": "Security contact or Privacy contact. The name opens the contact's form; after saving or cancelling you return to this page. It is plain text when the laboratory is not set up yet."
+        },
+        {
+          "label": "Name or office",
+          "description": "The person or office. Not recorded when the contact has never been saved or was cleared."
+        },
+        {
+          "label": "Title or role, Email, Phone",
+          "description": "As recorded, or a dash when blank. The email address opens your mail program."
+        }
+      ]
+    },
+    {
+      "title": "Groups of settings",
+      "paragraphs": [
+        "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
+        "Sessions: how long a session lasts, sign-out after a period without activity, what closing the browser does, what deactivating an account and setting a new password do to its sessions, and how the session cookie is sent.",
+        "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
+        "Connection: whether HTTPS is required and which content security policy is in force."
+      ],
+      "items": [
+        {
+          "label": "Setting",
+          "description": "What the row is about."
+        },
+        {
+          "label": "In force",
+          "description": "The value the running application uses now, worked out when the page opens. Counts are of active accounts or active fields at that moment."
+        },
+        {
+          "label": "Set by",
+          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+        },
+        {
+          "label": "Details",
+          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means that what the value depends on differs from this release's, or could not be read: a setting, config/settings.py, config/logging.py or the settings module; the details name it, and the page describes the value no further."
+        }
+      ]
+    },
+    {
+      "title": "History",
+      "items": [
+        {
+          "label": "History",
+          "description": "The newest 20 changes to the security contact and the privacy contact, shown oldest first: Lab contact changed, with the contact it changed and the name before and after, the reason given, the time and the administrator who made it. The laboratory profile's history lists them too."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/security_settings_views.py",
+    "core/security_settings.py",
+    "core/lab_profile.py",
+    "core/lab_profile_views.py",
+    "core/models.py",
+    "core/templatetags/navigation.py",
+    "templates/core/security_settings.html",
+    "templates/core/_contacts_panel.html",
+    "tests/test_security_settings_pages.py"
+  ]
+}

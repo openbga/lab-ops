@@ -83,6 +83,42 @@ class LabCertificateForm(GroupedForm, forms.ModelForm):
         widgets = {"valid_from": DATE, "valid_until": DATE}
 
 
+class LabContactForm(GroupedForm, forms.Form):
+    """Record, change or clear the security contact or the privacy contact
+    (core.lab_profile.save_contact), with a reason. `expected_revision` is the contact's revision
+    the form showed: a change saved in between refuses this one."""
+
+    name = forms.CharField(
+        label="Name or office",
+        max_length=160,
+        required=False,
+        help_text="The person or office, for example Information Security Office. Required "
+        "when any other detail is given.",
+    )
+    title = forms.CharField(
+        label="Title or role",
+        max_length=160,
+        required=False,
+        help_text="Optional. As your laboratory names the role.",
+    )
+    email = forms.EmailField(label="Email", max_length=254, required=False, help_text="Optional.")
+    phone = forms.CharField(
+        label="Phone",
+        max_length=40,
+        required=False,
+        widget=TelInput(),
+        help_text="Optional. For example 555-0100.",
+    )
+    reason = forms.CharField(
+        label="Reason",
+        max_length=2000,
+        help_text="Kept with the change in the laboratory profile's history.",
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
+    groups = ((None, ["name", "title", "email", "phone", "reason"]),)
+
+
 class ModuleSwitchForm(forms.Form):
     """Turn an optional module on or off (core.modules.set_enabled). `enabled` is the state the
     page asked for, the opposite of the one it showed, and `expected_revision` the switch's

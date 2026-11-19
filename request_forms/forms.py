@@ -30,8 +30,9 @@ DEFINITION = "form_definition"
 PATIENT_HELP = (
     "Tick only if the laboratory decided this field needs patient information. Its values are "
     "then revealed one at a time, with an audit entry, to staff who hold “Can view patient "
-    "information”, and shown to the client who raised or may see the ticket. They never "
-    "appear in email, lists, search, exports, logs or the audit history, and staff without "
+    "information”, and, on fields clients see, shown to the client who raised or may see the "
+    "ticket. They never "
+    "appear in email, lists, search, logs or the audit history, and staff without "
     "that permission cannot fill, reveal or correct them. "
     "Prefer an order, accession or sample number: the product's stance is minimal patient data."
 )
