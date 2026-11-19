@@ -50,7 +50,7 @@ ships, move it to Built in the same change.
 | Area | What is in place |
 | --- | --- |
 | Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview |
-| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
+| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment and a person's deactivation or removal from the team at the same moment wait for each other instead of failing; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
 | Ticket forms | Forms per category with client, shared and staff-only fields and an optional patient field behind a capability; corrections with a reason; a service menu in the portal and "Request again"; supply orders from the laboratory's catalog and one-time pickups |
 | Links | Typed references to orders, samples, reports and other records in the laboratory's systems, and optional, masked person-level links |
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
@@ -88,19 +88,6 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
-
-### Review follow-up: assignment and the end of a person's work
-
-- **Delivers:** assigning tickets to a person and ending that person's work (deactivating the
-  account, removing them from a team) take their row locks in one order, so neither fails with a
-  database deadlock: whichever comes second waits, then decides on what the first saved. Today an
-  assignment locks the tickets and then the person's account and team membership, while a
-  deactivation or a removal locks the account or the membership and then the person's tickets.
-  When the two meet on a ticket the person already holds, PostgreSQL ends one of them with an
-  error and nothing is saved. Choosing the owner of a nonconformance opened from a ticket locks
-  the ticket and then the person in the same way, and is included.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** nothing.
 
 ### Automatic sign-out and session control
 

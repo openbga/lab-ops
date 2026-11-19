@@ -92,7 +92,7 @@
         },
         {
           "label": "Active",
-          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor."
+          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused."
         },
         {
           "label": "Staff status",
@@ -156,6 +156,8 @@
     "accounts/admin.py",
     "accounts/models.py",
     "accounts/roles.py",
+    "desk/signals.py",
+    "desk/services.py",
     "core/admin.py",
     "config/settings.py",
     "uv.lock",

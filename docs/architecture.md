@@ -86,6 +86,17 @@ state before writing. Its `on_created` callback lets the forms and attachment se
 with the ticket and its opening entry. A callback error rolls back the creation. The service also
 calls the clock and notification hooks. [Ticket services](../desk/services.py)
 
+A change that locks a person's rows and tickets locks the person's rows first. An assignment
+locks the team, then the assignee's account, roles and team membership, and then the tickets, and
+decides from what it read once the tickets are locked and the acting account is read again.
+Deactivating an account updates the account and then returns the person's open tickets to their
+queues ([desk/signals.py](../desk/signals.py)), and removing a member locks the membership and
+then those tickets. When an assignment and the end of that person's work meet, the second waits
+for the person's rows and then decides on what the first saved: the assignment is refused, or the
+deactivation or removal finds the new assignment and returns it to the queue. Neither fails with a
+deadlock. A nonconformance names people (its owner, an action's assignee) by locking the record
+and then the person, and never locks a ticket after a person.
+
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.
 Queries use the same clock states for lists and counts. The notification hooks record one

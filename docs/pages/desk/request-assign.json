@@ -75,6 +75,10 @@
           "description": "Who may read a restricted ticket depends on team membership. After moving such a ticket to a team you do not belong to you may no longer be able to open it, unless you are a supervisor."
         },
         {
+          "label": "At the same moment",
+          "description": "If the person is being deactivated or removed from the team while you assign, one change waits for the other. If theirs is saved first, your assignment is refused, because the ticket changed or the person is no longer an active member of the team. If yours is saved first, theirs then returns the ticket to the team's queue, unassigned."
+        },
+        {
           "label": "History",
           "description": "The change is recorded as a timeline event and in the audit history, with the old and new team and person and your reason."
         }

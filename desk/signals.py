@@ -10,6 +10,10 @@ code, an integration) is not refused: refusing would leave the person active, wh
 than an unattributed release. Its timeline and audit events then name the deactivated account
 itself as the actor, with a reason that says no actor was recorded.
 
+The account's row is updated before its requests are locked, the order an assignment takes
+them in (desk.services._hold_assignment): an assignment to the account either comes first and
+its request is released here, or waits and is refused.
+
 Paths that bypass save() (queryset.update, raw SQL) are not seen here; an account they
 deactivate still cannot sign in or be chosen as an assignee.
 """

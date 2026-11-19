@@ -127,7 +127,10 @@ def add_member(*, actor, team, user, is_lead=False):
 @transaction.atomic
 def remove_member(*, actor, membership, reason=""):
     """Remove a member. Their requests in this team that are not closed return to the team's
-    queue in the same transaction; returns how many."""
+    queue in the same transaction; returns how many. The membership is locked before those
+    requests, the order an assignment takes them in (desk.services._hold_assignment), so an
+    assignment to this person in this team either comes first and its ticket is returned here,
+    or waits and is refused."""
     from desk.services import release_assignments
 
     if not can_manage_members(actor):

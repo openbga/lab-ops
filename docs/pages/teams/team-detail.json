@@ -93,7 +93,7 @@
         },
         {
           "label": "Remove",
-          "description": "Opens a confirmation. Removing deletes the membership and records it in the team's history. They stop seeing the team's unassigned work in their views and lose access to the team's restricted tickets. Their tickets in this team that are not closed return to the team's queue, unassigned; the confirmation shows how many first, and Open tickets in the members table counts them. No reason is asked."
+          "description": "Opens a confirmation. Removing deletes the membership and records it in the team's history. They stop seeing the team's unassigned work in their views and lose access to the team's restricted tickets. Their tickets in this team that are not closed return to the team's queue, unassigned; the confirmation shows how many first, and Open tickets in the members table counts them. A ticket assigned to them in this team while you remove them is either returned with the others or, if your removal is saved first, refused. No reason is asked."
         },
         {
           "label": "No members yet",
@@ -133,6 +133,7 @@
     "teams/views.py",
     "teams/forms.py",
     "teams/services.py",
+    "desk/services.py",
     "teams/models.py",
     "teams/templates/teams/team_detail.html",
     "desk/selectors.py"
