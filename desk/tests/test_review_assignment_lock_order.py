@@ -558,11 +558,21 @@ def test_a_team_change_while_the_person_is_held_is_read_under_the_teams_own_lock
         made = Session(_probe_changes(person, accessioning)[change], lock_timeout=PROBE_WAIT)
         waited[change] = made.start().join()
 
+    refusal = []
+
+    def assign():
+        try:
+            _assign(agent, ticket, accessioning, person)
+        except ValidationError as exc:
+            refusal.extend(exc.messages)
+            raise
+
     with paused("_hold_assignment", during, before=False):
-        outcome = run_here(lambda: _assign(agent, ticket, accessioning, person))
+        outcome = run_here(assign)
     assert waited == {change: "done"}
     assert outcome == expected
     if expected == "refused":
+        assert refusal == ["This team is inactive."]
         assert (_fresh(ticket).revision, _fresh(ticket).assignee_id) == (before, None)
     else:
         assert _fresh(ticket).assignee_id == person.pk

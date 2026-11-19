@@ -500,3 +500,24 @@ def test_intake_naming_the_person_waits_for_them_before_its_category(
     assert results == {"intake": "done", "recategorize": "done", "assignment": "refused"}
     assert _fresh(waiting).category_id == sample_category.pk
     assert ServiceRequest.objects.filter(category=sample_category, assignee=person).count() == 1
+
+
+def test_retiring_a_group_waits_for_a_ticket_being_logged_in_one_of_its_categories(agent, category):
+    """_check_category holds the category's group (FOR SHARE, after the category): retiring the
+    group, or changing it in any way, waits for a ticket being logged in one of its categories,
+    so a ticket is never saved under a group retired after it was read."""
+    from django.db import transaction
+
+    from jobs.tests.test_review_outbox_round1_verify import writer_waits
+    from taxonomy.models import RequestCategory
+
+    group_id = category.parent_id
+    with transaction.atomic():
+        assert services._check_category(category, portal=False).pk == category.pk
+        assert writer_waits(
+            lambda: RequestCategory.objects.filter(pk=group_id).update(is_active=False)
+        )
+    # A plain read of the category alone does not hold the group.
+    assert not writer_waits(
+        lambda: RequestCategory.objects.filter(pk=group_id).update(is_active=False)
+    )

@@ -16,7 +16,7 @@ from django.utils import timezone
 from accounts.roles import has_capability, require_capability, require_role, require_staff
 from clients.models import Client
 from core.audit import record_event, snapshot
-from desk.selectors import locked_in_scope, staff_requests
+from desk.selectors import staff_requests
 
 from .identifiers import check_https_url, check_link_url, clean_identifier
 from .masking import check_label, is_person_type, key_digest, propose_label
@@ -185,8 +185,19 @@ def update_system(*, actor, system_id, expected_revision, reason, **data):
 
 
 def locked_request(actor, request_id):
-    """The request, locked, if `actor` may read it; DoesNotExist otherwise (the view's 404)."""
-    return locked_in_scope(staff_requests(actor), request_id)
+    """(request, current): the request, locked, if `actor` may read it, and the acting account
+    read again after the lock (desk.services.locked_staff_request); DoesNotExist otherwise (the
+    view's 404). Checks after the lock use `current`."""
+    from desk.services import locked_staff_request
+
+    return locked_staff_request(actor, request_id)
+
+
+def _current_actor(actor):
+    """The acting account read again after a change's locks (desk.services.current_staff)."""
+    from desk.services import current_staff
+
+    return current_staff(actor)
 
 
 CLOSED_MESSAGE = "This ticket is closed, so its links can no longer change."
@@ -253,12 +264,17 @@ def add_link(
         require_capability(actor, CAPABILITY)
     if role not in LinkRole.values:
         raise ValidationError({"role": "Choose a role."})
-    request = locked_request(actor, request_id) if request_id is not None else None
-    if request is not None:
+    request = None
+    if request_id is not None:
+        request, actor = locked_request(actor, request_id)
         require_open(request)
     client = Client.objects.select_for_update().get(pk=client_id) if client_id is not None else None
-    if client is not None and person:
-        raise ValidationError({"record_type": "Add person-level links to a ticket."})
+    if client is not None:
+        actor = _current_actor(actor)  # read again after the organization's lock
+        if person:
+            raise ValidationError({"record_type": "Add person-level links to a ticket."})
+    if person:  # the capability as it stands after the locks
+        require_capability(actor, CAPABILITY)
     system = ExternalSystem.objects.select_for_update().get(pk=system.pk)
     if not system.is_active:
         raise ValidationError({"system": "This system is inactive and takes no new links."})
@@ -349,14 +365,19 @@ def add_link(
 
 
 def _locked_attachment(actor, attachment_id):
+    """(attachment, current): the attachment and its ticket locked, and the acting account read
+    again after those locks; the capability for a person-level link is checked on that reading."""
     attachment = (
         LinkAttachment.objects.select_for_update().select_related("link").get(pk=attachment_id)
     )
     if attachment.request_id is not None:
-        require_open(locked_request(actor, attachment.request_id))
+        request, actor = locked_request(actor, attachment.request_id)
+        require_open(request)
+    else:
+        actor = _current_actor(actor)
     if attachment.is_person:
         require_capability(actor, CAPABILITY)
-    return attachment
+    return attachment, actor
 
 
 @transaction.atomic
@@ -367,7 +388,7 @@ def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
     PersonRemovalReason and an optional `note`, kept on the attachment and shown only to holders
     of the capability; the audit event and the timeline carry the code only."""
     require_staff(actor)
-    attachment = _locked_attachment(actor, attachment_id)
+    attachment, actor = _locked_attachment(actor, attachment_id)
     if attachment.is_person:
         code = _person_reason(reason_code)
         reason, note = PersonRemovalReason(code).label, (note or "").strip()
@@ -407,7 +428,7 @@ def remove_link(*, actor, attachment_id, reason="", reason_code="", note=""):
 @transaction.atomic
 def set_shown_to_client(*, actor, attachment_id, shown):
     require_staff(actor)
-    attachment = _locked_attachment(actor, attachment_id)
+    attachment, actor = _locked_attachment(actor, attachment_id)
     if attachment.removed_at is not None or attachment.request_id is None:
         raise ValidationError("Only a current link on a ticket can be shown to the client.")
     if attachment.is_person and shown:

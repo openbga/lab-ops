@@ -18,7 +18,7 @@ from desk import services as desk_services
 from desk.models import AuthorCapacity, EntryKind, RequestEntry
 from desk.permissions import is_supervisor
 from desk.portal_scope import portal_requests
-from desk.selectors import locked_in_scope, staff_requests
+from desk.selectors import staff_requests
 from desk.visibility import is_client_visible
 
 from .inspection import Inspected, inspect_bytes
@@ -150,7 +150,11 @@ def withdraw_attachment(*, actor, attachment_id, reason):
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     attachment = Attachment.objects.select_for_update().get(pk=attachment_id)
-    request = locked_in_scope(staff_requests(actor), attachment.request_id)
+    # The acting account read again after the ticket's lock: a supervisor role removed, or an
+    # account deactivated, while the change waited is refused.
+    request, actor = desk_services.locked_staff_request(actor, attachment.request_id)
+    if not is_supervisor(actor):
+        raise PermissionDenied("Only a supervisor can withdraw a file.")
     if attachment.withdrawn_at is not None:
         raise ValidationError("This file was already withdrawn.")
     attachment.withdrawn_at = timezone.now()

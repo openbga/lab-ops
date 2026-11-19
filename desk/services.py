@@ -72,16 +72,22 @@ def _check_category(category, *, portal, drawn_terms=None):
     and routing (taxonomy.terms); the write is refused if the category no longer matches it. The
     comparison is made under the row lock, so a setup change either comes first and refuses the
     write or waits for it."""
+    # Locked by its id alone; its group and default team are read afterwards, in new statements.
+    # A lock taken through a join would, for a row it waited for, be rechecked against the joined
+    # rows read before the wait (selectors.locked_in_scope): a category moved to another group
+    # meanwhile would come back without one.
     current = (
-        RequestCategory.objects.select_for_update(of=("self",), no_key=True)
-        .select_related("parent", "default_team")
-        .filter(pk=category.pk)
-        .first()
+        RequestCategory.objects.select_for_update(no_key=True).filter(pk=category.pk).first()
         if category.pk
         else None
     )
     if current is None or current.parent_id is None:
         raise ValidationError({"category": "Choose a category, not a group."})
+    from jobs.locks import share_lock
+
+    # Its group held too (FOR SHARE, after the category, as a request form's definition holds
+    # it), so a group retired meanwhile either came first and is read here, or waits.
+    share_lock(RequestCategory, [current.parent_id])
     if not current.is_active or not current.parent.is_active:
         raise ValidationError({"category": "This category is no longer used."})
     if portal and not current.client_may_raise:
@@ -127,8 +133,8 @@ class HeldAssignee:
     `team_id`. Every row stays locked until the transaction ends, so a decision taken later from
     this reading still holds when the assignment commits."""
 
-    def __init__(self, account, roles):
-        self.account, self.roles = account, frozenset(roles)
+    def __init__(self, user_id, account, roles):
+        self.user_id, self.account, self.roles = user_id, account, frozenset(roles)
         self.team_id, self.member = None, False
 
     def hold_membership(self, team):
@@ -153,7 +159,7 @@ def _held_assignee(assignee, team=None):
     # The roles the decision rests on, read and held in one statement until the assignment
     # commits: removing one waits, and one granted after the reading does not count.
     roles = held_roles(current, mode="key share") if current is not None else set()
-    held = HeldAssignee(current, roles)
+    held = HeldAssignee(assignee.pk, current, roles)
     return held.hold_membership(team) if team is not None else held
 
 
@@ -223,17 +229,56 @@ def _current_default_team():
     raise ValidationError({"team": "The default team is being changed. Try again."})
 
 
+def _intake_team_id(team, category):
+    """The id of the team a new request in `category` goes to, read without a lock: the caller's
+    team, else the category's default team, else the default team (None on a database without
+    one yet). _team_and_assignee decides the team again under the locks."""
+    if team is not None:
+        return team.pk
+    default_id = (
+        RequestCategory.objects.filter(pk=category.pk)
+        .values_list("default_team_id", flat=True)
+        .first()
+    )
+    if default_id is not None:
+        return default_id
+    return Team.objects.filter(is_default=True).values_list("pk", flat=True).first()
+
+
+def hold_intake_assignee(*, team, assignee, category):
+    """For a new request naming `assignee`: lock that person's rows (account, roles and membership
+    of the team the request goes to) before anything else the intake locks, the category and a
+    request form's definition included, as an assignment locks the person's rows before anything
+    else (_hold_assignment). An intake that waits for the person then holds nothing that someone
+    waiting on that person needs. Returns the reading (HeldAssignee), or None without an assignee.
+
+    create_request calls it first. A caller that takes other locks before create_request (the
+    staff intake page, which locks the request form's definition) calls it before them, in the
+    same transaction; create_request's own call then finds the rows already held."""
+    if assignee is None:
+        return None
+    team_id = _intake_team_id(team, category)
+    return _held_assignee(assignee, Team(pk=team_id) if team_id is not None else None)
+
+
 def _team_and_assignee(team, held, category):
     """The team and assignee for a new request, from current state: the caller's team, else
-    the category's current default team, else the default team. `held` is the assignee's account
-    and roles as create_request read them before the category (HeldAssignee), or None."""
+    the category's current default team, else the default team. `held` is the assignee as
+    hold_intake_assignee read and holds them, or None."""
     if team is None and category.default_team is None:
         team = _current_default_team()
     else:
         team = _current_team(team or category.default_team)
     assignee = None
     if held is not None:
-        assignee = _eligible_assignee(held.hold_membership(team), team)
+        if held.team_id != team.pk:
+            # The routing changed between the reading the person's locks were taken for and the
+            # one under the category's lock; the membership of the new team is not locked
+            # after the category (one order: the person's rows first).
+            raise ValidationError(
+                {"assignee": "The ticket's team changed while it was saved. Choose again."}
+            )
+        assignee = _eligible_assignee(held, team)
     return team, assignee
 
 
@@ -315,8 +360,12 @@ def create_request(
     follow_up_of=None,
     on_created=None,
     drawn_terms=None,
+    held_assignee=None,
 ):
     """Create a request with its first entry and return it.
+
+    `held_assignee`: the reading hold_intake_assignee returned to a caller that locked the
+    assignee before its own locks, in this transaction; the person's rows are then not read again.
 
     `on_created(request)`, when given, runs in the same transaction after the request, its first
     entry and its audit event are written and before the clock and notification hooks: the seam
@@ -350,10 +399,12 @@ def create_request(
             raise ValidationError({"channel": "Choose how the ticket arrived."})
         if first_entry_kind not in (EntryKind.REPLY, EntryKind.NOTE):
             raise ValidationError({"first_entry_kind": "Choose a reply or a note."})
-    # The assignee's account and roles are locked before the category, as an assignment locks the
-    # person's rows before anything else (_hold_assignment): a creation naming a person that
-    # waits for them holds no category or team that someone waiting on that person needs.
-    held = _held_assignee(assignee) if assignee is not None else None
+    # The assignee's rows first, before the category (hold_intake_assignee).
+    held = held_assignee
+    if held is None:
+        held = hold_intake_assignee(team=team, assignee=assignee, category=category)
+    elif assignee is None or held.user_id != assignee.pk:
+        raise ValueError("held_assignee is the reading of this request's assignee.")
     # Routing, the default priority and the complaint flag come from the category as it stands
     # at write time, never from the caller's copy.
     category = _check_category(category, portal=portal, drawn_terms=drawn_terms)
@@ -573,6 +624,15 @@ def _staff_request(actor, request, expected_revision):
     if expected_revision is None or locked.revision != expected_revision:
         raise ValidationError(STALE)
     return locked
+
+
+def locked_staff_request(actor, request_id):
+    """For another app's change to a ticket: the ticket locked (selectors.locked_in_scope) and
+    the acting account read again after the lock (settle), as the ticket services do. Returns
+    (request, current); every check of what the actor may do after the lock uses `current`."""
+    require_staff(actor)
+    request = locked_in_scope(staff_requests(actor), request_id)
+    return request, settle(actor, request)
 
 
 def _save(request):

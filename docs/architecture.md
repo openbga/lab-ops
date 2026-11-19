@@ -90,7 +90,9 @@ A change that locks a person's rows and tickets locks the person's rows first. A
 locks the assignee's account, roles and team membership, then the tickets, then the team, and
 decides from what it read once the acting account is read again; while it waits for a busy
 ticket it holds up only work about the same person. A new ticket naming an assignee locks that
-person before its category. Deactivating an account updates the account and then returns the
+person's account, roles and membership of the ticket's team before anything else, its category
+and a request form's definition included; if the team changes in between, the ticket is refused
+and nothing is saved. Deactivating an account updates the account and then returns the
 person's open tickets to their queues ([desk/signals.py](../desk/signals.py)), and removing a
 member locks the membership and then those tickets. When an assignment and the end of that
 person's work meet, the second waits for the person's rows and then decides on what the first
@@ -101,8 +103,11 @@ person.
 
 A ticket is locked by its id and the reader's scope is read again after the lock
 (`desk.selectors.locked_in_scope`), so a change that waited while a colleague recategorized the
-ticket is refused as changed, not answered as a missing ticket. A list's bulk action reads the
-acting account again right after its tickets' locks, before anything about the tickets.
+ticket is refused as changed, not answered as a missing ticket. A category is locked the same
+way, by its id, and its group and default team are read after the lock. Every change reads the
+acting account again after its ticket's lock and takes its checks of roles and capabilities from
+that reading: the ticket services through `settle`, a list's bulk action right after its tickets'
+locks, and the other apps through `desk.services.locked_staff_request`.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.
