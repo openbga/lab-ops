@@ -18,13 +18,18 @@ lock, checks the revision the form showed, rereads the acting account, needs a r
 one audit event, like the contacts in core.lab_profile.
 """
 
+import hashlib
+import os
 from dataclasses import dataclass, field
+from functools import cache
+from importlib import import_module
+from pathlib import Path
 
 from allauth import app_settings as allauth_settings
 from allauth.account import app_settings as account_settings
 from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
-from django.conf import settings
+from django.conf import ENVIRONMENT_VARIABLE, settings
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Exists, OuterRef, Q
 
@@ -46,11 +51,89 @@ SOURCES = {
     "unavailable": "Not available yet",
 }
 CHANGED = "Changed in the application configuration"
+SETTINGS_MODULE = "config.settings"
+# SHA-256 of config/settings.py and the logging configuration it imports (config/logging.py) in
+# this release. A deployment that edits them changes code the facts below rely on, so every fact
+# that depends on the configuration says so. Whoever changes either file in this repository checks
+# each fact against it and updates this value (tests/test_security_settings.py says how).
+RELEASE_SETTINGS_SHA256 = "c2d031402eb24ff3fb0a2cc77e8690dd7162ee2631fd7553855670d10810e33b"
+SETTINGS_FILE = "config/settings.py"
+
+
+def settings_module_name():
+    """The settings module Django loaded (DJANGO_SETTINGS_MODULE). Not settings.SETTINGS_MODULE,
+    which is None while a test overrides settings."""
+    return os.environ.get(ENVIRONMENT_VARIABLE, "")
+
+
+def settings_file_digest():
+    """SHA-256 of the loaded settings module's source and of config/logging.py, or "" when
+    either cannot be read."""
+    return _digest(settings_module_name())
+
+
+@cache
+def _digest(module_name):
+    try:
+        digest = hashlib.sha256()
+        for name in (module_name, "config.logging"):
+            digest.update(Path(import_module(name).__file__).read_bytes())
+        return digest.hexdigest()
+    except Exception:  # a configuration that cannot be read is not this release's
+        return ""
+
+
+def _startup(name):
+    """A setting's value as the settings module computed it at startup (from the environment),
+    before anything in the running process overrode it."""
+    return getattr(import_module(SETTINGS_MODULE), name)
+
 
 _VALIDATORS = "django.contrib.auth.password_validation."
 # setting name: (how to read it now, its value in this release's configuration)
 RELEASE = {
+    # The settings file itself and its module: any other change to the configuration.
+    SETTINGS_FILE: (
+        lambda: (settings_module_name(), settings_file_digest()),
+        (SETTINGS_MODULE, RELEASE_SETTINGS_SHA256),
+    ),
+    "MIDDLEWARE": (
+        lambda: list(settings.MIDDLEWARE),
+        [
+            "core.security_headers.SecurityHeadersMiddleware",
+            "core.request_logging.RequestLogMiddleware",
+            "core.request_limits.RequestBodyLimitMiddleware",
+            "core.modules.ModuleAddressMiddleware",
+            "django.middleware.security.SecurityMiddleware",
+            "whitenoise.middleware.WhiteNoiseMiddleware",
+            "django.contrib.sessions.middleware.SessionMiddleware",
+            "django.middleware.common.CommonMiddleware",
+            "django.middleware.csrf.CsrfViewMiddleware",
+            "django.contrib.auth.middleware.AuthenticationMiddleware",
+            "core.preferences.GridPreferenceMiddleware",
+            "allauth.account.middleware.AccountMiddleware",
+            "django.contrib.messages.middleware.MessageMiddleware",
+            "accounts.middleware.LockedCredentialsMiddleware",
+            "django.middleware.clickjacking.XFrameOptionsMiddleware",
+            "core.form_dialog.FormDialogMiddleware",
+        ],
+    ),
+    "LOGGING": (lambda: settings.LOGGING == _startup("LOGGING"), True),
     "ACCOUNT_ADAPTER": (lambda: settings.ACCOUNT_ADAPTER, "accounts.adapter.ClosedSignupAdapter"),
+    "ACCOUNT_LOGIN_METHODS": (lambda: set(account_settings.LOGIN_METHODS), {"username", "email"}),
+    # Follows EMAIL_BACKEND at startup in this release.
+    "ACCOUNT_LOGIN_BY_CODE_ENABLED": (
+        lambda: (
+            account_settings.LOGIN_BY_CODE_ENABLED
+            == (settings.STARTUP_EMAIL_BACKEND != f"{_MAIL}dummy.EmailBackend")
+        ),
+        True,
+    ),
+    "ACCOUNT_LOGIN_BY_CODE_TRUST_ENABLED": (
+        lambda: account_settings.LOGIN_BY_CODE_TRUST_ENABLED,
+        False,
+    ),
+    "MFA_RECOVERY_CODE_COUNT": (lambda: mfa_settings.RECOVERY_CODE_COUNT, 10),
     "AUTHENTICATION_BACKENDS": (
         lambda: list(settings.AUTHENTICATION_BACKENDS),
         [
@@ -80,8 +163,8 @@ RELEASE = {
     ),
     "ALLAUTH_RATE_LIMIT_IPV6_PREFIX": (lambda: allauth_settings.RATE_LIMIT_IPV6_PREFIX, 64),
     "CACHES": (
-        lambda: settings.CACHES.get("default", {}).get("BACKEND"),
-        "django.core.cache.backends.locmem.LocMemCache",
+        lambda: settings.CACHES,
+        {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
     ),
     "ACCOUNT_LOGIN_BY_CODE_TIMEOUT": (lambda: account_settings.LOGIN_BY_CODE_TIMEOUT, 300),
     "SESSION_ENGINE": (lambda: settings.SESSION_ENGINE, "django.contrib.sessions.backends.db"),
@@ -100,13 +183,13 @@ RELEASE = {
         False,
     ),
     "SESSION_COOKIE_HTTPONLY": (lambda: settings.SESSION_COOKIE_HTTPONLY, True),
-    # Both follow debug mode in this release: secure cookie exactly when HTTP is redirected.
+    # Both follow debug mode at startup in this release: on exactly when debug mode is off.
     "SESSION_COOKIE_SECURE": (
-        lambda: settings.SESSION_COOKIE_SECURE == settings.SECURE_SSL_REDIRECT,
+        lambda: settings.SESSION_COOKIE_SECURE == (not settings.STARTUP_DEBUG),
         True,
     ),
     "SECURE_SSL_REDIRECT": (
-        lambda: settings.SECURE_SSL_REDIRECT == settings.SESSION_COOKIE_SECURE,
+        lambda: settings.SECURE_SSL_REDIRECT == (not settings.STARTUP_DEBUG),
         True,
     ),
     "SECURE_REDIRECT_EXEMPT": (lambda: list(settings.SECURE_REDIRECT_EXEMPT), []),
@@ -158,18 +241,21 @@ class Group:
 def _fact(key, label, depends_on, build):
     """The fact `build()` returns, or the changed-configuration fact when a setting it depends
     on differs from this release's."""
-    differ = changed_settings(*depends_on)
-    if differ:
-        return Fact(
-            key,
-            label,
-            CHANGED,
-            "configuration",
-            "This page describes this release's configuration. Check "
-            + _either(differ)
-            + " in config/settings.py.",
+    differ = changed_settings(SETTINGS_FILE, *depends_on)
+    if differ == [SETTINGS_FILE]:
+        note = (
+            "This page describes this release's configuration, and this deployment's "
+            "config/settings.py differs from it."
         )
-    return build()
+    elif differ:
+        names = [name for name in differ if name != SETTINGS_FILE]
+        note = (
+            "This page describes this release's configuration. "
+            f"Check {_either(names)} in config/settings.py."
+        )
+    else:
+        return build()
+    return Fact(key, label, CHANGED, "configuration", note)
 
 
 _UNITS = (("week", 604800), ("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1))
@@ -240,11 +326,23 @@ def _patient_fields():
     return TemplateField.objects.filter(is_active=True, holds_patient_information=True).count()
 
 
-_MAIL_KEPT = {
-    "console": "This deployment writes email to its console instead of sending it.",
-    "filebased": "This deployment writes email to files instead of sending it.",
-    "locmem": "This deployment keeps email in memory instead of sending it.",
-}
+_MAIL = "django.core.mail.backends."
+
+
+def _delivery():
+    """Where an emailed code goes, from the exact backend configured (EMAIL_BACKEND)."""
+    backend = settings.EMAIL_BACKEND
+    if backend == f"{_MAIL}smtp.EmailBackend":
+        return ""
+    if backend == f"{_MAIL}console.EmailBackend":
+        return "This deployment writes email to its console instead of sending it."
+    if backend == f"{_MAIL}locmem.EmailBackend":
+        return "This deployment keeps email in memory instead of sending it."
+    if backend == f"{_MAIL}filebased.EmailBackend":
+        if getattr(settings, "EMAIL_FILE_PATH", None):
+            return "This deployment writes email to files instead of sending it."
+        return "This deployment cannot send email: EMAIL_FILE_PATH is not set."
+    return "Whether the code reaches the address depends on this deployment's email backend."
 
 
 def _sign_in_code():
@@ -262,9 +360,7 @@ def _sign_in_code():
         f"for {duration_text(account_settings.LOGIN_BY_CODE_TIMEOUT)}. The second factor is "
         "still asked for where the account has one."
     )
-    kept = next(
-        (text for name, text in _MAIL_KEPT.items() if f".{name}." in settings.EMAIL_BACKEND), ""
-    )
+    kept = _delivery()
     return Fact(
         "sign-in-code",
         "Sign-in with an emailed code",
@@ -293,7 +389,7 @@ def _sign_in(facts):
         _fact(
             "passwords",
             "Passwords",
-            ["AUTH_PASSWORD_VALIDATORS"],
+            ["AUTH_PASSWORD_VALIDATORS", "ACCOUNT_ADAPTER"],
             lambda: Fact(
                 "passwords",
                 "Passwords",
@@ -306,7 +402,7 @@ def _sign_in(facts):
         _fact(
             "second-factor",
             "Second sign-in factor",
-            ["MFA_SUPPORTED_TYPES"],
+            ["MFA_SUPPORTED_TYPES", "MFA_RECOVERY_CODE_COUNT", "MIDDLEWARE"],
             lambda: Fact(
                 "second-factor",
                 "Second sign-in factor",
@@ -321,21 +417,31 @@ def _sign_in(facts):
         _fact(
             "second-factor-changes",
             "Changing the second factor",
-            ["MFA_REAUTHENTICATION_REQUIRED", "ACCOUNT_REAUTHENTICATION_TIMEOUT"],
+            [
+                "MFA_REAUTHENTICATION_REQUIRED",
+                "ACCOUNT_REAUTHENTICATION_TIMEOUT",
+                "MFA_SUPPORTED_TYPES",
+            ],
             lambda: Fact(
                 "second-factor-changes",
                 "Changing the second factor",
                 "Needs a recent re-authentication",
                 "configuration",
                 "Adding or removing an authenticator app, or seeing or renewing recovery codes, "
-                "asks the person to confirm who they are again unless they did so in the last 5 "
-                "minutes.",
+                "asks a person with a usable password or a second factor to confirm who they are "
+                "again unless they did so in the last 5 minutes. An account with neither has no "
+                "method to confirm with and is not asked.",
             ),
         ),
         _fact(
             "failed-sign-ins",
             "Failed sign-ins",
-            ["ACCOUNT_RATE_LIMITS", "ALLAUTH_RATE_LIMIT_IPV6_PREFIX", "CACHES"],
+            [
+                "ACCOUNT_RATE_LIMITS",
+                "ALLAUTH_RATE_LIMIT_IPV6_PREFIX",
+                "CACHES",
+                "ACCOUNT_LOGIN_METHODS",
+            ],
             lambda: Fact(
                 "failed-sign-ins",
                 "Failed sign-ins",
@@ -349,13 +455,18 @@ def _sign_in(facts):
         _fact(
             "sign-in-code",
             "Sign-in with an emailed code",
-            ["ACCOUNT_LOGIN_BY_CODE_TIMEOUT", "MFA_TRUST_ENABLED"],
+            [
+                "ACCOUNT_LOGIN_BY_CODE_ENABLED",
+                "ACCOUNT_LOGIN_BY_CODE_TIMEOUT",
+                "MFA_TRUST_ENABLED",
+                "ACCOUNT_LOGIN_BY_CODE_TRUST_ENABLED",
+            ],
             _sign_in_code,
         ),
         _fact(
             "sign-in-records",
             "Record of sign-ins",
-            ["SESSION_ENGINE"],
+            ["SESSION_ENGINE", "LOGGING"],
             lambda: Fact(
                 "sign-in-records",
                 "Record of sign-ins",
@@ -396,7 +507,11 @@ def _sessions(facts):
         _fact(
             "browser-close",
             "Closing the browser",
-            ["ACCOUNT_SESSION_REMEMBER", "SESSION_EXPIRE_AT_BROWSER_CLOSE"],
+            [
+                "ACCOUNT_SESSION_REMEMBER",
+                "SESSION_EXPIRE_AT_BROWSER_CLOSE",
+                "ACCOUNT_LOGIN_BY_CODE_ENABLED",
+            ],
             lambda: Fact(
                 "browser-close",
                 "Closing the browser",
@@ -509,11 +624,19 @@ def _patient(facts):
 def _https():
     if settings.SECURE_SSL_REDIRECT:
         hsts = settings.SECURE_HSTS_SECONDS
-        note = "Plain HTTP requests are redirected. " + (
-            f"Browsers are told to use only HTTPS for {duration_text(hsts)} (SECURE_HSTS_SECONDS)."
-            if hsts
-            else "Browsers are not told to keep using HTTPS (SECURE_HSTS_SECONDS is 0)."
-        )
+        if hsts > 0:
+            told = (
+                f"Browsers are told to use only HTTPS for {duration_text(hsts)} "
+                "(SECURE_HSTS_SECONDS)."
+            )
+        elif hsts == 0:
+            told = "Browsers are not told to keep using HTTPS (SECURE_HSTS_SECONDS is 0)."
+        else:
+            told = (
+                "The value sent to tell browsers to keep using HTTPS is invalid, so browsers "
+                "ignore it (SECURE_HSTS_SECONDS is negative)."
+            )
+        note = "Plain HTTP requests are redirected. " + told
         return Fact("https", "HTTPS", "Required", "deployment", note, "DEBUG")
     return Fact(
         "https",
@@ -531,14 +654,26 @@ def _connection(facts):
         _fact(
             "https",
             "HTTPS",
-            ["SECURE_SSL_REDIRECT", "SECURE_REDIRECT_EXEMPT", "SECURE_HSTS_SECONDS"],
+            [
+                "SECURE_SSL_REDIRECT",
+                "SECURE_REDIRECT_EXEMPT",
+                "SECURE_HSTS_SECONDS",
+                "MIDDLEWARE",
+            ],
             _https,
         )
     )
-    policy = (settings.CONTENT_SECURITY_POLICY or "").strip()
+    facts.append(
+        _fact("content-security-policy", "Content security policy", ["MIDDLEWARE"], _policy)
+    )
+
+
+def _policy():
+    # As SecurityHeadersMiddleware sends it: whitespace runs are one space, blank is no header.
+    policy = " ".join((settings.CONTENT_SECURITY_POLICY or "").split())
     if not policy:
         value, note = "None", "The deployment set an empty policy, so pages may load anything."
-    elif policy == DEFAULT_CONTENT_SECURITY_POLICY:
+    elif policy == " ".join(DEFAULT_CONTENT_SECURITY_POLICY.split()):
         value = "The application's default"
         note = (
             "Pages load scripts, styles and fonts only from the application, and images from "
@@ -547,15 +682,13 @@ def _connection(facts):
     else:
         value = "Replaced by the deployment"
         note = "The deployment's policy decides what pages may load."
-    facts.append(
-        Fact(
-            "content-security-policy",
-            "Content security policy",
-            value,
-            "deployment",
-            note,
-            "CONTENT_SECURITY_POLICY",
-        )
+    return Fact(
+        "content-security-policy",
+        "Content security policy",
+        value,
+        "deployment",
+        note,
+        "CONTENT_SECURITY_POLICY",
     )
 
 

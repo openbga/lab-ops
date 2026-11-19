@@ -677,7 +677,8 @@ def test_https_wording_never_says_debug_mode_is_on_when_it_is_off():
 
 
 def test_hsts_zero_says_browsers_are_not_told():
-    redirect = {"SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
+    # A deployment with debug mode off at startup (STARTUP_DEBUG, config/settings.py).
+    redirect = {"STARTUP_DEBUG": False, "SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
     with override_settings(SECURE_HSTS_SECONDS=0, **redirect):
         stated = fact("https")
     assert stated.value == "Required"
@@ -694,28 +695,44 @@ def test_an_empty_policy_is_none(policy):
 
 
 @pytest.mark.parametrize(
-    ("backend", "wording"),
+    ("backend", "extra", "wording"),
     [
-        ("django.core.mail.backends.filebased.EmailBackend", "writes email to files"),
-        ("django.core.mail.backends.console.EmailBackend", "writes email to its console"),
-        ("django.core.mail.backends.locmem.EmailBackend", "keeps email in memory"),
+        (
+            "django.core.mail.backends.filebased.EmailBackend",
+            {"EMAIL_FILE_PATH": "/tmp/synthetic-mail"},
+            "writes email to files",
+        ),
+        (
+            "django.core.mail.backends.filebased.EmailBackend",
+            {"EMAIL_FILE_PATH": None},
+            "cannot send email: EMAIL_FILE_PATH is not set",
+        ),
+        ("django.core.mail.backends.console.EmailBackend", {}, "writes email to its console"),
+        ("django.core.mail.backends.locmem.EmailBackend", {}, "keeps email in memory"),
+        ("synthetic.mail.Backend", {}, "depends on this deployment's email backend"),
     ],
 )
-def test_a_backend_that_does_not_send_is_named_in_the_code_note(backend, wording):
-    with override_settings(EMAIL_BACKEND=backend, ACCOUNT_LOGIN_BY_CODE_ENABLED=True):
+def test_a_backend_that_does_not_send_is_named_in_the_code_note(backend, extra, wording):
+    # The deployment's email backend at startup and now (STARTUP_EMAIL_BACKEND, config/settings.py).
+    with override_settings(
+        STARTUP_EMAIL_BACKEND=backend,
+        EMAIL_BACKEND=backend,
+        ACCOUNT_LOGIN_BY_CODE_ENABLED=True,
+        **extra,
+    ):
         assert wording in fact("sign-in-code").note
 
 
 def test_an_smtp_backend_and_a_disabled_code_carry_no_kept_email_note():
+    smtp = "django.core.mail.backends.smtp.EmailBackend"
     with override_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        ACCOUNT_LOGIN_BY_CODE_ENABLED=True,
+        STARTUP_EMAIL_BACKEND=smtp, EMAIL_BACKEND=smtp, ACCOUNT_LOGIN_BY_CODE_ENABLED=True
     ):
         stated = fact("sign-in-code")
     assert stated.value == "On" and "instead of sending" not in stated.note
+    dummy = "django.core.mail.backends.dummy.EmailBackend"
     with override_settings(
-        EMAIL_BACKEND="django.core.mail.backends.filebased.EmailBackend",
-        ACCOUNT_LOGIN_BY_CODE_ENABLED=False,
+        STARTUP_EMAIL_BACKEND=dummy, EMAIL_BACKEND=dummy, ACCOUNT_LOGIN_BY_CODE_ENABLED=False
     ):
         stated = fact("sign-in-code")
     assert stated.value == "Off" and "instead of sending" not in stated.note

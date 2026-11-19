@@ -14,7 +14,7 @@ from accounts.roles import require_role
 
 from . import lab_profile, security_settings
 from .concurrency import one_reading
-from .lab_profile_views import contact_history
+from .lab_profile_views import contact_history, reading_account
 from .models import Lab
 
 
@@ -25,14 +25,15 @@ def security_settings_page(request):
     # their history and the counts describe one state. The page is drawn after the reading, so
     # what drawing writes (What's new, preferences) is not done inside it.
     with one_reading():
-        require_role(request.user, *security_settings.SECURITY_ROLES)
+        reader = reading_account(request)
+        require_role(reader, *security_settings.SECURITY_ROLES)
         lab_ready = Lab.objects.filter(pk=1).exists()
         groups = security_settings.in_force()
         context = {
             "page_title": "Security settings",
             "contacts": lab_profile.contacts(),
             # The contact form needs the laboratory row; without it there is nothing to edit.
-            "can_edit_contacts": lab_ready and lab_profile.can_manage(request.user),
+            "can_edit_contacts": lab_ready and lab_profile.can_manage(reader),
             "groups": groups,
             "toc": [
                 ("contacts-heading", "Security and privacy contacts"),

@@ -443,8 +443,12 @@ def test_hsts_report_tracks_header_without_a_redirect(client):
 
 
 def test_redirect_fact_qualifies_exempt_routes(client):
+    # A deployment with debug mode off (STARTUP_DEBUG, config/settings.py) and an exemption.
     with override_settings(
-        SECURE_SSL_REDIRECT=True, SESSION_COOKIE_SECURE=True, SECURE_REDIRECT_EXEMPT=["^health/$"]
+        STARTUP_DEBUG=False,
+        SECURE_SSL_REDIRECT=True,
+        SESSION_COOKIE_SECURE=True,
+        SECURE_REDIRECT_EXEMPT=["^health/$"],
     ):
         assert client.get(reverse("health")).status_code == 200
         assert client.get(reverse("security-settings")).status_code == 301

@@ -93,7 +93,12 @@ class Command(BaseCommand):
         if not Lab.objects.exists():
             demo.lock_application_tables()
             leftovers = demo.nonempty_tables()
-        lab, created = Lab.objects.get_or_create(pk=1, defaults={"name": DEMO_LAB_NAME})
+        # The laboratory row is locked before its name is checked and stays locked until this
+        # seed commits: a rename committed before is seen here, and one started later waits.
+        lab = Lab.objects.select_for_update().filter(pk=1).first()
+        created = lab is None
+        if created:
+            lab = Lab.objects.create(pk=1, name=DEMO_LAB_NAME)
         if not created and lab.name != DEMO_LAB_NAME:
             raise CommandError("Refusing to seed a non-demo laboratory.")
         if leftovers:

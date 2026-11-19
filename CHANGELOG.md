@@ -44,7 +44,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   <details><summary>Technical notes</summary>
 
-  Migration `core.0004_labcontact` adds the contacts table. It writes no rows: a contact exists once an administrator records it. The Security settings page reads the deployment's settings and changes none of them. The demonstration seed records two invented contacts at its next reset. The new `docs/safeguards.md` states what the application does for each safeguard the roadmap cites.
+  Migration `core.0004_labcontact` adds the contacts table. It writes no rows: a contact exists once an administrator records it. The Security settings page reads the deployment's settings and changes none of them. The demonstration seed records two invented contacts at its next reset. The new `docs/safeguards.md` states what the application does for each safeguard the roadmap cites. A blank `CONTENT_SECURITY_POLICY` now sends no header instead of an empty one, and whitespace in the policy is sent as single spaces. The refusal of a form whose CSRF check failed is marked not to be stored.
 
   </details>
 

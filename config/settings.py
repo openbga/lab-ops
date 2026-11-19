@@ -7,6 +7,10 @@ from core.security_headers import DEFAULT_CONTENT_SECURITY_POLICY
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+# Debug mode and the email backend as the environment set them at startup. The test runner
+# changes DEBUG and EMAIL_BACKEND afterwards; what is derived from them below stays as it was.
+# core.security_settings compares the derived settings with these.
+STARTUP_DEBUG = DEBUG
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 if not SECRET_KEY:
     if not DEBUG:
@@ -138,6 +142,7 @@ EMAIL_BACKEND = os.environ.get(
     if DEBUG
     else "django.core.mail.backends.dummy.EmailBackend",
 )
+STARTUP_EMAIL_BACKEND = EMAIL_BACKEND
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")

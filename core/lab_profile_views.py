@@ -7,6 +7,7 @@ collect input, show the service's errors on the form and redirect to the profile
 from functools import wraps
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
@@ -129,9 +130,12 @@ def lab_profile(request):
     # One reading for the access check and the whole page: the panels and the history agree.
     # The page is drawn after the reading, so what drawing writes is not done inside it.
     with one_reading():
-        require_staff(request.user)
+        reader = reading_account(request)
+        require_staff(reader)
+        # The menu's reading of the module switches, taken here so it agrees with the panel.
+        modules.states_for(request)
         lab = _lab()
-        can_manage = lab is not None and service.can_manage(request.user)
+        can_manage = lab is not None and service.can_manage(reader)
         certificates = service.certificates_with_state(timezone.localdate()) if lab else []
         for row in certificates:
             row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
@@ -147,9 +151,18 @@ def lab_profile(request):
             "contacts": service.contacts() if lab else [],
             "history": _history() if lab else [],
             "modules": modules.states(),
-            "can_manage_modules": modules.can_manage(request.user),
+            "can_manage_modules": modules.can_manage(reader),
         }
     return render(request, "core/lab_profile.html", context)
+
+
+def reading_account(request):
+    """The signed-in account as it stands in the current reading (core.concurrency.one_reading):
+    its status, organization and roles decide access together with what the page shows."""
+    account = get_user_model().objects.filter(pk=request.user.pk).first()
+    if account is None:
+        raise PermissionDenied("Your account is no longer available.")
+    return account
 
 
 def _module_title(enable, name):

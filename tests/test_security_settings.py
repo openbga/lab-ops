@@ -130,11 +130,11 @@ UNLESS = "Ends a password sign-in, unless Remember me was ticked"
 def test_closing_the_browser_under_the_release_configuration():
     # A password sign-in follows Remember me; an emailed-code sign-in follows
     # SESSION_EXPIRE_AT_BROWSER_CLOSE (allauth sets the expiry only for a password sign-in).
-    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=True):
+    with override_settings(**SENDS):
         stated = fact("browser-close")
     assert stated.value == f"{UNLESS}; {CODE_KEEPS}" and stated.source == "person"
     assert stated.note == "Some browsers keep a session when they reopen the last one."
-    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=False):
+    with override_settings(**SENDS_NOTHING):
         assert fact("browser-close").value == UNLESS
 
 
@@ -180,15 +180,29 @@ def test_a_session_that_ends_with_the_browser_follows_remember_me_at_sign_in(mak
 
 
 def test_sign_in_by_code_follows_the_setting():
-    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=False):
+    with override_settings(**SENDS_NOTHING):
         assert fact("sign-in-code").value == "Off"
-    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=True, ACCOUNT_LOGIN_BY_CODE_TIMEOUT=300):
+    with override_settings(ACCOUNT_LOGIN_BY_CODE_TIMEOUT=300, **SENDS):
         stated = fact("sign-in-code")
     assert stated.value == "On" and "5 minutes" in stated.note
+    # The switch turned off while the deployment sends email is a changed configuration.
+    with override_settings(**{**SENDS, "ACCOUNT_LOGIN_BY_CODE_ENABLED": False}):
+        assert_changed("sign-in-code", "ACCOUNT_LOGIN_BY_CODE_ENABLED")
 
 
-REDIRECT = {"SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
-NO_REDIRECT = {"SECURE_SSL_REDIRECT": False, "SESSION_COOKIE_SECURE": False}
+# A deployment with debug mode off, and one with it on, at startup (STARTUP_DEBUG,
+# config/settings.py): the redirect and the secure cookie follow it.
+REDIRECT = {"STARTUP_DEBUG": False, "SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
+NO_REDIRECT = {"STARTUP_DEBUG": True, "SECURE_SSL_REDIRECT": False, "SESSION_COOKIE_SECURE": False}
+# A deployment that sends email, and one that does not (STARTUP_EMAIL_BACKEND).
+SENDS = {
+    "STARTUP_EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+    "ACCOUNT_LOGIN_BY_CODE_ENABLED": True,
+}
+SENDS_NOTHING = {
+    "STARTUP_EMAIL_BACKEND": "django.core.mail.backends.dummy.EmailBackend",
+    "ACCOUNT_LOGIN_BY_CODE_ENABLED": False,
+}
 
 
 def test_https_required_names_the_hsts_period():
@@ -444,3 +458,16 @@ def test_changing_a_password_on_the_account_page_keeps_only_that_session(make_st
     assert user.check_password(NEW_PASSWORD)
     assert changer.get("/").status_code == 200
     assert is_signed_out(other)
+
+
+def test_the_release_settings_file_is_pinned():
+    """The facts describe this release's config/settings.py and config/logging.py. Whoever
+    changes either checks each fact in core/security_settings.py against the change (RELEASE,
+    the notes) and then sets RELEASE_SETTINGS_SHA256 to the new digest printed here."""
+    from core.security_settings import RELEASE_SETTINGS_SHA256, settings_file_digest
+
+    digest = settings_file_digest()
+    assert digest == RELEASE_SETTINGS_SHA256, (
+        "config/settings.py changed: check the Security settings facts against it, then set "
+        f"core.security_settings.RELEASE_SETTINGS_SHA256 = {digest!r}"
+    )
