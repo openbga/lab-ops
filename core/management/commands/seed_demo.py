@@ -30,6 +30,16 @@ DEMO_LAB_IDENTITY = {
     "email": "clientservices@example.invalid",
     "website": "https://laboratory.example.invalid",
 }
+# kind: name or office, title or role, email, phone. Invented, like every seeded record.
+DEMO_LAB_CONTACTS = {
+    "security": (
+        "Information Security Office",
+        "Security official",
+        "security@example.invalid",
+        "555-0143",
+    ),
+    "privacy": ("Compliance Office", "Privacy official", "privacy@example.invalid", "555-0144"),
+}
 # (issuing authority, program or scope, certificate or laboratory ID, has validity dates)
 DEMO_LAB_CERTIFICATES = (
     ("Example Federal Program", "Laboratory certificate", "EX-0000000000", True),
@@ -83,7 +93,12 @@ class Command(BaseCommand):
         if not Lab.objects.exists():
             demo.lock_application_tables()
             leftovers = demo.nonempty_tables()
-        lab, created = Lab.objects.get_or_create(pk=1, defaults={"name": DEMO_LAB_NAME})
+        # The laboratory row is locked before its name is checked and stays locked until this
+        # seed commits: a rename committed before is seen here, and one started later waits.
+        lab = Lab.objects.select_for_update().filter(pk=1).first()
+        created = lab is None
+        if created:
+            lab = Lab.objects.create(pk=1, name=DEMO_LAB_NAME)
         if not created and lab.name != DEMO_LAB_NAME:
             raise CommandError("Refusing to seed a non-demo laboratory.")
         if leftovers:
@@ -144,6 +159,15 @@ class Command(BaseCommand):
         it is.
         """
         admin = User.objects.get(username="demo_admin")
+        # Every profile change locks the laboratory row first (core.lab_profile), so with the row
+        # locked here a change committed before is seen by the check below, and one that starts
+        # later waits for this seed's transaction.
+        # The name is read again under the lock: setup_lab may have renamed the laboratory since
+        # the seed checked it, and a laboratory that is no longer the demonstration's gets no
+        # invented profile.
+        lab = Lab.objects.select_for_update().filter(pk=1).first()
+        if lab is None or lab.name != DEMO_LAB_NAME:
+            return
         if AuditEvent.objects.filter(
             action__in=lab_profile.PROFILE_ACTIONS
         ).exists() or not lab_profile.can_manage(admin):
@@ -165,6 +189,14 @@ class Command(BaseCommand):
                     valid_until=date(year + 1, 12, 31) if dated else None,
                     position=position,
                 ),
+            )
+        for kind, (name, title, email, phone) in DEMO_LAB_CONTACTS.items():
+            lab_profile.save_contact(
+                actor=admin,
+                kind=kind,
+                values={"name": name, "title": title, "email": email, "phone": phone},
+                expected_revision=0,
+                reason="Demonstration contact, invented for the synthetic laboratory.",
             )
 
     def _announce_accounts(self, password):

@@ -6,7 +6,7 @@
   ],
   "title": "Administration",
   "purpose": "Maintain account and authentication records, roles and the laboratory retention statement.",
-  "summary": "Maintenance tooling for accounts, role groups, sign-in records and the laboratory retention statement. Laboratory work happens in the application, not here.",
+  "summary": "Maintenance tooling for accounts, role groups, sign-in email addresses, authenticators and the laboratory retention statement. Laboratory work happens in the application, not here.",
   "tasks": [
     {
       "title": "Open a maintenance list",

@@ -1,7 +1,9 @@
-"""The laboratory profile: the identity staff and clients see, its logo and its certificates.
+"""The laboratory profile: the identity staff and clients see, its logo, its certificates and the
+people it names as its security contact and its privacy contact.
 
 The admin role changes the profile. Every change locks the laboratory row first and is audited
-in the same transaction with the values before and after.
+in the same transaction with the values before and after. A change to a contact also needs a
+reason, kept with its audit event.
 
 Certificates are listed as the laboratory recorded them, with their state on today's date.
 Nothing is checked against a certificate and nothing here is a certification or accreditation
@@ -14,7 +16,8 @@ import os
 import threading
 from contextlib import contextmanager
 
-from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from PIL import Image, ImageFile, ImageOps
 
@@ -22,7 +25,7 @@ from accounts.roles import has_role, require_role
 
 from .audit import record_event, snapshot
 from .concurrency import check_original_state
-from .models import MAX_LOGO_BYTES, AuditEvent, Lab, LabCertificate, LabLogo
+from .models import MAX_LOGO_BYTES, AuditEvent, Lab, LabCertificate, LabContact, LabLogo
 
 PROFILE_ROLES = ("admin",)
 IDENTITY_FIELDS = (
@@ -48,7 +51,9 @@ PROFILE_ACTIONS = (
     "lab.certificate_added",
     "lab.certificate_changed",
     "lab.certificate_removed",
+    "lab.contact_changed",
 )
+CONTACT_FIELDS = ("name", "title", "email", "phone")
 # state key: (label, status tone)
 CERTIFICATE_STATES = {
     "current": ("Current", "success"),
@@ -298,9 +303,71 @@ def certificates_with_state(on):
 
 
 def history(limit=20):
-    """The newest profile changes, newest first: identity, logo and certificates."""
+    """The newest profile changes, newest first: identity, logo, certificates and contacts."""
     return (
         AuditEvent.objects.filter(action__in=PROFILE_ACTIONS)
         .select_related("actor")
         .order_by("-occurred_at")[:limit]
     )
+
+
+def contacts():
+    """The security contact and the privacy contact, in that order. One never recorded is an
+    unsaved LabContact with revision 0, whose fields are blank."""
+    rows = {row.kind: row for row in LabContact.objects.all()}
+    return [rows.get(kind) or LabContact(kind=kind) for kind in LabContact.Kind.values]
+
+
+def contact_values(contact):
+    return {name: getattr(contact, name) for name in CONTACT_FIELDS}
+
+
+@transaction.atomic
+def save_contact(*, actor, kind, values, expected_revision, reason):
+    """Record, change or clear one contact, with a reason. Returns (contact, changed).
+
+    `expected_revision` is the contact's revision the form showed (0 for one never recorded): a
+    change saved in between refuses this one. Blank fields clear the contact.
+    """
+    require_role(actor, *PROFILE_ROLES)
+    if kind not in LabContact.Kind.values:
+        raise ValueError(f"Unknown contact {kind!r}.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError({"reason": "A reason is required."})
+    _lock_lab()  # serializes every profile change, the first save of a contact included
+    contact = LabContact.objects.select_for_update().filter(kind=kind).first()
+    if contact is None:
+        contact = LabContact(kind=kind)
+    # Who may change it is decided again from the account as it stands once the rows are locked:
+    # a role removed or an account deactivated while the request waited counts.
+    current = get_user_model().objects.filter(pk=actor.pk).first()
+    if current is None:
+        raise PermissionDenied("Your role does not permit this action.")
+    require_role(current, *PROFILE_ROLES)
+    if expected_revision is None or contact.revision != expected_revision:
+        raise ValidationError(
+            f"The {contact.get_kind_display().lower()} was changed after you opened this form. "
+            "Your input has been kept; reload and compare the current details before saving "
+            "again."
+        )
+    before = contact_values(contact)
+    for name in CONTACT_FIELDS:
+        setattr(contact, name, " ".join((values.get(name) or "").split()))
+    after = contact_values(contact)
+    if after == before:
+        return contact, False
+    if not after["name"] and any(after.values()):
+        raise ValidationError({"name": "Give the name of the person or office."})
+    contact.full_clean(exclude=["revision"])
+    contact.revision += 1
+    contact.save()
+    record_event(
+        actor=current,
+        action="lab.contact_changed",
+        obj=contact,
+        before={"kind": kind, **before},
+        after={"kind": kind, **after},
+        reason=reason,
+    )
+    return contact, True

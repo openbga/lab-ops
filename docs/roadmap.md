@@ -56,7 +56,7 @@ ships, move it to Built in the same change.
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
 | Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
-| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content |
+| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The public demonstration has no scheduler and keeps email off |
@@ -85,24 +85,6 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
-
-### Security settings and safeguards reference
-
-- **Delivers:** a Security settings page for administrators that gathers the settings protecting
-  sign-in, sessions and patient information, with each change audited and given a reason; the
-  laboratory's privacy contact and security contact in the laboratory profile, shown to staff under
-  Laboratory information; and a safeguards reference in `docs/` that states, for each safeguard
-  cited on this page, what the application records or enforces today and what stays with the
-  laboratory and its host. Each later safeguards item adds its settings to the page and updates the
-  reference. This item also corrects documentation that mentions exports and stored sign-in records
-  the application does not yet have.
-- **Basis:** 45 CFR §164.308(a)(2) and §164.530(a) (a security official, a privacy official and a
-  contact for complaints are designated and documented); §164.308(a)(8) (periodic evaluation);
-  §164.306(d)(3) (an addressable specification is assessed, then implemented or the reason
-  recorded).
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** a risk analysis, any score or checklist that tells a laboratory it complies, and
-  deployment settings.
 
 ### Release security checks
 

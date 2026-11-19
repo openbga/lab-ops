@@ -18,7 +18,10 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
+        # An empty (or blank) policy sends no header: a header cannot be blank or hold a newline.
         policy = getattr(settings, "CONTENT_SECURITY_POLICY", DEFAULT_CONTENT_SECURITY_POLICY)
-        response.setdefault("Content-Security-Policy", policy)
+        policy = " ".join((policy or "").split())
+        if policy:
+            response.setdefault("Content-Security-Policy", policy)
         response.setdefault("Permissions-Policy", DEFAULT_PERMISSIONS_POLICY)
         return response

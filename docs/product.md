@@ -184,7 +184,7 @@ application's request log records the page only, without its search.
 | Any staff role | Read and work authorized tickets. Log contact, assign tickets, manage non-person links, fill form details and save personal views. |
 | Client services or account manager | Maintain client organizations, sites, contacts and portal access. Import organization data. |
 | Supervisor | Read restricted tickets across teams, review eligible complaints, withdraw replies or files, read ticket audit history, share saved views and manage team membership. Choose the owner of a nonconformance, close one they do not own and reopen one. |
-| Administrator role | All operational roles plus laboratory settings, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
+| Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
@@ -225,6 +225,28 @@ retried, no target notice is sent and nothing closes automatically. The Schedule
 administrators when each job last ran, warns when no run happened in the last 30 minutes, and
 lists notices that failed or wait to be retried. Changes the jobs make are recorded under a
 "Scheduled jobs" account that cannot sign in. The demonstration has no scheduler.
+
+## Security settings and contacts
+
+The laboratory profile records the laboratory's security contact and privacy contact: a name or
+office, a title, an email address and a phone number. Every staff member reads them on the
+profile. An administrator records, changes or clears a contact with a reason, and the change is
+kept in the profile's history with the details before and after. The application designates no
+one and checks nothing against a contact.
+
+The Security settings page, for administrators, lists what protects sign-in, sessions and patient
+information in the running deployment and who sets each item: this release's code, the
+application's configuration, a deployment setting, each person, the admin console or a setup page.
+It shows the password rule, the failed sign-in limit, sign-in with an emailed code, session length
+and what ends a session, how many active staff accounts with a role can view patient information,
+how many active staff and portal accounts have a second factor, how many form fields hold patient
+information, and the HTTPS and content security policy settings. It describes this release's
+configuration and follows the deployment settings read from the environment; where a deployment
+has changed a setting in `config/settings.py`, the item says so and names the setting. It
+reports facts and gives no score. Settings a laboratory changes are added to this page by later roadmap items,
+each change with a reason and an audit event. The [safeguards reference](safeguards.md) states,
+for each safeguard the roadmap cites, what the application does today and what stays with the
+laboratory and its host.
 
 ## Record keeping and laboratory policy
 

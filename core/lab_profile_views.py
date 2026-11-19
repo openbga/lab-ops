@@ -4,22 +4,35 @@ Who may change what, and every rule on a change, live in core.lab_profile; these
 collect input, show the service's errors on the form and redirect to the profile.
 """
 
+from functools import wraps
+
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.handlers.exception import response_for_exception
+from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.cache import add_never_cache_headers
 from django.views.decorators.http import require_GET, require_POST
 
-from accounts.roles import require_role, require_staff
+from accounts.roles import effective_roles, require_role, require_staff
+from clients.permissions import MANAGE_ROLES as CLIENT_ROLES
 
 from . import lab_profile as service
 from . import modules
-from .concurrency import protect_form, record_token
-from .lab_profile_forms import LabCertificateForm, LabIdentityForm, LabLogoForm, ModuleSwitchForm
-from .models import AuditEvent, Lab, LabCertificate
+from .concurrency import one_reading, protect_form, record_token
+from .lab_profile_forms import (
+    LabCertificateForm,
+    LabContactForm,
+    LabIdentityForm,
+    LabLogoForm,
+    ModuleSwitchForm,
+)
+from .models import AuditEvent, Lab, LabCertificate, LabContact
 
 CERTIFICATE_ACTIONS = (
     "lab.certificate_added",
@@ -27,7 +40,11 @@ CERTIFICATE_ACTIONS = (
     "lab.certificate_removed",
 )
 MODULE_ACTIONS = ("module.enabled", "module.disabled")
+CONTACT_ACTION = "lab.contact_changed"
 HISTORY_LIMIT = 20
+# A contact form opened from another page returns there: the fixed marker in ?from= names a
+# route, so no address is ever taken from the request.
+CONTACT_RETURNS = {"security": "security-settings"}
 
 
 def _lab():
@@ -74,34 +91,90 @@ def _history():
         elif event.action in MODULE_ACTIONS:
             key = (event.after or {}).get("key", "")
             event.detail = modules.MODULES.get(key, ("",))[0]
+        elif event.action == CONTACT_ACTION:
+            event.detail = contact_label(event)
     return events
 
 
+def contact_label(event):
+    """Which contact a lab.contact_changed event changed and who it names, from the event alone:
+    "Privacy contact: Compliance Office", "...: Compliance Office, now Example Privacy Desk",
+    "...: Compliance Office, cleared"."""
+    before, after = event.before or {}, event.after or {}
+    label = dict(LabContact.Kind.choices).get(after.get("kind") or before.get("kind", ""), "")
+    old, new = before.get("name", ""), after.get("name", "")
+    if old and not new:
+        names = f"{old}, cleared"
+    elif old and new and old != new:
+        names = f"{old}, now {new}"
+    else:
+        names = new
+    return ": ".join(part for part in (label, names) if part)
+
+
+def contact_history(limit=HISTORY_LIMIT):
+    """The newest changes to the security and privacy contacts, newest first, each with `detail`
+    naming the contact."""
+    events = list(
+        AuditEvent.objects.filter(action=CONTACT_ACTION)
+        .select_related("actor")
+        .order_by("-occurred_at")[:limit]
+    )
+    for event in events:
+        event.detail = contact_label(event)
+    return events
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def lab_profile(request):
-    require_staff(request.user)
-    lab = _lab()
-    can_manage = lab is not None and service.can_manage(request.user)
-    certificates = service.certificates_with_state(timezone.localdate()) if lab else []
-    for row in certificates:
-        row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
-        row.label = f"{row.authority} {row.number}"
-        row.token = record_token(row) if can_manage else ""
-    return render(
-        request,
-        "core/lab_profile.html",
-        {
+    # One reading for the access check and the whole page: the panels and the history agree.
+    # The page is drawn after the reading, so what drawing writes is not done inside it.
+    with one_reading():
+        reader = reading_account(request)
+        require_staff(reader)
+        roles = menu_reading(request, reader)
+        lab = _lab()
+        can_manage = lab is not None and service.can_manage(reader)
+        certificates = service.certificates_with_state(timezone.localdate()) if lab else []
+        for row in certificates:
+            row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
+            row.label = f"{row.authority} {row.number}"
+            row.token = record_token(row) if can_manage else ""
+        context = {
             "page_title": "Laboratory profile",
             "lab": lab,
             "logo": service.logo_facts(lab),
             "certificates": certificates,
             "can_manage": can_manage,
             "lab_token": record_token(lab) if can_manage else "",
+            "contacts": service.contacts() if lab else [],
             "history": _history() if lab else [],
             "modules": modules.states(),
-            "can_manage_modules": modules.can_manage(request.user),
-        },
-    )
+            "can_manage_modules": modules.can_manage(reader),
+            **roles,
+        }
+    return render(request, "core/lab_profile.html", context)
+
+
+def reading_account(request):
+    """The signed-in account as it stands in the current reading (core.concurrency.one_reading):
+    its status, organization and roles decide access together with what the page shows. It
+    becomes the request's user, with its groups, so every part of the page drawn after the
+    reading (the account menu, the sidebar) shows the same account."""
+    account = get_user_model().objects.prefetch_related("groups").filter(pk=request.user.pk).first()
+    if account is None:
+        raise PermissionDenied("Your account is no longer available.")
+    request.user = account
+    return account
+
+
+def menu_reading(request, reader):
+    """The menu's reading of the module switches and of the reader's roles, taken in the page's
+    one reading so the menu agrees with the page (they override the context processor's)."""
+    modules.states_for(request)
+    roles = effective_roles(reader)
+    return {"user_roles": roles, "can_manage_clients": bool(roles & set(CLIENT_ROLES))}
 
 
 def _module_title(enable, name):
@@ -156,6 +229,71 @@ def lab_module(request, key):
         },
     )
     add_never_cache_headers(response)  # a refused form shows the reason typed again
+    return response
+
+
+def _never_stored(view):
+    """Every answer of the view, its refusals included (a 403, a 404, the sign-in redirect), is
+    marked never to be stored by the browser or a proxy: a refused form shows what was typed."""
+
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        try:
+            response = view(request, *args, **kwargs)
+        except (Http404, PermissionDenied) as exc:
+            response = response_for_exception(request, exc)
+        add_never_cache_headers(response)
+        return response
+
+    return wrapped
+
+
+@_never_stored
+@login_required
+def lab_contact_edit(request, kind):
+    """Record, change or clear the security contact or the privacy contact (the admin role), with
+    a reason. The title, the initial values and the revision the form carries all come from one
+    reading of the contact; a change saved in between is refused with the input kept."""
+    require_role(request.user, *service.PROFILE_ROLES)
+    if kind not in LabContact.Kind.values:
+        raise Http404("No such contact.")
+    origin = request.GET.get("from", "")
+    back = CONTACT_RETURNS.get(origin, "lab-profile")
+    contact = next(row for row in service.contacts() if row.kind == kind)
+    label = contact.get_kind_display()
+    form = None
+    if _lab() is not None:
+        form = LabContactForm(
+            request.POST if request.method == "POST" else None,
+            initial={**service.contact_values(contact), "expected_revision": contact.revision},
+        )
+        if request.method == "POST" and form.is_valid():
+            try:
+                _, changed = service.save_contact(
+                    actor=request.user,
+                    kind=kind,
+                    values={name: form.cleaned_data[name] for name in service.CONTACT_FIELDS},
+                    expected_revision=form.cleaned_data["expected_revision"],
+                    reason=form.cleaned_data["reason"],
+                )
+            except ValidationError as exc:
+                _service_errors(form, exc)
+            else:
+                if changed:
+                    messages.success(request, f"{label} saved.")
+                else:
+                    messages.info(request, "No changes to save.")
+                return redirect(back)
+    response = render(
+        request,
+        "core/lab_contact_form.html",
+        {
+            "page_title": f"Edit {label.lower()}",
+            "form": form,
+            "contact_label": label,
+            "cancel_url": reverse(back),
+        },
+    )
     return response
 
 

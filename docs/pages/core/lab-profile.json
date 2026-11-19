@@ -4,8 +4,8 @@
     "lab-profile"
   ],
   "title": "Laboratory profile",
-  "purpose": "See the laboratory's identity as staff and clients see it: its name, address, contact details, logo and certificates, and which optional modules are on. The admin laboratory role changes these here.",
-  "summary": "The laboratory's name, address, contact details, logo, certificates and optional modules. The admin role changes them here; every staff role can read them.",
+  "purpose": "See the laboratory's identity as staff and clients see it: its name, address, contact details, logo and certificates, its security and privacy contacts, and which optional modules are on. The admin laboratory role changes these here.",
+  "summary": "The laboratory's name, address, contact details, logo, certificates, security and privacy contacts and optional modules. The admin role changes them here; every staff role can read them.",
   "tasks": [
     {
       "title": "Change the address or contact details",
@@ -26,20 +26,20 @@
       ]
     },
     {
+      "title": "Record the security or privacy contact",
+      "steps": [
+        "Under Security and privacy contacts select [[Security contact]] or [[Privacy contact]], fill in the details, give a reason and save."
+      ]
+    },
+    {
       "title": "Turn an optional module on or off",
       "steps": [
         "Under Optional modules select [[Turn on]] or [[Turn off]] beside the module, give a reason and confirm."
       ]
-    },
-    {
-      "title": "Check whether a certificate is current",
-      "steps": [
-        "Read the Status column. It is worked out from the recorded dates on today's date."
-      ]
     }
   ],
   "good_to_know": [
-    "Client portal accounts see the address, contact details and logo on their portal home. They do not see this page or the certificates.",
+    "Client portal accounts see the address, contact details and logo on their portal home. They do not see this page, the certificates or the security and privacy contacts.",
     "Removing the logo or a certificate keeps its details in the history below.",
     "The application checks nothing against a certificate. It lists what you recorded and makes no accreditation claim.",
     "The laboratory name is set at installation and cannot be changed here.",
@@ -49,7 +49,7 @@
     {
       "title": "Access",
       "paragraphs": [
-        "Every staff laboratory role can read this page, and the Setup menu lists it for each of them. Only the admin laboratory role sees Edit, Upload logo, Replace logo, Add certificate, the Remove buttons, and Turn on and Turn off for optional modules, and the server refuses changes from anyone else. Client portal accounts cannot open this page.",
+        "Every staff laboratory role can read this page, and the Setup menu lists it for each of them. Only the admin laboratory role sees Edit, Upload logo, Replace logo, Add certificate, the Remove buttons, the links on the security and privacy contacts, and Turn on and Turn off for optional modules, and the server refuses changes from anyone else. Client portal accounts cannot open this page.",
         "When the laboratory has not been set up yet, the page shows No laboratory configured and offers no profile changes; the Optional modules panel still shows. Run the setup_lab command first."
       ]
     },
@@ -88,6 +88,26 @@
         {
           "label": "Remove",
           "description": "Admin role only, shown when there is a logo. Asks for confirmation, then the client portal shows the laboratory name without a logo. The image stays stored so the history can show it. If someone changed the profile after you opened this page, the removal is refused; reload and try again."
+        }
+      ]
+    },
+    {
+      "title": "Security and privacy contacts",
+      "paragraphs": [
+        "The person or office your laboratory names for questions about the security of its systems, and the one it names for the privacy of patient information, as the laboratory records them. Every staff role sees them here; the admin role also sees them on Security settings. Client portal accounts do not see them. The application checks nothing against them."
+      ],
+      "items": [
+        {
+          "label": "Contact",
+          "description": "Security contact or Privacy contact. For the admin role the name opens the contact's form, which needs a reason for every change; for everyone else it is plain text."
+        },
+        {
+          "label": "Name or office",
+          "description": "The person or office. Not recorded when the contact has never been saved or was cleared."
+        },
+        {
+          "label": "Title or role, Email, Phone",
+          "description": "As recorded, or a dash when blank. The email address opens your mail program."
         }
       ]
     },
@@ -154,12 +174,12 @@
     {
       "title": "History",
       "paragraphs": [
-        "Every change is audited with the administrator, the time and the values before and after. Module switches also keep the reason given."
+        "Every change is audited with the administrator, the time and the values before and after. Module switches and contact changes also keep the reason given."
       ],
       "items": [
         {
           "label": "History",
-          "description": "The newest 20 profile changes and module switches together, shown oldest first: Lab profile changed (address or contact details), Lab logo changed, Lab logo removed, Lab certificate added, changed or removed with the certificate's authority and number, and Module enabled or Module disabled with the module's name and the reason, each with its time and the administrator who made it."
+          "description": "The newest 20 profile changes, contact changes and module switches together, shown oldest first: Lab profile changed (address or contact details), Lab logo changed, Lab logo removed, Lab certificate added, changed or removed with the certificate's authority and number, Lab contact changed with the contact it changed and the reason, and Module enabled or Module disabled with the module's name and the reason, each with its time and the administrator who made it."
         }
       ]
     }
@@ -175,6 +195,7 @@
     "clients/portal.py",
     "core/modules.py",
     "templates/core/_modules_panel.html",
-    "core/templatetags/ui.py"
+    "core/templatetags/ui.py",
+    "templates/core/_contacts_panel.html"
   ]
 }
