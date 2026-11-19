@@ -128,9 +128,10 @@ state and is refused. An access change that affects several accounts, such as th
 page, takes their gates one at a time in id order: a member it has not reached yet can still
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
-Updates that take no access away, such as a sign-in or the email notice preference, do not wait;
-a full save of the account (its page, a password change) takes the gate and waits for the
-person's change under way. Setup changes (teams, categories,
+Updates that take no access away, such as a sign-in, the email notice preference or a capability
+added to a role, do not wait; a full save of the account (its page, a password change) and
+every save of a portal account's access take the gate and wait for the person's change under
+way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor. The services that reveal patient
 information read the account again after the hold.
 
