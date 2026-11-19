@@ -213,7 +213,7 @@ def test_bytecode_digest_identifies_the_revision_actually_loaded(tmp_path, monke
     name = f"fifth_source_returned_{value}"
     raw = (
         b"# Synthetic module used only in this test.\r\n"
-        b"from config.logging import source_sha256\r\n"
+        b"from config.digest import source_sha256\r\n"
         b"VALUE = 17\r\n"
         b"DIGEST = source_sha256(__file__, __loader__)\r\n"
     )

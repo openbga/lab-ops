@@ -57,9 +57,9 @@ records from that URL. [Product access rules](product.md#roles-and-capabilities)
 running configuration and the database on each request and stores nothing. Each fact describes
 this release's configuration and follows the deployment settings read from the environment. The
 code-level settings a fact depends on are listed with their release values (`RELEASE`), and the
-settings module and the digests of `config/settings.py` and `config/logging.py` are pinned. Each of
-those two files records its own digest while it loads (`config.logging.source_sha256`), so the
-comparison describes exactly the configuration the process runs. When a deployment changes one,
+settings module and the digests of `config/settings.py` and `config/logging.py` are pinned. The
+settings record both digests while the configuration loads, through each module's own loader
+(`config.digest`), so the comparison describes exactly the configuration the process runs. When a deployment changes one,
 the fact says so and names it instead of describing it. Whoever changes either file checks the
 facts and updates the pinned digest (a test fails until then). The page and the
 laboratory profile read in one snapshot (`core.concurrency.one_reading`) and are drawn after it. A laboratory setting

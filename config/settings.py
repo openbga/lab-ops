@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -210,7 +211,11 @@ FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 SOURCE_CODE_URL = os.environ.get("SOURCE_CODE_URL", "https://github.com/openbga/lab-ops")
 
 
-from config.logging import LOGGING, LOGGING_SHA256, source_sha256  # noqa: E402,F401
+import config.logging as _logging_configuration  # noqa: E402
+from config.digest import module_sha256 as _module_sha256  # noqa: E402
+from config.logging import LOGGING  # noqa: E402,F401
 
-# This file's source as loaded (config.logging.source_sha256; core.security_settings).
-SETTINGS_SHA256 = source_sha256(__file__, __loader__)
+# The configuration as it loaded: this file's source and the logging configuration's, each read
+# through its own loader now (config.digest; core.security_settings compares them).
+SETTINGS_SHA256 = _module_sha256(sys.modules.get(__name__))
+LOGGING_SHA256 = _module_sha256(_logging_configuration)

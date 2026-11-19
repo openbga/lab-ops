@@ -53,8 +53,8 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "cdb5ca1c9479a2d2d24923e697af05d89143707b8ff29a51fb6fd2bbad9e13fa"
-RELEASE_LOGGING_SHA256 = "8c573741a37f3120a29334349e93c168eca91efa882983b18858f25cdfb2df30"
+RELEASE_SETTINGS_SHA256 = "a49c1de338bb75d4f776e06b4f1761352e184c62150d68d9716ac26824daec20"
+RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
 
@@ -74,11 +74,11 @@ _LOADED = {"config.settings": "SETTINGS_SHA256", "config.logging": "LOGGING_SHA2
 
 
 def module_digest(module_name):
-    """SHA-256 of a configuration module's source as recorded while it loaded
-    (config.logging.source_sha256): exactly the configuration this process runs, read by the
-    module's own loader, with nothing imported or read here; "" when it could not be read or a
-    loaded settings module does not record it."""
-    return getattr(settings, _LOADED[module_name], "") or ""
+    """SHA-256 of a configuration module's source as config/settings.py recorded it while the
+    configuration loaded (config.digest): exactly what this process runs, with nothing imported
+    or read here. "" when the source could not be read; None when the loaded settings record
+    nothing, which this release's config/settings.py always does."""
+    return getattr(settings, _LOADED[module_name], None)
 
 
 def settings_file_digest():
@@ -259,12 +259,15 @@ def _file_reasons(reading, differ):
             if reading[MODULE]
             else "this deployment's settings were configured without a settings module"
         )
+    if MODULE in differ:
+        # Another settings module: what it recorded describes that module, not these files.
+        return reasons
     for name, _module in _FILE_MODULES:
         if name in differ:
             reasons.append(
-                f"this deployment's {name} differs from it"
-                if reading[name]
-                else f"this deployment's {name} could not be read"
+                f"this deployment's {name} could not be read"
+                if reading[name] == ""
+                else f"this deployment's {name} differs from it"
             )
     return reasons
 
@@ -502,8 +505,9 @@ def _sign_in(facts):
                 "The application passes completed sign-ins, refused passwords, wrong codes "
                 "entered for an existing account and sign-outs made with Sign out to its sign-in "
                 "log (lab_ops.signin), with the username when the account is known. Some "
-                "refusals are not passed: an expired emailed code, a code for an address with no "
-                "account, and a request stopped by the request limit before any check. A session "
+                "refusals are not passed: a code entered after its emailed sign-in attempt "
+                "expired, a code for an address with no account, and a request stopped by the "
+                "request limit before any check. A session "
                 "that stops "
                 "working without Sign out, after a new password or a deactivation, is not passed "
                 "either. Where that log goes and how long it is kept is set by the logging "

@@ -40,6 +40,9 @@ def copied_config(tmp_path):
 
 
 def test_changed_module_and_both_files_are_all_named(copied_config):
+    # Adopted: settings record both digests while loading (confirmation 6 resolution).
+    # F6-02 decision: when another settings module is loaded, only that module is named; what it
+    # records describes itself, not config/settings.py or config/logging.py.
     for name in ("settings.py", "logging.py"):
         with (copied_config / "config" / name).open("a") as source:
             source.write("\n# Synthetic packaging annotation.\n")
@@ -55,8 +58,10 @@ def test_changed_module_and_both_files_are_all_named(copied_config):
         module="confirm_settings",
     )
     assert value == CHANGED
-    names = ("confirm_settings", "config/settings.py", "config/logging.py", "SECURE_HSTS_SECONDS")
-    assert all(name in note for name in names), note
+    assert all(name in note for name in ("confirm_settings", "SECURE_HSTS_SECONDS")), note
+    # The only mention of config/settings.py is where the changed setting lives.
+    assert "config/logging.py" not in note, note
+    assert "config/settings.py differs" not in note and "could not be read" not in note, note
 
 
 def test_manually_configured_django_is_not_described_as_loading_another_module():

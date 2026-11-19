@@ -26,7 +26,7 @@ from django.test import Client, override_settings
 from django.urls import reverse
 
 from accounts import signin_log
-from config.logging import source_sha256
+from config.digest import source_sha256
 from core import security_settings
 from tests.test_review_security_round1 import PASSWORD
 from tests.test_review_security_round1_signoff import probe
@@ -286,7 +286,15 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
     shutil.copytree(ROOT / "config", custom, ignore=ignore)
     shutil.copytree(ROOT / "config", stock, ignore=ignore)
     active = custom / "settings.py"
-    active.write_text(active.read_text().replace("from config.logging", "from .logging"))
+    # Adopted: settings record both digests while loading (confirmation 6 resolution).
+    text = active.read_text()
+    for before_text, after_text in (
+        ("from config.logging", "from .logging"),
+        ("from config.digest", "from .digest"),
+        ("import config.logging as", "from . import logging as"),
+    ):
+        text = text.replace(before_text, after_text)
+    active.write_text(text)
     # This prerequisite belongs only to the inactive package. Both .py files are readable.
     (stock / "__init__.py").write_text('raise RuntimeError("Synthetic package not initialized")\n')
     module, before, outcome = probe(
@@ -302,7 +310,8 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
                        for row in group.facts]
         except RuntimeError as exc:
             outcome = [str(exc)]
-        print(json.dumps([settings.SETTINGS_MODULE, before, outcome]))
+        # Nothing is looked up at request time: the inactive package is never imported.
+        print(json.dumps([settings.SETTINGS_MODULE, before or "config" in sys.modules, outcome]))
         """,
         module="synthetic_site.settings",
     )
@@ -311,7 +320,7 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
 
 
 def loading_digest(name):
-    """What a module loading under `name` records: `config.logging.source_sha256` called with
+    """What a module loading under `name` records: `config.digest.source_sha256` called with
     its own file and loader, as config/settings.py and config/logging.py call it. A module
     that cannot be found has no file and no loader, so nothing is recorded."""
     spec = importlib.util.find_spec(name)
@@ -346,7 +355,7 @@ def test_a_module_records_the_source_it_ran_not_one_that_appears_later(tmp_path,
     monkeypatch.syspath_prepend(str(tmp_path))
     assert loading_digest(name) == ""
     body = (
-        b"from config.logging import source_sha256\nDIGEST = source_sha256(__file__, __loader__)\n"
+        b"from config.digest import source_sha256\nDIGEST = source_sha256(__file__, __loader__)\n"
     )
     source = b"# A synthetic module made available after the first reading.\n" + body
     (tmp_path / f"{name}.py").write_bytes(source)
