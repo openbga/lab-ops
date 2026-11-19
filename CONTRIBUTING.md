@@ -91,14 +91,33 @@ Every pull request also runs the security checks listed in the
 [security policy](SECURITY.md#what-is-checked): static analysis, a dependency audit, a secret scan
 and a container image scan. To run the last three before pushing, install
 [gitleaks](https://github.com/gitleaks/gitleaks), [Grype](https://github.com/anchore/grype) and
-[Syft](https://github.com/anchore/syft), then:
+[Syft](https://github.com/anchore/syft). The commands write their output under `build/`, which Git
+ignores. The dependency audit lists a copy of the files Git would commit, so that local state such
+as `.venv/` or `.local/` is not scanned:
 
 ```sh
-gitleaks git --log-opts=HEAD --redact --config .gitleaks.toml .
-grype dir:. --exclude ./.venv --exclude ./staticfiles --config .grype.yaml --fail-on low
+rm -rf build/scan && mkdir -p build/scan
+git ls-files --cached --others --exclude-standard -z | tar --null -T - -cf - | tar -xf - -C build/scan
+syft scan "dir:$PWD/build/scan" --config .syft.yaml --output cyclonedx-json@1.6=build/dependencies.cdx.json
+python3 tools/security/sbom_coverage.py build/dependencies.cdx.json --locked
+python3 tools/security/grype_gate.py dependencies --grype "$(command -v grype)" build/dependencies.cdx.json
+```
+
+The secret scan reads the history, merge commits included:
+
+```sh
+gitleaks git --log-opts="--diff-merges=first-parent HEAD" --redact --config .gitleaks.toml .
+```
+
+The image scan builds the image, lists it and checks the listing against what the image reports:
+
+```sh
 docker build --tag lab-ops:local .
-syft lab-ops:local --output cyclonedx-json@1.6=sbom.cdx.json
-grype sbom:sbom.cdx.json --config .grype.yaml --only-fixed --fail-on high
+syft scan docker:lab-ops:local --config .syft.yaml --output cyclonedx-json@1.6=build/lab-ops.cdx.json
+docker run --rm --entrypoint python --volume "$PWD/tools/security:/probe:ro" lab-ops:local \
+  /probe/image_contents.py > build/image-contents.json
+python3 tools/security/sbom_coverage.py build/lab-ops.cdx.json --image build/image-contents.json
+python3 tools/security/grype_gate.py image --grype "$(command -v grype)" build/lab-ops.cdx.json
 ```
 
 When a check fails:
@@ -113,6 +132,9 @@ When a check fails:
   reason, and say so in the pull request.
 - **A static analysis alert**: fix the code. A false positive is dismissed in the alert with the
   reason, by a maintainer.
+- **"cannot be trusted"** or **"does not list"**: the check could not prove that it would find a
+  problem, so its clean result is not used. Read the message: a scanner or database that did not
+  load, a setting that hides the known finding, or a package the listing misses.
 
 ### Presentation website
 

@@ -167,6 +167,7 @@ staff and portal journeys at desktop and phone widths. Use a separate database f
 checks. The contributor guide lists the test commands. [Contributing](../CONTRIBUTING.md)
 
 Pull requests and a weekly run on `main` also go through static analysis, a dependency audit, a
-secret scan and a scan of the container image, and build a software bill of materials. They run
-apart from the checks a deployment waits for, so an advisory published for a dependency does not
-stop an unrelated fix from deploying. [Security policy](../SECURITY.md#what-is-checked)
+secret scan and a scan of the container image, and build a software bill of materials. The audit
+and the two scans do not run on pushes to `main`, so an advisory published for a dependency does
+not stop an unrelated fix from deploying. Static analysis does run on those pushes, but an alert
+never fails it. [Security policy](../SECURITY.md#what-is-checked)

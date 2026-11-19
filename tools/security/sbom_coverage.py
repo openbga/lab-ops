@@ -1,14 +1,17 @@
-"""Check that a software bill of materials lists the packages a vulnerability scan must cover.
+"""Check that a software bill of materials lists everything a vulnerability scan must cover.
 
-A scanner that cannot read a lockfile finds nothing to match and reports no vulnerabilities, so
-the security workflow runs this on each SBOM before trusting a clean scan of it
-(SECURITY.md, "What is checked"). Standard library only.
+A scanner that cannot read a lockfile or a package database finds nothing to match and reports
+no vulnerabilities, so the security workflow runs this on each SBOM before trusting a clean scan
+of it (SECURITY.md, "What is checked"). Standard library only.
 
-    python3 tools/security/sbom_coverage.py SBOM --locked    # every package in uv.lock
-    python3 tools/security/sbom_coverage.py SBOM --runtime   # the project's runtime dependencies
+    python3 tools/security/sbom_coverage.py SBOM --locked
+        every package version in uv.lock and static/vendor/package-lock.json
+    python3 tools/security/sbom_coverage.py SBOM --image CONTENTS
+        everything image_contents.py found in the image: the operating system and its packages,
+        Python, and every installed Python package; the project's runtime dependencies among
+        them; and the vendored browser packages
 
-Both modes also require every package in static/vendor/package-lock.json. SBOM is a CycloneDX
-JSON file. Exit status 1 lists what is missing.
+SBOM is a CycloneDX JSON file. Exit status 1 lists what is missing.
 """
 
 import argparse
@@ -20,6 +23,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
+PURL = re.compile(r"^pkg:(?P<type>[\w.+-]+)/(?P<path>[^@?#]+)@(?P<version>[^?#]+)")
 
 
 def normalize(name):
@@ -28,20 +32,33 @@ def normalize(name):
 
 
 def sbom_packages(sbom):
-    """{(ecosystem, name): {versions}} from the package URLs of a CycloneDX document."""
+    """{(ecosystem, name): {versions}} from the package URLs of a CycloneDX document. Debian
+    packages are named without their namespace, npm packages with their scope."""
     found = {}
     for component in sbom.get("components", []):
-        match = re.match(
-            r"^pkg:(?P<type>[\w.+-]+)/(?P<path>[^@?#]+)@(?P<version>[^?#]+)",
-            (component.get("purl") or ""),
-        )
-        if not match or match["type"] not in ("pypi", "npm"):
+        match = PURL.match(component.get("purl") or "")
+        if not match:
             continue
-        name = unquote(match["path"])
-        if match["type"] == "pypi":
-            name = normalize(name)
-        found.setdefault((match["type"], name), set()).add(unquote(match["version"]))
+        kind, path = match["type"], unquote(match["path"])
+        if kind == "pypi":
+            name = normalize(path)
+        elif kind == "deb":
+            name = path.rsplit("/", 1)[-1]
+        elif kind in ("npm", "generic"):
+            name = path
+        else:
+            continue
+        found.setdefault((kind, name), set()).add(unquote(match["version"]))
     return found
+
+
+def operating_systems(sbom):
+    """(name, version) of each operating-system component."""
+    return {
+        (component.get("name", ""), component.get("version", ""))
+        for component in sbom.get("components", [])
+        if component.get("type") == "operating-system"
+    }
 
 
 def locked_python(lock):
@@ -71,66 +88,82 @@ def vendored(lock):
     }
 
 
-def missing(found, ecosystem, expected, every_version=True):
-    """Lines naming what the SBOM lacks. With every_version, each expected version must be
-    listed; otherwise one of them is enough (an image installs one version per platform)."""
+def missing(found, ecosystem, expected):
+    """Lines naming each expected (name, version) the SBOM does not list."""
     lines = []
     for name, versions in sorted(expected.items()):
         listed = found.get((ecosystem, name), set())
-        wanted = sorted(versions)
-        if not listed:
-            lines.append(f"{ecosystem} {name} {' or '.join(wanted)}: not in the SBOM")
-        elif every_version:
-            lines.extend(
-                f"{ecosystem} {name} {version}: the SBOM lists {', '.join(sorted(listed))}"
-                for version in wanted
-                if version not in listed
-            )
-        elif not versions & listed:
-            shown = ", ".join(sorted(listed))
-            lines.append(f"{ecosystem} {name} {' or '.join(wanted)}: the SBOM lists {shown}")
+        for version in sorted(versions):
+            if not listed:
+                lines.append(f"{ecosystem} {name} {version}: not in the SBOM")
+            elif version not in listed:
+                shown = ", ".join(sorted(listed))
+                lines.append(f"{ecosystem} {name} {version}: the SBOM lists {shown}")
     return lines
 
 
-def check(sbom, mode, uv_lock, pyproject, vendor_lock):
-    """(problems, expected count) for an SBOM in mode 'locked' or 'runtime'."""
+def check_locked(sbom, uv_lock, vendor_lock):
+    """(problems, expected count): every locked and vendored package version is listed."""
     found = sbom_packages(sbom)
-    python = locked_python(uv_lock)
+    python, browser = locked_python(uv_lock), vendored(vendor_lock)
+    problems = missing(found, "pypi", python) + missing(found, "npm", browser)
+    return problems, sum(len(v) for v in python.values()) + len(browser)
+
+
+def check_image(sbom, contents, pyproject, vendor_lock):
+    """(problems, expected count): everything the image holds is listed."""
+    deb = {name: set(versions) for name, versions in contents.get("deb", {}).items()}
+    pypi = {}
+    for name, versions in contents.get("pypi", {}).items():
+        pypi.setdefault(normalize(name), set()).update(versions)
+    system = contents.get("os", {})
+    python = contents.get("python", "")
+    if not (deb and pypi and python and system.get("id") and system.get("version_id")):
+        return [
+            "the image listing is incomplete: it must name the operating system, Python and "
+            "the Debian and Python packages"
+        ], 0
+    problems = []
+    absent = sorted(runtime_names(pyproject) - set(pypi))
+    if absent:
+        problems.append(f"runtime dependencies not installed in the image: {absent}")
+    found = sbom_packages(sbom)
     browser = vendored(vendor_lock)
-    if mode == "runtime":
-        names = runtime_names(pyproject)
-        absent = sorted(names - set(python))
-        if absent:
-            return [f"runtime dependencies missing from uv.lock: {absent}"], 0
-        python = {name: python[name] for name in names}
-        problems = missing(found, "pypi", python, every_version=False)
-        expected = len(python)
-    else:
-        problems = missing(found, "pypi", python)
-        expected = sum(len(versions) for versions in python.values())
+    problems += missing(found, "deb", deb)
+    problems += missing(found, "pypi", pypi)
+    problems += missing(found, "generic", {"python": {python}})
     problems += missing(found, "npm", browser)
-    return problems, expected + len(browser)
+    name, release = system["id"], system["version_id"]
+    if not any(
+        os_name == name and (version == release or version.startswith(release + "."))
+        for os_name, version in operating_systems(sbom)
+    ):
+        problems.append(f"operating system {name} {release}: not in the SBOM")
+    expected = sum(len(v) for v in deb.values()) + sum(len(v) for v in pypi.values())
+    return problems, expected + 2 + len(browser)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("sbom", type=Path, help="CycloneDX JSON file")
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--locked", action="store_const", const="locked", dest="mode")
-    mode.add_argument("--runtime", action="store_const", const="runtime", dest="mode")
+    mode.add_argument("--locked", action="store_true", help="every locked package")
+    mode.add_argument("--image", type=Path, metavar="CONTENTS", help="image_contents.py output")
     args = parser.parse_args(argv)
-    problems, expected = check(
-        json.loads(args.sbom.read_text()),
-        args.mode,
-        tomllib.loads((ROOT / "uv.lock").read_text()),
-        tomllib.loads((ROOT / "pyproject.toml").read_text()),
-        json.loads((ROOT / "static/vendor/package-lock.json").read_text()),
-    )
+    sbom = json.loads(args.sbom.read_text())
+    vendor_lock = json.loads((ROOT / "static/vendor/package-lock.json").read_text())
+    if args.locked:
+        uv_lock = tomllib.loads((ROOT / "uv.lock").read_text())
+        problems, expected = check_locked(sbom, uv_lock, vendor_lock)
+    else:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+        contents = json.loads(args.image.read_text())
+        problems, expected = check_image(sbom, contents, pyproject, vendor_lock)
     if problems:
-        print(f"{args.sbom} does not list {len(problems)} of {expected} packages:")
+        print(f"{args.sbom} does not list {len(problems)} of {expected} expected entries:")
         print("\n".join(f"  {line}" for line in problems))
         return 1
-    print(f"{args.sbom} lists all {expected} packages expected ({args.mode}).")
+    print(f"{args.sbom} lists all {expected} expected entries.")
     return 0
 
 

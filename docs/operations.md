@@ -181,8 +181,9 @@ updated base image. To describe what you run, generate an SBOM from your own ima
 from a checkout of the release you deploy (its `.syft.yaml` and `.grype.yaml` apply):
 
 ```sh
-syft lab-ops:local --output spdx-json=sbom.spdx.json
-grype sbom:sbom.spdx.json --config .grype.yaml
+mkdir -p build
+syft scan docker:lab-ops:local --config .syft.yaml --output cyclonedx-json@1.6=build/lab-ops.cdx.json
+grype sbom:build/lab-ops.cdx.json --config .grype.yaml
 ```
 
 The project's checks cover its source and image, not your host, configuration or network.

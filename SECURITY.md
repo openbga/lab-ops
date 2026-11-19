@@ -29,25 +29,29 @@ vulnerability published later for something already in use is reported. The work
 
 | Check | What it covers | What fails it |
 | --- | --- | --- |
-| Static analysis (CodeQL, security-extended queries) | The application's Python code and the GitHub Actions workflows. Tests and browser journeys are left out | A pull request that adds an alert at the repository's failure threshold. Alerts are listed in the repository's Security tab |
-| Dependency audit (Grype) | Every package in `uv.lock`, in all dependency groups; the browser packages under `static/vendor/`, recorded in its `package-lock.json`; the actions the workflows use | Any published vulnerability, fixed or not |
-| Secret scan (gitleaks) | Every commit in the history of the change | A match for gitleaks' default rules that is not a listed synthetic test value |
-| Container image (Grype) | The image the Dockerfile builds: operating-system packages, Python and the installed Python packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
+| Static analysis (CodeQL, security-extended queries) | The application's Python code, its own JavaScript under `static/js/`, and the GitHub Actions workflows. Tests, browser journeys and the vendored third-party files are left out | A pull request that adds an alert at the repository's failure threshold. Alerts are listed in the repository's Security tab |
+| Dependency audit (Grype) | Every package in `uv.lock`, in all dependency groups; the browser packages under `static/vendor/`, recorded in its `package-lock.json`; the actions the workflows use | Any published vulnerability, fixed or not, and an action whose pinned commit is not the release its version comment names |
+| Secret scan (gitleaks) | Every commit in the history of the change, merge commits included, and the history of the two files gitleaks skips by name (`static/vendor/package-lock.json` and `.gitleaks.toml`) | A match for gitleaks' default rules that is not a listed synthetic test value |
+| Container image (Grype) | The image the Dockerfile builds: the operating system and its packages, Python, the installed Python packages and the vendored browser packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
 
-Before scanning, each scan checks that it lists every package it must cover (every locked and
-vendored package, or the image's runtime and vendored packages) and fails if one is missing, so a
-lockfile the scanner cannot read does not pass as a clean result.
+Before trusting a clean result, each check shows that it could have failed. The listing a scan
+reads is compared with what it must contain: every locked and vendored package, or, for the image,
+everything the image itself reports (its operating system, Debian packages, Python and installed
+Python packages). Then the scanner's settings are run against a known finding: package versions
+with published vulnerabilities, or a generated token. If the listing is incomplete, or the known
+finding is not reported, the check fails instead of passing.
 
 Each run also builds a software bill of materials (SBOM) of the container image, in SPDX 2.3 and
-CycloneDX 1.6 JSON, and keeps it with the run for 90 days as the `sbom` artifact. When a release
-is published on GitHub, its SBOM is attached to the release as `lab-ops-<tag>.spdx.json` and
-`lab-ops-<tag>.cdx.json`.
+CycloneDX 1.6 JSON, and keeps it with the run for 90 days as the `sbom` artifact once it has passed
+the comparison above. When a release is published on GitHub, that SBOM is attached to the release
+as `lab-ops-<tag>.spdx.json` and `lab-ops-<tag>.cdx.json`.
 
 A finding that does not apply, or that has no fix to apply yet, is recorded with the reason and
 reviewed like code: a vulnerability in [`.grype.yaml`](.grype.yaml), tied to one package version so
-that it lapses when the package changes, and a synthetic test value in
-[`.gitleaks.toml`](.gitleaks.toml). The actions the workflows use are pinned to commits and kept
-current by Dependabot. gitleaks is pinned to a version and its checksum.
+that it lapses when the package changes, and a synthetic test value, as one exact value, in
+[`.gitleaks.toml`](.gitleaks.toml). Tests reject any other setting in either file. The actions the
+workflows use are pinned to commits and kept current by Dependabot. gitleaks is pinned to a
+version and its checksum.
 
 ## What is not checked
 
@@ -56,7 +60,8 @@ current by Dependabot. gitleaks is pinned to a version and its checksum.
   network and database belong to its operator.
 - The running application is tested by its test suites only, not by a dynamic scanner.
 - Advisories are matched by package name and version. A vulnerability with no published advisory
-  is not found, and a match does not prove the vulnerable code is reachable.
+  is not found, and a match does not prove the vulnerable code is reachable. The vendored
+  third-party files are matched this way only; static analysis does not read them.
 - In the container image, a vulnerability rated below High, or with no published fix, does not
   fail the check. To list every finding, run Grype on the SBOM.
 - The SBOM describes the image built by the check. An image built elsewhere or later can contain

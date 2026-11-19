@@ -5,6 +5,12 @@ name: security
 # bill of materials (SBOM) to each published release. They do not run on pushes to main: the
 # demonstration deploys a main commit once its checks pass, and an advisory published for a
 # dependency must not hold back an unrelated fix. The weekly run reports such an advisory.
+#
+# Before trusting a clean result, each job proves that its scan can fail: the listing is compared
+# with what it must contain, and the scanner's settings are run against a known finding first.
+#
+# There is no concurrency group, so a newer push never cancels a run: the run of a push that
+# carried a secret still reports it after the secret is pushed away.
 on:
   pull_request:
   schedule:
@@ -16,17 +22,12 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: security-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   dependencies:
-    # Every package in uv.lock (all dependency groups), the vendored browser packages listed in
+    # Every package in uv.lock (all dependency groups), the vendored browser packages recorded in
     # static/vendor/package-lock.json and the actions these workflows use. Any known
     # vulnerability fails the job, fixed or not: an unfixed one needs a decision recorded in
-    # .grype.yaml. The packages are listed first and checked against the lockfiles, because a
-    # scanner that cannot read a lockfile reports no vulnerabilities instead of failing.
+    # .grype.yaml.
     name: dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -34,29 +35,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check that each pinned action is the release its comment names
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/security/check_action_pins.py
+      - id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+      - id: grype
+        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
       - name: List the locked and vendored dependencies
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          path: .
-          format: cyclonedx-json@1.6
-          output-file: ${{ runner.temp }}/dependencies.cdx.json
-          upload-artifact: false
-          upload-release-assets: false
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+        run: |
+          "$SYFT" scan dir:. --config .syft.yaml \
+            --output "cyclonedx-json@1.6=$RUNNER_TEMP/dependencies.cdx.json"
       - name: Check that every locked package is listed
         run: python3 tools/security/sbom_coverage.py "$RUNNER_TEMP/dependencies.cdx.json" --locked
       - name: Audit them
-        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
-        with:
-          sbom: ${{ runner.temp }}/dependencies.cdx.json
-          config: .grype.yaml
-          severity-cutoff: low
-          output-format: table
+        env:
+          GRYPE: ${{ steps.grype.outputs.cmd }}
+        run: |
+          python3 tools/security/grype_gate.py dependencies --grype "$GRYPE" \
+            "$RUNNER_TEMP/dependencies.cdx.json"
 
   secrets:
-    # Every commit reachable from the checked-out revision: on a pull request, its own commits
-    # and the history of the branch it targets. Findings are redacted in the log. gitleaks is
-    # downloaded at a pinned version and checked against its published checksum; update both
-    # together from https://github.com/gitleaks/gitleaks/releases.
+    # Every commit reachable from the checked-out revision, merge commits included: on a pull
+    # request, its own commits and the history of the branch it targets. Findings are redacted
+    # in the log. gitleaks is downloaded at a pinned version and checked against its published
+    # checksum; update both together from https://github.com/gitleaks/gitleaks/releases.
     name: secret scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -75,70 +81,90 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+      - name: Check that the settings still report a secret
+        run: |
+          canary="$RUNNER_TEMP/canary"
+          mkdir -p "$canary"
+          token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+          printf 'token = "%s"\n' "$token" > "$canary/settings_local.py"
+          status=0
+          "$RUNNER_TEMP/gitleaks" dir --redact --no-banner --config .gitleaks.toml "$canary" \
+            || status=$?
+          if [ "$status" -ne 1 ]; then
+            echo "::error::gitleaks exited $status on a generated token instead of 1"
+            exit 1
+          fi
       - name: Scan the history for secrets
         run: |
-          "$RUNNER_TEMP/gitleaks" git --log-opts=HEAD --redact --verbose --no-banner \
-            --config .gitleaks.toml .
+          "$RUNNER_TEMP/gitleaks" git --log-opts="--diff-merges=first-parent HEAD" \
+            --redact --verbose --no-banner --config .gitleaks.toml .
+      - name: Scan the files gitleaks skips by name
+        # The default rules skip every package-lock.json and gitleaks' own configuration by path.
+        # Their history is scanned as text, where no path applies.
+        run: |
+          git log -p --diff-merges=first-parent HEAD -- .gitleaks.toml static/vendor/package-lock.json \
+            | "$RUNNER_TEMP/gitleaks" stdin --redact --verbose --no-banner --config .gitleaks.toml
 
   image:
-    # The application image as the Dockerfile builds it, operating-system and Python packages
-    # alike. A vulnerability rated High or Critical with a fixed version fails the job. To list
-    # every finding, whatever its severity or fix state, run Grype on the SBOM artifact.
+    # The application image as the Dockerfile builds it: the operating system and its packages,
+    # Python and the installed Python packages, and the vendored browser packages. A
+    # vulnerability rated High or Critical with a fixed version fails the job. To list every
+    # finding, whatever its severity or fix state, run Grype on the SBOM artifact.
     name: image scan and SBOM
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      sbom-complete: ${{ steps.coverage.outputs.complete }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+      - id: grype
+        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
       - name: Build the application image (no push)
         env:
           REVISION: ${{ github.event.release.tag_name || github.sha }}
         run: |
           revision="${REVISION//[^A-Za-z0-9._-]/-}"
           echo "IMAGE=lab-ops:${revision}" >> "$GITHUB_ENV"
-          mkdir -p sbom
           docker build --tag "lab-ops:${revision}" .
-      - name: SBOM in SPDX
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          image: ${{ env.IMAGE }}
-          config: .syft.yaml
-          format: spdx-json
-          output-file: sbom/lab-ops.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
-      - name: SBOM in CycloneDX
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          image: ${{ env.IMAGE }}
-          config: .syft.yaml
-          format: cyclonedx-json@1.6
-          output-file: sbom/lab-ops.cdx.json
-          upload-artifact: false
-          upload-release-assets: false
+      - name: SBOM in SPDX and CycloneDX
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+        run: |
+          mkdir -p sbom
+          "$SYFT" scan "docker:$IMAGE" --config .syft.yaml \
+            --output spdx-json=sbom/lab-ops.spdx.json \
+            --output cyclonedx-json@1.6=sbom/lab-ops.cdx.json
+      - name: List what the image contains, without the SBOM tool
+        run: |
+          docker run --rm --entrypoint python --volume "$PWD/tools/security:/probe:ro" \
+            "$IMAGE" /probe/image_contents.py > "$RUNNER_TEMP/image-contents.json"
+      - name: Check that the SBOM lists all of it
+        id: coverage
+        run: |
+          python3 tools/security/sbom_coverage.py sbom/lab-ops.cdx.json \
+            --image "$RUNNER_TEMP/image-contents.json"
+          echo "complete=true" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom
           path: sbom/
           if-no-files-found: error
           retention-days: 90
-      - name: Check that the SBOM lists the runtime and vendored packages
-        run: python3 tools/security/sbom_coverage.py sbom/lab-ops.cdx.json --runtime
       - name: Fail on a fixable High or Critical vulnerability
-        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
-        with:
-          sbom: sbom/lab-ops.cdx.json
-          config: .grype.yaml
-          severity-cutoff: high
-          only-fixed: true
-          output-format: table
+        env:
+          GRYPE: ${{ steps.grype.outputs.cmd }}
+        run: python3 tools/security/grype_gate.py image --grype "$GRYPE" sbom/lab-ops.cdx.json
 
   release-sbom:
     # Only this job can write, and it runs no repository code: it attaches the SBOM built above
-    # to the release that triggered the run.
+    # to the release that triggered the run, once the SBOM has passed its coverage check. A
+    # vulnerability found by the image job does not hold the SBOM back.
     name: attach SBOM to release
-    if: ${{ github.event_name == 'release' && !cancelled() }}
+    if: ${{ github.event_name == 'release' && needs.image.outputs.sbom-complete == 'true' && !cancelled() }}
     needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -154,6 +180,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
+          case "$TAG" in
+            "" | -*) echo "::error::Unexpected release tag name"; exit 1 ;;
+          esac
           name="lab-ops-${TAG//[^A-Za-z0-9._-]/-}"
           mv sbom/lab-ops.spdx.json "sbom/${name}.spdx.json"
           mv sbom/lab-ops.cdx.json "sbom/${name}.cdx.json"
