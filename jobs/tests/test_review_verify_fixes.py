@@ -281,7 +281,7 @@ def test_a_locked_lead_account_makes_the_request_busy_until_the_next_run(
 
 @pytest.mark.django_db(transaction=True)
 def test_two_senders_on_different_notices_both_send(monkeypatch, agent, portal_ticket):
-    monkeypatch.setattr(outbox, "send_now", lambda ids: {})
+    monkeypatch.setattr(outbox, "send_now", lambda ids, budget=None: {})
     cases.reply(agent, portal_ticket)
     cases.reply(agent, portal_ticket)
     first, second = Notice.objects.order_by("pk").values_list("pk", flat=True)

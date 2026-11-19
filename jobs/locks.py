@@ -45,3 +45,30 @@ def is_lock_unavailable(exc):
         return False
     cause = exc.__cause__
     return getattr(cause, "sqlstate", None) == LOCK_NOT_AVAILABLE
+
+
+def hold_group_names(user_id, *, nowait=False):
+    """The names of the groups (the roles) account `user_id` belongs to, read and held in one
+    statement until the transaction ends: its group memberships and their groups FOR KEY SHARE,
+    so removing one of them, or deleting the group, waits. A membership added after this
+    statement is not in the reading, so a decision taken from it rests only on rows it holds."""
+    from django.contrib.auth.models import Group
+
+    from accounts.models import User
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("A shared row lock lasts for a transaction; open one first.")
+    through = User.groups.through._meta
+    quote = connection.ops.quote_name
+    sql = (
+        f"SELECT g.{quote(Group._meta.get_field('name').column)} "
+        f"FROM {quote(through.db_table)} AS m "
+        f"JOIN {quote(Group._meta.db_table)} AS g "
+        f"ON g.{quote(Group._meta.pk.column)} = m.{quote(through.get_field('group').column)} "
+        f"WHERE m.{quote(through.get_field('user').column)} = %s "
+        f"ORDER BY m.{quote(through.pk.column)} "
+        f"FOR KEY SHARE OF m, g{' NOWAIT' if nowait else ''}"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [user_id])
+        return {row[0] for row in cursor.fetchall()}

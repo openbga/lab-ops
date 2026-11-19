@@ -8,9 +8,11 @@ as Not sent, reason "email is off", and never sent later, even if email is turne
 anything tried to send it.
 
 Sending: right after the change commits, its notices get a first attempt, so a deployment
-without a scheduler still sends promptly. That attempt stops at the first notice the mail server
-does not take, so a slow or unreachable server delays the person's save by one wait for it
-(EMAIL_TIMEOUT), not one per recipient; the rest wait for the scheduled job. The job
+without a scheduler still sends promptly. The first attempts of one transaction share one wait for
+the mail server (EMAIL_TIMEOUT): they stop at the first notice the server does not take, or once
+that wait has been spent, so a slow or unreachable server delays the person's save by about one
+wait, not one per recipient or per ticket of a bulk action; the rest wait for the scheduled job.
+A notice recorded in a savepoint that rolls back is gone, and so is its first attempt. The job
 `send_notices` (`deliver_due`) retries each waiting notice whose time has come, and stops its
 sweep after STOP_AFTER_FAILURES failures in a row.
 
@@ -108,77 +110,129 @@ def record(*, recipient, topic, object_id, reference, events, data=None):
     )
 
 
-class _AfterCommit:
-    """The notices one transaction recorded, given their first attempt together once it commits,
-    so the whole change (a bulk action over many tickets included) shares one budget."""
+class _Budget:
+    """One wait for the mail server (EMAIL_TIMEOUT), shared by the first attempts of every notice
+    one transaction recorded: the first attempt always starts, and no further one starts after an
+    attempt the server did not take or once the wait has been spent."""
 
     def __init__(self):
+        self.started = None
+        self.failed = False
+
+    def allows_another(self):
+        now = timezone.now()
+        if self.started is None:
+            self.started = now
+            return True
+        wait = timedelta(seconds=settings.EMAIL_TIMEOUT or 0)
+        return not self.failed and now - self.started < wait
+
+
+class _Dispatch:
+    """Notices recorded at one savepoint level of a transaction, given their first attempt once
+    it commits. It is registered with transaction.on_commit at that level, so a savepoint that
+    rolls back drops it together with its notices, and one that is released keeps it for the
+    commit. Every dispatch of one transaction (see _scope) shares one _Budget."""
+
+    def __init__(self, scope, budget):
+        self.scope = scope
+        self.budget = budget
         self.ids = []
         self.done = False
 
     def __call__(self):
         self.done = True
-        send_now(self.ids)
+        if self.ids:
+            send_now(self.ids, budget=self.budget)
 
 
-def after_commit(create=True):
-    """The current transaction's collector: registered with transaction.on_commit the first
-    time. Once that transaction commits or rolls back, its collector is gone (or done) and the
-    next transaction gets a new one. None when `create` is false and there is none yet."""
+def _scope(connection_):
+    """The transaction a change runs in, as the outbox counts it: its outermost atomic block,
+    leaving out blocks a test case opened (Django's TestCase runs each test inside a transaction
+    that never commits, so each change made inside one counts as a transaction of its own).
+    "transaction" when that block began the transaction, else the id of its savepoint."""
+    for index, block in enumerate(connection_.atomic_blocks):
+        if not getattr(block, "_from_testcase", False):
+            if index == 0:
+                return "transaction"
+            return connection_.savepoint_ids[index - 1] or f"block-{index}-{id(block)}"
+    return None
+
+
+def dispatch():
+    """The dispatch of the current savepoint level of the open transaction, registered the first
+    time it is asked for. It shares the budget of the transaction's other dispatches."""
     connection_ = transaction.get_connection()
-    open_savepoints = set(connection_.savepoint_ids)
+    if not connection_.in_atomic_block:
+        raise RuntimeError("Dispatch notices from the transaction that records them.")
+    scope = _scope(connection_)
+    level = set(connection_.savepoint_ids)
+    budget = None
     for savepoints, callback, *_rest in connection_.run_on_commit:
-        # Only a collector of this transaction and of savepoints still open: one registered in
-        # a savepoint since released belongs to an earlier change (inside an enclosing
-        # transaction, as in tests) and is not added to.
-        if (
-            isinstance(callback, _AfterCommit)
-            and not callback.done
-            and savepoints <= open_savepoints
-        ):
-            return callback
-    if not create:
-        return None
-    collector = _AfterCommit()
-    transaction.on_commit(collector)
-    return collector
+        if isinstance(callback, _Dispatch) and callback.scope == scope and not callback.done:
+            if savepoints == level:
+                return callback
+            budget = callback.budget
+    created = _Dispatch(scope, budget or _Budget())
+    transaction.on_commit(created)
+    return created
+
+
+def is_pending(dispatched):
+    """Whether `dispatched` still runs when the transaction now open commits: it is registered in
+    this transaction (as the outbox counts it), has not run, and no rollback has dropped it."""
+    connection_ = transaction.get_connection()
+    if dispatched is None or dispatched.done or not connection_.in_atomic_block:
+        return False
+    if dispatched.scope != _scope(connection_):
+        return False
+    return any(callback is dispatched for _sp, callback, *_rest in connection_.run_on_commit)
 
 
 def send_after_commit(notice_ids):
-    """Give these notices their first attempt once the current transaction commits, with the
-    other notices it recorded. The change has committed by then: nothing that goes wrong while
-    sending reaches the person who made it, and a notice left waiting is the scheduled job's."""
+    """Give these notices their first attempt once the current transaction commits, sharing one
+    wait for the mail server with every other notice it recorded; at once when no transaction is
+    open (they are committed already, for example when called from a commit callback). The
+    change has committed by then: nothing that goes wrong while sending reaches the person who
+    made it, and a notice left waiting is the scheduled job's."""
     ids = list(notice_ids)
-    if ids:
-        after_commit().ids.extend(ids)
+    if not ids:
+        return
+    if not transaction.get_connection().in_atomic_block:
+        send_now(ids)
+        return
+    dispatch().ids.extend(ids)
 
 
-def send_now(notice_ids):
+def send_now(notice_ids, budget=None):
     """A first attempt for each waiting notice, stopping at the first one the mail server does
     not take, and once one wait for the mail server (EMAIL_TIMEOUT) has been spent: the rest wait
-    for the scheduled job. Returns the outcomes counted. Never raises."""
+    for the scheduled job. `budget` is the wait when it is shared with other notices of the same
+    transaction. Returns the outcomes counted. Never raises."""
     counts = Counter()
     try:
         notice_ids = list(notice_ids)
     except Exception as exc:
         logger.warning("Notices left for the scheduled job: error=%s", type(exc).__name__)
         return {"error": 1}
-    started = timezone.now()
-    budget = timedelta(seconds=settings.EMAIL_TIMEOUT or 0)
+    budget = budget or _Budget()
     for index, pk in enumerate(notice_ids):
-        if index and timezone.now() - started >= budget:
-            counts["left_for_next_run"] += len(notice_ids) - index
+        if not budget.allows_another():
+            if not budget.failed:
+                counts["left_for_next_run"] += len(notice_ids) - index
             break
         try:
             outcome = attempt(pk)
         except Exception as exc:
             counts["error"] += 1
+            budget.failed = True
             logger.warning(
                 "Notice left for the scheduled job: notice=%s error=%s", pk, type(exc).__name__
             )
             break
         counts[outcome] += 1
         if outcome in FAILED_OUTCOMES:
+            budget.failed = True
             break
     return dict(counts)
 

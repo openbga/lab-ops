@@ -57,13 +57,12 @@ def notice_breaches(now=None):
     now = now or timezone.now()
     counts = Counter({"breaches": 0, "notices": 0})
     actor = None
-    after = 0  # the last clock looked at: every breached clock gets its turn in each run
+    after = None  # the last clock looked at: every breached clock gets its turn in each run
     while True:
-        page = list(
-            RequestClock.objects.filter(breached_filter(now), pk__gt=after)
-            .order_by("pk")
-            .values_list("pk", "request_id")[:BREACH_BATCH]
-        )
+        page = RequestClock.objects.filter(breached_filter(now))
+        if after is not None:  # no lower bound before the first page: any key is a clock's
+            page = page.filter(pk__gt=after)
+        page = list(page.order_by("pk").values_list("pk", "request_id")[:BREACH_BATCH])
         if not page:
             break
         actor = actor or system_account()

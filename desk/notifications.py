@@ -148,7 +148,9 @@ def wants_notices(user):
     return not UserPreference.objects.filter(user=user, key=OPT_OUT_KEY, value=False).exists()
 
 
-def _staff_can_read(user, request):
+def _staff_can_read(user, request, roles=None):
+    """Whether staff account `user` may read `request`: by staff_requests, with `roles` as the
+    roles it decides from when the caller read and holds them (accounts.roles.held_roles)."""
     from django.core.exceptions import PermissionDenied
 
     from jobs.actor import is_system_account
@@ -160,7 +162,7 @@ def _staff_can_read(user, request):
     if is_system_account(user):  # it does no work, even if someone gave it a role
         return False
     try:
-        return staff_requests(user).filter(pk=request.pk).exists()
+        return staff_requests(user, roles=roles).filter(pk=request.pk).exists()
     except PermissionDenied:
         return False
 
@@ -238,19 +240,28 @@ def prepared(*, user, number, request_id, event, portal):
 
 class _Batch:
     """Notices of one change to one request, recorded in the outbox, one per recipient. Ids and
-    codes only. Their first attempt comes once the change commits, with every other notice the
-    transaction recorded (jobs.outbox.after_commit), so a bulk action shares one mail budget."""
+    codes only. Their first attempt comes once the change commits, sharing one wait for the mail
+    server with every other notice the transaction recorded (jobs.outbox.send_after_commit), so a
+    bulk action waits for a slow mail server about once."""
 
-    def __init__(self, request, collector):
+    def __init__(self, request):
+        from jobs import outbox
+
         self.number = request.number
         self.request_id = request.pk
-        self.collector = collector  # the transaction's jobs.outbox._AfterCommit
-        self.notices = {}  # user pk -> jobs.models.Notice recorded in this change
+        # Registered where the batch began: gone once the transaction commits, or once the
+        # savepoint the batch began in rolls back (taking the batch's notices with it).
+        self.dispatch = outbox.dispatch()
+        self.notices = {}  # user pk -> id of the jobs.models.Notice recorded in this change
 
     def add(self, user, event, entry=None):
         from jobs import outbox
+        from jobs.models import Notice
 
-        notice = self.notices.get(user.pk)
+        pk = self.notices.get(user.pk)
+        # The row as this transaction holds it now: a savepoint that rolled back since took
+        # back what it recorded or added, and a notice it took is recorded again.
+        notice = Notice.objects.filter(pk=pk).first() if pk is not None else None
         if notice is None:
             notice = outbox.record(
                 recipient=user,
@@ -261,12 +272,12 @@ class _Batch:
                 # How the notice was addressed: a portal account is told only client events.
                 data={"portal": user.client_id is not None, "entries": {}},
             )
-            self.notices[user.pk] = notice
-            self.collector.ids.append(notice.pk)
+            self.notices[user.pk] = notice.pk
+            outbox.send_after_commit([notice.pk])
         elif event not in notice.events:
             notice.events = sorted({*notice.events, event})
         if entry is not None:  # a notice about a reply rests on that reply
-            ids = notice.data["entries"].setdefault(event, [])
+            ids = notice.data.setdefault("entries", {}).setdefault(event, [])
             if entry.pk not in ids:
                 ids.append(entry.pk)
         notice.save(update_fields=["events", "data"])
@@ -282,15 +293,14 @@ def _notify(request, user, event, entry=None):
 
 
 def _batch(request):
-    """This change's batch for `request`. A batch belongs to the transaction whose collector it
-    holds: once that commits or rolls back, the next change on the same instance starts a new
-    batch."""
+    """This change's batch for `request`. A batch lasts while the dispatch it began with is still
+    due to run at commit: once the transaction commits, or the savepoint the batch began in rolls
+    back, the next change on the same instance starts a new batch."""
     from jobs import outbox
 
-    collector = outbox.after_commit()
     batch = getattr(request, "_pending_notices", None)
-    if batch is None or batch.collector is not collector:
-        batch = _Batch(request, collector)
+    if batch is None or not outbox.is_pending(batch.dispatch):
+        batch = _Batch(request)
         request._pending_notices = batch
     return batch
 
@@ -307,14 +317,18 @@ def _hold(notice, scope):
       recipient's account (deactivation, an organization move) and the request's category
       (restriction);
     - scope "portal": the recipient's portal access grants;
-    - scope "staff": the recipient's roles and their membership of the request's team;
-    - scope "breach": as "staff", and the request's team and all of its memberships, held only
-      against adding a member or changing a lead (key share), so assigning other tickets goes on.
+    - scope "staff": the recipient's roles, read and held in one statement (the decision takes
+      them from that reading, so a role granted after it does not count), the request's team,
+      held only against adding a member or changing a lead (key share), so assigning other
+      tickets goes on, and the recipient's membership of it;
+    - scope "breach": as "staff", and all of the team's memberships.
 
     The request is waited for briefly (the outbox's lock_timeout); the rest are taken without
     waiting, so the attempt never waits while holding a lock a writer needs, and a busy row leaves
-    the notice for a later attempt. Returns (request, user), or (None, None)."""
+    the notice for a later attempt. Returns (request, user, roles), roles None for "portal", or
+    (None, None, None)."""
     from accounts.models import User
+    from accounts.roles import held_roles
     from clients.models import PortalAccess
     from jobs.locks import share_lock
     from taxonomy.models import RequestCategory
@@ -323,28 +337,28 @@ def _hold(notice, scope):
     from .models import ServiceRequest
 
     if not share_lock(ServiceRequest, [notice.object_id]):
-        return None, None
+        return None, None, None
     share_lock(User, [notice.recipient_id], nowait=True)
     request = ServiceRequest.objects.filter(pk=notice.object_id).first()
     user = User.objects.filter(pk=notice.recipient_id).first()
     if request is None or user is None:
-        return None, None
+        return None, None, None
     share_lock(RequestCategory, [request.category_id], nowait=True)
     if scope == "portal":
         grants = PortalAccess.objects.filter(user=user).values_list("pk", flat=True)
         share_lock(PortalAccess, grants, nowait=True)
-        return request, user
-    roles = User.groups.through.objects.filter(user=user).values_list("pk", flat=True)
-    share_lock(User.groups.through, roles, nowait=True, mode="key share")
+        return request, user, None
+    roles = held_roles(user, nowait=True)
+    # The team first: a member is added under its lock (teams.services), so the memberships read
+    # next cannot gain one before the notice is sent.
+    share_lock(Team, [request.team_id], nowait=True, mode="key share")
     memberships = TeamMembership.objects.filter(team_id=request.team_id)
-    if scope == "breach":
-        share_lock(Team, [request.team_id], nowait=True, mode="key share")
-    else:
+    if scope != "breach":
         memberships = memberships.filter(user=user)
     share_lock(
         TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
     )
-    return request, user
+    return request, user, roles
 
 
 def _replies_still_visible(entries):
@@ -371,7 +385,7 @@ def _client_events_still_true(request, events):
 def prepare_request_notice(notice):
     """`notice` (topic desk.request) worded for sending, or None when it no longer applies."""
     portal = bool(notice.data.get("portal"))
-    request, user = _hold(notice, "portal" if portal else "staff")
+    request, user, roles = _hold(notice, "portal" if portal else "staff")
     if request is None:
         return None
     entries = notice.data.get("entries") or {}
@@ -388,7 +402,7 @@ def prepare_request_notice(notice):
             events
             and request.assignee_id == user.pk
             and wants_notices(user)
-            and _staff_can_read(user, request)
+            and _staff_can_read(user, request, roles)
         ):
             return None
         event = "assigned" if "assigned" in events else "client_reply"
@@ -466,7 +480,7 @@ def prepare_breach_notice(notice):
     which, role = notice.data.get("clock"), notice.data.get("role")
     if which not in BREACH_EVENTS or role not in BREACH_ROLES:
         return None
-    request, user = _hold(notice, "breach")
+    request, user, roles = _hold(notice, "breach")
     if request is None or request.status in (Status.RESOLVED, Status.CLOSED):
         return None
     clock = RequestClock.objects.filter(request=request).first()
@@ -479,7 +493,7 @@ def prepare_breach_notice(notice):
         user.email
         and user.pk in {pk for pk, _role in _breach_roles(request)}
         and wants_notices(user)
-        and _staff_can_read(user, request)
+        and _staff_can_read(user, request, roles)
     ):
         return None
     return prepared(

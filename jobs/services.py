@@ -3,7 +3,7 @@
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
-from accounts.roles import has_role, require_role
+from accounts.roles import held_roles, require_role
 from core.audit import record_event
 
 from .actor import locked_settings
@@ -55,14 +55,11 @@ def update_settings(*, actor, expected_revision, close_resolved_after_days):
     days = _days(close_resolved_after_days)
     row = locked_settings()
     # The account and its roles as they are now, held until this change commits: a
-    # deactivation or a removed role either came first and refuses this change, or waits for it.
+    # deactivation or a removed role either came first and refuses this change, or waits for it,
+    # and the roles are decided from the reading that holds them.
     share_lock(User, [actor.pk])
-    share_lock(
-        User.groups.through,
-        User.groups.through.objects.filter(user_id=actor.pk).values_list("pk", flat=True),
-    )
     current = User.objects.filter(pk=actor.pk, is_active=True, client__isnull=True).first()
-    if current is None or not has_role(current, "admin"):
+    if current is None or "admin" not in held_roles(current):
         raise PermissionDenied("Your role does not permit this action.")
     if expected_revision is None or row.revision != expected_revision:
         raise ValidationError(STALE)

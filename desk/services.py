@@ -119,19 +119,17 @@ def _current_assignee(assignee, team):
     deactivation that comes first makes this check fail, and one that comes after waits, then
     finds the new assignment and returns it to the queue (release_assignments)."""
     from accounts.models import User
-    from accounts.roles import ROLES, has_role
+    from accounts.roles import ROLES, held_roles
     from jobs.actor import is_system_account
-    from jobs.locks import share_lock
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
-    if current is not None:
-        # The roles this check reads, held until the assignment commits: removing one waits.
-        roles = User.groups.through.objects.filter(user_id=current.pk).values_list("pk", flat=True)
-        share_lock(User.groups.through, roles, mode="key share")
+    # The roles this check decides from, read and held in one statement until the assignment
+    # commits: removing one waits, and one granted after the reading does not count.
+    roles = held_roles(current) if current is not None else set()
     if not (
         current is not None
         and not is_system_account(current)  # it does no work, even if someone gave it a role
-        and has_role(current, *ROLES)  # a member without a staff role cannot open the ticket
+        and roles.intersection(ROLES)  # a member without a staff role cannot open the ticket
         and current.is_active
         and current.client_id is None
         and TeamMembership.objects.select_for_update(no_key=True)

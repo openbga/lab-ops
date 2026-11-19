@@ -27,7 +27,11 @@ from django import forms
 from django.contrib import admin
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
-from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
+from django.contrib.auth.forms import (
+    AdminUserCreationForm,
+    ReadOnlyPasswordHashWidget,
+    UserChangeForm,
+)
 from django.contrib.auth.models import Group, Permission
 from django.db import connection, transaction
 from django.db.models import Count, Prefetch
@@ -148,8 +152,25 @@ class AccessRules:
         return data
 
 
+class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
+    """The password status of an account whose password cannot be set, without the link to the
+    password form, which refuses it."""
+
+    template_name = "admin/accounts/reserved_password.html"
+
+
 class AccountChangeForm(AccessRules, UserChangeForm):
-    pass
+    def __init__(self, *args, **kwargs):
+        from jobs.actor import is_system_account
+
+        super().__init__(*args, **kwargs)
+        password = self.fields.get("password")
+        if password is not None and self.instance.pk and is_system_account(self.instance):
+            # Its page is read only and its password form refuses it: offer neither.
+            password.widget = ReservedPasswordWidget()
+            password.help_text = (
+                "Nobody signs in as this account: it has no password, and none can be set."
+            )
 
 
 class AccountCreationForm(AccessRules, AdminUserCreationForm):
