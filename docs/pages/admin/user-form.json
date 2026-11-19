@@ -71,7 +71,7 @@
         },
         {
           "label": "Password",
-          "description": "Change only: read-only password-hash status, never the original secret. Reset password or Set password opens the separate administrator password form; changing this display is not password entry."
+          "description": "Change only: read-only password-hash status, never the original secret. Reset password or Set password opens the separate administrator password form; changing this display is not password entry. The Scheduled jobs account shows its status only: nobody signs in as it, and no password can be set."
         },
         {
           "label": "First name / Last name",

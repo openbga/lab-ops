@@ -103,6 +103,10 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
+- **Fixed:** Steadier email notices after a save (2026-11-19, Scheduled jobs)
+
+  A save that changes several tickets waits for a slow mail server once and stops at its first refusal. The Scheduled jobs account no longer offers Set password.
+
 - **Changed:** Give the ticket subject a full-width heading (2026-11-18, Tickets)
 
   Staff tickets show the number and subject in a smaller heading above the status and actions, leaving more room for the conversation and details.

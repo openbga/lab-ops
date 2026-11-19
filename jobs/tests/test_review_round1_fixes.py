@@ -209,7 +209,7 @@ def test_a_staff_assignment_notice_holds_the_ticket_and_the_assignee(
 @pytest.fixture
 def waiting_notice_for_client(monkeypatch, agent, portal_ticket):
     """A notice recorded and committed whose first attempt did not run."""
-    monkeypatch.setattr(outbox, "send_now", lambda ids: {})
+    monkeypatch.setattr(outbox, "send_now", lambda ids, budget=None: {})
     reply(agent, portal_ticket)
     return Notice.objects.get()
 

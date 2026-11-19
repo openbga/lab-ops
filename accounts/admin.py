@@ -27,7 +27,11 @@ from django import forms
 from django.contrib import admin
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
-from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
+from django.contrib.auth.forms import (
+    AdminUserCreationForm,
+    ReadOnlyPasswordHashWidget,
+    UserChangeForm,
+)
 from django.contrib.auth.models import Group, Permission
 from django.db import connection, transaction
 from django.db.models import Count, Prefetch
@@ -148,8 +152,30 @@ class AccessRules:
         return data
 
 
+class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
+    """The password status of an account whose password cannot be set, with the reason and
+    without the link to the password form, which refuses it."""
+
+    template_name = "admin/accounts/reserved_password.html"
+    explanation = "Nobody signs in as this account: it has no password, and none can be set."
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["explanation"] = self.explanation
+        return context
+
+
 class AccountChangeForm(AccessRules, UserChangeForm):
-    pass
+    def __init__(self, *args, **kwargs):
+        from jobs.actor import is_system_account
+
+        super().__init__(*args, **kwargs)
+        password = self.fields.get("password")
+        if password is not None and self.instance.pk and is_system_account(self.instance):
+            # Its page is read only and its password form refuses it: offer neither. (A read-only
+            # page shows the widget, not the field's help text, so the widget gives the reason.)
+            password.widget = ReservedPasswordWidget()
+            password.help_text = ReservedPasswordWidget.explanation
 
 
 class AccountCreationForm(AccessRules, AdminUserCreationForm):

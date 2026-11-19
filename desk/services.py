@@ -7,7 +7,7 @@ complaints, reply withdrawal and the bulk actions of the request list.
 """
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import connection, transaction
+from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 
 from accounts.roles import require_staff
@@ -119,19 +119,17 @@ def _current_assignee(assignee, team):
     deactivation that comes first makes this check fail, and one that comes after waits, then
     finds the new assignment and returns it to the queue (release_assignments)."""
     from accounts.models import User
-    from accounts.roles import ROLES, has_role
+    from accounts.roles import ROLES, held_roles
     from jobs.actor import is_system_account
-    from jobs.locks import share_lock
 
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
-    if current is not None:
-        # The roles this check reads, held until the assignment commits: removing one waits.
-        roles = User.groups.through.objects.filter(user_id=current.pk).values_list("pk", flat=True)
-        share_lock(User.groups.through, roles, mode="key share")
+    # The roles this check decides from, read and held in one statement until the assignment
+    # commits: removing one waits, and one granted after the reading does not count.
+    roles = held_roles(current, mode="key share") if current is not None else set()
     if not (
         current is not None
         and not is_system_account(current)  # it does no work, even if someone gave it a role
-        and has_role(current, *ROLES)  # a member without a staff role cannot open the ticket
+        and roles.intersection(ROLES)  # a member without a staff role cannot open the ticket
         and current.is_active
         and current.client_id is None
         and TeamMembership.objects.select_for_update(no_key=True)
@@ -142,10 +140,32 @@ def _current_assignee(assignee, team):
     return current
 
 
+def _current_default_team():
+    """The default team as it stands now, locked. A move of the default (teams.services) locks the
+    team it moves from, so one in progress makes this wait; the team is then read again, and if it
+    is no longer the default, the new default is taken instead. On a database with no default,
+    ensure_default_team makes one; if another session made one first, that one is read."""
+    for _attempt in range(3):
+        try:
+            with transaction.atomic():
+                chosen = ensure_default_team()
+        except IntegrityError:  # team_one_default: another session's default committed first
+            continue
+        team = Team.objects.select_for_update(no_key=True).filter(pk=chosen.pk).first()
+        if team is not None and team.is_default:
+            if not team.is_active:
+                raise ValidationError({"team": "This team is inactive."})
+            return team
+    raise ValidationError({"team": "The default team is being changed. Try again."})
+
+
 def _team_and_assignee(team, assignee, category):
     """The team and assignee for a new request, from current state: the caller's team, else
     the category's current default team, else the default team."""
-    team = _current_team(team or category.default_team or ensure_default_team())
+    if team is None and category.default_team is None:
+        team = _current_default_team()
+    else:
+        team = _current_team(team or category.default_team)
     if assignee is not None:
         assignee = _current_assignee(assignee, team)
     return team, assignee
