@@ -3,6 +3,7 @@ its settings can fail before trusting a clean scan), the action pin check, the i
 the text window rewriter the secret scan reads its stream through. The
 workflow's steps are pinned by tests/test_security_checks.py; these hold each script's behaviour."""
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -699,7 +700,9 @@ def make_tree(root):
     return bin_dir, sbin_dir
 
 
-def test_dpkg_files_lists_the_real_paths_of_the_files_packages_installed(tmp_path):
+# Adapted: dpkg_files() now returns {real path: recorded MD5 or None}; the *.md5sums files give
+# the digests.
+def test_dpkg_files_maps_the_real_paths_of_the_files_packages_installed_to_their_md5(tmp_path):
     root = tmp_path.resolve()
     bin_dir, _ = make_tree(root)
     info = root / "info"
@@ -708,14 +711,25 @@ def test_dpkg_files_lists_the_real_paths_of_the_files_packages_installed(tmp_pat
         f"/.\n{bin_dir / 'packaged'}\n{bin_dir / 'alias-of-packaged'}\n{bin_dir / 'gone'}\n\n"
     )
     (info / "other.list").write_text(f"{bin_dir / 'script'}\n")
-    (info / "tool.md5sums").write_text(f"x  {bin_dir / 'copied-in'}\n")
+    relative = str(bin_dir / "packaged").lstrip("/")
+    gone = str(bin_dir / "gone").lstrip("/")
+    (info / "tool.md5sums").write_text(f"{'a' * 32}  {relative}\n{'b' * 32}  {gone}\nnoise\n")
     # dpkg's lists also name the root directory ("/."); a directory is never a program.
     assert image_contents.dpkg_files(info) == {
-        "/",
-        str(bin_dir / "packaged"),
-        str(bin_dir / "script"),
+        "/": None,
+        str(bin_dir / "packaged"): "a" * 32,
+        str(bin_dir / "script"): None,
     }
-    assert image_contents.dpkg_files(root / "no-such-folder") == set()
+    assert image_contents.dpkg_files(root / "no-such-folder") == {}
+
+
+def test_dpkg_files_takes_a_file_only_named_in_md5sums_from_that_file(tmp_path):
+    root = tmp_path.resolve()
+    only = program(root / "usr/bin/only-in-md5sums")
+    info = root / "info"
+    info.mkdir()
+    (info / "tool.md5sums").write_text(f"{'c' * 32}  {only.lstrip('/')}\n")
+    assert image_contents.dpkg_files(info) == {only: "c" * 32}
 
 
 # Adapted: unpackaged_programs() now walks a whole tree (`root`, with `skip` for the pseudo
@@ -739,7 +753,7 @@ def test_unpackaged_programs_finds_an_executable_elf_file_anywhere_under_the_roo
         ]
     )
     # Found at their own paths (a directory's files before its subdirectories).
-    assert sorted(image_contents.unpackaged_programs(str(root), set())) == expected
+    assert sorted(image_contents.unpackaged_programs(str(root), {})) == expected
 
 
 def test_unpackaged_programs_ignores_what_is_not_an_executable_program(tmp_path):
@@ -756,7 +770,7 @@ def test_unpackaged_programs_ignores_what_is_not_an_executable_program(tmp_path)
     (root / "opt/bin/dangling").symlink_to(root / "missing")
     found = program(root / "opt/bin/real-tool")
     (root / "opt/bin/alias-of-real-tool").symlink_to(found)
-    assert image_contents.unpackaged_programs(str(root), set()) == [found]
+    assert image_contents.unpackaged_programs(str(root), {}) == [found]
 
 
 def test_unpackaged_programs_ignores_the_files_a_package_installed(tmp_path):
@@ -765,8 +779,9 @@ def test_unpackaged_programs_ignores_the_files_a_package_installed(tmp_path):
     copied = program(root / "usr/local/bin/copied-in")
     (root / "usr/bin/alias-of-packaged").symlink_to(packaged)
     (root / "usr/local/bin/link-to-packaged").symlink_to(packaged)
-    assert image_contents.unpackaged_programs(str(root), {packaged}) == [copied]
-    assert image_contents.unpackaged_programs(str(root), {packaged, copied}) == []
+    # Adapted: `owned` is {real path: recorded MD5 or None}; None means no digest to compare.
+    assert image_contents.unpackaged_programs(str(root), {packaged: None}) == [copied]
+    assert image_contents.unpackaged_programs(str(root), {packaged: None, copied: None}) == []
 
 
 def test_a_link_into_a_package_directory_is_judged_by_the_file_it_points_at(tmp_path):
@@ -774,9 +789,46 @@ def test_a_link_into_a_package_directory_is_judged_by_the_file_it_points_at(tmp_
     target = program(root / "opt/vendor/vendor-tool")
     (root / "usr/local/bin").mkdir(parents=True)
     (root / "usr/local/bin/vendor-tool").symlink_to(target)
-    assert image_contents.unpackaged_programs(str(root), set()) == [target]
+    assert image_contents.unpackaged_programs(str(root), {}) == [target]
     # The link is skipped as a link; ownership is judged on the real path of the file.
-    assert image_contents.unpackaged_programs(str(root), {target}) == []
+    assert image_contents.unpackaged_programs(str(root), {target: None}) == []
+
+
+def md5_of(data):
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
+def test_a_packaged_program_whose_content_matches_its_recorded_md5_is_not_listed(tmp_path):
+    root = tmp_path.resolve()
+    packaged = program(root / "usr/bin/packaged")
+    assert image_contents.unpackaged_programs(str(root), {packaged: md5_of(ELF)}) == []
+
+
+def test_a_packaged_program_whose_content_differs_from_its_recorded_md5_is_listed(tmp_path):
+    root = tmp_path.resolve()
+    # A binary copied over a packaged file: the path is owned but the content is not.
+    changed = ELF + b"copied over by the Dockerfile"
+    replaced = program(root / "usr/bin/packaged", changed)
+    untouched = program(root / "usr/bin/untouched")
+    owned = {replaced: md5_of(ELF), untouched: md5_of(ELF)}
+    assert image_contents.unpackaged_programs(str(root), owned) == [replaced]
+    # Control: the same file is not listed once its recorded MD5 is that of its content.
+    owned[replaced] = md5_of(changed)
+    assert image_contents.unpackaged_programs(str(root), owned) == []
+
+
+def test_an_owned_program_without_an_md5_entry_is_treated_as_packaged(tmp_path):
+    root = tmp_path.resolve()
+    packaged = program(root / "usr/bin/packaged", ELF + b"any content at all")
+    assert image_contents.unpackaged_programs(str(root), {packaged: None}) == []
+
+
+def test_a_link_to_a_packaged_program_is_judged_by_the_md5_of_the_file_it_points_at(tmp_path):
+    root = tmp_path.resolve()
+    packaged = program(root / "usr/bin/packaged")
+    (root / "usr/bin/alias").symlink_to(packaged)
+    assert image_contents.unpackaged_programs(str(root), {packaged: md5_of(ELF)}) == []
+    assert image_contents.unpackaged_programs(str(root), {packaged: md5_of(b"other")}) == [packaged]
 
 
 def test_unpackaged_programs_does_not_enter_the_skipped_directories(tmp_path):
@@ -787,22 +839,22 @@ def test_unpackaged_programs_does_not_enter_the_skipped_directories(tmp_path):
     kept = program(root / "opt/tool")
     assert image_contents.PSEUDO_FILESYSTEMS == ("/proc", "/sys", "/dev")
     skip = tuple(str(root / folder) for folder in ("proc", "sys", "dev"))
-    assert sorted(image_contents.unpackaged_programs(str(root), set(), skip=skip)) == sorted(
+    assert sorted(image_contents.unpackaged_programs(str(root), {}, skip=skip)) == sorted(
         [kept, str(root / "usr/proc/visible")]
     )
-    assert len(image_contents.unpackaged_programs(str(root), set(), skip=())) == 5
+    assert len(image_contents.unpackaged_programs(str(root), {}, skip=())) == 5
 
 
 def test_unpackaged_programs_skips_a_directory_it_cannot_read_and_a_missing_root(tmp_path):
     root = tmp_path.resolve()
     assert image_contents.unpackaged_programs(str(root / "none"), set()) == []
-    assert image_contents.unpackaged_programs(str(root), set()) == []
+    assert image_contents.unpackaged_programs(str(root), {}) == []
     unreadable = root / "private"
     kept = program(root / "opt/tool")
     program(unreadable / "tool")
     unreadable.chmod(0)
     try:
-        found = image_contents.unpackaged_programs(str(root), set())
+        found = image_contents.unpackaged_programs(str(root), {})
     finally:
         unreadable.chmod(0o755)
     # As root (the probe runs with --user 0) nothing is unreadable, so the tool is found too.
@@ -817,7 +869,7 @@ def test_the_probe_prints_json_in_the_shape_the_coverage_check_reads(monkeypatch
     original = image_contents.os_release, image_contents.deb_packages
     monkeypatch.setattr(image_contents, "os_release", lambda: original[0](tmp_path / "os-release"))
     monkeypatch.setattr(image_contents, "deb_packages", lambda: original[1](tmp_path / "status"))
-    monkeypatch.setattr(image_contents, "dpkg_files", lambda: {"/usr/bin/owned"})
+    monkeypatch.setattr(image_contents, "dpkg_files", lambda: {"/usr/bin/owned": None})
     searched = []
 
     def programs(root, owned):
@@ -830,7 +882,7 @@ def test_the_probe_prints_json_in_the_shape_the_coverage_check_reads(monkeypatch
     assert set(contents) == {"os", "python", "deb", "pypi", "programs"}
     assert contents["programs"] == ["/usr/local/bin/uv"]
     # Adapted: the whole tree is searched from "/", not PATH and fixed directories.
-    assert searched == [("/", {"/usr/bin/owned"})]
+    assert searched == [("/", {"/usr/bin/owned": None})]
     assert contents["os"]["id"] == "debian" and contents["deb"]["libssl3"] == ["1:3.5.1-1"]
     coverage = load("sbom_coverage")
     problems, _ = coverage.check_image(
@@ -855,94 +907,188 @@ def long_line(length, seed=1):
     return random.Random(seed).randbytes(length).replace(b"\n", b"x")
 
 
-def test_the_window_sizes():
-    assert (text_windows.WIDTH, text_windows.OVERLAP) == (20_000, 2_000)
+def stream_segments(data, width=WIDTH, overlap=OVERLAP):
+    return list(text_windows.segments(io.BytesIO(data), width, overlap))
 
 
-def test_a_short_line_is_unchanged_and_followed_by_a_blank_line():
-    assert text_windows.windows(b"+token = 1") == [b"+token = 1"]
-    assert text_windows.windows(b"") == [b""]
-    exact = b"x" * WIDTH
-    assert text_windows.windows(exact) == [exact]
-    assert rewritten(b"+a\n+b\n") == b"+a\n\n+b\n\n"
-    assert rewritten(b"+a\n+b") == b"+a\n\n+b\n\n", "a last line without a newline"
+def armoured(kind, body, block=False):
+    """A key-shaped block assembled at run time, so that no key shape appears in this file's text
+    for the repository's own secret scan to find."""
+    label = kind + b" PRIVATE" + b" KEY" + (b" BLOCK" if block else b"")
+    return b"-----BEGIN " + label + b"-----\n" + body + b"\n-----END " + label + b"-----"
+
+
+def test_the_segment_sizes():
+    assert (text_windows.WIDTH, text_windows.OVERLAP) == (24_000, 20_000)
+    assert text_windows.STEP == WIDTH - OVERLAP == 4_000
+
+
+def test_a_segment_and_its_separator_fit_in_gitleaks_look_ahead():
+    """gitleaks 8.30.1 reads 100,000 bytes and then looks at most 25,000 bytes further for a blank
+    line (maxPeekSize). A separator at least that often makes every chunk end at one."""
+    assert WIDTH + len(b"\n\n") <= 25_000
+
+
+def test_a_pgp_key_with_subkeys_lies_whole_in_some_segment():
+    """A 14 kB armoured key (an RSA-4096 primary key with three subkeys) wherever it starts."""
+    key = armoured(b"PGP", b"A" * 14_000, block=True)
+    for start in range(0, 60_000, 1_237):
+        data = long_line(start) + key + long_line(30_000, seed=2)
+        assert any(key in segment for segment in stream_segments(data)), start
+
+
+def test_empty_input_gives_no_segment_and_no_output():
+    assert stream_segments(b"") == []
     assert rewritten(b"") == b""
-    assert rewritten(b"\n") == b"\n\n"
 
 
-def test_every_line_gets_a_blank_line_after_it():
-    lines = [b"diff --git a/x b/x", b"+" + b"y" * 50_000, b"+short", b" context"]
-    out = rewritten(b"\n".join(lines) + b"\n")
-    pieces = out.split(b"\n")
-    assert pieces[-2:] == [b"", b""], "ends with a blank line"
-    body = pieces[:-1]  # every window is followed by one empty piece
-    assert body[1::2] == [b""] * (len(body) // 2) and all(body[0::2])
-    assert max(map(len, body)) <= WIDTH
+def test_input_shorter_than_the_width_is_one_segment_followed_by_a_blank_line():
+    assert stream_segments(b"+token = 1") == [b"+token = 1"]
+    exact = b"x" * WIDTH
+    assert stream_segments(exact) == [exact]
+    assert rewritten(b"+a\n+b\n") == b"+a\n+b\n\n\n"
+    assert rewritten(b"+a\n+b") == b"+a\n+b\n\n", "a last line without a newline"
+    assert rewritten(b"\n") == b"\n\n\n"
 
 
-@pytest.mark.parametrize(
-    "length",
-    [WIDTH + 1, WIDTH + OVERLAP, 2 * WIDTH, STEP * 2 + OVERLAP, STEP * 2 + OVERLAP + 1, 300_000],
-)
-def test_a_long_line_is_split_into_overlapping_windows_that_cover_it(length):
-    line = long_line(length)
-    pieces = text_windows.windows(line)
+# Lengths around every boundary: one segment, just over, exactly on a step, and long.
+LENGTHS = [
+    WIDTH + 1,
+    WIDTH + STEP - 1,
+    WIDTH + STEP,
+    WIDTH + STEP + 1,
+    2 * WIDTH,
+    STEP * 3 + OVERLAP,
+    STEP * 3 + OVERLAP + 1,
+    300_000,
+]
+
+
+@pytest.mark.parametrize("length", LENGTHS)
+def test_segments_never_exceed_the_width_overlap_by_exactly_the_overlap_and_reach_the_end(length):
+    data = long_line(length)
+    pieces = stream_segments(data)
     assert len(pieces) > 1 and all(0 < len(piece) <= WIDTH for piece in pieces)
-    starts = [index * STEP for index in range(len(pieces))]
-    for start, piece in zip(starts, pieces, strict=True):
-        assert piece == line[start : start + WIDTH]
+    for index, piece in enumerate(pieces):
+        assert piece == data[index * STEP : index * STEP + WIDTH]
     for before, after in zip(pieces, pieces[1:], strict=False):
-        assert before[-OVERLAP:] == after[:OVERLAP], "consecutive windows overlap"
         assert len(before) == WIDTH
-    assert starts[0] == 0 and starts[-1] + len(pieces[-1]) == length, "the last reaches the end"
-    assert pieces[-1] and line.endswith(pieces[-1])
-    # Every slice of at most OVERLAP bytes lies whole in some window (a token cut by one window
-    # is whole in the next).
-    for first in range(0, length - OVERLAP + 1):
+        assert before[-OVERLAP:] == after[:OVERLAP], "consecutive segments overlap"
+        assert len(after) >= OVERLAP, "the overlap is whole"
+    last_start = (len(pieces) - 1) * STEP
+    assert last_start + len(pieces[-1]) == length, "the last segment reaches the end"
+    assert data.endswith(pieces[-1])
+
+
+@pytest.mark.parametrize("length", LENGTHS)
+def test_every_slice_of_up_to_the_overlap_lies_whole_in_some_segment(length):
+    data = long_line(length)
+    pieces = stream_segments(data)
+    starts = [index * STEP for index in range(len(pieces))]
+    for first in range(0, length - OVERLAP + 1, 7):
         assert any(
             start <= first and first + OVERLAP <= start + len(piece)
             for start, piece in zip(starts, pieces, strict=True)
         ), first
+    assert any(
+        start <= length - OVERLAP and length <= start + len(piece)
+        for start, piece in zip(starts, pieces, strict=True)
+    ), "the last OVERLAP bytes"
     for first in list(range(0, length - OVERLAP + 1, 997)) + [length - OVERLAP]:
         for size in (1, 100, OVERLAP):
-            wanted = line[first : first + size]
+            wanted = data[first : first + size]
             assert any(wanted in piece for piece in pieces), (first, size)
 
 
-def test_a_token_across_every_window_boundary_appears_whole():
-    line = b"a" * 70_000
-    pieces = text_windows.windows(line)
+def pem_block(size=3_000):
+    body = b"\n".join(b"A" * 64 for _ in range(size // 65))
+    return armoured(b"RSA", body)
+
+
+def test_a_multi_line_private_key_is_whole_in_some_segment_wherever_it_starts():
+    key = pem_block()
+    assert key.count(b"\n") > 40 and 3_000 <= len(key) <= 3_300
+    filler = b"+some added line of a diff\n" * 3_000  # about 80 kB of lines
+    for offset in list(range(0, 3 * STEP, 331)) + [WIDTH - 1, WIDTH, STEP - 1, STEP, STEP + 1]:
+        data = filler[:offset] + key + b"\n" + filler[: 25_000 - offset % 7_000]
+        assert any(key in piece for piece in stream_segments(data)), offset
+
+
+def test_a_slice_of_the_overlap_that_spans_many_lines_is_whole_in_some_segment():
+    data = b"".join(b"+line %06d of a diff\n" % number for number in range(5_000))
+    pieces = stream_segments(data)
+    for first in range(0, len(data) - OVERLAP + 1, 1_013):
+        assert any(data[first : first + OVERLAP] in piece for piece in pieces), first
+
+
+def test_a_token_across_every_segment_boundary_appears_whole():
+    base = b"a" * 70_000
     token = b"ghp_" + b"T" * (OVERLAP - 4)
+    pieces = stream_segments(base)
     for index in range(1, len(pieces)):
-        boundary = index * STEP + (WIDTH - STEP)  # where window `index - 1` ends
-        planted = line[: boundary - 700] + token + line[boundary - 700 + len(token) :]
-        assert any(token in piece for piece in text_windows.windows(planted)), boundary
+        boundary = (index - 1) * STEP + WIDTH  # where segment `index - 1` ends
+        planted = base[: boundary - 700] + token + base[boundary - 700 + len(token) :]
+        assert any(token in piece for piece in stream_segments(planted)), boundary
 
 
-def test_the_rewritten_stream_holds_each_window_and_a_blank_line():
-    line = long_line(300_000)
-    pieces = text_windows.windows(line)
-    out = rewritten(b"before\n" + line + b"\nafter\n")
-    assert out == b"before\n\n" + b"".join(piece + b"\n\n" for piece in pieces) + b"after\n\n"
-    assert b"\n\n".join(out.split(b"\n\n")) == out
+def test_the_rewritten_stream_holds_each_segment_followed_by_a_blank_line():
+    data = long_line(300_000)
+    pieces = stream_segments(data)
+    out = rewritten(data)
+    assert out == b"".join(piece + b"\n\n" for piece in pieces)
+    assert all(piece + b"\n\n" in out for piece in pieces)
+    assert out.endswith(b"\n\n")
     assert all(len(chunk) <= WIDTH for chunk in out.split(b"\n\n"))
+
+
+def test_a_blank_line_follows_each_segment_of_text_with_many_lines():
+    data = b"".join(b"+line %06d of a diff\n" % number for number in range(6_000))
+    out = rewritten(data)
+    pieces = stream_segments(data)
+    assert out == b"".join(piece + b"\n\n" for piece in pieces)
+    assert len(pieces) > 5 and out.count(b"\n\n") >= len(pieces)
+
+
+def test_a_stream_read_in_small_pieces_gives_the_same_segments():
+    class Dribble(io.RawIOBase):
+        """A pipe that returns what it has, never more than 4 kB per read."""
+
+        def __init__(self, data):
+            self.inner = io.BytesIO(data)
+
+        def readable(self):
+            return True
+
+        def readinto(self, buffer):
+            chunk = self.inner.read(min(len(buffer), 4_096))
+            buffer[: len(chunk)] = chunk
+            return len(chunk)
+
+    data = long_line(95_000)
+    wrapped = io.BufferedReader(Dribble(data), buffer_size=4_096)
+    assert list(text_windows.segments(wrapped)) == stream_segments(data)
 
 
 def test_bytes_that_are_not_utf_8_pass_through_unchanged():
     raw = b"+caf\xe9 \xff\xfe\x80\x00 binary\r"
-    assert rewritten(raw + b"\n") == raw + b"\n\n"
+    assert rewritten(raw + b"\n") == raw + b"\n\n\n"
     huge = b"\xff\xfe" * 60_000
     out = rewritten(huge + b"\n")
-    assert out == b"".join(piece + b"\n\n" for piece in text_windows.windows(huge))
-    assert out.replace(b"\n\n", b"")  # a window is cut by bytes, never decoded
+    assert out == b"".join(piece + b"\n\n" for piece in stream_segments(huge + b"\n"))
+    assert out.replace(b"\n\n", b"")  # a segment is cut by bytes, never decoded
     with pytest.raises(UnicodeDecodeError):
         raw.decode()
 
 
 def test_the_command_rewrites_standard_input_to_standard_output():
     script = text_windows.__file__
-    data = b"+one\n+two \xff\n" + b"+" + b"z" * 25_000 + b"\n"
+    data = b"+one\n+two \xff\n" + b"+" + b"z" * 45_000 + b"\n"
     done = subprocess.run(
         [sys.executable, "-I", script], input=data, capture_output=True, check=True
     )
     assert done.stdout == rewritten(data) and not done.stderr
+    assert done.stdout.endswith(b"\n\n") and len(done.stdout) > len(data)
+    empty = subprocess.run(
+        [sys.executable, "-I", script], input=b"", capture_output=True, check=True
+    )
+    assert empty.stdout == b""

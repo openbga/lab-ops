@@ -391,6 +391,16 @@ def test_control_the_reusable_workflow_is_matched_under_its_repository_name(tmp_
 # ========================= W-03 the text stream is scanned in chunks that can split a token
 
 
+# Adapted (coordinator, round 4 resolution): gitleaks 8.30.1's default rules pass over a value
+# that contains "false" or ends in "null" (the global allowlist regex `(?i)^true|false|null$`), so
+# among 6,000 random tokens one occasionally went unreported for that reason, not because of a
+# chunk cut. The planted tokens therefore have no letter l; SECURITY.md states the default rules'
+# behaviour.
+def unexcused_token():
+    alphabet = "".join(c for c in string.ascii_letters + string.digits if c not in "lL")
+    return "ghp" + "_" + "".join(random.SystemRandom().choice(alphabet) for _ in range(36))
+
+
 def test_the_stream_scan_reports_every_token_in_a_file_the_file_by_file_scan_skips(tmp_path):
     """secrets.yml: the history is scanned again "as one text stream, where no file is skipped
     by its name". gitleaks reads stdin in chunks (100 kB, then up to 25 kB more looking for a
@@ -398,7 +408,7 @@ def test_the_stream_scan_reports_every_token_in_a_file_the_file_by_file_scan_ski
     so a long line is cut where a read ends and a token across the cut is not reported. The
     file-by-file scan skips package-lock.json by path, so nothing else reads it."""
     repo = new_repo(tmp_path / "repo")
-    tokens = [fake_token() for _ in range(6000)]
+    tokens = [unexcused_token() for _ in range(6000)]
     lock = '{"lockfileVersion": 3, "note": "' + " ".join(tokens) + '"}\n'
     commit(repo, {"static/vendor/package-lock.json": lock}, "record vendored packages")
     history = secrets_step("Scan the history for secrets, file by file")

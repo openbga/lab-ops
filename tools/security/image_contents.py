@@ -7,6 +7,7 @@ so the listing does not depend on the SBOM tool it is used to check. Standard li
         /probe/image_contents.py > image-contents.json
 """
 
+import hashlib
 import json
 import os
 import platform
@@ -45,19 +46,36 @@ def deb_packages(path=Path("/var/lib/dpkg/status")):
 
 
 def dpkg_files(info=Path("/var/lib/dpkg/info")):
-    """The real paths of every file the Debian packages installed."""
-    owned = set()
+    """{real path: recorded MD5 or None} for every file the Debian packages installed."""
+    owned = {}
     for listing in info.glob("*.list"):
         for line in listing.read_text(errors="replace").splitlines():
             if line.strip() and os.path.lexists(line.strip()):
-                owned.add(os.path.realpath(line.strip()))
+                owned.setdefault(os.path.realpath(line.strip()), None)
+    for sums in info.glob("*.md5sums"):
+        for line in sums.read_text(errors="replace").splitlines():
+            digest, _, relative = line.partition("  ")
+            if relative:
+                path = "/" + relative.strip()
+                if os.path.lexists(path):
+                    owned[os.path.realpath(path)] = digest.strip()
     return owned
+
+
+def _md5(path):
+    digest = hashlib.md5(usedforsecurity=False)
+    with open(path, "rb") as content:
+        for block in iter(lambda: content.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def unpackaged_programs(root, owned, skip=PSEUDO_FILESYSTEMS):
     """The paths of the executable programs (ELF files with an execute bit, not shared objects)
-    anywhere under `root` that no Debian package installed, such as a tool the Dockerfile copies
-    in or Python built from source. Run as root, so that no directory is unreadable."""
+    anywhere under `root` that no Debian package installed as they are now, such as a tool the
+    Dockerfile copies in, Python built from source, or a binary copied over a packaged file (its
+    content no longer matches the MD5 dpkg recorded). `owned` maps a packaged file's real path to
+    that MD5. Run as root, so that no directory is unreadable."""
     found = []
     for top, dirs, files in os.walk(root):
         dirs[:] = sorted(d for d in dirs if os.path.join(top, d) not in skip)
@@ -67,11 +85,15 @@ def unpackaged_programs(root, owned, skip=PSEUDO_FILESYSTEMS):
                 info = os.lstat(path)
                 if not stat.S_ISREG(info.st_mode) or not info.st_mode & 0o111:
                     continue
-                if SHARED_OBJECT.search(name) or os.path.realpath(path) in owned:
+                if SHARED_OBJECT.search(name):
                     continue
                 with open(path, "rb") as program:
-                    if program.read(4) == b"\x7fELF":
-                        found.append(path)
+                    if program.read(4) != b"\x7fELF":
+                        continue
+                real = os.path.realpath(path)
+                if real in owned and (owned[real] is None or owned[real] == _md5(path)):
+                    continue
+                found.append(path)
             except OSError:
                 continue
     return found

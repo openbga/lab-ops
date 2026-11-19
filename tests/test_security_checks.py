@@ -873,7 +873,7 @@ SECRETS_WORKFLOW = {
                         r"""
                         canary="$RUNNER_TEMP/canary"
                         mkdir -p "$canary"
-                        token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+                        token="ghp_$(LC_ALL=C tr -dc 'A-KM-Za-km-z0-9' < /dev/urandom | head -c 36)"
                         printf 'token = "%s"\n' "$token" > "$canary/settings_local.py"
                         status=0
                         "$RUNNER_TEMP/gitleaks" dir --ignore-gitleaks-allow --redact --no-banner \
