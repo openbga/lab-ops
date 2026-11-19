@@ -34,6 +34,10 @@ vulnerability published later for something already in use is reported. The work
 | Secret scan (gitleaks) | Every commit in the history of the change | A match for gitleaks' default rules that is not a listed synthetic test value |
 | Container image (Grype) | The image the Dockerfile builds: operating-system packages, Python and the installed Python packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
 
+Before scanning, each scan checks that it lists every package it must cover (every locked and
+vendored package, or the image's runtime and vendored packages) and fails if one is missing, so a
+lockfile the scanner cannot read does not pass as a clean result.
+
 Each run also builds a software bill of materials (SBOM) of the container image, in SPDX 2.3 and
 CycloneDX 1.6 JSON, and keeps it with the run for 90 days as the `sbom` artifact. When a release
 is published on GitHub, its SBOM is attached to the release as `lab-ops-<tag>.spdx.json` and

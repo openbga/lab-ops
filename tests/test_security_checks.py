@@ -458,13 +458,19 @@ def test_security_workflow_triggers():
 
 def test_dependency_job_audits_everything_without_only_fixed():
     text = read(f"{WORKFLOWS}/security.yml")
-    steps = [s for s in workflow_steps(text) if s[0] == "dependencies" and "scan-action" in s[1]]
-    assert len(steps) == 1, f"expected one Grype step in 'dependencies', found {len(steps)}"
-    inputs = steps[0][2]
-    assert inputs.get("path") == ".", inputs
+    steps = [s for s in workflow_steps(text) if s[0] == "dependencies"]
+    listings = [s[2] for s in steps if s[1] == "anchore/sbom-action"]
+    assert len(listings) == 1 and listings[0].get("path") == ".", listings
+    scans = [s[2] for s in steps if "scan-action" in s[1]]
+    assert len(scans) == 1, f"expected one Grype step in 'dependencies', found {len(scans)}"
+    inputs = scans[0]
+    assert inputs.get("sbom") == listings[0].get("output-file"), "Grype must scan that listing"
     assert inputs.get("severity-cutoff") == "low", inputs
     assert inputs.get("only-fixed", "false") != "true", "only-fixed would hide unfixed findings"
-    assert "sbom" not in inputs
+    # A scanner that cannot read uv.lock reports nothing, so coverage is checked before the scan.
+    body = "\n".join(jobs(text)["dependencies"])
+    assert re.search(r"sbom_coverage\.py \S*dependencies\.cdx\.json\S* --locked", body), body
+    assert body.index("sbom_coverage.py") < body.index("anchore/scan-action")
 
 
 def test_image_job_builds_both_sboms_and_gates_on_fixed_high_findings():
@@ -477,6 +483,9 @@ def test_image_job_builds_both_sboms_and_gates_on_fixed_high_findings():
     assert "+javascript-lock-cataloger" in read(".syft.yaml")
     uploads = [s[2] for s in image if s[1] == "actions/upload-artifact"]
     assert [u.get("name") for u in uploads] == ["sbom"], uploads
+    body = "\n".join(jobs(text)["image"])
+    assert "sbom_coverage.py sbom/lab-ops.cdx.json --runtime" in body, "image SBOM coverage"
+    assert body.index("sbom_coverage.py") < body.index("anchore/scan-action")
     gates = [s[2] for s in image if s[1] == "anchore/scan-action"]
     assert len(gates) == 1, f"expected one Grype gate in 'image', found {len(gates)}"
     assert gates[0].get("sbom"), "the gate must scan the SBOM"
