@@ -1,6 +1,6 @@
 """The security workflow trusts a clean scan only after tools/security/sbom_coverage.py has shown
-that the SBOM lists what the scan must cover: a scanner that cannot read a lockfile reports no
-vulnerabilities rather than an error. These tests hold the script to that."""
+that the SBOM lists what the scan must cover: a scanner that cannot read a lockfile or a package
+database reports no vulnerabilities rather than an error. These tests hold the script to that."""
 
 import importlib.util
 import json
@@ -34,31 +34,71 @@ VENDOR = {
         "node_modules/@fontsource-variable/overpass": {"version": "5.3.0"},
     },
 }
+# What image_contents.py reports for a small image: Debian 13, Python 3.14.10, two Debian
+# packages (one with an epoch) and the Python packages the image holds, which include a
+# transitive dependency (asgiref) and tools the project does not name.
+CONTENTS = {
+    "os": {"id": "debian", "version_id": "13"},
+    "python": "3.14.10",
+    "deb": {"libc6": ["2.41-12"], "libssl3": ["1:3.5.1-1"]},
+    "pypi": {
+        "Django": ["5.2.19"],
+        "psycopg_binary": ["3.3.8"],
+        "asgiref": ["3.8.1"],
+        "pip": ["25.1"],
+    },
+}
 
 
-def sbom(*purls):
-    return {"components": [{"purl": purl} for purl in purls]}
+def sbom(*purls, operating_system=("debian", "13")):
+    components = [{"purl": purl} for purl in purls]
+    if operating_system:
+        name, version = operating_system
+        components.append({"type": "operating-system", "name": name, "version": version})
+    return {"components": components}
 
 
-COMPLETE = sbom(
+LOCKED_PURLS = [
     "pkg:pypi/django@5.2.19",
     "pkg:pypi/psycopg-binary@3.3.8",
     "pkg:pypi/pytest@9.0.0",
     "pkg:npm/htmx.org@2.0.11",
     "pkg:npm/%40fontsource-variable/overpass@5.3.0",
-    "pkg:deb/debian/libc6@2.36?arch=amd64",
-)
+]
+LOCKED = sbom(*LOCKED_PURLS)
+IMAGE_PURLS = [
+    "pkg:pypi/django@5.2.19",
+    "pkg:pypi/psycopg-binary@3.3.8",
+    "pkg:pypi/asgiref@3.8.1",
+    "pkg:pypi/pip@25.1",
+    "pkg:npm/htmx.org@2.0.11",
+    "pkg:npm/%40fontsource-variable/overpass@5.3.0",
+    "pkg:deb/debian/libc6@2.41-12?arch=amd64&distro=debian-13",
+    "pkg:deb/debian/libssl3@1%3A3.5.1-1?arch=amd64&distro=debian-13",
+    "pkg:generic/python@3.14.10",
+]
+IMAGE = sbom(*IMAGE_PURLS)
 
 
-def run(document, mode):
-    return coverage.check(document, mode, UV_LOCK, PYPROJECT, VENDOR)
+def without(purls, *fragments):
+    """The package URLs that hold none of the fragments."""
+    return [p for p in purls if not any(f in p for f in fragments)]
 
 
-@pytest.mark.parametrize("mode", ["locked", "runtime"])
-def test_a_complete_sbom_passes(mode):
-    problems, expected = run(COMPLETE, mode)
-    assert problems == []
-    assert expected == (5 if mode == "locked" else 4)
+def check_locked(document, uv_lock=UV_LOCK):
+    return coverage.check_locked(document, uv_lock, VENDOR)
+
+
+def check_image(document, contents=CONTENTS, pyproject=PYPROJECT):
+    return coverage.check_image(document, contents, pyproject, VENDOR)
+
+
+# ------------------------------------------------------------------------- locked mode
+
+
+def test_a_complete_locked_listing_passes():
+    problems, expected = check_locked(LOCKED)
+    assert problems == [] and expected == 5
 
 
 def test_the_project_itself_is_not_expected():
@@ -66,78 +106,218 @@ def test_the_project_itself_is_not_expected():
 
 
 def test_a_missing_locked_package_is_reported_by_name_and_version():
-    document = sbom(*[c["purl"] for c in COMPLETE["components"] if "pytest" not in c["purl"]])
-    problems, _ = run(document, "locked")
+    problems, _ = check_locked(sbom(*without(LOCKED_PURLS, "pytest")))
     assert problems == ["pypi pytest 9.0.0: not in the SBOM"]
-    assert run(document, "runtime")[0] == [], "a development tool is not in the image"
 
 
 def test_a_different_version_is_reported():
-    document = sbom("pkg:pypi/django@5.2.0", *[c["purl"] for c in COMPLETE["components"][1:]])
-    assert run(document, "runtime")[0] == ["pypi django 5.2.19: the SBOM lists 5.2.0"]
+    document = sbom("pkg:pypi/django@5.2.0", *without(LOCKED_PURLS, "django"))
+    problems, _ = check_locked(document)
+    assert problems == ["pypi django 5.2.19: the SBOM lists 5.2.0"]
 
 
-def test_vendored_browser_packages_are_required_in_both_modes():
-    document = sbom(*[c["purl"] for c in COMPLETE["components"] if "npm" not in c["purl"]])
-    for mode in ("locked", "runtime"):
-        problems, _ = run(document, mode)
-        assert problems == [
-            "npm @fontsource-variable/overpass 5.3.0: not in the SBOM",
-            "npm htmx.org 2.0.11: not in the SBOM",
-        ]
+def test_vendored_browser_packages_are_required():
+    document = sbom(
+        "pkg:pypi/django@5.2.19", "pkg:pypi/psycopg-binary@3.3.8", "pkg:pypi/pytest@9.0.0"
+    )
+    problems, _ = check_locked(document)
+    assert problems == [
+        "npm @fontsource-variable/overpass 5.3.0: not in the SBOM",
+        "npm htmx.org 2.0.11: not in the SBOM",
+    ]
 
 
 def test_an_empty_sbom_fails():
-    problems, expected = run({"components": []}, "locked")
+    problems, expected = check_locked({"components": []})
     assert len(problems) == expected == 5
 
 
-def test_names_compare_as_python_normalizes_them():
-    document = sbom("pkg:pypi/Django@5.2.19", "pkg:pypi/psycopg_binary@3.3.8")
-    assert not coverage.missing(
-        coverage.sbom_packages(document),
-        "pypi",
-        {"django": {"5.2.19"}, "psycopg-binary": {"3.3.8"}},
-    )
-
-
-def test_a_package_locked_at_two_versions_needs_both_listed_but_the_image_only_one():
+def test_a_package_locked_at_two_versions_needs_both_listed():
     forked = {
         "package": [
             *UV_LOCK["package"],
             {"name": "Django", "version": "4.2.24", "source": {"registry": "x"}},
         ]
     }
-    problems, expected = coverage.check(COMPLETE, "locked", forked, PYPROJECT, VENDOR)
+    assert coverage.locked_python(forked)["django"] == {"5.2.19", "4.2.24"}
+    problems, expected = check_locked(LOCKED, forked)
     assert problems == ["pypi django 4.2.24: the SBOM lists 5.2.19"] and expected == 6
-    problems, _ = coverage.check(COMPLETE, "runtime", forked, PYPROJECT, VENDOR)
-    assert problems == []
-    stale = sbom("pkg:pypi/django@5.1.0", *[c["purl"] for c in COMPLETE["components"][1:]])
-    problems, _ = coverage.check(stale, "runtime", forked, PYPROJECT, VENDOR)
-    assert problems == ["pypi django 4.2.24 or 5.2.19: the SBOM lists 5.1.0"]
+    both = sbom("pkg:pypi/django@4.2.24", *LOCKED_PURLS)
+    assert check_locked(both, forked)[0] == []
+    only_old = sbom("pkg:pypi/django@4.2.24", *without(LOCKED_PURLS, "django"))
+    assert check_locked(only_old, forked)[0] == ["pypi django 5.2.19: the SBOM lists 4.2.24"]
 
 
-def test_a_runtime_dependency_absent_from_the_lock_is_reported():
-    problems, _ = coverage.check(
-        COMPLETE, "runtime", UV_LOCK, {"project": {"dependencies": ["gunicorn>=26"]}}, VENDOR
+def test_names_compare_as_python_normalizes_them():
+    document = sbom("pkg:pypi/Django@5.2.19", "pkg:pypi/psycopg_binary@3.3.8")
+    found = coverage.sbom_packages(document)
+    assert ("pypi", "django") in found and ("pypi", "psycopg-binary") in found
+    assert not coverage.missing(found, "pypi", {"django": {"5.2.19"}, "psycopg-binary": {"3.3.8"}})
+
+
+def test_package_urls_decode_by_ecosystem():
+    found = coverage.sbom_packages(
+        sbom(
+            "pkg:deb/debian/libssl3@1%3A2.38-1?arch=amd64",
+            "pkg:npm/%40scope/name@1.0.0",
+            "pkg:generic/python@3.14.10",
+            "pkg:golang/example.com/x@v1.0.0",
+            "pkg:github/actions/checkout@v7",
+        )
     )
-    assert problems == ["runtime dependencies missing from uv.lock: ['gunicorn']"]
+    assert found == {
+        ("deb", "libssl3"): {"1:2.38-1"},
+        ("npm", "@scope/name"): {"1.0.0"},
+        ("generic", "python"): {"3.14.10"},
+    }
+
+
+# -------------------------------------------------------------------------- image mode
+
+
+def test_a_complete_image_listing_passes():
+    problems, expected = check_image(IMAGE)
+    assert problems == []
+    assert expected == 2 + 4 + 1 + 1 + 2  # deb, pypi, Python, operating system, vendored
+
+
+def test_a_missing_debian_package_is_reported():
+    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "libc6")))
+    assert problems == ["deb libc6 2.41-12: not in the SBOM"]
+
+
+def test_a_missing_transitive_python_package_is_reported():
+    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "asgiref")))
+    assert problems == ["pypi asgiref 3.8.1: not in the SBOM"]
+
+
+def test_a_missing_python_interpreter_is_reported():
+    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "pkg:generic/python")))
+    assert problems == ["generic python 3.14.10: not in the SBOM"]
+
+
+def test_a_missing_operating_system_component_is_reported():
+    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=None))
+    assert problems == ["operating system debian 13: not in the SBOM"]
+    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=("alpine", "3.22")))
+    assert problems == ["operating system debian 13: not in the SBOM"]
+
+
+def test_an_operating_system_listed_with_a_point_release_matches():
+    assert check_image(sbom(*IMAGE_PURLS, operating_system=("debian", "13.1")))[0] == []
+    problems, _ = check_image(sbom(*IMAGE_PURLS, operating_system=("debian", "130")))
+    assert problems
+
+
+def test_a_missing_vendored_package_is_reported():
+    problems, _ = check_image(sbom(*without(IMAGE_PURLS, "pkg:npm/htmx.org")))
+    assert problems == ["npm htmx.org 2.0.11: not in the SBOM"]
+
+
+def test_a_deb_version_with_an_epoch_decodes():
+    found = coverage.sbom_packages(sbom("pkg:deb/debian/libssl3@1%3A2.38?arch=amd64"))
+    assert found[("deb", "libssl3")] == {"1:2.38"}
+    contents = {**CONTENTS, "deb": {"libc6": ["2.41-12"], "libssl3": ["1:2.38"]}}
+    document = sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@1%3A2.38")
+    assert check_image(document, contents)[0] == []
+    stale = sbom(*without(IMAGE_PURLS, "libssl3"), "pkg:deb/debian/libssl3@2.38")
+    assert check_image(stale, contents)[0] == ["deb libssl3 1:2.38: the SBOM lists 2.38"]
+
+
+def test_python_names_in_the_listing_are_normalised():
+    document = sbom(*without(IMAGE_PURLS, "psycopg"), "pkg:pypi/psycopg_binary@3.3.8")
+    assert check_image(document)[0] == []
+
+
+def test_a_package_the_image_holds_at_two_versions_needs_both():
+    contents = {**CONTENTS, "pypi": {**CONTENTS["pypi"], "Django": ["5.2.19", "4.2.24"]}}
+    problems, _ = check_image(IMAGE, contents)
+    assert problems == ["pypi django 4.2.24: the SBOM lists 5.2.19"]
+
+
+def test_a_runtime_dependency_not_installed_in_the_image_fails():
+    pyproject = {"project": {"dependencies": ["Django>=5", "gunicorn>=26"]}}
+    problems, _ = check_image(IMAGE, pyproject=pyproject)
+    assert problems == ["runtime dependencies not installed in the image: ['gunicorn']"]
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        {},
+        {**CONTENTS, "deb": {}},
+        {**CONTENTS, "pypi": {}},
+        {**CONTENTS, "python": ""},
+        {**CONTENTS, "os": {}},
+        {**CONTENTS, "os": {"id": "debian"}},
+        {key: value for key, value in CONTENTS.items() if key != "os"},
+    ],
+    ids=["empty", "no deb", "no pypi", "no python", "no os", "no os version", "os key missing"],
+)
+def test_an_incomplete_image_listing_fails(contents):
+    problems, expected = check_image(IMAGE, contents)
+    assert expected == 0 and len(problems) == 1 and "image listing is incomplete" in problems[0]
+
+
+# ------------------------------------------------------------------- command and files
+
+
+def write(tmp_path, name, value):
+    path = tmp_path / name
+    path.write_text(json.dumps(value))
+    return str(path)
+
+
+def test_the_command_exits_1_and_names_what_is_missing_in_locked_mode(tmp_path, capsys):
+    path = write(tmp_path, "empty.cdx.json", {"components": []})
+    assert coverage.main([path, "--locked"]) == 1
+    output = capsys.readouterr().out
+    assert "does not list" in output and "pypi django" in output
+
+
+def test_the_command_exits_1_in_image_mode_for_an_incomplete_listing(tmp_path, capsys):
+    sbom_path = write(tmp_path, "image.cdx.json", {"components": []})
+    contents = write(tmp_path, "contents.json", {})
+    assert coverage.main([sbom_path, "--image", contents]) == 1
+    assert "image listing is incomplete" in capsys.readouterr().out
+
+
+def test_the_command_requires_exactly_one_mode(tmp_path):
+    path = write(tmp_path, "x.cdx.json", {"components": []})
+    for argv in ([path], [path, "--locked", "--image", path], [path, "--runtime"]):
+        with pytest.raises(SystemExit) as stopped:
+            coverage.main(argv)
+        assert stopped.value.code == 2
+
+
+def repository_lists():
+    uv_lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    vendor = json.loads((ROOT / "static/vendor/package-lock.json").read_text())
+    return uv_lock, pyproject, vendor
+
+
+def test_the_command_exits_0_for_a_listing_of_the_repository_locks(tmp_path, capsys):
+    uv_lock, _, vendor = repository_lists()
+    purls = [
+        f"pkg:pypi/{name}@{version}"
+        for name, versions in coverage.locked_python(uv_lock).items()
+        for version in versions
+    ] + [
+        f"pkg:npm/{name.replace('@', '%40')}@{next(iter(versions))}"
+        for name, versions in coverage.vendored(vendor).items()
+    ]
+    path = write(tmp_path, "deps.cdx.json", sbom(*purls))
+    assert coverage.main([path, "--locked"]) == 0
+    assert "lists all" in capsys.readouterr().out
 
 
 def test_the_repository_lockfiles_parse_and_name_the_runtime_dependencies():
-    uv_lock = tomllib.loads((ROOT / "uv.lock").read_text())
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    uv_lock, pyproject, vendor = repository_lists()
     locked = coverage.locked_python(uv_lock)
     runtime = coverage.runtime_names(pyproject)
     assert {"django", "django-allauth", "psycopg", "gunicorn", "whitenoise"} <= runtime
     assert runtime <= set(locked)
-    vendored = coverage.vendored(json.loads((ROOT / "static/vendor/package-lock.json").read_text()))
+    vendored = coverage.vendored(vendor)
     assert vendored["htmx.org"] and vendored["bootstrap"]
-
-
-def test_the_command_exits_1_and_names_what_is_missing(tmp_path, capsys):
-    path = tmp_path / "empty.cdx.json"
-    path.write_text(json.dumps({"components": []}))
-    assert coverage.main([str(path), "--runtime"]) == 1
-    output = capsys.readouterr().out
-    assert "does not list" in output and "pypi django" in output
+    assert "lab-ops" not in locked
