@@ -28,6 +28,12 @@ def lock_of(table):
 
 @pytest.mark.django_db(transaction=True)
 def test_a_portal_reply_rechecks_the_account_after_the_ticket_lock(portal, plain_ticket):
+    # The account reads the ticket through a whole-organization grant, so its reply reaches the
+    # ticket's lock (an account that cannot read it is refused before any lock is taken).
+    from clients.models import PortalAccess
+
+    PortalAccess.objects.create(user=portal, client=portal.client, whole_organization=True)
+    assert desk_services.portal_requests(portal).filter(pk=plain_ticket.pk).exists()
     with at_read(
         lock_of("desk_servicerequest"),
         lambda: User.objects.filter(pk=portal.pk).update(is_active=False),

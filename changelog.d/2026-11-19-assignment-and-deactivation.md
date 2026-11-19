@@ -6,4 +6,4 @@ title: Assigning while someone's access ends
 area: Tickets
 link: desk:request-list
 ---
-An assignment and the assignee's deactivation or removal from the team at the same moment now wait for each other instead of failing with an error.
+An assignment and the assignee's deactivation or removal from the team at the same moment now wait for each other instead of failing with an error. A change saved while a colleague recategorizes the ticket is refused as changed, keeping what you typed, instead of showing the ticket as missing.

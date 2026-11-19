@@ -18,7 +18,7 @@ from desk import services as desk_services
 from desk.models import AuthorCapacity, EntryKind, RequestEntry
 from desk.permissions import is_supervisor
 from desk.portal_scope import portal_requests
-from desk.selectors import staff_requests
+from desk.selectors import locked_in_scope, staff_requests
 from desk.visibility import is_client_visible
 
 from .inspection import Inspected, inspect_bytes
@@ -150,7 +150,7 @@ def withdraw_attachment(*, actor, attachment_id, reason):
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     attachment = Attachment.objects.select_for_update().get(pk=attachment_id)
-    request = staff_requests(actor).select_for_update(of=("self",)).get(pk=attachment.request_id)
+    request = locked_in_scope(staff_requests(actor), attachment.request_id)
     if attachment.withdrawn_at is not None:
         raise ValidationError("This file was already withdrawn.")
     attachment.withdrawn_at = timezone.now()

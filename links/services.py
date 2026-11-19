@@ -16,7 +16,7 @@ from django.utils import timezone
 from accounts.roles import has_capability, require_capability, require_role, require_staff
 from clients.models import Client
 from core.audit import record_event, snapshot
-from desk.selectors import staff_requests
+from desk.selectors import locked_in_scope, staff_requests
 
 from .identifiers import check_https_url, check_link_url, clean_identifier
 from .masking import check_label, is_person_type, key_digest, propose_label
@@ -186,7 +186,7 @@ def update_system(*, actor, system_id, expected_revision, reason, **data):
 
 def locked_request(actor, request_id):
     """The request, locked, if `actor` may read it; DoesNotExist otherwise (the view's 404)."""
-    return staff_requests(actor).select_for_update(of=("self",)).get(pk=request_id)
+    return locked_in_scope(staff_requests(actor), request_id)
 
 
 CLOSED_MESSAGE = "This ticket is closed, so its links can no longer change."

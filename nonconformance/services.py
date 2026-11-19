@@ -23,9 +23,9 @@ from accounts.roles import ROLES, has_role, require_staff
 from core.audit import record_event, snapshot
 from core.modules import lock_enabled
 from desk import services as desk_services
-from desk.models import ComplaintReview
+from desk.models import ComplaintReview, ServiceRequest
 from desk.permissions import is_supervisor
-from desk.selectors import staff_requests
+from desk.selectors import locked_in_scope, staff_requests
 
 from .models import (
     ACTIVE_STATUSES,
@@ -199,10 +199,10 @@ def _audit(actor, action, obj, before, reason=""):
 
 def _locked_ticket(actor, request_id):
     """The ticket locked, if `actor` may read it now; 404 otherwise, saying nothing about it."""
-    ticket = staff_requests(actor).select_for_update(of=("self",)).filter(pk=request_id).first()
-    if ticket is None:
-        raise Http404("No such ticket.")
-    return ticket
+    try:
+        return locked_in_scope(staff_requests(actor), request_id)
+    except ServiceRequest.DoesNotExist:
+        raise Http404("No such ticket.") from None
 
 
 def _ticket_event(actor, ticket, action, nc):

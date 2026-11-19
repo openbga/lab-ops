@@ -891,11 +891,11 @@ def correct_values(
     definition compared is read with the items on them (definition.read_for_correction).
     """
     from desk.models import EntryKind, RequestEntry, ServiceRequest, Status
-    from desk.selectors import staff_requests
+    from desk.selectors import locked_in_scope, staff_requests
 
     require_staff(actor)
     try:
-        locked = staff_requests(actor).select_for_update(of=("self",)).get(pk=request.pk)
+        locked = locked_in_scope(staff_requests(actor), request.pk)
     except ServiceRequest.DoesNotExist:
         raise ServiceRequest.DoesNotExist("No such ticket.") from None
     if locked.status == Status.CLOSED:

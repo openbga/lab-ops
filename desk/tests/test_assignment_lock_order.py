@@ -1,7 +1,7 @@
 """Assignment and the end of a person's work take their row locks in one order.
 
-An assignment (assign, take, the list's bulk Assign) locks the team, then the assignee's account,
-roles and team membership, and only then the tickets (desk.services._hold_assignment). Ending a
+An assignment (assign, take, the list's bulk Assign) locks the assignee's account, roles and team
+membership, then the tickets, and then the team (desk.services._hold_assignment). Ending a
 person's work starts from the same rows: a deactivation updates the account (desk.signals) and a
 removal from a team locks the membership (teams.services.remove_member), and each then locks the
 person's open tickets to return them to the queue. So the two never wait for each other in a
@@ -15,6 +15,7 @@ ended in a deadlock for an assignment that touched a ticket the person already h
 review of the outbox follow-ups, R03). All data is synthetic.
 """
 
+import re
 import threading
 import time
 from unittest.mock import patch
@@ -254,17 +255,20 @@ def _pause_after_tickets(assignment):
 
 @pytest.mark.parametrize("ending", list(ENDINGS))
 @pytest.mark.parametrize("assignment", list(ASSIGNMENTS))
-@pytest.mark.parametrize("pause", ["after-the-persons-rows", "after-the-tickets"])
+@pytest.mark.parametrize("pause", ["after-the-persons-rows", "after-the-tickets", "after-the-team"])
 def test_an_ending_that_comes_second_waits_then_returns_the_work_to_the_queue(
     pause, assignment, ending, agent, people, tickets, teams
 ):
-    """The assignment holds the person's rows (and then its tickets): the ending waits for the
-    person's rows, never in a cycle, and once the assignment commits it finds whatever the
-    assignment left with the person and returns it to the queue. Before this order, a pause after
-    the tickets ended in 40P01 for the cases that touch the ticket the person already held."""
-    pause_after = _pause_after_tickets(assignment)
-    if pause == "after-the-persons-rows":
-        pause_after = "_hold_assignment"
+    """The assignment holds the person's rows (and then its tickets, and then the team): the
+    ending waits for the person's rows, never in a cycle, and once the assignment commits it finds
+    whatever the assignment left with the person and returns it to the queue. Before this order,
+    a pause after the tickets ended in 40P01 for the cases that touch the ticket the person
+    already held."""
+    pause_after = {
+        "after-the-persons-rows": "_hold_assignment",
+        "after-the-tickets": _pause_after_tickets(assignment),
+        "after-the-team": "_current_team",
+    }[pause]
     outcome = _run(assignment, ending, pause_after, agent, people, tickets, teams)
     assert "40P01" not in outcome.values(), f"deadlock: {outcome}"
     assert outcome["during_pause"] == "waiting", outcome
@@ -278,11 +282,7 @@ def test_an_ending_that_comes_second_waits_then_returns_the_work_to_the_queue(
 BEFORE_THE_PERSONS_ROWS = [
     (pause_after, assignment)
     for assignment, spec in ASSIGNMENTS.items()
-    for pause_after in (
-        ["_locked_team", "_bulk_selection"]
-        if spec.work is _bulk
-        else ["_locked_team", "_visible_request"]
-    )
+    for pause_after in (["_bulk_selection"] if spec.work is _bulk else ["_visible_request"])
 ]
 
 
@@ -317,9 +317,21 @@ def test_an_assignment_that_comes_second_decides_on_what_the_ending_saved(
 # The order itself -------------------------------------------------------------------------------
 
 
+def _locked_tables(sql):
+    """The tables a statement locks: those named after FOR ... OF, else the first FROM."""
+    if " FOR " not in sql:
+        return set()
+    head, _, tail = sql.partition(" FOR ")
+    named = set(re.findall(r'OF "([^"]+)"', tail))
+    if named:
+        return named
+    first = re.search(r'FROM "([^"]+)"', head)
+    return {first.group(1)} if first else set()
+
+
 def _first_lock(statements, table):
     for index, sql in enumerate(statements):
-        if f'"{table}"' in sql and " FOR " in sql:
+        if table in _locked_tables(sql):
             return index
     return None
 
@@ -339,10 +351,11 @@ def _lock_positions(work):
 
 
 @pytest.mark.parametrize("assignment", list(ASSIGNMENTS))
-def test_every_assignment_locks_the_persons_rows_before_any_ticket(
+def test_every_assignment_locks_the_persons_rows_before_the_tickets_and_the_team_after(
     assignment, agent, people, tickets, teams
 ):
-    """The order the cases above rest on, read from the statements each path sends."""
+    """The order the cases above rest on, read from the statements each path sends: the person's
+    rows before the tickets, and the team after them, as the other ticket services lock it."""
     _owner, _supervisor, person = people
     held, waiting = tickets
 
@@ -354,8 +367,8 @@ def test_every_assignment_locks_the_persons_rows_before_any_ticket(
 
     found = _lock_positions(work)
     assert None not in found.values(), found
-    assert found["team"] < found["account"] < found["roles"] < found["membership"]
-    assert found["membership"] < found["ticket"], found
+    assert found["account"] < found["roles"] < found["membership"] < found["ticket"], found
+    assert found["ticket"] < found["team"], found
 
 
 @pytest.mark.parametrize("ending", list(ENDINGS))
@@ -378,3 +391,112 @@ def test_every_ending_locks_the_persons_row_before_the_tickets(
     )
     ticket_lock = _first_lock(statements, ticket_table)
     assert ticket_lock is not None and person_row < ticket_lock
+
+
+# Intake naming the same person --------------------------------------------------------------------
+
+
+def _in_session(work, outcome, name, started):
+    def run():
+        try:
+            _set_lock_timeout(LOCK_WAIT)
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                outcome[f"{name}_pid"] = cursor.fetchone()[0]
+            started.set()
+            work()
+            outcome[name] = "done"
+        except Exception as exc:  # reported by the assertions
+            outcome[name] = _outcome_of(exc)
+        finally:
+            started.set()
+            connections.close_all()
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    return thread
+
+
+def _until_blocked_or_ended(outcome, name, started, seconds=8):
+    started.wait(timeout=seconds)
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if name in outcome:
+            return "ended"
+        pid = outcome.get(f"{name}_pid")
+        if pid is not None:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT cardinality(pg_blocking_pids(%s)) > 0", [pid])
+                if cursor.fetchone()[0]:
+                    return "waiting"
+        time.sleep(0.02)
+    return "neither"
+
+
+@pytest.mark.parametrize("path", ["assign", "take", "bulk-assign"])
+def test_intake_naming_the_person_waits_for_them_before_its_category(
+    path, agent, make_user, people, tickets, accessioning, category, sample_category
+):
+    """An assignment holds the person and waits for its ticket; a colleague recategorizes that
+    ticket into a category that routes to the person's team; a new ticket in that category names
+    the same person as its assignee. Intake locks the assignee before the category, so it waits
+    for the person holding nothing the recategorization needs: no deadlock, the recategorization
+    and the new ticket are saved, and the assignment, which comes after the recategorization, is
+    refused as changed."""
+    _owner, _supervisor, person = people
+    clerk = make_user("lock_order_clerk", "client_services")
+    _held, waiting = tickets
+    work = {
+        "assign": lambda: _assign(agent, waiting, accessioning, person),
+        "take": lambda: _take(person, waiting),
+        "bulk-assign": lambda: services.bulk_assign(
+            actor=agent, selected=selection([waiting]), team=accessioning, assignee=person
+        ),
+    }[path]
+    outcome, seen, threads = {}, {}, []
+
+    def recategorize():
+        current = _fresh(waiting)
+        services.update_properties(
+            actor=clerk,
+            request=current,
+            expected_revision=current.revision,
+            priority=current.priority,
+            category=sample_category,
+            reason="Sample problem",
+        )
+
+    def intake():
+        new_request(clerk, sample_category, assignee=person)
+
+    def during():
+        for name, step in (("intake", intake), ("recategorize", recategorize)):
+            started = threading.Event()
+            threads.append(_in_session(step, outcome, name, started))
+            seen[name] = _until_blocked_or_ended(outcome, name, started)
+
+    real = services._hold_assignment
+
+    def hold_then_pause(team, assignee):
+        held = real(team, assignee)
+        if not seen:
+            during()
+        return held
+
+    _set_lock_timeout(LOCK_WAIT)
+    try:
+        with patch.object(services, "_hold_assignment", hold_then_pause):
+            work()
+        outcome["assignment"] = "done"
+    except Exception as exc:  # reported by the assertions
+        outcome["assignment"] = _outcome_of(exc)
+    finally:
+        _set_lock_timeout("0")
+        for thread in threads:
+            thread.join(timeout=20)
+    results = {name: outcome.get(name) for name in ("intake", "recategorize", "assignment")}
+    assert "40P01" not in results.values(), f"deadlock: {results}, during the pause {seen}"
+    assert seen == {"intake": "waiting", "recategorize": "ended"}, (seen, results)
+    assert results == {"intake": "done", "recategorize": "done", "assignment": "refused"}
+    assert _fresh(waiting).category_id == sample_category.pk
+    assert ServiceRequest.objects.filter(category=sample_category, assignee=person).count() == 1
