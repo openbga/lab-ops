@@ -276,6 +276,13 @@ def add_link(
     if client is not None and person:
         raise ValidationError({"record_type": "Add person-level links to a ticket."})
     system = ExternalSystem.objects.select_for_update().get(pk=system.pk)
+    if request is not None:
+        # The system's lock can be waited for: who asks (the account, and for a person-level link
+        # the capability) is answered again before the checks below about the ticket (its
+        # person-level link), and once more after the link's lock.
+        actor = _reread(actor, request)
+        if person:
+            require_capability(actor, CAPABILITY)
     if not system.is_active:
         raise ValidationError({"system": "This system is inactive and takes no new links."})
     errors = {}

@@ -101,8 +101,9 @@ matter once a laboratory uses the desk every day, so they come last.
   change. The account administration saves every column of an account, so a deactivation holds
   the person's row so strongly that those checks wait for it, while it waits for that person's
   tickets. An external identifier import also locks each row's organization after the previous
-  row's system, so it can fail with a deadlock against a link added on an organization's page; it
-  is to lock in the order the link services use.
+  row's system, so it and a link added on an organization's page at the same moment can end in a
+  database deadlock, which fails one of them; the import is to lock in the order the link services
+  use.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** nothing.
 
