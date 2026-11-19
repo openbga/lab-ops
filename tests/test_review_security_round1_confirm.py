@@ -139,16 +139,18 @@ def test_unreadable_release_file_is_not_reported_as_modified(filename):
         ROOT,
         f"""
         import hashlib
+        from importlib.machinery import SourceFileLoader
         file = Path("config/{filename}").resolve()
-        read_bytes = Path.read_bytes
-        digest = hashlib.sha256(read_bytes(file)).hexdigest()
+        get_data = SourceFileLoader.get_data
+        digest = hashlib.sha256(file.read_bytes()).hexdigest()
 
-        def unavailable(path):
-            if path == file:
+        # Adopted: the digest reads through the module's loader (resolution of confirmation 3).
+        def unavailable(self, path):
+            if Path(path) == file:
                 raise OSError("Synthetic temporary read failure")
-            return read_bytes(path)
+            return get_data(self, path)
 
-        with patch.object(Path, "read_bytes", unavailable):
+        with patch.object(SourceFileLoader, "get_data", unavailable):
             row = https()
         recovered = security.module_digest("config." + file.stem)
         print(json.dumps([digest, recovered, row.value, row.note]))
@@ -164,15 +166,17 @@ def test_one_page_gives_one_answer_about_the_release_files():
     first, next_reading = probe(
         ROOT,
         """
-        read_bytes = Path.read_bytes
+        from importlib.machinery import SourceFileLoader
+        get_data = SourceFileLoader.get_data
         logging_file = Path("config/logging.py").resolve()
         attempts = []
-        def try_read(path):
-            if path == logging_file:
+        # Adopted: the digest reads through the module's loader (resolution of confirmation 3).
+        def try_read(self, path):
+            if Path(path) == logging_file:
                 attempts.append(path)
                 if len(attempts) == 1:
                     raise OSError("Synthetic first read unavailable")
-            return read_bytes(path)
+            return get_data(self, path)
 
         def config_states():
             return {row.key: row.value == security.CHANGED for group in security.in_force()
@@ -181,7 +185,7 @@ def test_one_page_gives_one_answer_about_the_release_files():
         # Only the database counts are replaced. Each fact checks the real release files.
         with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
                             patient_capability_holders=lambda: 0, _patient_fields=lambda: 0):
-            with patch.object(Path, "read_bytes", try_read):
+            with patch.object(SourceFileLoader, "get_data", try_read):
                 first = config_states()
             print(json.dumps([first, config_states()]))
         """,

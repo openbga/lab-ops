@@ -200,14 +200,16 @@ def test_changed_label_help_allows_a_release_file_that_cannot_be_verified():
         ROOT,
         """
         import hashlib
+        from importlib.machinery import SourceFileLoader
         source = Path("config/logging.py").resolve()
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        read = Path.read_bytes
-        def unavailable(path):
-            if path == source:
+        get_data = SourceFileLoader.get_data
+        # Adopted: the digest reads through the module's loader (resolution of confirmation 3).
+        def unavailable(self, path):
+            if Path(path) == source:
                 raise OSError("Synthetic temporary read failure")
-            return read(path)
-        with patch.object(Path, "read_bytes", unavailable):
+            return get_data(self, path)
+        with patch.object(SourceFileLoader, "get_data", unavailable):
             row = https()
         print(json.dumps([row.value, row.note, digest == security.RELEASE_LOGGING_SHA256]))
         """,

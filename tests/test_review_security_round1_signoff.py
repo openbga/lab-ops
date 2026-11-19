@@ -150,12 +150,14 @@ def test_pin_recovers_after_a_transient_source_read_error(deployment_copy):
     value, digest = probe(
         deployment_copy,
         """
-        read_bytes = Path.read_bytes
-        def unavailable(path):
-            if path.name == "logging.py":
+        from importlib.machinery import SourceFileLoader
+        get_data = SourceFileLoader.get_data
+        # Adopted: the digest reads through the module's loader (resolution of confirmation 3).
+        def unavailable(self, path):
+            if Path(path).name == "logging.py":
                 raise OSError("Synthetic temporary read failure")
-            return read_bytes(path)
-        with patch.object(Path, "read_bytes", unavailable):
+            return get_data(self, path)
+        with patch.object(SourceFileLoader, "get_data", unavailable):
             https()
         print(json.dumps([https().value, security.module_digest("config.logging")]))
     """,
