@@ -8,6 +8,7 @@ Application document and staff shell. Block contract (docs/ui-standards.md secti
   topbar         top bar; the client portal replaces it
   sidenav        staff navigation rail; the client portal empties it
   page_header    whole page header; override only for unusual pages
+  page_header_class  optional layout modifier for the page header
   page_dateline  overview pages: {% include "includes/dateline.html" %} under the title
   breadcrumbs    record, form, action, entry and document pages: {% breadcrumbs %}
   page_heading   <h1> text; defaults to {{ page_title }}
@@ -106,7 +107,7 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
     {% endblock sidenav %}
     <main class="vr-main" id="main" tabindex="-1"{% block form_surface_attributes %}{% if form_surface %} data-vr-form-page data-vr-form-url="{{ request.get_full_path }}" data-vr-form-size="{{ form_surface.size }}"{% endif %}{% endblock %}>
       {% block page_header %}
-      <div class="vr-page-header">
+      <div class="vr-page-header {% block page_header_class %}{% endblock %}">
         {% block breadcrumbs %}{% endblock %}
         <div class="vr-page-header-row">
           <div>

@@ -66,7 +66,7 @@
       "items": [
         {
           "label": "Heading and badges",
-          "description": "The heading identifies the ticket by number and subject. It shows the status, any overdue service clock, priority, team and assignee. Complaints are marked Complaint."
+          "description": "The ticket number and full subject appear above the actions. Below the subject, check the status, any overdue service clock, priority, team and assignee. Complaints are marked Complaint."
         },
         {
           "label": "Take it",
