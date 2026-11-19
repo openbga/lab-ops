@@ -27,9 +27,10 @@ state and is refused:
 - changing portal access (clients.services locks the account FOR UPDATE first).
 
 Additions made on their own wait for nothing: a capability added to a role, a role added to an
-account in code, or a member added to a team only widens what the reading allows. The account page and the portal access form take the
-gate on every save, widening included, so any save there waits for the person's change under way.
-Paths that bypass save() (queryset.update, raw SQL) are not covered.
+account in code, or a member added to a team only widens what the reading allows. The account
+page and the portal access form take the gate on every save, widening included, so any save
+there waits for the person's change under way. Paths that bypass save() (queryset.update, raw
+SQL) are not covered.
 
 FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-in's time, the
 email notice preference, an assignment's FOR NO KEY UPDATE of its assignee), so two people
