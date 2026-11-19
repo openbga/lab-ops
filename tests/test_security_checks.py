@@ -2248,3 +2248,15 @@ def test_vendor_helper_flags_a_banner_only_far_into_the_file(vendor_copy):
     data = path.read_bytes().replace(b"v3.4.0", b"v3.3.0", 1)
     path.write_bytes(data + b"\n" + b" " * 500 + b"/* v3.4.0 */")
     assert vendor_problems(lock_with(), vendor_copy)
+
+
+def test_the_documented_local_checksum_is_the_pinned_one():
+    """CONTRIBUTING's local secret scan checks the downloaded default configuration against the
+    same SHA-256 the workflow pins, so the two cannot drift apart."""
+    pinned = re.search(
+        r"GITLEAKS_CONFIG_SHA256:\s*([0-9a-f]{64})", read(f"{WORKFLOWS}/secrets.yml")
+    ).group(1)
+    documented = re.findall(
+        r"\b([0-9a-f]{64})  build/gitleaks-default\.toml", read("CONTRIBUTING.md")
+    )
+    assert documented == [pinned], documented

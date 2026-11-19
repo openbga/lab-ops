@@ -105,13 +105,15 @@ python3 tools/security/grype_gate.py dependencies --grype "$(command -v grype)" 
 
 The secret scan reads the history as text, merge commits included, file by file. It uses
 gitleaks' default rules without the default list of files gitleaks never scans by name, built from
-the default configuration of the pinned release (the checksum is in `secrets.yml`):
+the default configuration of the pinned release, checked against the checksum pinned in
+`secrets.yml`:
 
 ```sh
 mkdir -p build
 curl -fsSL -o build/gitleaks-default.toml \
   https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.1/config/gitleaks.toml
-shasum -a 256 build/gitleaks-default.toml
+echo "e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf  build/gitleaks-default.toml" \
+  | shasum -a 256 -c
 python3 tools/security/gitleaks_config.py build/gitleaks-default.toml .gitleaks.toml \
   > build/gitleaks.toml
 gitleaks git --log-opts="--text --diff-merges=first-parent HEAD" --ignore-gitleaks-allow \
