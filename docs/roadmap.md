@@ -64,6 +64,8 @@ ships, move it to Built in the same change.
 
 ## Why this order
 
+A follow-up to an independent review fixes something already built, so it comes first.
+
 The items on sign-in, sessions, access records, review and emergency access come before anything
 else, because a laboratory that handles patient-linked tickets needs them before real use. Today a
 second sign-in factor cannot be required, a session can last two weeks with no sign-out for
@@ -86,6 +88,19 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
+
+### Review follow-up: assignment and the end of a person's work
+
+- **Delivers:** assigning tickets to a person and ending that person's work (deactivating the
+  account, removing them from a team) take their row locks in one order, so neither fails with a
+  database deadlock: whichever comes second waits, then decides on what the first saved. Today an
+  assignment locks the tickets and then the person's account and team membership, while a
+  deactivation or a removal locks the account or the membership and then the person's tickets.
+  When the two meet on a ticket the person already holds, PostgreSQL ends one of them with an
+  error and nothing is saved. Choosing the owner of a nonconformance opened from a ticket locks
+  the ticket and then the person in the same way, and is included.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** nothing.
 
 ### Automatic sign-out and session control
 

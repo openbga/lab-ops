@@ -348,7 +348,7 @@ def _hold(notice, scope):
         grants = PortalAccess.objects.filter(user=user).values_list("pk", flat=True)
         share_lock(PortalAccess, grants, nowait=True)
         return request, user, None
-    roles = held_roles(user, nowait=True)
+    roles = held_roles(user, nowait=True, mode="key share")
     # The team first: a member is added under its lock (teams.services), so the memberships read
     # next cannot gain one before the notice is sent.
     share_lock(Team, [request.team_id], nowait=True, mode="key share")

@@ -125,7 +125,7 @@ def _current_assignee(assignee, team):
     current = User.objects.select_for_update(no_key=True).filter(pk=assignee.pk).first()
     # The roles this check decides from, read and held in one statement until the assignment
     # commits: removing one waits, and one granted after the reading does not count.
-    roles = held_roles(current) if current is not None else set()
+    roles = held_roles(current, mode="key share") if current is not None else set()
     if not (
         current is not None
         and not is_system_account(current)  # it does no work, even if someone gave it a role

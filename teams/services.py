@@ -66,7 +66,9 @@ def update_team(*, actor, team_id, expected_revision, reason, **data):
     reason = (reason or "").strip()
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
-    team = Team.objects.select_for_update().get(pk=team_id)
+    # No key changes here, so not FOR UPDATE: what holds a team only against a member being added
+    # (key share: notices being sent, the breach job) does not hold up an edit of its details.
+    team = Team.objects.select_for_update(no_key=True).get(pk=team_id)
     if team.revision != expected_revision:
         raise ValidationError("This team changed. Reload and review the current record.")
     before = snapshot(team)

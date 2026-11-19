@@ -47,11 +47,12 @@ def is_lock_unavailable(exc):
     return getattr(cause, "sqlstate", None) == LOCK_NOT_AVAILABLE
 
 
-def hold_group_names(user_id, *, nowait=False):
+def hold_group_names(user_id, *, nowait=False, mode="share"):
     """The names of the groups (the roles) account `user_id` belongs to, read and held in one
-    statement until the transaction ends: its group memberships and their groups FOR KEY SHARE,
-    so removing one of them, or deleting the group, waits. A membership added after this
-    statement is not in the reading, so a decision taken from it rests only on rows it holds."""
+    statement until the transaction ends: its group memberships in `mode` (as share_lock), so
+    removing one waits, and their groups FOR KEY SHARE, so deleting one waits. A membership added
+    after this statement is not in the reading, so a decision taken from it rests only on rows
+    it holds."""
     from django.contrib.auth.models import Group
 
     from accounts.models import User
@@ -67,7 +68,8 @@ def hold_group_names(user_id, *, nowait=False):
         f"ON g.{quote(Group._meta.pk.column)} = m.{quote(through.get_field('group').column)} "
         f"WHERE m.{quote(through.get_field('user').column)} = %s "
         f"ORDER BY m.{quote(through.pk.column)} "
-        f"FOR KEY SHARE OF m, g{' NOWAIT' if nowait else ''}"
+        f"{MODES[mode]} OF m{' NOWAIT' if nowait else ''} "
+        f"FOR KEY SHARE OF g{' NOWAIT' if nowait else ''}"
     )
     with connection.cursor() as cursor:
         cursor.execute(sql, [user_id])

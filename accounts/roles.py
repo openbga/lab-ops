@@ -45,16 +45,17 @@ def expand_roles(names):
     return roles
 
 
-def held_roles(user, *, nowait=False):
+def held_roles(user, *, nowait=False, mode="share"):
     """effective_roles of `user` (an instance the caller read as it stands now), read and held in
     one statement until the transaction ends (jobs.locks.hold_group_names): removing one of these
     roles waits for the transaction, and a role granted after the reading does not count. A
-    decision that must hold the roles it rests on decides from this reading alone."""
+    decision that must hold the roles it rests on decides from this reading alone. `mode` is how
+    the memberships are held (jobs.locks.share_lock)."""
     from jobs.locks import hold_group_names
 
     if not user.is_authenticated or not user.is_active or user.client_id is not None:
         return set()
-    return expand_roles(hold_group_names(user.pk, nowait=nowait))
+    return expand_roles(hold_group_names(user.pk, nowait=nowait, mode=mode))
 
 
 def has_role(user, *roles):
