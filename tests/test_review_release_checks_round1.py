@@ -12,8 +12,9 @@ file holds no secret-shaped value. Only copies are mutated, never the repository
 
 Adopted unchanged in intent from the reviewer's file (the original is kept in
 .local/review-history/test_release_checks_round1_original.py). Where a test needed a change for
-the interface after the review (the Grype gate script, the image coverage mode, the
-stdin scan, the new strict helpers), a comment above it says what changed and why.
+the interface after the review (the Grype gate script, the image coverage mode, the built
+configuration of the secret scan, the new strict helpers), a comment above it says what changed
+and why.
 """
 
 import importlib.util
@@ -86,9 +87,9 @@ def read(relative):
 
 
 def tool(name):
-    path = TOOLS / name
-    if path.is_file():
-        return str(path)
+    for directory in (TOOLS, TOOLS / "bin"):
+        if (directory / name).is_file():
+            return str(directory / name)
     found = shutil.which(name)
     if not found:
         pytest.skip(f"{name} is not installed")
@@ -185,54 +186,54 @@ def _workflow_command(marker):
     return command
 
 
-# Adapted: the reviewer's helper ran only the history command. The workflow's secret scan is
-# two commands (the history scan, and a scan of the whole history as one text stream), so RC-10 is
-# judged on the job. This runs both as secrets.yml writes them, with the quoted --log-opts="..."
-# read as one argument, and the repository's config unless one is given.
-# Adapted again: the stream is now `git log ... | python3 tools/security/text_windows.py |
-# gitleaks stdin ...`, so the three commands of the pipe are returned, and the second is run from
-# the repository root (where the workflow finds tools/), between git and gitleaks.
-def secret_scan_commands(config=None):
-    """[(git command or None, filter command or None, gitleaks arguments)] of secrets.yml's
-    secret scan, with the gitleaks binary left out and the config path replaced by `config`."""
-    config = str(config or ROOT / ".gitleaks.toml")
+# Adapted: the reviewer's helper ran only the history command. The secret scan now is one command
+# on a configuration the job builds first (tools/security/gitleaks_config.py: gitleaks' default
+# configuration without its list of skipped paths, plus .gitleaks.toml's exact values), so the
+# helper builds that configuration from the real default one (skipping when it is not next to the
+# scanners; never downloading it) and runs the history command as secrets.yml writes it, with the
+# quoted --log-opts="..." read as one argument. `project` is the .gitleaks.toml to build from
+# (the repository's unless one is given). The stream scan and text_windows.py no longer exist.
+def default_gitleaks_config():
+    """The real default gitleaks configuration of the pinned release, or skip."""
+    here = os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG")
+    candidates = [here, TOOLS / "gitleaks-default.toml", TOOLS.parent / "gitleaks-default.toml"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
 
-    def with_config(args):
-        return [config if arg == ".gitleaks.toml" else arg for arg in args]
 
+def built_gitleaks_config(directory, project=None):
+    """Write the configuration the workflow builds into `directory`; its path."""
+    builder = _load("review_round1_gitleaks_config", "tools/security/gitleaks_config.py")
+    project_text = Path(project).read_text() if project else read(".gitleaks.toml")
+    out = Path(directory) / "built-gitleaks.toml"
+    out.write_text(builder.build(default_gitleaks_config().read_text(), project_text))
+    return out
+
+
+def secret_scan_commands(config):
+    """The gitleaks arguments of secrets.yml's history scan, without the binary and the path,
+    with the config path replaced by `config`."""
     history = _shell_words(_workflow_command('"$RUNNER_TEMP/gitleaks" git '))[1:]
     assert history[0] == "git" and history[-1] == ".", history
     assert any(arg.startswith("--log-opts=") for arg in history), history
-    stdin = _workflow_command("git log -p ")
-    left, middle, right = " ".join(line.strip().removesuffix("\\") for line in stdin).split(" | ")
-    pipe = _shell_words([right])[1:]
-    assert pipe[0] == "stdin", pipe
-    window = _shell_words([middle])
-    assert window == ["python3", "tools/security/text_windows.py"], window
-    return [
-        (None, None, with_config(history[:-1])),
-        (_shell_words([left]), window, with_config(pipe)),
-    ]
+    assert "--config" in history and history[history.index("--config") + 1] == (
+        "$RUNNER_TEMP/gitleaks.toml"
+    ), history
+    return [str(config) if arg == "$RUNNER_TEMP/gitleaks.toml" else arg for arg in history[:-1]]
 
 
-def secret_scan(repo, config=None):
-    """Exit status (1 when either command reports a secret) and output of the workflow's scans."""
-    codes, output = [], ""
-    for git_command, window, args in secret_scan_commands(config):
-        if git_command is None:
-            command, stdin = [tool("gitleaks"), *args, str(repo)], None
-        else:
-            log = subprocess.run(
-                git_command, cwd=repo, capture_output=True, env=GIT_ENV, check=True
-            )
-            stream = subprocess.run(
-                window, cwd=ROOT, input=log.stdout, capture_output=True, check=True
-            )
-            command, stdin = [tool("gitleaks"), *args], stream.stdout
-        result = subprocess.run(command, input=stdin, capture_output=True, env=SCANNER_ENV)
-        codes.append(result.returncode)
-        output += result.stdout.decode(errors="replace") + result.stderr.decode(errors="replace")
-    return (1 if 1 in codes else next((c for c in codes if c), 0)), output
+def secret_scan(repo, project=None):
+    """Exit status and output of the workflow's history scan with the built configuration."""
+    config = built_gitleaks_config(Path(repo).parent, project)
+    args = secret_scan_commands(config)
+    result = subprocess.run(
+        [tool("gitleaks"), *args, str(repo)], capture_output=True, env=SCANNER_ENV
+    )
+    return result.returncode, result.stdout.decode(errors="replace") + result.stderr.decode(
+        errors="replace"
+    )
 
 
 # ============================================ RC-01 and RC-15 the history the secret scan reads
@@ -378,7 +379,7 @@ def test_a_gitleaks_config_the_repository_accepts_still_reports_a_real_token(
     if checks.allowlist_problems(tomllib.loads(config)):
         return  # the repository's own check rejects this configuration
     (tmp_path / "gitleaks.toml").write_text(config)
-    # Adapted: secret_scan() takes the config path and runs both of the workflow's scans.
+    # Adapted: secret_scan() takes the .gitleaks.toml to build the scan's configuration from.
     code, output = secret_scan(repo, tmp_path / "gitleaks.toml")
     assert code == 1, f"{label}: an accepted .gitleaks.toml hides a committed token:\n{output}"
 

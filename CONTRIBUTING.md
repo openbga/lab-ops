@@ -103,14 +103,19 @@ python3 tools/security/sbom_coverage.py build/dependencies.cdx.json --locked
 python3 tools/security/grype_gate.py dependencies --grype "$(command -v grype)" build/dependencies.cdx.json
 ```
 
-The secret scan reads the history as text, merge commits included, file by file and then as one
-stream so that no file is skipped by its name:
+The secret scan reads the history as text, merge commits included, file by file. It uses
+gitleaks' default rules without the default list of files gitleaks never scans by name, built from
+the default configuration of the pinned release (the checksum is in `secrets.yml`):
 
 ```sh
+mkdir -p build
+curl -fsSL -o build/gitleaks-default.toml \
+  https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.1/config/gitleaks.toml
+shasum -a 256 build/gitleaks-default.toml
+python3 tools/security/gitleaks_config.py build/gitleaks-default.toml .gitleaks.toml \
+  > build/gitleaks.toml
 gitleaks git --log-opts="--text --diff-merges=first-parent HEAD" --ignore-gitleaks-allow \
-  --redact --config .gitleaks.toml .
-git log -p --text --diff-merges=first-parent HEAD | python3 tools/security/text_windows.py \
-  | gitleaks stdin --ignore-gitleaks-allow --redact --config .gitleaks.toml
+  --redact --config build/gitleaks.toml .
 ```
 
 The image scan builds the image, lists it and checks the listing against what the image reports:

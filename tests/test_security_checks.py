@@ -841,6 +841,9 @@ SECRETS_WORKFLOW = {
                 "GITLEAKS_SHA256": (
                     "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
                 ),
+                "GITLEAKS_CONFIG_SHA256": (
+                    "e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf"
+                ),
             },
             "steps": [
                 action("actions/checkout", **{"fetch-depth": 0, "persist-credentials": False}),
@@ -857,6 +860,19 @@ SECRETS_WORKFLOW = {
                     ),
                 },
                 {
+                    "name": "Build the configuration without the default list of skipped paths",
+                    "run": sh(
+                        r"""
+                        default="$RUNNER_TEMP/gitleaks-default.toml"
+                        curl --fail --silent --show-error --location --retry 3 --output "$default" \
+                          "https://raw.githubusercontent.com/gitleaks/gitleaks/v${GITLEAKS_VERSION}/config/gitleaks.toml"
+                        echo "${GITLEAKS_CONFIG_SHA256}  ${default}" | sha256sum --check --strict
+                        python3 tools/security/gitleaks_config.py "$default" .gitleaks.toml \
+                          > "$RUNNER_TEMP/gitleaks.toml"
+                        """  # noqa: E501
+                    ),
+                },
+                {
                     "name": "Check that only .gitleaks.toml can excuse a finding",
                     "run": sh(
                         r"""
@@ -868,42 +884,37 @@ SECRETS_WORKFLOW = {
                     ),
                 },
                 {
-                    "name": "Check that the settings still report a secret",
+                    "name": (
+                        "Check that the settings still report a secret, whatever the file is called"
+                    ),
                     "run": sh(
                         r"""
                         canary="$RUNNER_TEMP/canary"
-                        mkdir -p "$canary"
-                        token="ghp_$(LC_ALL=C tr -dc 'A-KM-Za-km-z0-9' < /dev/urandom | head -c 36)"
-                        printf 'token = "%s"\n' "$token" > "$canary/settings_local.py"
+                        mkdir -p "$canary/static/vendor"
+                        token() { echo "ghp_$(LC_ALL=C tr -dc 'A-KM-Za-km-z0-9' < /dev/urandom | head -c 36)"; }
+                        printf 'token = "%s"\n' "$(token)" > "$canary/settings_local.py"
+                        printf '{"note": "%s"}\n' "$(token)" > "$canary/static/vendor/package-lock.json"
+                        printf '<svg><!-- %s --></svg>\n' "$(token)" > "$canary/badge.svg"
                         status=0
                         "$RUNNER_TEMP/gitleaks" dir --ignore-gitleaks-allow --redact --no-banner \
-                          --config .gitleaks.toml "$canary" || status=$?
-                        if [ "$status" -ne 1 ]; then
-                          echo "::error::gitleaks exited $status on a generated token instead of 1"
+                          --config "$RUNNER_TEMP/gitleaks.toml" --report-format json \
+                          --report-path "$RUNNER_TEMP/canary.json" "$canary" || status=$?
+                        found=$(python3 -c 'import json, sys; print(len({f["File"] for f in json.load(open(sys.argv[1]))}))' "$RUNNER_TEMP/canary.json")
+                        if [ "$status" -ne 1 ] || [ "$found" -ne 3 ]; then
+                          echo "::error::gitleaks exited $status and reported $found of 3 generated tokens"
                           exit 1
                         fi
-                        """
-                    ),
-                },
-                {
-                    "name": "Scan the history for secrets, file by file",
-                    "run": sh(
-                        r"""
-                        "$RUNNER_TEMP/gitleaks" git --log-opts="--text --diff-merges=first-parent HEAD" \
-                          --ignore-gitleaks-allow --redact --verbose --no-banner --config .gitleaks.toml .
                         """  # noqa: E501
                     ),
                 },
                 {
-                    "name": "Scan the history for secrets as one text stream",
+                    "name": "Scan the history for secrets",
                     "run": sh(
                         r"""
-                        set -o pipefail
-                        git log -p --text --diff-merges=first-parent HEAD \
-                          | python3 tools/security/text_windows.py \
-                          | "$RUNNER_TEMP/gitleaks" stdin --ignore-gitleaks-allow \
-                            --redact --verbose --no-banner --config .gitleaks.toml
-                        """
+                        "$RUNNER_TEMP/gitleaks" git --log-opts="--text --diff-merges=first-parent HEAD" \
+                          --ignore-gitleaks-allow --redact --verbose --no-banner \
+                          --config "$RUNNER_TEMP/gitleaks.toml" .
+                        """  # noqa: E501
                     ),
                 },
             ],
@@ -1092,6 +1103,22 @@ def test_security_workflow_is_exactly_the_expected_document():
 def test_secrets_workflow_is_exactly_the_expected_document():
     problems = exact_workflow_problems("secrets.yml", workflow_texts()["secrets.yml"])
     assert not problems, "secrets.yml differs from what the tests pin:\n" + "\n".join(problems)
+
+
+def test_the_secret_scan_pins_the_default_configuration_it_builds_from():
+    """The configuration downloaded for the pinned release is checked against a SHA-256, and the
+    download address names that same release through GITLEAKS_VERSION, never a moving branch."""
+    job = yaml.safe_load(read(f"{WORKFLOWS}/secrets.yml"))["jobs"]["secrets"]
+    assert re.fullmatch(r"[0-9a-f]{64}", job["env"]["GITLEAKS_CONFIG_SHA256"])
+    assert re.fullmatch(r"[0-9a-f]{64}", job["env"]["GITLEAKS_SHA256"])
+    assert job["env"]["GITLEAKS_CONFIG_SHA256"] != job["env"]["GITLEAKS_SHA256"]
+    build = next(step["run"] for step in job["steps"] if step.get("name", "").startswith("Build"))
+    urls = re.findall(r'https://[^"\s]+', build)
+    assert urls == [
+        "https://raw.githubusercontent.com/gitleaks/gitleaks/v${GITLEAKS_VERSION}"
+        "/config/gitleaks.toml"
+    ], urls
+    assert "${GITLEAKS_CONFIG_SHA256}" in build
 
 
 def test_codeql_workflow_is_exactly_the_expected_document():
@@ -1825,7 +1852,7 @@ def after(anchor, addition):
 
 TOP = "permissions:\n  contents: read\n"
 JOB_FIELDS = "    runs-on: ubuntu-latest\n"
-SCAN_STEP = "      - name: Scan the history for secrets, file by file\n"
+SCAN_STEP = "      - name: Scan the history for secrets\n"
 
 # (workflow file, label) -> a change of that file's text. Each must be reported.
 WORKFLOW_MUTATIONS = {
@@ -1928,7 +1955,7 @@ WORKFLOW_MUTATIONS = {
         "timeout-minutes: 5", "timeout-minutes: true"
     ),
     ("secrets.yml", "exit code"): replace(
-        "--no-banner --config", "--no-banner --exit-code 0 --config"
+        "--verbose --no-banner", "--verbose --no-banner --exit-code 0"
     ),
     ("secrets.yml", "not redacting"): replace("--redact --verbose", "--redact=0 --verbose"),
     ("secrets.yml", "history narrowed"): replace(
@@ -1941,8 +1968,8 @@ WORKFLOW_MUTATIONS = {
         '--log-opts="--text --diff-merges', '--log-opts="--diff-merges'
     ),
     ("secrets.yml", "gitleaks:allow honoured"): replace(
-        "            --ignore-gitleaks-allow --redact --verbose --no-banner",
-        "            --redact --verbose --no-banner",
+        "          --ignore-gitleaks-allow --redact --verbose --no-banner",
+        "          --redact --verbose --no-banner",
     ),
     ("secrets.yml", "shallow checkout"): replace("fetch-depth: 0", "fetch-depth: 1"),
     ("secrets.yml", "token kept"): replace(
@@ -1951,10 +1978,41 @@ WORKFLOW_MUTATIONS = {
     ("secrets.yml", "canary not required to fail"): replace(
         'if [ "$status" -ne 1 ]', 'if [ "$status" -ne 0 ]'
     ),
-    ("secrets.yml", "text stream scan removed"): drop_line("stdin --ignore-gitleaks-allow"),
-    ("secrets.yml", "text windows removed from the stream"): drop_line("text_windows.py"),
-    ("secrets.yml", "text windows script changed"): replace(
-        "tools/security/text_windows.py", "tools/security/other.py"
+    # The stream scan and text_windows.py are gone; the mutations below are for the redesign.
+    ("secrets.yml", "canary file count lowered"): replace('"$found" -ne 3', '"$found" -ne 1'),
+    ("secrets.yml", "canary count not checked"): replace(' || [ "$found" -ne 3 ]', ""),
+    ("secrets.yml", "canary without the skipped lock-file token"): drop_line("package-lock.json"),
+    ("secrets.yml", "canary without the skipped image token"): drop_line("badge.svg"),
+    ("secrets.yml", "builder script renamed"): replace(
+        "python3 tools/security/gitleaks_config.py", "python3 tools/security/gitleaks_confg.py"
+    ),
+    ("secrets.yml", "history scan with the repository's config"): replace(
+        '--config "$RUNNER_TEMP/gitleaks.toml" .', "--config .gitleaks.toml ."
+    ),
+    ("secrets.yml", "canary with the repository's config"): replace(
+        '--config "$RUNNER_TEMP/gitleaks.toml" --report-format',
+        "--config .gitleaks.toml --report-format",
+    ),
+    ("secrets.yml", "config checksum check removed"): drop_line("GITLEAKS_CONFIG_SHA256}"),
+    ("secrets.yml", "config checksum changed"): replace("e163e53b", "f163e53b"),
+    ("secrets.yml", "config checksum not required"): replace(
+        'echo "${GITLEAKS_CONFIG_SHA256}  ${default}" | sha256sum --check --strict',
+        'echo "${GITLEAKS_CONFIG_SHA256}  ${default}" | sha256sum --check',
+    ),
+    ("secrets.yml", "builder not run"): drop_line("python3 tools/security/gitleaks_config.py"),
+    ("secrets.yml", "builder output not written"): replace(
+        '            > "$RUNNER_TEMP/gitleaks.toml"\n', "            > /dev/null\n"
+    ),
+    ("secrets.yml", "default config from the main branch"): replace(
+        "gitleaks/v${GITLEAKS_VERSION}/config", "gitleaks/master/config"
+    ),
+    ("secrets.yml", "config version unpinned"): replace(
+        "raw.githubusercontent.com/gitleaks/gitleaks/v${GITLEAKS_VERSION}",
+        "raw.githubusercontent.com/gitleaks/gitleaks/v8.30.0",
+    ),
+    ("secrets.yml", "history scan failure ignored"): replace(
+        '--config "$RUNNER_TEMP/gitleaks.toml" .\n',
+        '--config "$RUNNER_TEMP/gitleaks.toml" . || true\n',
     ),
     ("secrets.yml", "tag pushes not scanned"): replace('    tags: ["**"]\n', ""),
     ("secrets.yml", "tag pushes limited"): replace('tags: ["**"]', 'tags: ["v*"]'),
@@ -1986,7 +2044,7 @@ WORKFLOW_MUTATIONS = {
     ("secrets.yml", "continue-on-error"): after(JOB_FIELDS, "    continue-on-error: true\n"),
     ("secrets.yml", "job can write"): after(JOB_FIELDS, "    permissions: write-all\n"),
     ("secrets.yml", "defaults shell"): after(TOP, "defaults:\n  run:\n    shell: bash {0}\n"),
-    ("secrets.yml", "a step removed"): drop_line("      - name: Scan the history for secrets as"),
+    ("secrets.yml", "a step removed"): drop_line("      - name: Scan the history for secrets"),
     ("codeql.yml", "a language dropped"): replace(
         "[python, javascript-typescript, actions]", "[python, actions]"
     ),

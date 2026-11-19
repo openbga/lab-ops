@@ -1,16 +1,17 @@
 """The scripts under tools/security/ that the security workflow runs: the Grype gate (which proves
 its settings can fail before trusting a clean scan), the action pin check, the image probe and
-the text window rewriter the secret scan reads its stream through. The
+the builder of the secret scan's gitleaks configuration. The
 workflow's steps are pinned by tests/test_security_checks.py; these hold each script's behaviour."""
 
 import hashlib
 import importlib.util
-import io
 import json
 import os
-import random
+import re
+import shutil
 import subprocess
 import sys
+import tomllib
 import urllib.error
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def load(name):
 gate = load("grype_gate")
 action_pins = load("check_action_pins")
 image_contents = load("image_contents")
-text_windows = load("text_windows")
+gitleaks_config = load("gitleaks_config")
 
 # ------------------------------------------------------------------------- grype_gate
 
@@ -891,204 +892,345 @@ def test_the_probe_prints_json_in_the_shape_the_coverage_check_reads(monkeypatch
     assert not any("incomplete" in problem for problem in problems)
 
 
-# ------------------------------------------------------------------------ text_windows
+# -------------------------------------------------------------------------- gitleaks_config
 
-WIDTH, OVERLAP = text_windows.WIDTH, text_windows.OVERLAP
-STEP = WIDTH - OVERLAP
+DEFAULT_TOML = """\
+# This is a synthetic stand-in for gitleaks' default configuration, with the same layout.
+# Rules and allowlists are defined within this file.
 
+title = "gitleaks config"
 
-def rewritten(data):
-    out = io.BytesIO()
-    text_windows.rewrite(io.BytesIO(data), out)
-    return out.getvalue()
+# minVersion indicates the minimum Gitleaks version required to use this config.
+minVersion = "v8.25.0"
 
-
-def long_line(length, seed=1):
-    return random.Random(seed).randbytes(length).replace(b"\n", b"x")
-
-
-def stream_segments(data, width=WIDTH, overlap=OVERLAP):
-    return list(text_windows.segments(io.BytesIO(data), width, overlap))
-
-
-def armoured(kind, body, block=False):
-    """A key-shaped block assembled at run time, so that no key shape appears in this file's text
-    for the repository's own secret scan to find."""
-    label = kind + b" PRIVATE" + b" KEY" + (b" BLOCK" if block else b"")
-    return b"-----BEGIN " + label + b"-----\n" + body + b"\n-----END " + label + b"-----"
-
-
-def test_the_segment_sizes():
-    assert (text_windows.WIDTH, text_windows.OVERLAP) == (24_000, 20_000)
-    assert text_windows.STEP == WIDTH - OVERLAP == 4_000
-
-
-def test_a_segment_and_its_separator_fit_in_gitleaks_look_ahead():
-    """gitleaks 8.30.1 reads 100,000 bytes and then looks at most 25,000 bytes further for a blank
-    line (maxPeekSize). A separator at least that often makes every chunk end at one."""
-    assert WIDTH + len(b"\n\n") <= 25_000
-
-
-def test_a_pgp_key_with_subkeys_lies_whole_in_some_segment():
-    """A 14 kB armoured key (an RSA-4096 primary key with three subkeys) wherever it starts."""
-    key = armoured(b"PGP", b"A" * 14_000, block=True)
-    for start in range(0, 60_000, 1_237):
-        data = long_line(start) + key + long_line(30_000, seed=2)
-        assert any(key in segment for segment in stream_segments(data)), start
-
-
-def test_empty_input_gives_no_segment_and_no_output():
-    assert stream_segments(b"") == []
-    assert rewritten(b"") == b""
-
-
-def test_input_shorter_than_the_width_is_one_segment_followed_by_a_blank_line():
-    assert stream_segments(b"+token = 1") == [b"+token = 1"]
-    exact = b"x" * WIDTH
-    assert stream_segments(exact) == [exact]
-    assert rewritten(b"+a\n+b\n") == b"+a\n+b\n\n\n"
-    assert rewritten(b"+a\n+b") == b"+a\n+b\n\n", "a last line without a newline"
-    assert rewritten(b"\n") == b"\n\n\n"
-
-
-# Lengths around every boundary: one segment, just over, exactly on a step, and long.
-LENGTHS = [
-    WIDTH + 1,
-    WIDTH + STEP - 1,
-    WIDTH + STEP,
-    WIDTH + STEP + 1,
-    2 * WIDTH,
-    STEP * 3 + OVERLAP,
-    STEP * 3 + OVERLAP + 1,
-    300_000,
+# TODO: change to [[allowlists]]
+[allowlist]
+description = "global allow lists"
+paths = [
+    '''gitleaks\\.toml''',
+    '''(?i)\\.(?:bmp|gif|jpe?g|png|svg|tiff?)$''',
+    '''(?:^|/)vendor/modules\\.txt$''',
+]
+regexes = [
+    '''(?i)^true|false|null$''',
+    '''^(?i:true|false|null)$''',
+]
+stopwords = [
+    "000000",
+    "abcdef",
+    "example",
 ]
 
+[[rules]]
+id = "first-rule"
+description = "A rule without exceptions"
+regex = '''\\b(first_[a-z0-9]{8})\\b'''
+keywords = ["first_"]
 
-@pytest.mark.parametrize("length", LENGTHS)
-def test_segments_never_exceed_the_width_overlap_by_exactly_the_overlap_and_reach_the_end(length):
-    data = long_line(length)
-    pieces = stream_segments(data)
-    assert len(pieces) > 1 and all(0 < len(piece) <= WIDTH for piece in pieces)
-    for index, piece in enumerate(pieces):
-        assert piece == data[index * STEP : index * STEP + WIDTH]
-    for before, after in zip(pieces, pieces[1:], strict=False):
-        assert len(before) == WIDTH
-        assert before[-OVERLAP:] == after[:OVERLAP], "consecutive segments overlap"
-        assert len(after) >= OVERLAP, "the overlap is whole"
-    last_start = (len(pieces) - 1) * STEP
-    assert last_start + len(pieces[-1]) == length, "the last segment reaches the end"
-    assert data.endswith(pieces[-1])
+[[rules]]
+id = "second-rule"
+description = "A rule with its own exceptions, one of them for named files"
+regex = '''\\b(second_[a-z0-9]{8})\\b'''
+keywords = ["second_"]
+[[rules.allowlists]]
+paths = [
+    '''(?:^|/)docs/.*\\.md$''',
+]
+regexes = [
+    '''.+EXAMPLE$''',
+]
 
+[[rules]]
+id = "third-rule"
+description = "A rule with stopwords"
+regex = '''\\b(third_[a-z0-9]{8})\\b'''
+keywords = ["third_"]
+[[rules.allowlists]]
+stopwords = ["third_dummy00"]
+"""
 
-@pytest.mark.parametrize("length", LENGTHS)
-def test_every_slice_of_up_to_the_overlap_lies_whole_in_some_segment(length):
-    data = long_line(length)
-    pieces = stream_segments(data)
-    starts = [index * STEP for index in range(len(pieces))]
-    for first in range(0, length - OVERLAP + 1, 7):
-        assert any(
-            start <= first and first + OVERLAP <= start + len(piece)
-            for start, piece in zip(starts, pieces, strict=True)
-        ), first
-    assert any(
-        start <= length - OVERLAP and length <= start + len(piece)
-        for start, piece in zip(starts, pieces, strict=True)
-    ), "the last OVERLAP bytes"
-    for first in list(range(0, length - OVERLAP + 1, 997)) + [length - OVERLAP]:
-        for size in (1, 100, OVERLAP):
-            wanted = data[first : first + size]
-            assert any(wanted in piece for piece in pieces), (first, size)
+PROJECT_TOML = """\
+# The project's own exceptions.
 
+[extend]
+useDefault = true
 
-def pem_block(size=3_000):
-    body = b"\n".join(b"A" * 64 for _ in range(size // 65))
-    return armoured(b"RSA", body)
+[[allowlists]]
+description = "Synthetic values used by the tests"
+regexTarget = "secret"
+regexes = [
+  # A made-up password.
+  '''^a-made-up-value-1$''',
+  '''^SIM-KEY-1122$''',
+]
+"""
 
-
-def test_a_multi_line_private_key_is_whole_in_some_segment_wherever_it_starts():
-    key = pem_block()
-    assert key.count(b"\n") > 40 and 3_000 <= len(key) <= 3_300
-    filler = b"+some added line of a diff\n" * 3_000  # about 80 kB of lines
-    for offset in list(range(0, 3 * STEP, 331)) + [WIDTH - 1, WIDTH, STEP - 1, STEP, STEP + 1]:
-        data = filler[:offset] + key + b"\n" + filler[: 25_000 - offset % 7_000]
-        assert any(key in piece for piece in stream_segments(data)), offset
+DEFAULT = tomllib.loads(DEFAULT_TOML)
+PROJECT = tomllib.loads(PROJECT_TOML)
 
 
-def test_a_slice_of_the_overlap_that_spans_many_lines_is_whole_in_some_segment():
-    data = b"".join(b"+line %06d of a diff\n" % number for number in range(5_000))
-    pieces = stream_segments(data)
-    for first in range(0, len(data) - OVERLAP + 1, 1_013):
-        assert any(data[first : first + OVERLAP] in piece for piece in pieces), first
+def built(default_text=DEFAULT_TOML, project_text=PROJECT_TOML):
+    return tomllib.loads(gitleaks_config.build(default_text, project_text))
 
 
-def test_a_token_across_every_segment_boundary_appears_whole():
-    base = b"a" * 70_000
-    token = b"ghp_" + b"T" * (OVERLAP - 4)
-    pieces = stream_segments(base)
-    for index in range(1, len(pieces)):
-        boundary = (index - 1) * STEP + WIDTH  # where segment `index - 1` ends
-        planted = base[: boundary - 700] + token + base[boundary - 700 + len(token) :]
-        assert any(token in piece for piece in stream_segments(planted)), boundary
+def test_the_synthetic_default_has_the_layout_the_builder_reads():
+    assert DEFAULT["allowlist"]["paths"] and len(DEFAULT["allowlist"]["paths"]) == 3
+    assert len(DEFAULT["rules"]) == 3 and "paths" in DEFAULT["rules"][1]["allowlists"][0]
 
 
-def test_the_rewritten_stream_holds_each_segment_followed_by_a_blank_line():
-    data = long_line(300_000)
-    pieces = stream_segments(data)
-    out = rewritten(data)
-    assert out == b"".join(piece + b"\n\n" for piece in pieces)
-    assert all(piece + b"\n\n" in out for piece in pieces)
-    assert out.endswith(b"\n\n")
-    assert all(len(chunk) <= WIDTH for chunk in out.split(b"\n\n"))
+def test_the_built_configuration_parses_with_exactly_the_expected_keys():
+    result = built()
+    assert set(result) == {"title", "minVersion", "allowlists", "rules"}
+    assert result["title"] == "gitleaks config" and result["minVersion"] == "v8.25.0"
 
 
-def test_a_blank_line_follows_each_segment_of_text_with_many_lines():
-    data = b"".join(b"+line %06d of a diff\n" % number for number in range(6_000))
-    out = rewritten(data)
-    pieces = stream_segments(data)
-    assert out == b"".join(piece + b"\n\n" for piece in pieces)
-    assert len(pieces) > 5 and out.count(b"\n\n") >= len(pieces)
+def test_no_global_allowlist_lists_paths_and_the_default_one_keeps_the_rest():
+    result = built()
+    assert not any("paths" in allowlist for allowlist in result["allowlists"])
+    first = result["allowlists"][0]
+    assert first == {
+        "description": "global allow lists",
+        "regexes": DEFAULT["allowlist"]["regexes"],
+        "stopwords": DEFAULT["allowlist"]["stopwords"],
+    }
 
 
-def test_a_stream_read_in_small_pieces_gives_the_same_segments():
-    class Dribble(io.RawIOBase):
-        """A pipe that returns what it has, never more than 4 kB per read."""
-
-        def __init__(self, data):
-            self.inner = io.BytesIO(data)
-
-        def readable(self):
-            return True
-
-        def readinto(self, buffer):
-            chunk = self.inner.read(min(len(buffer), 4_096))
-            buffer[: len(chunk)] = chunk
-            return len(chunk)
-
-    data = long_line(95_000)
-    wrapped = io.BufferedReader(Dribble(data), buffer_size=4_096)
-    assert list(text_windows.segments(wrapped)) == stream_segments(data)
+def test_the_rules_are_unchanged_including_a_rule_level_allowlist_with_paths():
+    result = built()
+    assert result["rules"] == DEFAULT["rules"]
+    assert result["rules"][1]["allowlists"][0]["paths"] == [r"(?:^|/)docs/.*\.md$"]
 
 
-def test_bytes_that_are_not_utf_8_pass_through_unchanged():
-    raw = b"+caf\xe9 \xff\xfe\x80\x00 binary\r"
-    assert rewritten(raw + b"\n") == raw + b"\n\n\n"
-    huge = b"\xff\xfe" * 60_000
-    out = rewritten(huge + b"\n")
-    assert out == b"".join(piece + b"\n\n" for piece in stream_segments(huge + b"\n"))
-    assert out.replace(b"\n\n", b"")  # a segment is cut by bytes, never decoded
-    with pytest.raises(UnicodeDecodeError):
-        raw.decode()
+def test_the_projects_exact_value_allowlist_follows_the_default_one():
+    result = built()
+    assert result["allowlists"][1:] == PROJECT["allowlists"]
+    assert result["allowlists"][1]["regexes"] == ["^a-made-up-value-1$", "^SIM-KEY-1122$"]
+    assert len(result["allowlists"]) == 2
 
 
-def test_the_command_rewrites_standard_input_to_standard_output():
-    script = text_windows.__file__
-    data = b"+one\n+two \xff\n" + b"+" + b"z" * 45_000 + b"\n"
+def test_the_extend_table_is_dropped():
+    text = gitleaks_config.build(DEFAULT_TOML, PROJECT_TOML)
+    assert "extend" not in tomllib.loads(text) and "useDefault" not in text
+    assert "[allowlist]" not in text.replace("[[allowlists]]", "")
+
+
+def test_a_default_without_an_allowlist_table_fails():
+    text = DEFAULT_TOML.replace("[allowlist]\n", "")
+    with pytest.raises(ValueError, match="exactly one"):
+        gitleaks_config.build(text, PROJECT_TOML)
+
+
+def test_a_default_with_two_allowlist_tables_fails():
+    text = DEFAULT_TOML.replace("[[rules]]", '[allowlist]\ndescription = "again"\n\n[[rules]]', 1)
+    assert text != DEFAULT_TOML
+    with pytest.raises(ValueError):
+        gitleaks_config.build(text, PROJECT_TOML)
+
+
+def test_a_project_without_allowlists_fails():
+    with pytest.raises(ValueError, match="has no"):
+        gitleaks_config.build(DEFAULT_TOML, "[extend]\nuseDefault = true\n")
+
+
+def test_a_default_that_is_not_toml_fails():
+    with pytest.raises(tomllib.TOMLDecodeError):
+        gitleaks_config.build(DEFAULT_TOML + "\n[[rules]\n", PROJECT_TOML)
+
+
+def good_text():
+    return gitleaks_config.build(DEFAULT_TOML, PROJECT_TOML)
+
+
+def test_check_accepts_the_built_text():
+    gitleaks_config.check(good_text(), DEFAULT, PROJECT)
+
+
+@pytest.mark.parametrize(
+    ("label", "tamper"),
+    [
+        (
+            "a global allowlist with paths",
+            lambda t: t.replace(
+                'description = "global allow lists"',
+                'description = "global allow lists"\npaths = ["x"]',
+                1,
+            ),
+        ),
+        ("a rule changed", lambda t: t.replace('id = "first-rule"', 'id = "first-ruleX"', 1)),
+        (
+            "a rule dropped",
+            lambda t: t.replace('id = "third-rule"', 'id = "third-rule"\nenabled = 1', 1),
+        ),
+        ("an unexpected top-level key", lambda t: "extra = 1\n" + t),
+        ("the extend table kept", lambda t: "[extend]\nuseDefault = true\n" + t),
+        ("a stopword dropped", lambda t: t.replace('    "abcdef",\n', "", 1)),
+        ("the project's value changed", lambda t: t.replace("^SIM-KEY-1122$", "^.*$")),
+        ("the project's allowlist missing", lambda t: t.split("\n[[allowlists]]")[0] + "\n"),
+        ("a project allowlist doubled", lambda t: t + t[t.rindex("[[allowlists]]") :]),
+        ("a rule-level allowlist path dropped", lambda t: t.replace("docs/", "doc/", 1)),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_check_rejects_a_tampered_result(label, tamper):
+    tampered = tamper(good_text())
+    assert tampered != good_text(), label
+    with pytest.raises(ValueError):
+        gitleaks_config.check(tampered, DEFAULT, PROJECT)
+
+
+def test_check_rejects_a_result_without_any_allowlist():
+    with pytest.raises(ValueError, match="first allowlist"):
+        gitleaks_config.check(
+            'title = "gitleaks config"\nminVersion = "v8.25.0"\nallowlists = []\n'
+            + "".join(f"[[rules]]\nid = {rule['id']!r}\n" for rule in DEFAULT["rules"]),
+            DEFAULT,
+            PROJECT,
+        )
+
+
+def test_main_prints_the_built_configuration(tmp_path, capsys):
+    default, project = tmp_path / "default.toml", tmp_path / "project.toml"
+    default.write_text(DEFAULT_TOML)
+    project.write_text(PROJECT_TOML)
+    assert gitleaks_config.main([str(default), str(project)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == good_text() and not captured.err
+
+
+@pytest.mark.parametrize("arguments", [[], ["one"], ["one", "two", "three"]])
+def test_main_exits_2_on_the_wrong_number_of_arguments(arguments, capsys):
+    assert gitleaks_config.main(arguments) == 2
+    captured = capsys.readouterr()
+    assert not captured.out and "gitleaks_config.py" in captured.err
+
+
+def test_main_raises_for_an_unusable_default_and_writes_nothing(tmp_path, capsys):
+    default, project = tmp_path / "default.toml", tmp_path / "project.toml"
+    default.write_text(DEFAULT_TOML.replace("[allowlist]\n", ""))
+    project.write_text(PROJECT_TOML)
+    with pytest.raises(ValueError):
+        gitleaks_config.main([str(default), str(project)])
+    assert capsys.readouterr().out == ""
+
+
+def test_the_command_line_prints_to_standard_output_and_exits_2_on_misuse(tmp_path):
+    script = str(ROOT / "tools/security/gitleaks_config.py")
+    default, project = tmp_path / "default.toml", tmp_path / "project.toml"
+    default.write_text(DEFAULT_TOML)
+    project.write_text(PROJECT_TOML)
     done = subprocess.run(
-        [sys.executable, "-I", script], input=data, capture_output=True, check=True
+        [sys.executable, "-I", script, str(default), str(project)],
+        capture_output=True,
+        text=True,
+        check=True,
     )
-    assert done.stdout == rewritten(data) and not done.stderr
-    assert done.stdout.endswith(b"\n\n") and len(done.stdout) > len(data)
-    empty = subprocess.run(
-        [sys.executable, "-I", script], input=b"", capture_output=True, check=True
+    assert done.stdout == good_text() and not done.stderr
+    misuse = subprocess.run([sys.executable, "-I", script], capture_output=True, text=True)
+    assert misuse.returncode == 2 and not misuse.stdout
+
+
+# The real default configuration for the pinned release, found next to the scanners the review
+# tools directory holds; these tests never download it.
+TOOLS = Path(os.environ.get("LABOPS_REVIEW_TOOLS", "/tmp/labops-rsc-tools"))
+GITLEAKS_VERSION_PINNED = "8.30.1"
+
+
+def real_default():
+    candidates = [os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG"), TOOLS / "gitleaks-default.toml"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
+
+
+def real_gitleaks():
+    bundled = TOOLS / "bin/gitleaks"
+    path = str(bundled) if bundled.is_file() else shutil.which("gitleaks")
+    if not path:
+        pytest.skip("gitleaks is not available")
+    return path
+
+
+def test_the_real_default_configuration_is_the_pinned_one_and_builds():
+    default = real_default().read_text()
+    workflow = (ROOT / ".github/workflows/secrets.yml").read_text()
+    pinned = re.search(r"GITLEAKS_CONFIG_SHA256: ([0-9a-f]{64})", workflow).group(1)
+    if hashlib.sha256(default.encode()).hexdigest() != pinned:
+        pytest.skip("the default configuration found is for another gitleaks release")
+    text = gitleaks_config.build(default, (ROOT / ".gitleaks.toml").read_text())
+    result = tomllib.loads(text)
+    original = tomllib.loads(default)
+    assert result["rules"] == original["rules"] and len(result["rules"]) > 100
+    assert not any("paths" in allowlist for allowlist in result["allowlists"])
+    assert {key: value for key, value in original["allowlist"].items() if key != "paths"} == (
+        result["allowlists"][0]
     )
-    assert empty.stdout == b""
+    assert original["allowlist"]["paths"], "control: the default does list paths"
+    assert (
+        result["allowlists"][1:]
+        == tomllib.loads((ROOT / ".gitleaks.toml").read_text())["allowlists"]
+    )
+    assert any(
+        "paths" in allowlist for rule in result["rules"] for allowlist in rule.get("allowlists", [])
+    ), "rule-level exceptions for named files are kept"
+
+
+def canary_files(directory):
+    """Three files gitleaks' default configuration partly skips by name, each holding a token
+    assembled at run time (no letter l: the default passes over values containing 'false')."""
+    import secrets as secret_source
+
+    alphabet = "ABCDEFGHIJKMNOPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789"
+
+    def token():
+        return "ghp_" + "".join(secret_source.choice(alphabet) for _ in range(36))
+
+    (directory / "static/vendor").mkdir(parents=True)
+    (directory / "settings_local.py").write_text(f'token = "{token()}"\n')
+    (directory / "static/vendor/package-lock.json").write_text(f'{{"note": "{token()}"}}\n')
+    (directory / "badge.svg").write_text(f"<svg><!-- {token()} --></svg>\n")
+
+
+def reported_files(binary, config, directory, report):
+    done = subprocess.run(
+        [
+            binary,
+            "dir",
+            "--ignore-gitleaks-allow",
+            "--redact",
+            "--no-banner",
+            "--config",
+            str(config),
+            "--report-format",
+            "json",
+            "--report-path",
+            str(report),
+            str(directory),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 1, done.stderr
+    return {Path(finding["File"]).name for finding in json.loads(report.read_text())}
+
+
+def test_the_built_configuration_reports_all_three_canary_files_and_the_default_only_one(tmp_path):
+    default = real_default()
+    binary = real_gitleaks()
+    pinned = re.search(
+        r"GITLEAKS_CONFIG_SHA256: ([0-9a-f]{64})",
+        (ROOT / ".github/workflows/secrets.yml").read_text(),
+    ).group(1)
+    if hashlib.sha256(default.read_bytes()).hexdigest() != pinned:
+        pytest.skip("the default configuration found is for another gitleaks release")
+    config = tmp_path / "gitleaks.toml"
+    config.write_text(
+        gitleaks_config.build(default.read_text(), (ROOT / ".gitleaks.toml").read_text())
+    )
+    canary = tmp_path / "canary"
+    canary_files(canary)
+    expected = {"settings_local.py", "package-lock.json", "badge.svg"}
+    assert reported_files(binary, config, canary, tmp_path / "built.json") == expected
+    assert reported_files(binary, default, canary, tmp_path / "default.json") == {
+        "settings_local.py"
+    }

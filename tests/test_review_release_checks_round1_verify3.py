@@ -14,7 +14,6 @@ pytest's temporary directories; this file holds no secret-shaped value. Only cop
 """
 
 import importlib.util
-import io
 import os
 import re
 import shutil
@@ -64,9 +63,9 @@ def read(relative):
 
 
 def tool(name):
-    path = TOOLS / name
-    if path.is_file():
-        return str(path)
+    for directory in (TOOLS, TOOLS / "bin"):
+        if (directory / name).is_file():
+            return str(directory / name)
     found = shutil.which(name)
     if not found:
         pytest.skip(f"{name} is not installed")
@@ -82,6 +81,22 @@ def git(repo, *args):
 def secrets_step(name):
     steps = yaml.safe_load(read(SECRETS_YML))["jobs"]["secrets"]["steps"]
     return next(step["run"] for step in steps if step.get("name") == name)
+
+
+# Adapted: the job builds the configuration its scans read ($RUNNER_TEMP/gitleaks.toml) in a step
+# that downloads gitleaks' default one, which tests never do; the helper builds it in-process from
+# the default file kept next to the scanners (skipping when absent).
+def default_gitleaks_config():
+    """The real default gitleaks configuration of the pinned release, or skip."""
+    candidates = [
+        os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG"),
+        TOOLS / "gitleaks-default.toml",
+        TOOLS.parent / "gitleaks-default.toml",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
 
 
 def private_key_lines():
@@ -103,46 +118,53 @@ SVG_FILLER = [
 ]
 
 
-def test_the_stream_scan_reports_a_private_key_wherever_it_sits_in_a_skipped_file(tmp_path):
-    """secrets.yml: the history is scanned again "as one text stream, where no file is skipped by
-    its name"; text_windows.py: "every chunk ends at a line boundary". The file-by-file scan skips
-    every .svg by path. A private key spans about 28 lines; text_windows.py puts a blank line after
-    every line, so a gitleaks chunk (one read of the pipe, then up to the next blank line) can end
-    after any line of the key, and its BEGIN and END are then scanned apart. One generated key is
-    moved through a 270 kB SVG, one fresh repository per position, through secrets.yml's own steps
-    (15 to 27 of 120 positions missed across local runs, as pipe reads vary; 5 of 120
-    with 853f62b's step, which had no windows)."""
+# Adapted: the stream step is gone. Its intent (a multi-line private key in an .svg, a file the
+# default rules skip by path, is reported wherever it sits) is judged on the history step with the
+# built configuration, which reads each file of a commit whole, so no position can cut the key.
+# The sweep uses fewer positions than the original's 120 (every 200th line of a 6,000-line file,
+# 30 positions, as the full sweep took 50 s); the control is the same
+# step with the default configuration, which skips the .svg and passes.
+def test_the_history_scan_reports_a_private_key_wherever_it_sits_in_a_skipped_file(tmp_path):
+    """secrets.yml: the history is scanned with the default configuration "without its list of
+    skipped paths", so an .svg, which the default rules skip by path, is read. A private key spans
+    about 28 lines; one generated key is moved through a 270 kB SVG, one fresh repository per
+    position, through secrets.yml's own history step."""
     runner_temp = tmp_path / "runner-temp"
     runner_temp.mkdir()
     (runner_temp / "gitleaks").symlink_to(tool("gitleaks"))
+    builder = _load("review_v3_gitleaks_config", "tools/security/gitleaks_config.py")
+    default = default_gitleaks_config()
+    (runner_temp / "gitleaks.toml").write_text(
+        builder.build(default.read_text(), read(".gitleaks.toml"))
+    )
     env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "HOME": str(tmp_path)}
-    stream = secrets_step("Scan the history for secrets as one text stream")
-    file_by_file = secrets_step("Scan the history for secrets, file by file")
+    history = secrets_step("Scan the history for secrets")
+    default_only = history.replace('"$RUNNER_TEMP/gitleaks.toml"', f'"{default}"')
+    assert default_only != history
     key = [f"  <!-- {line} -->" for line in private_key_lines()]
     missed, skipped_by_path = [], set()
-    for position in range(0, len(SVG_FILLER), 50):
+    positions = range(0, len(SVG_FILLER), 200)
+    for position in positions:
         repo = tmp_path / f"repo-{position}"
         (repo / "static/img").mkdir(parents=True)
-        shutil.copytree(ROOT / "tools", repo / "tools")
-        shutil.copy(ROOT / ".gitleaks.toml", repo / ".gitleaks.toml")
         lines = SVG_FILLER[:position] + key + SVG_FILLER[position:]
         (repo / "static/img/badge.svg").write_text("<svg>\n" + "\n".join(lines) + "\n</svg>\n")
         git(repo, "init", "-q", "-b", "main")
         git(repo, "add", "-A")
         git(repo, "commit", "-qm", "add a badge")
-        run = subprocess.run(["bash", "-e", "-c", stream], cwd=repo, env=env, capture_output=True)
+        run = subprocess.run(["bash", "-e", "-c", history], cwd=repo, env=env, capture_output=True)
         if run.returncode == 0:
             missed.append(position)
         if position == 0:
             other = subprocess.run(
-                ["bash", "-e", "-c", file_by_file], cwd=repo, env=env, capture_output=True
+                ["bash", "-e", "-c", default_only], cwd=repo, env=env, capture_output=True
             )
             skipped_by_path.add(other.returncode)
         shutil.rmtree(repo)
-    assert skipped_by_path == {0}, "control: the file-by-file scan skips .svg files by path"
+    assert skipped_by_path == {0}, "control: the default configuration skips .svg files by path"
     assert not missed, (
-        f"the secrets job passes a private key in an SVG at {len(missed)} of 120 positions "
-        f"(lines {missed})"
+        f"the secrets job passes a private key in an SVG at {len(missed)} of {len(positions)} "
+        f"positions (lines {missed})"
     )
 
 
@@ -298,22 +320,14 @@ def test_sound_the_loader_refuses_every_spelling_of_a_merge_key(checks, text):
         checks.parse_yaml(text)
 
 
-# Adapted: windows() is gone; text_windows.py now cuts the byte stream with segments(), and a
-# match of up to OVERLAP bytes (here as well as one line) must lie whole in some segment. The
-# lengths are the original's, the longest being the history's longest line.
-def test_sound_text_windows_keeps_every_short_match_whole_in_some_window():
-    """For an input longer than WIDTH, every substring of up to OVERLAP bytes lies inside one
-    segment, and the last segment reaches the end of the input."""
-    windows = _load("review_v3_text_windows", "tools/security/text_windows.py")
-    step = windows.WIDTH - windows.OVERLAP
-    for length in (20_001, 38_000, 38_001, 40_000, 590_039):
-        line = bytes(range(256)) * (length // 256) + bytes(length % 256)
-        pieces = list(windows.segments(io.BytesIO(line)))
-        starts = [index * step for index in range(len(pieces))]
-        assert pieces == [line[s : s + windows.WIDTH] for s in starts]
-        assert starts[-1] + len(pieces[-1]) == length
-        for begin in range(0, length - windows.OVERLAP + 1, 997):
-            assert any(
-                s <= begin and begin + windows.OVERLAP <= s + len(piece)
-                for s, piece in zip(starts, pieces, strict=True)
-            ), (length, begin)
+# Adapted: this test checked the arithmetic of the text windows (every match of up to OVERLAP bytes
+# whole in some window). That stream approach, the stream step and tools/security/text_windows.py
+# are gone, so the arithmetic is superseded; the body now checks that they are gone and that the
+# history scan reads the built configuration.
+def test_sound_the_stream_and_its_windows_are_gone_and_the_history_scan_uses_the_built_config():
+    steps = yaml.safe_load(read(SECRETS_YML))["jobs"]["secrets"]["steps"]
+    assert not [s for s in steps if "stream" in s.get("name", "").lower()]
+    assert not (ROOT / "tools/security/text_windows.py").exists()
+    assert "text_windows" not in read(SECRETS_YML) and " stdin " not in read(SECRETS_YML)
+    history = secrets_step("Scan the history for secrets")
+    assert '--config "$RUNNER_TEMP/gitleaks.toml"' in history

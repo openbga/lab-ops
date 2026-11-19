@@ -1,4 +1,6 @@
-# Secret scan settings for gitleaks (see SECURITY.md, "What is checked").
+# Secret scan settings for gitleaks (see SECURITY.md, "What is checked"). The scan combines this
+# allowlist with gitleaks' default configuration without its list of skipped paths
+# (tools/security/gitleaks_config.py).
 #
 # The default rules apply. The allowlist names synthetic values in the tests that the generic
 # rule mistakes for secrets. Each entry is one exact value, so anything else in the same file,

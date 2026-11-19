@@ -16,9 +16,10 @@ file holds no secret-shaped value. Only copies are mutated, never the repository
 Adopted from the reviewer's file (the original is kept in
 .local/review-history/test_release_checks_round1_verify_original.py). Each case still asserts what
 the reviewer's did. Where the structure changed after the review (the secret scan lives in
-secrets.yml and runs on every push, with four steps; the dependency audit requires the actions and
-prepares the SBOM with the repository names of sub-path actions; the image listing has `programs`;
-the checks module reads workflows as YAML), a comment above the test says what changed and why.
+secrets.yml and runs on every push, with a built configuration; the dependency audit requires the
+actions and prepares the SBOM with the repository names of sub-path actions; the image listing
+has `programs`; the checks module reads workflows as YAML), a comment above the test says what
+changed and why.
 """
 
 import importlib.util
@@ -88,9 +89,9 @@ def read(relative):
 
 
 def tool(name):
-    path = TOOLS / name
-    if path.is_file():
-        return str(path)
+    for directory in (TOOLS, TOOLS / "bin"):
+        if (directory / name).is_file():
+            return str(directory / name)
     found = shutil.which(name)
     if not found:
         pytest.skip(f"{name} is not installed")
@@ -225,15 +226,37 @@ def step_script(name, text=None, path=SECURITY_YML):
     raise AssertionError(f"no step called {name!r}")
 
 
-# Adapted: the secrets job now has four steps that can stop a leak, in this order: the guard
-# against a .gitleaksignore file, the canary, the file-by-file history scan and the scan of the
-# history as one text stream (which replaced the scan of the files gitleaks skips by name).
+# Adapted: the secrets job's steps that can stop a leak are now, in this order: the guard against a
+# .gitleaksignore file, the canary (which also needs the built configuration), and the history scan
+# with that configuration. The stream step and text_windows.py are gone. The job's step that
+# builds the configuration downloads gitleaks' default one, which tests never do, so the helper
+# builds it in-process from the default file kept next to the scanners (skipping when absent) and
+# writes it where the job's steps read it, $RUNNER_TEMP/gitleaks.toml.
 SECRET_STEPS = {
     "guard": "Check that only .gitleaks.toml can excuse a finding",
-    "canary": "Check that the settings still report a secret",
-    "history": "Scan the history for secrets, file by file",
-    "stream": "Scan the history for secrets as one text stream",
+    "canary": "Check that the settings still report a secret, whatever the file is called",
+    "history": "Scan the history for secrets",
 }
+
+
+def default_gitleaks_config():
+    """The real default gitleaks configuration of the pinned release, or skip."""
+    candidates = [
+        os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG"),
+        TOOLS / "gitleaks-default.toml",
+        TOOLS.parent / "gitleaks-default.toml",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
+
+
+def built_gitleaks_config(project=None):
+    """The configuration the job builds: the default one without its paths plus .gitleaks.toml."""
+    builder = _load("review_verify_gitleaks_config", "tools/security/gitleaks_config.py")
+    project_text = Path(project).read_text() if project else read(".gitleaks.toml")
+    return builder.build(default_gitleaks_config().read_text(), project_text)
 
 
 def secret_job(repo, tmp_path):
@@ -244,13 +267,8 @@ def secret_job(repo, tmp_path):
     binary = runner_temp / "gitleaks"
     if not binary.exists():
         binary.symlink_to(tool("gitleaks"))
+    (runner_temp / "gitleaks.toml").write_text(built_gitleaks_config())
     env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "HOME": str(tmp_path)}
-    # Adapted: the stream step runs `python3 tools/security/text_windows.py` from the checkout, so
-    # the repository under test gets an untracked copy of the script (never committed).
-    window = repo / "tools/security/text_windows.py"
-    if not window.exists():
-        window.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(ROOT / "tools/security/text_windows.py", window)
     codes = {}
     for label, name in SECRET_STEPS.items():
         script = runner_temp / f"{label.replace(' ', '-')}.sh"
@@ -323,8 +341,8 @@ def test_control_the_secrets_job_fails_on_a_committed_token(tmp_path):
     repo = new_repo(tmp_path / "repo")
     control_plain(repo, fake_token())
     codes = secret_job(repo, tmp_path)
-    # Adapted: the stream scan also reports a token the file-by-file scan reports.
-    assert codes == {"guard": 0, "canary": 0, "history": 1, "stream": 1}, codes
+    # Adapted: the job has no stream step; the history scan with the built configuration reports it.
+    assert codes == {"guard": 0, "canary": 0, "history": 1}, codes
 
 
 @pytest.mark.parametrize("label", HIDING)
@@ -364,12 +382,15 @@ def test_files_the_default_rules_skip_by_path_are_still_scanned(tmp_path, label)
     assert job_fails_on_the_secret(codes), f"{label}: the secrets job passes a token ({codes})"
 
 
-# Adapted: CONTRIBUTING's secret scan is now the same two commands as CI (the file-by-file scan
-# and a text stream), written in one sh block, so the block is run whole and CI's reporting is the
-# stream step.
+# Adapted: CONTRIBUTING's secret scan is now the commands that download the default configuration
+# into build/, build build/gitleaks.toml and run one gitleaks git command, as CI does. The block is
+# run whole in the repository under test, with the download replaced by a copy of the default
+# file kept next to the scanners (never downloaded), the builder and .gitleaks.toml taken from this
+# checkout, and CI's reporting (the history step of the job) as the control.
 def test_the_documented_local_secret_scan_reports_what_ci_reports(tmp_path):
-    """CONTRIBUTING: run the secret scan before pushing. Its command was the history scan only;
-    CI also scans the history of static/vendor/package-lock.json as text."""
+    """CONTRIBUTING: run the secret scan before pushing. CI's history scan reports a token in
+    static/vendor/package-lock.json, a file gitleaks' default rules skip by name; the documented
+    command must too."""
     text = read("CONTRIBUTING.md")
     block = next(
         match
@@ -378,17 +399,26 @@ def test_the_documented_local_secret_scan_reports_what_ci_reports(tmp_path):
     )
     repo = new_repo(tmp_path / "repo")
     commit(repo, {"static/vendor/package-lock.json": f'{{"token": "{fake_token()}"}}\n'})
-    assert secret_job(repo, tmp_path)["stream"] == 1, "control: CI reports it"
-    script = re.sub(r"\bgitleaks (git|stdin)\b", rf"{tool('gitleaks')} \1", block)
+    assert secret_job(repo, tmp_path)["history"] == 1, "control: CI reports it"
+    shutil.copy(ROOT / ".gitleaks.toml", repo / ".gitleaks.toml")
+    default = default_gitleaks_config()
+    script = re.sub(
+        r"curl [^\n]*\n[^\n]*\n", f"cp {default} build/gitleaks-default.toml\n", block, count=1
+    )
+    assert script != block and "curl" not in script
+    script = script.replace(
+        "tools/security/gitleaks_config.py", str(ROOT / "tools/security/gitleaks_config.py")
+    )
+    script = re.sub(r"\bgitleaks git\b", f"{tool('gitleaks')} git", script)
     local = subprocess.run(
         ["bash", "-ec", script], cwd=repo, env=GIT_ENV, capture_output=True, text=True
     )
     assert local.returncode == 1, f"the documented local scan passes what CI fails:\n{block}"
 
 
-# Adapted: the token-adding-then-removing case is now judged on the stream step, which reads the
-# whole history as text (the path-limited step it replaced no longer exists).
-def test_sound_the_text_stream_scan_follows_a_pull_request_that_adds_then_removes_a_token(
+# Adapted: the token-adding-then-removing case is now judged on the history step with the built
+# configuration, which reads every commit as text (the stream step no longer exists).
+def test_sound_the_history_scan_follows_a_pull_request_that_adds_then_removes_a_token(
     tmp_path,
 ):
     """git log -p with --diff-merges=first-parent still prints a side branch's own commits, so a
@@ -402,7 +432,7 @@ def test_sound_the_text_stream_scan_follows_a_pull_request_that_adds_then_remove
     commit(repo, {"static/vendor/package-lock.json": '{\n "lockfileVersion": 3\n}\n'}, "B")
     git(repo, "checkout", "-q", "main")
     git(repo, "merge", "-q", "--no-ff", "pr", "-m", "refs/pull/N/merge")
-    assert secret_job(repo, tmp_path)["stream"] == 1
+    assert secret_job(repo, tmp_path)["history"] == 1
 
 
 # ===================================== V-03 .grype.yaml entries that pass the strict check
@@ -487,9 +517,7 @@ def after(anchor, addition):
 QUOTED_KEY_MUTATIONS = {
     "the history scan step never runs ('if': false)": (
         SECRETS_YML,
-        after(
-            "      - name: Scan the history for secrets, file by file\n", "        'if': false\n"
-        ),
+        after("      - name: Scan the history for secrets\n", "        'if': false\n"),
     ),
     "the secrets job never runs ('if': false)": (
         SECRETS_YML,
@@ -843,8 +871,8 @@ def test_sound_the_canaries_pass_on_the_repository_settings(tmp_path):
         code, output = run_gate(name, clean)
         assert code == 0 and "cannot be trusted" not in output, (name, output)
     repo = new_repo(tmp_path / "repo")
-    # Adapted: the job's four steps (see SECRET_STEPS).
-    assert secret_job(repo, tmp_path) == {"guard": 0, "canary": 0, "history": 0, "stream": 0}
+    # Adapted: the job's three steps (see SECRET_STEPS).
+    assert secret_job(repo, tmp_path) == {"guard": 0, "canary": 0, "history": 0}
 
 
 def test_sound_the_pin_check_fails_closed_on_errors_it_does_not_name():

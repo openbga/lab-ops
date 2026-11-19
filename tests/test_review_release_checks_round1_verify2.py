@@ -87,9 +87,9 @@ def read(relative):
 
 
 def tool(name):
-    path = TOOLS / name
-    if path.is_file():
-        return str(path)
+    for directory in (TOOLS, TOOLS / "bin"):
+        if (directory / name).is_file():
+            return str(directory / name)
     found = shutil.which(name)
     if not found:
         pytest.skip(f"{name} is not installed")
@@ -279,17 +279,32 @@ def secrets_step(name):
     return next(step["run"] for step in steps if step.get("name") == name)
 
 
+# Adapted: the job builds the configuration its scans read ($RUNNER_TEMP/gitleaks.toml) in a step
+# that downloads gitleaks' default one, which tests never do; the helper builds it in-process from
+# the default file kept next to the scanners (skipping when absent). The stream step and
+# text_windows.py are gone, so nothing is copied into the repository under test any more.
+def default_gitleaks_config():
+    """The real default gitleaks configuration of the pinned release, or skip."""
+    candidates = [
+        os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG"),
+        TOOLS / "gitleaks-default.toml",
+        TOOLS.parent / "gitleaks-default.toml",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
+
+
 def run_step(script, repo, tmp_path, extra_env=None):
-    # Adapted: the stream step runs `python3 tools/security/text_windows.py` from the checkout, so
-    # the repository under test gets an untracked copy of the script (never committed).
-    window = repo / "tools/security/text_windows.py"
-    if not window.exists():
-        window.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(ROOT / "tools/security/text_windows.py", window)
     runner_temp = tmp_path / "runner-temp"
     runner_temp.mkdir(exist_ok=True)
     if not (runner_temp / "gitleaks").exists():
         (runner_temp / "gitleaks").symlink_to(tool("gitleaks"))
+    builder = _load("review_verify2_gitleaks_config", "tools/security/gitleaks_config.py")
+    (runner_temp / "gitleaks.toml").write_text(
+        builder.build(default_gitleaks_config().read_text(), read(".gitleaks.toml"))
+    )
     path = runner_temp / "step.sh"
     path.write_text(script)
     env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "HOME": str(tmp_path), **(extra_env or {})}
@@ -401,31 +416,35 @@ def unexcused_token():
     return "ghp" + "_" + "".join(random.SystemRandom().choice(alphabet) for _ in range(36))
 
 
-def test_the_stream_scan_reports_every_token_in_a_file_the_file_by_file_scan_skips(tmp_path):
-    """secrets.yml: the history is scanned again "as one text stream, where no file is skipped
-    by its name". gitleaks reads stdin in chunks (100 kB, then up to 25 kB more looking for a
-    blank line, sources/file.go and sources/common.go at v8.30.1); a diff line has no blank line,
-    so a long line is cut where a read ends and a token across the cut is not reported. The
-    file-by-file scan skips package-lock.json by path, so nothing else reads it."""
+# Adapted: the stream step is gone; the history scan with the built configuration reads every file
+# of every commit file by file (so there are no chunks to cut a token), and package-lock.json is no
+# longer skipped by path. The test keeps its intent (every one of 6,000 tokens in a file the
+# default rules skip by name is reported) and judges it on that scan, run without --redact so
+# that the report names the tokens, and with the default configuration as the control (it
+# reports none).
+def test_the_history_scan_reports_every_token_in_a_file_the_default_rules_skip(tmp_path):
+    """secrets.yml: the history is scanned with the default configuration "without its list of
+    skipped paths", so package-lock.json, skipped by path by the default rules, is read, and a long
+    line of tokens is read whole: gitleaks reads each file of a commit at once, not in chunks."""
     repo = new_repo(tmp_path / "repo")
     tokens = [unexcused_token() for _ in range(6000)]
     lock = '{"lockfileVersion": 3, "note": "' + " ".join(tokens) + '"}\n'
     commit(repo, {"static/vendor/package-lock.json": lock}, "record vendored packages")
-    history = secrets_step("Scan the history for secrets, file by file")
-    assert run_step(history, repo, tmp_path).returncode == 0, "control: skipped by path"
-    report = tmp_path / "stream.json"
-    # Adapted: windows overlap by design, so a token inside an overlap is reported once per window
-    # that holds it. The test therefore compares the set of reported tokens (the step is run
-    # without --redact so that the report names them) with the planted ones: every one is found.
-    stream = secrets_step("Scan the history for secrets as one text stream").rstrip()
-    assert " --redact " in stream
-    stream = stream.replace(" --redact ", " ")
-    stream += ' --report-format json --report-path "$REPORT"\n'
-    result = run_step(stream, repo, tmp_path, {"REPORT": str(report)})
-    assert result.returncode == 1, "control: the stream scan reports tokens"
+    history = secrets_step("Scan the history for secrets").rstrip()
+    default_config = history.replace(
+        '"$RUNNER_TEMP/gitleaks.toml"', f'"{default_gitleaks_config()}"'
+    )
+    assert default_config != history
+    assert run_step(default_config, repo, tmp_path).returncode == 0, "control: skipped by path"
+    report = tmp_path / "history.json"
+    assert " --redact " in history
+    history = history.replace(" --redact ", " ")
+    history += ' --report-format json --report-path "$REPORT"\n'
+    result = run_step(history, repo, tmp_path, {"REPORT": str(report)})
+    assert result.returncode == 1, "control: the history scan reports tokens"
     reported = {finding["Secret"] for finding in json.loads(report.read_text())}
     assert reported == set(tokens), (
-        f"the stream scan reported {len(reported & set(tokens))} of the {len(tokens)} tokens in "
+        f"the history scan reported {len(reported & set(tokens))} of the {len(tokens)} tokens in "
         f"package-lock.json, and {len(reported - set(tokens))} others"
     )
 

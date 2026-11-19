@@ -32,7 +32,7 @@ on every push of a branch or a tag. The workflows are [`security.yml`](.github/w
 | --- | --- | --- |
 | Static analysis (CodeQL, security-extended queries) | The application's Python code, its own JavaScript under `static/js/`, and the GitHub Actions workflows. Tests, browser journeys and the vendored third-party files are left out | A pull request that adds an alert at the repository's failure threshold. Alerts are listed in the repository's Security tab |
 | Dependency audit (Grype) | Every package in `uv.lock`, in all dependency groups; the browser packages under `static/vendor/`, recorded in its `package-lock.json`; the actions the workflows use, directly or through a local composite action, an action or reusable workflow inside a repository (such as `github/codeql-action/init`) under its repository's name | Any published vulnerability, fixed or not, and an action whose pinned commit is not the release its version comment names |
-| Secret scan (gitleaks) | Every commit in the history of the change, merge commits included, read as text: file by file, and again as one stream so that no file is skipped by its name | A match for gitleaks' default rules that is not a listed synthetic test value, and any `.gitleaksignore` file |
+| Secret scan (gitleaks) | Every commit in the history of the change, merge commits included, read as text and file by file. The scan uses gitleaks' default rules without the default list of files it never scans by name (such as `package-lock.json` files and SVG images), so every file is read | A match for gitleaks' default rules that is not a listed synthetic test value, and any `.gitleaksignore` file |
 | Container image (Grype) | The image the Dockerfile builds: the operating system and its packages, Python, the installed Python packages, every other program anywhere in the image that no Debian package installed as it is now (such as uv), and the vendored browser packages | A vulnerability rated High or Critical by its advisory for which a fixed version is published |
 
 Before trusting a clean result, each check shows that it could have failed. The listing a scan
@@ -68,12 +68,11 @@ version and its checksum.
   fail the check. To list every finding, run Grype on the SBOM.
 - Native libraries bundled inside Python wheels (for example in Pillow or psycopg) are not listed
   on their own. They are covered only through the advisories published for the wheel's package.
-- gitleaks' default rules pass over a value that contains "false" or ends in "null", whatever
-  else it holds (a pattern in its default configuration that this project's configuration cannot
-  remove).
-- The text stream is the only secret scan of the files gitleaks skips by name (such as
-  `package-lock.json` files and SVG images) and of commit messages. It is read in overlapping
-  pieces, so a secret longer than 20,000 bytes there may be missed.
+- gitleaks' default rules pass over a value that begins with "true", contains "false" or ends in
+  "null", in any letter case, whatever else it holds (a pattern in its default configuration).
+- Commit messages are not scanned for secrets.
+- The few exceptions individual default rules make for named files remain (files of the BitBake
+  build system for the generic rule, and one third-party README for GitHub tokens).
 - GitHub starts no workflow for a push whose commit message asks it to skip them (`[skip ci]` and
   its variants), nor for a push of more than three tags at once. Such commits are scanned for
   secrets when a pull request, a later push or the weekly run reaches them; a secret pushed that

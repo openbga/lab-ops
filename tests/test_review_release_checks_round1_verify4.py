@@ -6,11 +6,12 @@ for a case beside a fix. A failing test is a finding in
 .local/review-history/release-checks-round-1-verification-4.md; tests named ``test_control_*`` and
 ``test_sound_*`` pass and record what held.
 
-The stream-scan tests run secrets.yml's own step script with ``bash -e`` in a fresh repository
-whose commit dates are fixed, so the byte offsets of the history stream, and therefore where
-text_windows.py cuts it, are known in advance. Key blocks are random bytes in PEM armour, built at
-run time; this file holds no secret-shaped value. gitleaks comes from LABOPS_REVIEW_TOOLS (default
-/tmp/labops-rsc-tools/bin) or PATH; the tests skip without it.
+The scan tests run secrets.yml's own history step with ``bash -e`` in a fresh repository, on the
+configuration the job builds (gitleaks' default one without its list of skipped paths; the stream
+step and text_windows.py of the reviewed commit are gone, see the comments above the adapted
+tests). Key blocks are random bytes in PEM armour, built at run time; this file holds no
+secret-shaped value. gitleaks and the default configuration come from LABOPS_REVIEW_TOOLS (default
+/tmp/labops-rsc-tools/bin, the configuration in its parent) or PATH; the tests skip without them.
 """
 
 import base64
@@ -19,7 +20,6 @@ import importlib.util
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -48,14 +48,13 @@ def _load(name, relative):
     return module
 
 
-windows = _load("review_v4_text_windows", "tools/security/text_windows.py")
 probe = _load("review_v4_image_contents", "tools/security/image_contents.py")
 
 
 def tool(name):
-    path = TOOLS / name
-    if path.is_file():
-        return str(path)
+    for directory in (TOOLS, TOOLS / "bin"):
+        if (directory / name).is_file():
+            return str(directory / name)
     found = shutil.which(name)
     if not found:
         pytest.skip(f"{name} is not installed")
@@ -73,8 +72,7 @@ ARMOUR = "PGP PRIVATE " + "KEY BLOCK-----"
 BEGIN = "-----BEGIN " + ARMOUR
 END = "-----END " + ARMOUR
 
-STREAM = "Scan the history for secrets as one text stream"
-FILE_BY_FILE = "Scan the history for secrets, file by file"
+HISTORY = "Scan the history for secrets"
 
 
 def key_block(size):
@@ -90,47 +88,50 @@ def key_block(size):
     ]
 
 
-def commit_svg(repo, padding, block):
-    """A repository with one commit: a padding file, then an SVG holding `block`; returns the
-    offset of the block's first byte in `git log -p` (the stream the step scans)."""
+def commit_svg(repo, block):
+    """A repository with one commit: an SVG holding `block`."""
     if repo.exists():
         shutil.rmtree(repo)
     (repo / "static/img").mkdir(parents=True)
-    shutil.copytree(ROOT / "tools", repo / "tools")
-    shutil.copy(ROOT / ".gitleaks.toml", repo / ".gitleaks.toml")
-    (repo / "aaa_padding.txt").write_text("x" * padding + "\n")
     svg = ["<svg>", "<metadata>", *block, "</metadata>", "</svg>"]
     (repo / "static/img/badge.svg").write_text("\n".join(svg) + "\n")
     for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-qm", "add a badge"]):
         subprocess.run(
             ["git", "-C", str(repo), *args], check=True, capture_output=True, env=GIT_ENV
         )
-    log = subprocess.run(
-        ["git", "-C", str(repo), "log", "-p", "--text", "--diff-merges=first-parent", "HEAD"],
-        check=True,
-        capture_output=True,
-        env=GIT_ENV,
-    ).stdout
-    return log.index(("+" + BEGIN).encode()), log
+    return repo
 
 
-def place(tmp_path, block, start_in_step):
-    """A repository whose stream holds `block` starting `start_in_step` bytes after a multiple of
-    text_windows.STEP; returns (repo, start, end) of the block in the stream."""
-    repo = tmp_path / "repo"
-    first, _ = commit_svg(repo, 50_000, block)
-    padding = 50_000 + (start_in_step - first) % windows.STEP
-    start, log = commit_svg(repo, padding, block)
-    assert start % windows.STEP == start_in_step, (start, start_in_step)
-    end = log.index(END.encode(), start + 40) + len(END)
-    return repo, start, end
+# Adapted: the job builds the configuration its history scan reads ($RUNNER_TEMP/gitleaks.toml) in
+# a step that downloads gitleaks' default one, which tests never do; the helper builds it in-process
+# from the default file kept next to the scanners (skipping when absent). With `default`, the step
+# reads the unmodified default configuration instead (the control: it skips .svg files by path).
+def default_gitleaks_config():
+    """The real default gitleaks configuration of the pinned release, or skip."""
+    candidates = [
+        os.environ.get("LABOPS_GITLEAKS_DEFAULT_CONFIG"),
+        TOOLS / "gitleaks-default.toml",
+        TOOLS.parent / "gitleaks-default.toml",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    pytest.skip("the default gitleaks configuration is not next to the scanners")
 
 
-def run_step(repo, tmp_path, name):
+def run_step(repo, tmp_path, name, default=False):
     runner_temp = tmp_path / "runner-temp"
     runner_temp.mkdir(exist_ok=True)
     if not (runner_temp / "gitleaks").exists():
         (runner_temp / "gitleaks").symlink_to(tool("gitleaks"))
+    source = default_gitleaks_config()
+    builder = _load("review_v4_gitleaks_config", "tools/security/gitleaks_config.py")
+    config = (
+        source.read_text()
+        if default
+        else builder.build(source.read_text(), (ROOT / ".gitleaks.toml").read_text())
+    )
+    (runner_temp / "gitleaks.toml").write_text(config)
     env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "HOME": str(tmp_path)}
     result = subprocess.run(
         ["bash", "-e", "-c", secrets_step(name)], cwd=repo, env=env, capture_output=True
@@ -146,81 +147,42 @@ LONG_KEY = 14_000
 
 
 def reported(repo, tmp_path, runs):
-    """How many of `runs` runs of the stream step report the key (gitleaks reads its input from a
-    pipe, so where its chunks end varies from run to run)."""
-    return sum(run_step(repo, tmp_path, STREAM) == 1 for _ in range(runs))
+    """How many of `runs` runs of the history step report the key."""
+    return sum(run_step(repo, tmp_path, HISTORY) == 1 for _ in range(runs))
 
 
-# Adapted (coordinator, round 4 resolution): OVERLAP is now 20,000 bytes and STEP 4,000, so the
-# 14 kB key lies whole in some segment wherever it starts. The test keeps its intent (the key is
-# reported in 10 of 10 runs) at the worst start for the new step (500 bytes before a step ends),
-# and its control is inverted: a segment now holds the whole block, which is the fix.
-def test_the_stream_scan_reports_a_private_key_longer_than_the_overlap(tmp_path):
-    """secrets.yml: the history is scanned again "as one text stream, where no file is skipped
-    by its name"; text_windows.py: "any match up to OVERLAP bytes long, a multi-line private key
-    included, lies whole inside some segment". A real PGP secret key with subkeys (14 kB) must be
-    reported wherever it sits. The file-by-file scan skips .svg files."""
-    repo, start, end = place(tmp_path, key_block(LONG_KEY), windows.STEP - 500)
-    assert end - start <= windows.OVERLAP
-    assert any(s <= start and end <= s + windows.WIDTH for s in range(0, end, windows.STEP)), (
-        "a segment holds the whole block"
-    )
-    assert run_step(repo, tmp_path, FILE_BY_FILE) == 0, "control: .svg is skipped by path"
+# Adapted: the stream step and its overlapping segments are gone, so there is no start offset to
+# choose. The test keeps its intent (a 14 kB private key in an SVG, which the default rules skip by
+# path, is reported in 10 of 10 runs) and judges it on the history step with the built
+# configuration, which reads the file whole. Its control is the same step with the default
+# configuration, which passes.
+def test_the_history_scan_reports_a_private_key_longer_than_the_old_overlap(tmp_path):
+    """secrets.yml: the history is scanned with the default configuration "without its list of
+    skipped paths", so a real PGP secret key with subkeys (14 kB) in an SVG is reported."""
+    repo = commit_svg(tmp_path / "repo", key_block(LONG_KEY))
+    assert run_step(repo, tmp_path, HISTORY, default=True) == 0, "control: .svg is skipped by path"
     found = reported(repo, tmp_path, 10)
-    assert found == 10, (
-        f"a {end - start}-byte private key block in an SVG passed the secrets job in "
-        f"{10 - found} of 10 runs"
-    )
+    assert found == 10, f"a 14 kB private key block in an SVG passed the secrets job {10 - found}x"
 
 
-def test_control_the_same_key_inside_one_segment_is_reported(tmp_path):
-    repo, start, end = place(tmp_path, key_block(LONG_KEY), 500)
-    assert (start % windows.STEP) + (end - start) <= windows.WIDTH
-    assert reported(repo, tmp_path, 5) == 5
-
-
-# Adapted (coordinator, round 4 resolution): with STEP 4,000 a start 9,000 bytes into a step no
-# longer exists; the worst start, 500 bytes before a step ends, is used instead.
-def test_control_a_key_within_the_overlap_is_reported_wherever_it_starts(tmp_path):
-    """The fix holds within its bound: a 6 kB block (an RSA-8192 PEM key is about that size)
-    starting late in a step lies whole in a segment and is reported every time."""
-    repo, start, end = place(tmp_path, key_block(6_000), windows.STEP - 500)
-    assert end - start <= windows.OVERLAP
+# Adapted: the control no longer depends on segment offsets; a 6 kB block (an RSA-8192 PEM key is
+# about that size) is reported every time.
+def test_control_a_shorter_key_is_reported(tmp_path):
+    repo = commit_svg(tmp_path / "repo", key_block(6_000))
     assert reported(repo, tmp_path, 5) == 5
 
 
 # ============================================================ sound: checked and held
 
 
-def test_sound_segments_are_whole_when_stdin_arrives_in_small_slow_writes():
-    """gitleaks may read less than 100 kB at a time; text_windows.py reads its own input with
-    BufferedReader.read(n), which waits for n bytes, so a trickled pipe of 300,000 bytes still
-    gives full-width segments, each overlapping the next by OVERLAP."""
-    writer = (
-        "import sys, time\n"
-        "for i in range(3000):\n"
-        "    sys.stdout.buffer.write(bytes([65 + i % 26]) * 100)\n"
-        "    sys.stdout.flush()\n"
-        "    time.sleep(0.0003)\n"
-    )
-    reader = (
-        "import sys\n"
-        f"sys.path.insert(0, {str(ROOT / 'tools/security')!r})\n"
-        "import text_windows\n"
-        "sizes = [len(s) for s in text_windows.segments(sys.stdin.buffer)]\n"
-        "print(len(sizes), sorted(set(sizes)))\n"
-    )
-    producer = subprocess.Popen([sys.executable, "-c", writer], stdout=subprocess.PIPE)
-    result = subprocess.run(
-        [sys.executable, "-c", reader], stdin=producer.stdout, capture_output=True, text=True
-    )
-    producer.wait()
-    # Adapted (coordinator, round 4 resolution): the expected count and size follow the module's
-    # constants (24,000-byte segments every 4,000 bytes give 70 for 300,000 bytes).
-    expected = 1 + -(-(300_000 - windows.WIDTH) // windows.STEP)
-    assert result.stdout.split("\n")[0] == f"{expected} [{windows.WIDTH}]", (
-        result.stdout + result.stderr
-    )
+# Adapted: this test checked that text_windows.py reads a trickled pipe into full-width segments.
+# The stream approach is gone (no stream step, no tools/security/text_windows.py), so it is
+# superseded; the body checks that they are gone and that the history step uses the built config.
+def test_sound_the_stream_and_its_windows_are_gone_and_the_history_scan_uses_the_built_config():
+    steps = yaml.safe_load((ROOT / ".github/workflows/secrets.yml").read_text())["jobs"]["secrets"]
+    assert not [s for s in steps["steps"] if "stream" in s.get("name", "").lower()]
+    assert not (ROOT / "tools/security/text_windows.py").exists()
+    assert '--config "$RUNNER_TEMP/gitleaks.toml"' in secrets_step(HISTORY)
 
 
 def md5(path):
