@@ -57,8 +57,8 @@ records from that URL. [Product access rules](product.md#roles-and-capabilities)
 running configuration and the database on each request and stores nothing. Each fact describes
 this release's configuration and follows the deployment settings read from the environment. The
 code-level settings a fact depends on are listed with their release values (`RELEASE`), and the
-digest of `config/settings.py` with `config/logging.py` is pinned; when a deployment changes one,
-the fact says so and names it instead of describing it. Whoever changes either file checks the
+settings module and the digests of `config/settings.py` and `config/logging.py` are pinned; when a
+deployment changes one, the fact says so and names it instead of describing it. Whoever changes either file checks the
 facts and updates the pinned digest (a test fails until then). The page and the
 laboratory profile read in one snapshot (`core.concurrency.one_reading`) and are drawn after it. A laboratory setting
 added there later is a row with a revision: its change takes the row lock, checks the revision the

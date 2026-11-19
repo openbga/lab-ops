@@ -19,9 +19,8 @@ one audit event, like the contacts in core.lab_profile.
 """
 
 import hashlib
-import os
+import logging
 from dataclasses import dataclass, field
-from functools import cache
 from importlib import import_module
 from pathlib import Path
 
@@ -29,7 +28,7 @@ from allauth import app_settings as allauth_settings
 from allauth.account import app_settings as account_settings
 from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
-from django.conf import ENVIRONMENT_VARIABLE, settings
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Exists, OuterRef, Q
 
@@ -52,35 +51,46 @@ SOURCES = {
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
-# SHA-256 of config/settings.py and the logging configuration it imports (config/logging.py) in
-# this release. A deployment that edits them changes code the facts below rely on, so every fact
-# that depends on the configuration says so. Whoever changes either file in this repository checks
-# each fact against it and updates this value (tests/test_security_settings.py says how).
-RELEASE_SETTINGS_SHA256 = "c2d031402eb24ff3fb0a2cc77e8690dd7162ee2631fd7553855670d10810e33b"
-SETTINGS_FILE = "config/settings.py"
+# SHA-256 of the two files this release's configuration is written in. A deployment that edits
+# either changes code the facts below rely on, so every fact that depends on the configuration
+# says so and names the file. Whoever changes either file in this repository checks each fact
+# against it and updates the value (tests/test_security_settings.py prints it).
+RELEASE_FILES = ("config/settings.py", "config/logging.py")
+RELEASE_SETTINGS_SHA256 = "4673a44c6183e0545e74a7801558dcda253f75a0c846dc64248aa78d76c0d462"
+RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
+MODULE = "settings module"
+FILES = (MODULE, *RELEASE_FILES)
 
 
 def settings_module_name():
-    """The settings module Django loaded (DJANGO_SETTINGS_MODULE). Not settings.SETTINGS_MODULE,
-    which is None while a test overrides settings."""
-    return os.environ.get(ENVIRONMENT_VARIABLE, "")
+    """The settings module Django loaded, from the loaded settings themselves. While a test
+    overrides settings, the override's SETTINGS_MODULE is None and the loaded module is the one
+    beneath it; the environment variable can change after start-up and is not read."""
+    settings.INSTALLED_APPS  # noqa: B018 - make sure the settings are loaded
+    layer = getattr(settings, "_wrapped", None)
+    while layer is not None and not getattr(layer, "SETTINGS_MODULE", None):
+        layer = getattr(layer, "default_settings", None)
+    return getattr(layer, "SETTINGS_MODULE", "") or ""
+
+
+_digests = {}
+
+
+def module_digest(module_name):
+    """SHA-256 of a module's source, or "" when it cannot be read now. Only a digest that was
+    read is kept: a passing failure to read is tried again next time."""
+    if module_name not in _digests:
+        try:
+            data = Path(import_module(module_name).__file__).read_bytes()
+        except Exception:  # a file that cannot be read is not this release's
+            return ""
+        _digests[module_name] = hashlib.sha256(data).hexdigest()
+    return _digests[module_name]
 
 
 def settings_file_digest():
-    """SHA-256 of the loaded settings module's source and of config/logging.py, or "" when
-    either cannot be read."""
-    return _digest(settings_module_name())
-
-
-@cache
-def _digest(module_name):
-    try:
-        digest = hashlib.sha256()
-        for name in (module_name, "config.logging"):
-            digest.update(Path(import_module(name).__file__).read_bytes())
-        return digest.hexdigest()
-    except Exception:  # a configuration that cannot be read is not this release's
-        return ""
+    """SHA-256 of config/settings.py as loaded (kept for the release pin test)."""
+    return module_digest(SETTINGS_MODULE)
 
 
 def _startup(name):
@@ -92,11 +102,10 @@ def _startup(name):
 _VALIDATORS = "django.contrib.auth.password_validation."
 # setting name: (how to read it now, its value in this release's configuration)
 RELEASE = {
-    # The settings file itself and its module: any other change to the configuration.
-    SETTINGS_FILE: (
-        lambda: (settings_module_name(), settings_file_digest()),
-        (SETTINGS_MODULE, RELEASE_SETTINGS_SHA256),
-    ),
+    # The settings module and the two files of the configuration: any other change to it.
+    MODULE: (settings_module_name, SETTINGS_MODULE),
+    "config/settings.py": (lambda: module_digest("config.settings"), RELEASE_SETTINGS_SHA256),
+    "config/logging.py": (lambda: module_digest("config.logging"), RELEASE_LOGGING_SHA256),
     "MIDDLEWARE": (
         lambda: list(settings.MIDDLEWARE),
         [
@@ -118,7 +127,15 @@ RELEASE = {
             "core.form_dialog.FormDialogMiddleware",
         ],
     ),
-    "LOGGING": (lambda: settings.LOGGING == _startup("LOGGING"), True),
+    # The configuration as loaded, and the sign-in logger as it runs (its level can be changed
+    # in place).
+    "LOGGING": (
+        lambda: (
+            settings.LOGGING == _startup("LOGGING")
+            and logging.getLogger("lab_ops.signin").isEnabledFor(logging.INFO)
+        ),
+        True,
+    ),
     "ACCOUNT_ADAPTER": (lambda: settings.ACCOUNT_ADAPTER, "accounts.adapter.ClosedSignupAdapter"),
     "ACCOUNT_LOGIN_METHODS": (lambda: set(account_settings.LOGIN_METHODS), {"username", "email"}),
     # Follows EMAIL_BACKEND at startup in this release.
@@ -241,20 +258,22 @@ class Group:
 def _fact(key, label, depends_on, build):
     """The fact `build()` returns, or the changed-configuration fact when a setting it depends
     on differs from this release's."""
-    differ = changed_settings(SETTINGS_FILE, *depends_on)
-    if differ == [SETTINGS_FILE]:
-        note = (
-            "This page describes this release's configuration, and this deployment's "
-            "config/settings.py differs from it."
-        )
-    elif differ:
-        names = [name for name in differ if name != SETTINGS_FILE]
-        note = (
-            "This page describes this release's configuration. "
-            f"Check {_either(names)} in config/settings.py."
-        )
-    else:
+    differ = changed_settings(*FILES, *depends_on)
+    if not differ:
         return build()
+    files = []
+    if MODULE in differ:
+        files.append(
+            f"this deployment loads its settings from {settings_module_name() or 'another module'}"
+        )
+    files += [
+        f"this deployment's {name} differs from it" for name in RELEASE_FILES if name in differ
+    ]
+    names = [name for name in differ if name not in FILES]
+    note = "This page describes this release's configuration"
+    note += (", and " + " and ".join(files) + ".") if files else "."
+    if names:
+        note += f" Check {_either(names)} in config/settings.py."
     return Fact(key, label, CHANGED, "configuration", note)
 
 

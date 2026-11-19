@@ -84,7 +84,7 @@
         },
         {
           "label": "Details",
-          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means the deployment changed a setting in config/settings.py that the value depends on; the details name it and the page describes it no further."
+          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means the deployment changed what the value depends on: a setting in config/settings.py, the file itself, config/logging.py or the settings module it loads; the details name it and the page describes it no further."
         }
       ]
     },

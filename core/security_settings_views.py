@@ -14,7 +14,7 @@ from accounts.roles import require_role
 
 from . import lab_profile, security_settings
 from .concurrency import one_reading
-from .lab_profile_views import contact_history, reading_account
+from .lab_profile_views import contact_history, menu_reading, reading_account
 from .models import Lab
 
 
@@ -27,6 +27,7 @@ def security_settings_page(request):
     with one_reading():
         reader = reading_account(request)
         require_role(reader, *security_settings.SECURITY_ROLES)
+        roles = menu_reading(request, reader)
         lab_ready = Lab.objects.filter(pk=1).exists()
         groups = security_settings.in_force()
         context = {
@@ -42,5 +43,6 @@ def security_settings_page(request):
                 ("history-heading", "History"),
             ],
             "history": contact_history(),
+            **roles,
         }
     return render(request, "core/security_settings.html", context)

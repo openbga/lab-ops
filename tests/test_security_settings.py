@@ -460,14 +460,18 @@ def test_changing_a_password_on_the_account_page_keeps_only_that_session(make_st
     assert is_signed_out(other)
 
 
-def test_the_release_settings_file_is_pinned():
+@pytest.mark.parametrize(
+    ("module", "pinned"),
+    [("config.settings", "RELEASE_SETTINGS_SHA256"), ("config.logging", "RELEASE_LOGGING_SHA256")],
+)
+def test_the_release_configuration_files_are_pinned(module, pinned):
     """The facts describe this release's config/settings.py and config/logging.py. Whoever
     changes either checks each fact in core/security_settings.py against the change (RELEASE,
-    the notes) and then sets RELEASE_SETTINGS_SHA256 to the new digest printed here."""
-    from core.security_settings import RELEASE_SETTINGS_SHA256, settings_file_digest
+    the notes) and then sets the pinned digest to the value printed here."""
+    from core import security_settings
 
-    digest = settings_file_digest()
-    assert digest == RELEASE_SETTINGS_SHA256, (
-        "config/settings.py changed: check the Security settings facts against it, then set "
-        f"core.security_settings.RELEASE_SETTINGS_SHA256 = {digest!r}"
+    digest = security_settings.module_digest(module)
+    assert digest == getattr(security_settings, pinned), (
+        f"{module} changed: check the Security settings facts against it, then set "
+        f"core.security_settings.{pinned} = {digest!r}"
     )
