@@ -85,10 +85,18 @@ def module_digest(module_name):
     if module_name not in _digests:
         try:
             spec = find_spec(module_name)
-            if not (spec and spec.origin and spec.origin.endswith(".py")):
+            origin = spec.origin if spec else None
+            # The source: the origin itself, or the .py beside a .pyc Python loads instead.
+            if origin and origin.endswith(".py"):
+                source = origin
+            elif origin and origin.endswith(".pyc"):
+                source = origin[:-1]
+            else:
                 return ""
-            # Through the module's loader, so a source in an archive is read as Python reads it.
-            data = spec.loader.get_data(spec.origin)
+            # Through the module's loader (unwrapping importlib.util.LazyLoader), so a source in
+            # an archive is read as Python reads it; a missing source raises and is unreadable.
+            loader = getattr(spec.loader, "loader", spec.loader)
+            data = loader.get_data(source)
         except Exception:  # a source that cannot be found or read is not this release's
             return ""
         _digests[module_name] = hashlib.sha256(data).hexdigest()
@@ -535,18 +543,20 @@ def _sign_in(facts):
         _fact(
             "sign-in-records",
             "Record of sign-ins",
-            ["SESSION_ENGINE", "ACCOUNT_ADAPTER"],
+            ["SESSION_ENGINE", "ACCOUNT_ADAPTER", "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE"],
             lambda: Fact(
                 "sign-in-records",
                 "Record of sign-ins",
                 "Sign-in log, and the last sign-in time",
                 "release",
-                "The application passes completed sign-ins, refused passwords (throttled ones "
-                "included), rejected codes for an existing account and sign-outs made with Sign "
-                "out to its sign-in log (lab_ops.signin), with the username when the account is "
-                "known. A rejected code for an address with no account, and a session ended by a "
-                "new password or deactivation, are not passed. Where that log goes and how long "
-                "it is kept is set by the logging configuration and the host. The "
+                "The application passes completed sign-ins, refused passwords, wrong codes "
+                "entered for an existing account and sign-outs made with Sign out to its sign-in "
+                "log (lab_ops.signin), with the username when the account is known. Some refusals "
+                "are not passed: an expired code, a code for an address with no account, and a "
+                "request stopped by the request limit before any check. A session that stops "
+                "working without Sign out, after a new password or a deactivation, is not passed "
+                "either. Where that log goes and how long it is kept is set by the logging "
+                "configuration and the host. The "
                 "database keeps each account's last sign-in time and, in each session while it "
                 "lasts, how it signed in. There is no stored list of sign-ins.",
             ),
