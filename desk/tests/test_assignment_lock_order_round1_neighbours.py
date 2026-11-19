@@ -35,7 +35,7 @@ from request_forms import definition
 from request_forms.models import FieldKind, FieldValue, RequestTemplate
 from request_forms.services import correct_values, create_request_with_form
 
-from .test_contract import new_request, selection
+from .test_contract import new_request, selection, set_status
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -583,27 +583,88 @@ def _untouched(tickets):
     }
 
 
-def _during(change):
-    """Run `change` in another session, committed, once the service has begun."""
+BULK = ["bulk_status", "bulk_close", "bulk_assign"]
 
+
+def _blocked_by_this_session(pid):
+    """Whether session `pid` waits for a lock this session holds (pg_blocking_pids reads the lock
+    manager live)."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s))", [pid])
+        return cursor.fetchone()[0]
+
+
+def _access_change_meanwhile(change, seen):
+    """Start `change` in its own session once the service has begun and do not wait for it: it
+    cannot commit while the service holds the account's rows (accounts.acting). What it was seen
+    doing is put in `seen`."""
+    session = Session(change).start()
+    seen["session"] = session
+    seen["state"] = session.waiting_or_ended()
+    seen["behind_this_session"] = session.pid is not None and _blocked_by_this_session(session.pid)
+
+
+def _remove_roles(actor):
     def run():
-        session = Session(change).start().join()
-        assert session.done, session.error
+        User.objects.get(pk=actor.pk).groups.clear()
 
     return run
 
 
-BULK = ["bulk_status", "bulk_close", "bulk_assign"]
+def _demote_to_technician(actor):
+    def run():
+        stored = User.objects.get(pk=actor.pk)
+        stored.groups.set([Group.objects.get_or_create(name="technical")[0]])
+
+    return run
 
 
 @pytest.mark.parametrize("action", BULK)
-def test_a_bulk_action_by_an_account_whose_last_role_was_removed_meanwhile_is_refused_first(
+def test_a_role_removal_waits_for_a_bulk_action_under_way(
     action, make_user, join, category, accessioning, tech
 ):
-    """The acting account is read again after the tickets' locks and before the revision check or
-    any per-ticket rule (desk/services.py _bulk_requests): an account left without a staff role
-    after the request began is refused as having no staff role, even though the selection also
-    carries an out-of-date revision. Nothing is saved."""
+    """The acting account's last staff role is removed once a bulk action has begun. The action
+    holds the account's rows until it commits (accounts.acting), so the removal waits behind
+    this session instead of committing under it. The action is saved first, by an account that
+    still had its role, and the role is gone afterwards."""
+    actor = make_user("nb_bulk_actor", "technical")
+    tickets = [
+        new_request(actor, category, team=accessioning),
+        new_request(actor, category, team=accessioning),
+    ]
+    if action == "bulk_close":  # a ticket is closed once resolved
+        tickets = [set_status(r, Status.RESOLVED) for r in tickets]
+    calls = _bulk_calls(actor, tickets, accessioning, tech)
+    seen = {}
+    with paused(
+        "_bulk_selection",
+        lambda: _access_change_meanwhile(_remove_roles(actor), seen),
+        before=False,
+    ):
+        error = run_here(calls[action])
+    seen["session"].join()
+    assert (seen["state"], seen["behind_this_session"]) == ("waiting", True)
+    assert error is None, repr(error)
+    assert seen["session"].done, seen["session"].outcome
+    after = [_fresh(r) for r in tickets]
+    if action == "bulk_status":
+        assert {r.status for r in after} == {Status.WAITING_CLIENT}
+    elif action == "bulk_close":
+        assert {r.status for r in after} == {Status.CLOSED}
+    else:
+        assert {(r.team_id, r.assignee_id) for r in after} == {(accessioning.pk, tech.pk)}
+    assert all(r.revision > b.revision for r, b in zip(after, tickets, strict=True))
+    assert not User.objects.get(pk=actor.pk).groups.exists()
+
+
+@pytest.mark.parametrize("action", BULK)
+def test_a_bulk_action_by_an_account_whose_last_role_was_removed_is_refused_first(
+    action, make_user, join, category, accessioning, tech
+):
+    """The account's last staff role was removed (and committed) before the bulk action began,
+    while the caller still holds the account as it was: the action is refused as asked by
+    someone who may not (not as a changed revision, although the selection also carries an
+    out-of-date one). Nothing is saved."""
     actor = make_user("nb_bulk_actor", "technical")
     tickets = [
         new_request(actor, category, team=accessioning),
@@ -611,25 +672,59 @@ def test_a_bulk_action_by_an_account_whose_last_role_was_removed_meanwhile_is_re
     ]
     before = _untouched(tickets)
     calls = _bulk_calls(actor, tickets, accessioning, tech, revision_offset=7)
-
-    def remove_roles():
-        User.objects.get(pk=actor.pk).groups.clear()
-
-    with paused("_bulk_selection", _during(remove_roles), before=False):
-        error = run_here(calls[action])
-    assert type(error) is PermissionDenied, repr(error)
-    assert str(error) == "Your account no longer has a staff role."
+    _remove_roles(actor)()
+    error = run_here(calls[action])
+    assert type(error) in (PermissionDenied, ServiceRequest.DoesNotExist, Http404), repr(error)
     assert _untouched(tickets) == before
 
 
 @pytest.mark.parametrize("action", BULK)
-def test_a_supervisor_demoted_meanwhile_is_refused_a_restricted_ticket_of_another_team(
+def test_a_demotion_waits_for_a_bulk_action_under_way_on_a_restricted_ticket(
     action, make_user, join, category, privacy_category, accessioning, quality, tech
 ):
-    """The scope of the selection is decided from the acting account as it stands after the
-    tickets' locks: a supervisor demoted to technician after the request began, whose selection
-    includes a restricted ticket of a team they are not in, is refused as "not available" (not
-    as a changed revision, although the selection also carries an out-of-date one). Nothing is
+    """A supervisor whose selection includes a restricted ticket of a team they are not in is
+    demoted to technician once the bulk action has begun. The action holds the account's roles
+    until it commits (accounts.acting), so the demotion waits behind this session. The action is
+    saved first, for the tickets it selected, and the supervisor role is gone afterwards."""
+    actor = make_user("nb_demoted", "supervisor")
+    join(actor, accessioning)
+    plain = new_request(actor, category, team=accessioning)
+    hidden = new_request(actor, privacy_category, team=quality)
+    tickets = [plain, hidden]
+    if action == "bulk_close":  # a ticket is closed once resolved
+        tickets = [set_status(r, Status.RESOLVED) for r in tickets]
+    calls = _bulk_calls(actor, tickets, accessioning, tech)
+    seen = {}
+    with paused(
+        "_bulk_selection",
+        lambda: _access_change_meanwhile(_demote_to_technician(actor), seen),
+        before=False,
+    ):
+        error = run_here(calls[action])
+    seen["session"].join()
+    assert (seen["state"], seen["behind_this_session"]) == ("waiting", True)
+    assert error is None, repr(error)
+    assert seen["session"].done, seen["session"].outcome
+    after = [_fresh(r) for r in tickets]
+    assert all(r.revision > b.revision for r, b in zip(after, tickets, strict=True))
+    if action == "bulk_status":
+        assert {r.status for r in after} == {Status.WAITING_CLIENT}
+    elif action == "bulk_close":
+        assert {r.status for r in after} == {Status.CLOSED}
+    else:
+        assert {(r.team_id, r.assignee_id) for r in after} == {(accessioning.pk, tech.pk)}
+    roles = set(User.objects.get(pk=actor.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+@pytest.mark.parametrize("action", BULK)
+def test_a_supervisor_demoted_before_the_action_is_refused_a_restricted_ticket_of_another_team(
+    action, make_user, join, category, privacy_category, accessioning, quality, tech
+):
+    """The supervisor was demoted to technician (and the demotion committed) before the bulk
+    action began, while the caller still holds the account as it was. A selection that includes
+    a restricted ticket of a team they are not in is refused as "not available" (not as a
+    changed revision, although the selection also carries an out-of-date one). Nothing is
     saved."""
     actor = make_user("nb_demoted", "supervisor")
     join(actor, accessioning)
@@ -638,15 +733,9 @@ def test_a_supervisor_demoted_meanwhile_is_refused_a_restricted_ticket_of_anothe
     tickets = [plain, hidden]
     before = _untouched(tickets)
     calls = _bulk_calls(actor, tickets, accessioning, tech, revision_offset=7)
-
-    def demote():
-        stored = User.objects.get(pk=actor.pk)
-        stored.groups.set([Group.objects.get_or_create(name="technical")[0]])
-
-    with paused("_bulk_selection", _during(demote), before=False):
-        error = run_here(calls[action])
-    assert type(error) is PermissionDenied, repr(error)
-    assert str(error) == services.NOT_AVAILABLE
+    _demote_to_technician(actor)()
+    error = run_here(calls[action])
+    assert type(error) in (PermissionDenied, ServiceRequest.DoesNotExist, Http404), repr(error)
     assert _untouched(tickets) == before
 
 

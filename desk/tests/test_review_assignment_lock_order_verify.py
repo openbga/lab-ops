@@ -593,24 +593,61 @@ def _ticket_held_while(ticket, change, meanwhile):
     return state, session.join()
 
 
-def _deactivate(user):
+def _deactivate_bypassing_save(user):
+    """A deactivation by a path that bypasses User.save (a queryset update). It takes a FOR NO KEY
+    UPDATE of the account row, which the hold of accounts.acting (FOR KEY SHARE) does not make
+    wait."""
+
     def run():
-        account = User.objects.get(pk=user.pk)
-        account.is_active = False
-        account.save()
+        User.objects.filter(pk=user.pk).update(is_active=False)
 
     return run
 
 
-def test_withdrawing_a_file_refuses_a_supervisor_demoted_while_it_waited(
-    agent, lead, quality_ticket
-):
-    """withdraw_attachment ("A supervisor withdraws a file with a reason"): the supervisor role is
-    taken away (technical staff remains) while the withdrawal waits for the ticket's lock. The
-    withdrawal is refused like any other supervisor-only change made by an account demoted
-    meanwhile (desk.services.withdraw_reply reads the actor again after the lock): the file stays
-    with clients, no audit event or timeline entry is written, the revision stays."""
-    seen = _fresh(quality_ticket)
+def _demote(user):
+    """The supervisor role taken away; technical staff remains."""
+
+    def run():
+        account = User.objects.get(pk=user.pk)
+        account.groups.remove(Group.objects.get(name="supervisor"))
+        account.groups.add(Group.objects.get_or_create(name="technical")[0])
+
+    return run
+
+
+def _blocked_by(pid, other):
+    """Whether session `pid` waits for a lock that session `other` holds."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT %s = ANY(pg_blocking_pids(%s))", [other, pid])
+        return cursor.fetchone()[0]
+
+
+def _ticket_held_with_access_change(ticket, change, access_change):
+    """`change` waits for the ticket's lock, held by another session. `access_change` is then
+    started in its own session: the change holds the account's rows (accounts.acting), so it
+    waits behind the change. The ticket is released and both are joined. Returns (whether the
+    change waited, whether the access change waited, whether it waited behind the change, the
+    change's Session, the access change's Session)."""
+
+    def hold():
+        ServiceRequest.objects.select_for_update().get(pk=ticket.pk)
+
+    holder = Held(hold)
+    session = Session(change).start()
+    try:
+        state = session.waiting_or_ended()
+        access = Session(access_change).start()
+        access_state = access.waiting_or_ended()
+        behind_change = access.pid is not None and _blocked_by(access.pid, session.pid)
+    finally:
+        assert holder.release() == "done"
+    session.join()
+    access.join()
+    return state, access_state, behind_change, session, access
+
+
+def _file_on(agent, ticket):
+    seen = _fresh(ticket)
     add_entry_with_files(
         actor=agent,
         request=seen,
@@ -619,25 +656,54 @@ def test_withdrawing_a_file_refuses_a_supervisor_demoted_while_it_waited(
         expected_revision=seen.revision,
         files=[png_file()],
     )
-    attachment = Attachment.objects.get()
+    return Attachment.objects.get()
+
+
+def test_a_demotion_waits_for_a_file_withdrawal_by_a_supervisor_under_way(
+    agent, lead, quality_ticket
+):
+    """withdraw_attachment ("A supervisor withdraws a file with a reason"): the supervisor role is
+    taken away (technical staff remains) while the withdrawal waits for the ticket's lock. The
+    withdrawal holds the account's roles until it commits (accounts.acting), so the demotion
+    waits behind it. The file is withdrawn first, by an account that still was a supervisor, with
+    an audit event and a timeline entry; the supervisor role is gone afterwards."""
+    attachment = _file_on(agent, quality_ticket)
+    revision = _fresh(quality_ticket).revision
+    entries = RequestEntry.objects.filter(request=quality_ticket).count()
+    state, demotion_state, behind_withdrawal, session, demotion = _ticket_held_with_access_change(
+        quality_ticket,
+        lambda: withdraw_attachment(actor=lead, attachment_id=attachment.pk, reason="Wrong file"),
+        _demote(lead),
+    )
+    assert state == "waiting", state
+    assert (demotion_state, behind_withdrawal) == ("waiting", True)
+    assert (session.outcome, demotion.outcome) == ("done", "done"), repr(session.error)
+    assert Attachment.objects.get(pk=attachment.pk).withdrawn_at is not None
+    assert _fresh(quality_ticket).revision > revision
+    assert RequestEntry.objects.filter(request=quality_ticket).count() == entries + 1
+    roles = set(User.objects.get(pk=lead.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+def test_withdrawing_a_file_refuses_a_supervisor_demoted_before_it_began(
+    agent, lead, quality_ticket
+):
+    """The supervisor role was taken away (technical staff remains) and the change committed
+    before the withdrawal began, while the caller still holds the account as it was. The
+    withdrawal is refused like any other supervisor-only change made by a demoted account: the
+    file stays with clients, no audit event or timeline entry is written, the revision stays."""
+    attachment = _file_on(agent, quality_ticket)
     before = (
         _fresh(quality_ticket).revision,
         AuditEvent.objects.count(),
         RequestEntry.objects.count(),
     )
-
-    def demote():
-        account = User.objects.get(pk=lead.pk)
-        account.groups.remove(Group.objects.get(name="supervisor"))
-        account.groups.add(Group.objects.get_or_create(name="technical")[0])
-
-    state, outcome = _ticket_held_while(
-        quality_ticket,
-        lambda: withdraw_attachment(actor=lead, attachment_id=attachment.pk, reason="Wrong file"),
-        demote,
-    )
-    assert state == "waiting", state
-    assert outcome == "denied", outcome
+    _demote(lead)()
+    session = Session(
+        lambda: withdraw_attachment(actor=lead, attachment_id=attachment.pk, reason="Wrong file")
+    ).start()
+    session.join()
+    assert session.outcome in ("denied", "not found"), (session.outcome, repr(session.error))
     assert Attachment.objects.get(pk=attachment.pk).withdrawn_at is None
     assert before == (
         _fresh(quality_ticket).revision,
@@ -653,11 +719,13 @@ def lis(db):
     )[0]
 
 
-def test_adding_a_link_refuses_an_account_deactivated_while_it_waited(
+def test_adding_a_link_refuses_an_account_deactivated_while_it_waited_bypassing_save(
     make_user, quality_ticket, lis
 ):
     """links.services.add_link on a ticket: the account is deactivated while the link waits for
-    the ticket's lock. Refused, nothing stored (no link, no audit event, no timeline entry)."""
+    the ticket's lock, by a path that bypasses User.save (a queryset update), which the hold of
+    accounts.acting does not make wait. The reading after the lock refuses it, nothing stored (no
+    link, no audit event, no timeline entry)."""
     clerk = make_user("verify_link_clerk", "client_services")
     before = (
         LinkAttachment.objects.count(),
@@ -673,7 +741,7 @@ def test_adding_a_link_refuses_an_account_deactivated_while_it_waited(
             record_type="order",
             identifier="ORD-TEST-000044",
         ),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     after = (
         LinkAttachment.objects.count(),
@@ -686,12 +754,13 @@ def test_adding_a_link_refuses_an_account_deactivated_while_it_waited(
     assert after[0] == before[0] and after[2] == before[2]
 
 
-def test_correcting_form_values_refuses_an_account_deactivated_while_it_waited(
+def test_correcting_form_values_refuses_an_account_deactivated_while_it_waited_bypassing_save(
     make_user, agent, category, quality
 ):
     """request_forms.services.correct_values: the account is deactivated while the correction
-    waits for the ticket's lock. Refused; the stored value stays current and no new value row,
-    timeline entry or revision is written."""
+    waits for the ticket's lock, by a path that bypasses User.save (a queryset update), which the
+    hold of accounts.acting does not make wait. The reading after the lock refuses it; the stored
+    value stays current and no new value row, timeline entry or revision is written."""
     clerk = make_user("verify_form_clerk", "client_services")
     template = RequestTemplate.objects.create(
         key="verify-correction", name="Correction form", category=category, offered_in_portal=False
@@ -718,7 +787,7 @@ def test_correcting_form_values_refuses_an_account_deactivated_while_it_waited(
             reason="Typo",
             expected={"note": row.pk},
         ),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state
     assert outcome in ("denied", "not found"), outcome

@@ -254,6 +254,52 @@ def _deactivate(user):
     return run
 
 
+def _deactivate_bypassing_save(user):
+    """A deactivation by a path that bypasses User.save (a queryset update). It takes a FOR NO KEY
+    UPDATE of the account row, which the hold of accounts.acting (FOR KEY SHARE) does not make
+    wait."""
+
+    def run():
+        User.objects.filter(pk=user.pk).update(is_active=False)
+
+    return run
+
+
+def _blocked_by(pid, other):
+    """Whether session `pid` waits for a lock that session `other` holds."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT %s = ANY(pg_blocking_pids(%s))", [other, pid])
+        return cursor.fetchone()[0]
+
+
+def _held_with_access_change(hold, change, access_change):
+    """`change` waits for a lock that `hold` takes (another session, kept open). Then
+    `access_change` is started in its own session. The change holds the account's rows
+    (accounts.acting), so the access change waits behind it. The lock is released and both are
+    joined. Returns (whether the change waited, whether the access change waited, whether it
+    waited behind the change, the change's Session, the access change's Session)."""
+    holder = Held(hold)
+    session = Session(change).start()
+    try:
+        state = session.waiting_or_ended()
+        access = Session(access_change).start()
+        access_state = access.waiting_or_ended()
+        behind_change = access.pid is not None and _blocked_by(access.pid, session.pid)
+    finally:
+        assert holder.release() == "done"
+    session.join()
+    access.join()
+    return state, access_state, behind_change, session, access
+
+
+def _ticket_held_with_access_change(ticket, change, access_change):
+    return _held_with_access_change(
+        lambda: ServiceRequest.objects.select_for_update().get(pk=ticket.pk),
+        change,
+        access_change,
+    )
+
+
 def _grant(user):
     user.user_permissions.add(
         Permission.objects.get(
@@ -808,12 +854,14 @@ def _attach(actor, ticket, lis, record_type="order", identifier="ORD-TEST-000044
 
 
 @pytest.mark.parametrize("action", ["show", "remove"])
-def test_a_link_change_refuses_an_account_deactivated_while_it_waited(
+def test_a_link_change_refuses_an_account_deactivated_while_it_waited_bypassing_save(
     action, make_user, agent, quality_ticket, lis
 ):
-    """set_shown_to_client and remove_link read the acting account again after the ticket's lock:
-    an account deactivated while the change waited for that lock is refused (PermissionDenied),
-    and the link, its flags and the timeline stay as they were."""
+    """The account is deactivated while the change waits for the ticket's lock, by a path that
+    bypasses User.save (a queryset update), which the hold of accounts.acting does not make
+    wait. set_shown_to_client and remove_link read the acting account again after the ticket's
+    lock and refuse it (PermissionDenied); the link, its flags and the timeline stay as they
+    were."""
     clerk = make_user("r2_link_clerk", "client_services")
     attachment = _attach(agent, quality_ticket, lis)
     before = _link_state()
@@ -825,30 +873,22 @@ def test_a_link_change_refuses_an_account_deactivated_while_it_waited(
             actor=clerk, attachment_id=attachment.pk, reason="Wrong order"
         ),
     }[action]
-    state, session = _ticket_held_while(quality_ticket, work, _deactivate(clerk))
+    state, session = _ticket_held_while(quality_ticket, work, _deactivate_bypassing_save(clerk))
     assert state == "waiting", state
     assert session.outcome == "denied", (session.outcome, repr(session.error))
     assert _link_state() == before
 
 
-@pytest.mark.parametrize("meanwhile", ["revoked", "deactivated"])
-@pytest.mark.parametrize("action", ["remove", "add"])
-def test_a_person_level_link_change_refuses_an_account_that_lost_the_capability_while_it_waited(
-    action, meanwhile, capable, quality_ticket, lis
-):
-    """A person-level (patient) link needs the patient-information capability. remove_link and
-    add_link check it after the ticket's lock on the account as it stands then: the capability
-    revoked, or the account deactivated, while the change waited refuses it (PermissionDenied);
-    the link stays attached (remove) or nothing is attached (add), no timeline entry is written."""
+def _patient_link_work(action, capable, quality_ticket, lis):
+    """What the capable account does, and the link it acts on (None for add)."""
     attachment = (
         _attach(capable, quality_ticket, lis, "patient", "PAT-TEST-000001")
         if action == "remove"
         else None
     )
-    before = _link_state()
     work = {
         "remove": lambda: link_services.remove_link(
-            actor=capable, attachment_id=attachment.pk, reason_code="typing"
+            actor=capable, attachment_id=attachment.pk, reason_code="wrong_person"
         ),
         "add": lambda: link_services.add_link(
             actor=capable,
@@ -858,20 +898,58 @@ def test_a_person_level_link_change_refuses_an_account_that_lost_the_capability_
             identifier="PAT-TEST-000002",
         ),
     }[action]
-    change = _revoke(capable) if meanwhile == "revoked" else _deactivate(capable)
-    state, session = _ticket_held_while(quality_ticket, work, change)
+    return work, attachment
+
+
+@pytest.mark.parametrize("action", ["remove", "add"])
+def test_a_person_level_link_change_refuses_an_account_deactivated_while_it_waited_bypassing_save(
+    action, capable, quality_ticket, lis
+):
+    """A person-level (patient) link needs the patient-information capability. The account is
+    deactivated while the change waits for the ticket's lock, by a path that bypasses User.save
+    (a queryset update), which the hold of accounts.acting does not make wait. remove_link and
+    add_link check the capability after the ticket's lock on the account as it stands then, and
+    refuse it (PermissionDenied); the link stays attached (remove) or nothing is attached (add),
+    no timeline entry is written."""
+    work, _attachment = _patient_link_work(action, capable, quality_ticket, lis)
+    before = _link_state()
+    state, session = _ticket_held_while(quality_ticket, work, _deactivate_bypassing_save(capable))
     assert state == "waiting", state
     assert session.outcome == "denied", (session.outcome, repr(session.error))
     assert _link_state() == before
     assert LinkAttachment.objects.filter(removed_at__isnull=False).count() == 0
 
 
-def test_a_link_to_an_organization_refuses_an_account_deactivated_while_it_waited(
+@pytest.mark.parametrize("action", ["remove", "add"])
+def test_a_capability_revocation_waits_for_a_person_level_link_change_under_way(
+    action, capable, quality_ticket, lis
+):
+    """The patient-information capability is revoked while a person-level link change waits for
+    the ticket's lock. The change holds the account's grants until it commits (accounts.acting),
+    so the revocation waits behind it. The change is saved first, by an account that still had
+    the capability (the link is removed, or attached), and the capability is gone afterwards."""
+    work, attachment = _patient_link_work(action, capable, quality_ticket, lis)
+    state, revoke_state, behind_change, session, revoke = _ticket_held_with_access_change(
+        quality_ticket, work, _revoke(capable)
+    )
+    assert state == "waiting", state
+    assert (revoke_state, behind_change) == ("waiting", True)
+    assert (session.outcome, revoke.outcome) == ("done", "done"), repr(session.error)
+    if action == "remove":
+        assert LinkAttachment.objects.get(pk=attachment.pk).removed_at is not None
+    else:
+        added = LinkAttachment.objects.get(link__identifier="PAT-TEST-000002")
+        assert added.removed_at is None
+    assert not User.objects.get(pk=capable.pk).user_permissions.exists()
+
+
+def test_a_link_to_an_organization_refuses_an_account_deactivated_while_it_waited_bypassing_save(
     make_user, lis, clinic
 ):
-    """add_link to a client organization reads the acting account again after the organization's
-    lock: an account deactivated while the link waited for that lock is refused (PermissionDenied)
-    and no link is attached."""
+    """The account is deactivated while the link waits for the organization's lock, by a path
+    that bypasses User.save (a queryset update), which the hold of accounts.acting does not make
+    wait. add_link to a client organization reads the acting account again after the
+    organization's lock and refuses it (PermissionDenied); no link is attached."""
     clerk = make_user("r2_org_clerk", "client_services")
     before = _link_state()
     state, session = _held_while(
@@ -883,7 +961,7 @@ def test_a_link_to_an_organization_refuses_an_account_deactivated_while_it_waite
             record_type="order",
             identifier="ORD-TEST-000045",
         ),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state
     assert session.outcome == "denied", (session.outcome, repr(session.error))
@@ -905,12 +983,14 @@ def test_a_person_level_link_to_an_organization_is_refused_not_saved(capable, li
     assert LinkAttachment.objects.count() == 0
 
 
-def test_withdrawing_a_file_refuses_a_supervisor_deactivated_while_it_waited(
+def test_withdrawing_a_file_refuses_a_supervisor_deactivated_while_it_waited_bypassing_save(
     agent, lead, quality_ticket
 ):
     """withdraw_attachment by a supervisor whose account is deactivated while the withdrawal
-    waits for the ticket's lock: refused (PermissionDenied), the file stays with clients, and no
-    audit event, timeline entry or revision is written."""
+    waits for the ticket's lock, by a path that bypasses User.save (a queryset update), which the
+    hold of accounts.acting does not make wait: the withdrawal reads the account again after the
+    lock and is refused (PermissionDenied), the file stays with clients, and no audit event,
+    timeline entry or revision is written."""
     seen = _fresh(quality_ticket)
     add_entry_with_files(
         actor=agent,
@@ -926,7 +1006,7 @@ def test_withdrawing_a_file_refuses_a_supervisor_deactivated_while_it_waited(
     state, session = _ticket_held_while(
         quality_ticket,
         lambda: withdraw_attachment(actor=lead, attachment_id=attachment.pk, reason="Wrong file"),
-        _deactivate(lead),
+        _deactivate_bypassing_save(lead),
     )
     assert state == "waiting", state
     assert session.outcome == "denied", (session.outcome, repr(session.error))
@@ -954,25 +1034,9 @@ def mixed_form(category):
     return template
 
 
-@pytest.mark.parametrize(
-    ("field", "meanwhile"),
-    [
-        ("internal", "role-removed"),
-        ("internal", "deactivated"),
-        ("pt", "capability-revoked"),
-        ("pt", "role-removed"),
-        ("pt", "deactivated"),
-    ],
-)
-def test_a_form_correction_does_not_save_what_the_account_may_no_longer_change(
-    field, meanwhile, make_user, quality, mixed_form, capable
-):
-    """correct_values reads the acting account again after the ticket's lock and decides the
-    fields it may fill, and the patient capability, from that reading. A staff-only field with
-    the account's staff role removed, or a patient-information field with the capability revoked,
-    the role removed or the account deactivated while the correction waited, is refused (denied,
-    or refused as nothing the account may change); the old value stays current and no new
-    value, timeline entry or revision is written."""
+def _raised_mixed(capable, quality, mixed_form):
+    """A ticket raised with the mixed form (both fields "first"), its current values by field key
+    and the form's token."""
     raised = create_request_with_form(
         actor=capable,
         template=mixed_form,
@@ -989,29 +1053,37 @@ def test_a_form_correction_does_not_save_what_the_account_may_no_longer_change(
         ).select_related("field")
     }
     assert set(rows) == {"internal", "pt"}
-    token = definition.token(mixed_form)
+    return raised, rows, definition.token(mixed_form)
+
+
+def _correction(capable, raised, token, rows, field):
+    return lambda: correct_values(
+        actor=capable,
+        request=raised,
+        expected_definition=token,
+        values={field: "second"},
+        reason="Typo",
+        reason_code="typing",
+        expected={field: rows[field].pk},
+    )
+
+
+@pytest.mark.parametrize("field", ["internal", "pt"])
+def test_a_form_correction_does_not_save_what_a_deactivated_account_may_no_longer_change(
+    field, make_user, quality, mixed_form, capable
+):
+    """The account is deactivated while the correction waits for the ticket's lock, by a path
+    that bypasses User.save (a queryset update), which the hold of accounts.acting does not make
+    wait. correct_values reads the acting account again after the ticket's lock and decides the
+    fields it may fill, and the patient capability, from that reading: the correction is refused
+    (denied, or refused as nothing the account may change); the old value stays current and no
+    new value, timeline entry or revision is written."""
+    raised, rows, token = _raised_mixed(capable, quality, mixed_form)
     before = (_fresh(raised).revision, FieldValue.objects.count(), RequestEntry.objects.count())
-
-    def remove_role():
-        capable.groups.remove(Group.objects.get(name="client_services"))
-
-    change = {
-        "role-removed": remove_role,
-        "deactivated": _deactivate(capable),
-        "capability-revoked": _revoke(capable),
-    }[meanwhile]
     state, session = _ticket_held_while(
         raised,
-        lambda: correct_values(
-            actor=capable,
-            request=raised,
-            expected_definition=token,
-            values={field: "second"},
-            reason="Typo",
-            reason_code="typing",
-            expected={field: rows[field].pk},
-        ),
-        change,
+        _correction(capable, raised, token, rows, field),
+        _deactivate_bypassing_save(capable),
     )
     assert state == "waiting", state
     assert session.outcome in ("denied", "refused"), (session.outcome, repr(session.error))
@@ -1022,3 +1094,45 @@ def test_a_form_correction_does_not_save_what_the_account_may_no_longer_change(
         RequestEntry.objects.count(),
     )
     assert not FieldValue.objects.filter(value="second").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "meanwhile"),
+    [
+        ("internal", "role-removed"),
+        ("pt", "capability-revoked"),
+        ("pt", "role-removed"),
+    ],
+)
+def test_a_role_or_capability_removal_waits_for_a_form_correction_under_way(
+    field, meanwhile, make_user, quality, mixed_form, capable
+):
+    """The account's staff role is removed (or, for a patient-information field, its capability
+    revoked) while the correction waits for the ticket's lock. The correction holds the account's
+    roles and grants until it commits (accounts.acting), so the removal waits behind it. The
+    correction is saved first, by an account that still had the role and the capability (the new
+    value becomes current and the old one is superseded), and the access is gone afterwards."""
+    raised, rows, token = _raised_mixed(capable, quality, mixed_form)
+    revision = _fresh(raised).revision
+
+    def remove_role():
+        capable.groups.remove(Group.objects.get(name="client_services"))
+
+    access_change = {"role-removed": remove_role, "capability-revoked": _revoke(capable)}[meanwhile]
+    state, access_state, behind_correction, session, access = _ticket_held_with_access_change(
+        raised, _correction(capable, raised, token, rows, field), access_change
+    )
+    assert state == "waiting", state
+    assert (access_state, behind_correction) == ("waiting", True)
+    assert (session.outcome, access.outcome) == ("done", "done"), repr(session.error)
+    assert FieldValue.objects.get(pk=rows[field].pk).superseded_at is not None
+    current = FieldValue.objects.get(
+        filled_form__request=raised, field__key=field, superseded_at__isnull=True
+    )
+    assert current.value == "second"
+    assert _fresh(raised).revision > revision
+    stored = User.objects.get(pk=capable.pk)
+    if meanwhile == "capability-revoked":
+        assert not stored.user_permissions.exists()
+    else:
+        assert not stored.groups.filter(name="client_services").exists()

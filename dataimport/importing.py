@@ -35,6 +35,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
 from django.db import DatabaseError, transaction
 
+from accounts.acting import hold_actor
 from accounts.roles import ROLES, has_role
 from clients import services
 from clients.models import Client, ClientContact, ClientSite, OrganizationType, Responsibility
@@ -105,6 +106,9 @@ class RecordType:
     # The row heading before the lookup: its keys as written (external identifiers: without a
     # person-level identifier, which is never shown).
     early_label: Callable = lambda keys: " · ".join(value for value in keys.values() if value)
+    # (rows) -> None: before any row is written, lock the records the rows share in the order
+    # their service locks them (external identifiers: hold_external_ids).
+    hold: Callable = lambda rows: None
 
     @property
     def key_columns(self):
@@ -842,6 +846,37 @@ def write_external_id(actor, existing, new_fields, data, reason):
     # (find_external_id drops their label and address and reports any difference).
 
 
+def hold_external_ids(rows):
+    """Lock the organizations, then the external systems, of the links the file adds, before
+    any row is written. links.services.add_link locks a row's organization, then its system,
+    then the link. Written row by row, the file would lock its second organization after its
+    first row's system, while a link added on that organization's page at the same moment locks
+    the organization and then waits for the system: a cycle, which the database ends by failing
+    one of them. Taken all at first, in add_link's order, the file and a link change only ever
+    wait for each other one way.
+
+    The organizations are locked in the order the file first names them, as the rows would lock
+    them, and not by id: a change of an organization's group locks the organization and then
+    walks up to its new parent (clients.services._check_parent), and an order by id would meet
+    that walk the other way round whenever the group has the lower id."""
+    from links.models import ExternalSystem
+
+    adding = [
+        row.new_fields
+        for row in rows
+        if not row.errors and row.action == "create" and row.existing is None
+    ]
+    for organization_id in dict.fromkeys(fields["client_id"] for fields in adding):
+        list(Client.objects.select_for_update().filter(pk=organization_id).values_list("pk"))
+    systems = {fields["system"].pk for fields in adding}
+    list(
+        ExternalSystem.objects.select_for_update()
+        .filter(pk__in=systems)
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+
 def external_id_early_label(keys):
     from links.masking import is_person_type
 
@@ -918,6 +953,7 @@ EXTERNAL_IDS = RecordType(
     write=write_external_id,
     version=external_id_version,
     early_label=external_id_early_label,
+    hold=hold_external_ids,
 )
 
 
@@ -1152,9 +1188,22 @@ def _service_errors(record_type, exc):
     return list(exc.messages)
 
 
+LOCKS_REFUSED = (
+    "Another change to the organizations or systems in this file was being saved at the same "
+    "moment. Nothing was imported; upload the file again."
+)
+
+
 def _apply(record_type, actor, preview, reason):
-    """Run every changing row through its service inside the caller's transaction."""
+    """Run every changing row through its service inside the caller's transaction, after the
+    records the rows share are locked in their service's order (RecordType.hold)."""
     source = f"{preview.filename}, SHA-256 {preview.file_hash}"
+    try:
+        with transaction.atomic():
+            record_type.hold(preview.rows)
+    except DatabaseError:  # a deadlock with a change saved at the same moment: refused, not a 500
+        preview.file_errors.append(LOCKS_REFUSED)
+        return
     for row in preview.rows:
         if row.errors or row.action not in ("create", "update"):
             continue
@@ -1181,10 +1230,20 @@ def _apply(record_type, actor, preview, reason):
             )
 
 
+def _hold_importer(actor):
+    """The importing account held until the file's transaction ends, before anything else it
+    locks (accounts.acting), and its role checked again on that reading."""
+    current = hold_actor(actor)
+    if current is None:
+        raise PermissionDenied("Your account no longer has a staff role.")
+    require_client_manager(current)
+
+
 def preview_file(record_type, *, actor, data, filename):
     """What importing the file would do, row by row. Always rolled back: stores nothing."""
     require_client_manager(actor)
     with transaction.atomic():
+        _hold_importer(actor)
         preview = parse(record_type, data, filename)
         if not preview.file_errors:
             _apply(record_type, actor, preview, "")
@@ -1201,6 +1260,7 @@ def commit_file(record_type, *, actor, data, filename, reason, state_token):
     require_client_manager(actor)
     reason = (reason or "").strip()
     with transaction.atomic():
+        _hold_importer(actor)
         preview = parse(record_type, data, filename)
         if not preview.ok:
             raise ValidationError(
@@ -1216,6 +1276,8 @@ def commit_file(record_type, *, actor, data, filename, reason, state_token):
         _apply(record_type, actor, preview, reason)
         if not preview.ok:
             transaction.set_rollback(True)
+            if preview.file_errors:  # refused as a whole (LOCKS_REFUSED): say why
+                raise ValidationError(preview.file_errors)
             raise ValidationError(
                 f"The file has {preview.error_count} error(s). Nothing was imported."
             )

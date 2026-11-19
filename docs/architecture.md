@@ -98,8 +98,8 @@ member locks the membership and then those tickets. When an assignment and the e
 assignee's work meet, the second waits for the person's rows and then decides on what the first
 saved: the assignment is refused, or the deactivation or removal finds the new assignment and
 returns it to the queue. Neither fails with a deadlock. A nonconformance names people (its owner,
-an action's assignee) by locking the record and then the person, and never locks a ticket after a
-person.
+an action's assignee) by locking the record and then the person, and never locks a ticket after
+the person it names.
 
 A ticket is locked by its id and the reader's scope is read again after the lock
 (`desk.selectors.locked_in_scope`), so a change that waited while a colleague recategorized the
@@ -109,10 +109,40 @@ reads the acting account again after its last lock and takes its checks of roles
 capabilities from that reading: the ticket services through `settle`, a list's bulk action right
 after its tickets' locks, a new ticket's creation before it is written, the nonconformance module
 through its own recheck, and file withdrawal, links and form corrections through `settle` or
-`desk.services.locked_staff_request`; who asks is answered before anything about the ticket. The
-account is not held until the change commits: the database checks the rows a change names when
-it commits, and an account changed while that check waits is not seen. A link change locks the
-ticket first, then the link's system, then the link.
+`desk.services.locked_staff_request`; who asks is answered before anything about the ticket.
+
+Each of these changes, and an import of external identifiers, holds the acting account from
+before its first other lock until it commits ([accounts/acting.py](../accounts/acting.py)): first
+the account's access gate, a transaction-level advisory lock, shared; then the rows its decisions
+rest on, FOR KEY SHARE (the account, its roles, its capability grants and its team memberships,
+or for a portal account its access and the sites it grants). The database checks the rows a
+change names, such as its author and its creator, only when it commits, and that check can wait,
+so a reading taken after the locks would not be enough on its own. What takes access away takes
+the gate of each account it affects exclusively, before any row it locks: a save that
+deactivates the account or moves a portal account to another organization (which then locks the
+account FOR UPDATE), the account page before its check of the remaining owners, the role group
+page, a portal access change, and every removal of a role, a capability, a team membership or a
+portal site. It waits for that person's changes under way. The gate queues in order, as row
+share locks do not, so a change the person starts meanwhile waits behind it, then reads the new
+state and is refused. An access change that affects several accounts, such as the role group
+page, takes their gates one at a time in id order: a member it has not reached yet can still
+start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
+that person's deactivation or removal from a team wait for each other one way, never in a cycle.
+Updates that take no access away, such as a sign-in, the email notice preference or a capability
+added to a role, do not wait; a full save of the account (its page, a password change) and
+every save of a portal account's access take the gate and wait for the person's change under
+way. Setup changes (teams, categories,
+forms, calendars and the like) do not hold their actor. The services that reveal patient
+information read the account again after the hold.
+
+A link change locks the ticket first, then the link's system, then the link; a link on an
+organization locks the organization in the ticket's place. An import of external identifiers
+locks all of the file's organizations, in the order the file names them, then their systems,
+before its first row, so it and a link added at the same moment wait for each other one way.
+A change of an organization's group walks up from the organization to its new parent, so it and
+an import naming the parent before the organization can still meet in a deadlock, which the
+database ends by failing whichever began waiting first: the file is then refused with nothing
+imported, or the organization change fails.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

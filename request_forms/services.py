@@ -21,6 +21,7 @@ from django.db.models import F, Max
 from django.forms.models import model_to_dict
 from django.utils import timezone
 
+from accounts.acting import acting_change
 from accounts.roles import require_role, require_staff
 from core.audit import record_event, snapshot
 
@@ -791,7 +792,7 @@ def attach_values(
     return _store(actor, request, defn, rows, missing, details_not_known)
 
 
-@transaction.atomic
+@acting_change
 def create_request_with_form(
     *,
     actor,
@@ -860,7 +861,7 @@ def _same(kind, old, new):
     return old == new
 
 
-@transaction.atomic
+@acting_change
 def correct_values(
     *,
     actor,
@@ -1017,14 +1018,17 @@ def correct_values(
     return changed
 
 
-@transaction.atomic
+@acting_change
 def reveal_value(*, actor, value_id):
     """A patient-information value for a staff account holding the capability, on a request it
     may read. Audited; the event names the request, the field and the value row, never the
     value. Raises FieldValue.DoesNotExist for anything else."""
+    from desk.services import current_staff
+
     from .selectors import revealable_value
 
     require_staff(actor)
+    actor = current_staff(actor)  # the account as held (accounts.acting), not the request's copy
     row = revealable_value(actor, value_id)
     if row is None:
         raise FieldValue.DoesNotExist("No such value.")

@@ -188,6 +188,36 @@ def _held_while(hold, change, meanwhile):
     return state, session
 
 
+def _blocked_by(pid, other):
+    """Whether session `pid` waits for a lock that session `other` holds."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT %s = ANY(pg_blocking_pids(%s))", [other, pid])
+        return cursor.fetchone()[0]
+
+
+def _release_after_access_change(release, change, access_change):
+    """`change` waits for a lock that another session holds (`release()` lets it go). The access
+    change is then started in its own session: the change holds the account's rows
+    (accounts.acting), so it waits behind the change. The lock is released and both are joined.
+    Returns (whether the change waited, whether the access change waited, whether it waited
+    behind the change, the change's Session, the access change's Session)."""
+    session = Session(change).start()
+    try:
+        state = session.waiting_or_ended()
+        access = Session(access_change).start()
+        access_state = access.waiting_or_ended()
+        behind_change = access.pid is not None and _blocked_by(access.pid, session.pid)
+    finally:
+        assert release() == "done"
+    session.join()
+    access.join()
+    return state, access_state, behind_change, session, access
+
+
+def _held_with_access_change(hold, change, access_change):
+    return _release_after_access_change(Held(hold).release, change, access_change)
+
+
 def _hold_ticket(ticket):
     return lambda: ServiceRequest.objects.select_for_update().get(pk=ticket.pk)
 
@@ -203,11 +233,13 @@ def _assign(actor, ticket, team, person=None):
     )
 
 
-def _deactivate(user):
+def _deactivate_bypassing_save(user):
+    """A deactivation by a path that bypasses User.save (a queryset update). It takes a FOR NO KEY
+    UPDATE of the account row, which the hold of accounts.acting (FOR KEY SHARE) does not make
+    wait."""
+
     def run():
-        account = User.objects.get(pk=user.pk)
-        account.is_active = False
-        account.save()
+        User.objects.filter(pk=user.pk).update(is_active=False)
 
     return run
 
@@ -354,27 +386,20 @@ def _file_on(actor, ticket):
     return Attachment.objects.get(request=ticket)
 
 
-@pytest.mark.parametrize(
-    "page",
-    ["link-add", "link-add-member-removed", "link-remove", "link-shown", "file-withdraw"],
-)
-def test_a_link_or_file_page_whose_ticket_left_the_actors_scope_while_it_waited_answers_404(
-    page, lead, technician, restricted_ticket, lis, quality
-):
-    """A restricted ticket (Privacy request, Quality) is open to a supervisor, and to a member of
-    Quality. While the page's change waits for the ticket's lock, the supervisor is demoted to
-    technical staff, or the technician is removed from Quality: the ticket is no longer one they
-    may open. links.services.locked_request ("DoesNotExist otherwise (the view's 404)"),
-    desk.selectors.locked_in_scope ("ServiceRequest.DoesNotExist, which pages answer as 404") and
-    the desk's own pages (desk/views.py "left the actor's scope meanwhile" -> 404) answer such a
-    change with 404, nothing saved. Not a server error."""
-    actor, meanwhile = lead, _demote(lead)
+PAGES = ["link-add", "link-add-member-removed", "link-remove", "link-shown", "file-withdraw"]
+
+
+def _page_case(page, lead, technician, restricted_ticket, lis, quality):
+    """The page's change on a restricted ticket (Privacy request, Quality), open to a supervisor
+    and to a member of Quality: who makes it, the change that takes that access away, the page's
+    address and data, whether nothing was saved and whether the change was saved."""
+    actor, access_change = lead, _demote(lead)
     ticket = restricted_ticket
     if page == "link-add-member-removed":
         membership = TeamMembership.objects.get(team=quality, user=technician)
         actor = technician
 
-        def meanwhile():
+        def access_change():
             team_services.remove_member(actor=lead, membership=membership, reason="Moved")
 
     if page in ("link-add", "link-add-member-removed"):
@@ -389,6 +414,9 @@ def test_a_link_or_file_page_whose_ticket_left_the_actors_scope_while_it_waited_
         def unchanged():
             return not LinkAttachment.objects.filter(request=ticket).exists()
 
+        def saved():
+            return LinkAttachment.objects.filter(request=ticket, removed_at__isnull=True).exists()
+
     elif page in ("link-remove", "link-shown"):
         attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000052")
         name = "attachment-remove" if page == "link-remove" else "attachment-shown"
@@ -399,6 +427,12 @@ def test_a_link_or_file_page_whose_ticket_left_the_actors_scope_while_it_waited_
             current = LinkAttachment.objects.get(pk=attachment.pk)
             return current.removed_at is None and not current.shown_to_client
 
+        def saved():
+            current = LinkAttachment.objects.get(pk=attachment.pk)
+            if page == "link-remove":
+                return current.removed_at is not None
+            return current.shown_to_client
+
     else:
         attachment = _file_on(lead, ticket)
         url = reverse("attachments:withdraw", args=[attachment.pk])
@@ -407,14 +441,70 @@ def test_a_link_or_file_page_whose_ticket_left_the_actors_scope_while_it_waited_
         def unchanged():
             return Attachment.objects.get(pk=attachment.pk).withdrawn_at is None
 
-    http = _signed_in(actor)
-    entries = RequestEntry.objects.filter(request=ticket).count()
-    state, session = _held_while(_hold_ticket(ticket), lambda: http.post(url, data), meanwhile)
+        def saved():
+            return Attachment.objects.get(pk=attachment.pk).withdrawn_at is not None
+
+    return SimpleNamespace(
+        actor=actor,
+        access_change=access_change,
+        url=url,
+        data=data,
+        unchanged=unchanged,
+        saved=saved,
+    )
+
+
+def _access_is_gone(page, lead, technician, quality):
+    if page == "link-add-member-removed":
+        return not TeamMembership.objects.filter(team=quality, user=technician).exists()
+    roles = set(User.objects.get(pk=lead.pk).groups.values_list("name", flat=True))
+    return roles == {"technical"}
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_a_demotion_or_removal_waits_for_a_link_or_file_page_change_under_way(
+    page, lead, technician, restricted_ticket, lis, quality
+):
+    """A restricted ticket (Privacy request, Quality) is open to a supervisor, and to a member of
+    Quality. While the page's change waits for the ticket's lock, the supervisor is demoted to
+    technical staff, or the technician is removed from Quality: the access change would take the
+    ticket away from the person making the change. The change holds the account's roles and team
+    memberships until it commits (accounts.acting), so the access change waits behind it. The
+    change is saved first, by an account that still had access (the page answers with a redirect
+    or its page, not a 404 or a server error), and the access is gone afterwards."""
+    case = _page_case(page, lead, technician, restricted_ticket, lis, quality)
+    http = _signed_in(case.actor)
+    ticket = restricted_ticket
+    state, access_state, behind_change, session, access = _held_with_access_change(
+        _hold_ticket(ticket), lambda: http.post(case.url, case.data), case.access_change
+    )
     assert state == "waiting", state
-    assert session.outcome == "done", repr(session.error)
-    # (the page's answer, whether nothing of the change was saved)
-    assert (session.result.status_code, unchanged()) == (404, True)
-    assert RequestEntry.objects.filter(request=ticket).count() == entries
+    assert (access_state, behind_change) == ("waiting", True)
+    assert (session.outcome, access.outcome) == ("done", "done"), (
+        repr(session.error),
+        repr(access.error),
+    )
+    assert session.result.status_code in (200, 302), session.result.status_code
+    assert case.saved()
+    assert _access_is_gone(page, lead, technician, quality)
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_a_link_or_file_page_whose_ticket_left_the_actors_scope_before_it_began_answers_404(
+    page, lead, technician, restricted_ticket, lis, quality
+):
+    """The supervisor was demoted to technical staff, or the technician removed from Quality, and
+    the change committed before the page's change began: the ticket is no longer one they may
+    open. links.services.locked_request ("DoesNotExist otherwise (the view's 404)"),
+    desk.selectors.locked_in_scope and the desk's own pages answer such a change with 404,
+    nothing saved. Not a server error."""
+    case = _page_case(page, lead, technician, restricted_ticket, lis, quality)
+    http = _signed_in(case.actor)
+    case.access_change()
+    entries = RequestEntry.objects.filter(request=restricted_ticket).count()
+    response = http.post(case.url, case.data)
+    assert (response.status_code, case.unchanged()) == (404, True)
+    assert RequestEntry.objects.filter(request=restricted_ticket).count() == entries
 
 
 # V2-02. The account read again after the ticket's lock, then a later lock waited for -----------
@@ -440,43 +530,40 @@ def form_ticket(agent, category, quality):
     return SimpleNamespace(ticket=raised, template=template, row=row)
 
 
-@pytest.mark.parametrize("meanwhile", ["deactivated", "role-removed"])
-def test_a_form_correction_waiting_for_its_forms_category_refuses_an_account_changed_meanwhile(
-    meanwhile, clerk, form_ticket, notice_in_category
+def _correction(clerk, form_ticket):
+    token = definition.token(form_ticket.template)
+    return lambda: correct_values(
+        actor=clerk,
+        request=form_ticket.ticket,
+        expected_definition=token,
+        values={"note": "second"},
+        reason="Typo",
+        expected={"note": form_ticket.row.pk},
+    )
+
+
+def test_a_form_correction_waiting_for_its_forms_category_refuses_an_account_deactivated_meanwhile(
+    clerk, form_ticket, notice_in_category
 ):
     """correct_values locks the ticket, reads the acting account again (locked_staff_request),
     then locks the form's definition, whose category it takes FOR NO KEY UPDATE. A staff notice
     about another ticket of the category, being sent, holds the category FOR SHARE until the mail
     server answers, so the correction waits there, after its reading of the account. The account
-    is deactivated, or loses its only staff role, during that wait. The rule is the ticket
-    services' one: the account is read again after the change's last lock (desk.services.settle,
-    "After a staff change's last lock"; current_staff: "an account deactivated ... or left without
-    a staff role while its request waited is refused"). The correction is refused; the stored
-    value stays current and no value row, timeline entry or revision is written."""
-    token = definition.token(form_ticket.template)
+    is deactivated during that wait, by a path that bypasses User.save (a queryset update), which
+    the hold of accounts.acting does not make wait. The account is read again after the change's
+    last lock (desk.services.settle; current_staff: "an account deactivated ... while its request
+    waited is refused"). The correction is refused; the stored value stays current and no value
+    row, timeline entry or revision is written."""
     before = (
         _fresh(form_ticket.ticket).revision,
         FieldValue.objects.count(),
         RequestEntry.objects.count(),
     )
-    change = {
-        "deactivated": _deactivate(clerk),
-        "role-removed": _remove_role(clerk, "client_services"),
-    }[meanwhile]
     sending = Sending(notice_in_category)
-    session = Session(
-        lambda: correct_values(
-            actor=clerk,
-            request=form_ticket.ticket,
-            expected_definition=token,
-            values={"note": "second"},
-            reason="Typo",
-            expected={"note": form_ticket.row.pk},
-        )
-    ).start()
+    session = Session(_correction(clerk, form_ticket)).start()
     try:
         state = session.waiting_or_ended()
-        change()
+        _deactivate_bypassing_save(clerk)()
     finally:
         assert sending.release() == "done"
     session.join()
@@ -490,45 +577,100 @@ def test_a_form_correction_waiting_for_its_forms_category_refuses_an_account_cha
     )
 
 
-@pytest.mark.parametrize(
-    ("record_type", "meanwhile"),
-    [("order", "deactivated"), ("order", "role-removed"), ("patient", "capability-revoked")],
-)
-def test_adding_a_link_that_waits_for_its_system_refuses_an_account_changed_meanwhile(
-    record_type, meanwhile, capable, agent, category, quality, lis
+def test_a_role_removal_waits_for_a_form_correction_waiting_for_its_forms_category(
+    clerk, form_ticket, notice_in_category
+):
+    """The clerk loses their only staff role while the correction waits for the form's category
+    (held FOR SHARE by a staff notice being sent). The correction holds the account's roles until
+    it commits (accounts.acting), so the removal waits behind it. The correction is saved first,
+    by an account that still had the role (the new value is current, the old one superseded, the
+    revision moves), and the role is gone afterwards."""
+    revision = _fresh(form_ticket.ticket).revision
+    sending = Sending(notice_in_category)
+    state, removal_state, behind_correction, session, removal = _release_after_access_change(
+        sending.release,
+        _correction(clerk, form_ticket),
+        _remove_role(clerk, "client_services"),
+    )
+    assert state == "waiting", state  # for the category, held by the notice being sent
+    assert (removal_state, behind_correction) == ("waiting", True)
+    assert (session.outcome, removal.outcome) == ("done", "done"), repr(session.error)
+    assert FieldValue.objects.get(pk=form_ticket.row.pk).superseded_at is not None
+    current = FieldValue.objects.get(
+        filled_form__request=form_ticket.ticket, superseded_at__isnull=True
+    )
+    assert current.value == "second"
+    assert _fresh(form_ticket.ticket).revision > revision
+    assert not User.objects.get(pk=clerk.pk).groups.filter(name="client_services").exists()
+
+
+def _add_link_while_the_system_is_held(actor, ticket, lis, record_type):
+    identifier = "PAT-TEST-000061" if record_type == "patient" else "ORD-TEST-000061"
+    return (
+        lambda: ExternalSystem.objects.select_for_update().get(pk=lis.pk),
+        lambda: link_services.add_link(
+            actor=actor,
+            request_id=ticket.pk,
+            system=lis,
+            record_type=record_type,
+            identifier=identifier,
+        ),
+    )
+
+
+def test_adding_a_link_that_waits_for_its_system_refuses_an_account_deactivated_meanwhile(
+    capable, agent, category, quality, lis
 ):
     """links.services.add_link locks the ticket and reads the acting account again
     (locked_staff_request), then locks the external system and the link. Another link being added
     with the same system holds the system FOR UPDATE to its commit (add_link), and an
     administrator's edit of the system does too (update_system), so the addition waits there,
-    after its reading of the account. The account is deactivated, loses its staff role, or (for
-    a patient link) loses the patient information capability during that wait. As for the ticket
-    services, the account is read again after the change's last lock (desk.services.settle) and
-    a person-level link needs the capability as it stands ("Person-level links ... need the
-    view_patient_information capability for every action"). Refused; nothing is attached and no
-    timeline entry is written."""
+    after its reading of the account. The account is deactivated during that wait, by a path that
+    bypasses User.save (a queryset update), which the hold of accounts.acting does not make wait.
+    The account is read again after the change's last lock (desk.services.settle). Refused;
+    nothing is attached and no timeline entry is written."""
     ticket = new_request(agent, category, team=quality)
-    change = {
-        "deactivated": _deactivate(capable),
-        "role-removed": _remove_role(capable, "client_services"),
-        "capability-revoked": _revoke(capable),
-    }[meanwhile]
     entries = RequestEntry.objects.filter(request=ticket).count()
-    state, session = _held_while(
-        lambda: ExternalSystem.objects.select_for_update().get(pk=lis.pk),
-        lambda: link_services.add_link(
-            actor=capable,
-            request_id=ticket.pk,
-            system=lis,
-            record_type=record_type,
-            identifier="PAT-TEST-000061" if record_type == "patient" else "ORD-TEST-000061",
-        ),
-        change,
-    )
+    hold, change = _add_link_while_the_system_is_held(capable, ticket, lis, "order")
+    state, session = _held_while(hold, change, _deactivate_bypassing_save(capable))
     assert state == "waiting", state  # for the system
     assert session.outcome in ("denied", "not found"), (session.outcome, repr(session.error))
     assert not LinkAttachment.objects.filter(request=ticket).exists()
     assert RequestEntry.objects.filter(request=ticket).count() == entries
+
+
+@pytest.mark.parametrize(
+    ("record_type", "meanwhile"),
+    [("order", "role-removed"), ("patient", "capability-revoked")],
+)
+def test_a_role_or_capability_removal_waits_for_a_link_addition_waiting_for_its_system(
+    record_type, meanwhile, capable, agent, category, quality, lis
+):
+    """The account loses its staff role, or (for a patient link) the patient information
+    capability, while the addition waits for the external system's lock, after its reading of the
+    account. The addition holds the account's roles and grants until it commits (accounts.acting),
+    so the removal waits behind it. The link is attached first, by an account that still had the
+    role and the capability, with a timeline entry; the access is gone afterwards."""
+    ticket = new_request(agent, category, team=quality)
+    entries = RequestEntry.objects.filter(request=ticket).count()
+    access_change = {
+        "role-removed": _remove_role(capable, "client_services"),
+        "capability-revoked": _revoke(capable),
+    }[meanwhile]
+    hold, change = _add_link_while_the_system_is_held(capable, ticket, lis, record_type)
+    state, removal_state, behind_addition, session, removal = _held_with_access_change(
+        hold, change, access_change
+    )
+    assert state == "waiting", state  # for the system
+    assert (removal_state, behind_addition) == ("waiting", True)
+    assert (session.outcome, removal.outcome) == ("done", "done"), repr(session.error)
+    assert LinkAttachment.objects.filter(request=ticket, removed_at__isnull=True).count() == 1
+    assert RequestEntry.objects.filter(request=ticket).count() == entries + 1
+    stored = User.objects.get(pk=capable.pk)
+    if meanwhile == "capability-revoked":
+        assert not stored.user_permissions.exists()
+    else:
+        assert not stored.groups.filter(name="client_services").exists()
 
 
 # V2-03. Ticket creation and the creating account ------------------------------------------------
@@ -541,25 +683,8 @@ def assignee(make_user, join, accessioning):
     return user
 
 
-@pytest.mark.parametrize("meanwhile", ["deactivated", "role-removed"])
-def test_a_ticket_whose_creator_lost_access_while_it_waited_for_the_assignee_is_not_saved(
-    meanwhile, clerk, assignee, sample_category, accessioning
-):
-    """A clerk logs a ticket naming a technician. The technician's account row is held as an
-    assignment to them holds it while it waits for a busy ticket (desk.services._hold_assignment;
-    "an intake that waits for the person then holds nothing"), so the creation waits for the
-    person. The clerk's account is deactivated, or loses its only staff role, during that wait.
-    The creation was authorized from the reading taken before it waited (create_request:
-    require_staff before any lock); the ticket services refuse an account changed while the
-    change waited (current_staff, settle, docs/architecture.md "Every change reads the acting
-    account again"; AGENTS.md 4 "Recheck concurrent changes"). Refused; no ticket, entry or audit
-    event of a creation is written."""
-    change = {
-        "deactivated": _deactivate(clerk),
-        "role-removed": _remove_role(clerk, "client_services"),
-    }[meanwhile]
-    created = AuditEvent.objects.filter(action="request.created").count()
-    state, session = _held_while(
+def _creation_naming(clerk, assignee, sample_category, accessioning):
+    return (
         lambda: User.objects.select_for_update(no_key=True).get(pk=assignee.pk),
         lambda: new_request(
             clerk,
@@ -568,12 +693,49 @@ def test_a_ticket_whose_creator_lost_access_while_it_waited_for_the_assignee_is_
             team=accessioning,
             assignee=assignee,
         ),
-        change,
     )
+
+
+def test_a_ticket_whose_creator_was_deactivated_while_it_waited_for_the_assignee_is_not_saved(
+    clerk, assignee, sample_category, accessioning
+):
+    """A clerk logs a ticket naming a technician. The technician's account row is held as an
+    assignment to them holds it while it waits for a busy ticket (desk.services._hold_assignment;
+    "an intake that waits for the person then holds nothing"), so the creation waits for the
+    person. The clerk's account is deactivated during that wait, by a path that bypasses
+    User.save (a queryset update), which the hold of accounts.acting does not make wait. The
+    creation was authorized from the reading taken before it waited; the ticket services read the
+    account again after their locks (current_staff, settle) and refuse it. Refused; no ticket,
+    entry or audit event of a creation is written."""
+    created = AuditEvent.objects.filter(action="request.created").count()
+    hold, change = _creation_naming(clerk, assignee, sample_category, accessioning)
+    state, session = _held_while(hold, change, _deactivate_bypassing_save(clerk))
     assert state == "waiting", state  # for the person
     assert session.outcome in ("denied", "refused"), (session.outcome, repr(session.error))
     assert not ServiceRequest.objects.filter(subject="Recollection needed").exists()
     assert AuditEvent.objects.filter(action="request.created").count() == created
+
+
+def test_a_role_removal_waits_for_a_ticket_creation_waiting_for_the_assignee(
+    clerk, assignee, sample_category, accessioning
+):
+    """A clerk logs a ticket naming a technician and the creation waits for the technician's
+    account row. The clerk loses their only staff role during that wait. The creation holds the
+    account's roles until it commits (accounts.acting), so the removal waits behind it. The
+    ticket is saved first, by an account that still had its role, with its creation event; the
+    role is gone afterwards."""
+    created = AuditEvent.objects.filter(action="request.created").count()
+    hold, change = _creation_naming(clerk, assignee, sample_category, accessioning)
+    state, removal_state, behind_creation, session, removal = _held_with_access_change(
+        hold, change, _remove_role(clerk, "client_services")
+    )
+    assert state == "waiting", state  # for the person
+    assert (removal_state, behind_creation) == ("waiting", True)
+    assert (session.outcome, removal.outcome) == ("done", "done"), repr(session.error)
+    saved = ServiceRequest.objects.get(subject="Recollection needed")
+    assert (saved.created_by_id, saved.assignee_id) == (clerk.pk, assignee.pk)
+    assert AuditEvent.objects.filter(action="request.created").count() == created + 1
+    assert not User.objects.get(pk=clerk.pk).groups.filter(name="client_services").exists()
 
 
 def test_a_portal_ticket_whose_account_was_deactivated_while_it_waited_is_not_saved(
@@ -582,8 +744,10 @@ def test_a_portal_ticket_whose_account_was_deactivated_while_it_waited_is_not_sa
     """A client portal account raises a ticket in a category while a staff notice about another
     ticket of that category is being sent (it holds the category FOR SHARE until the mail server
     answers), so the creation waits for the category's lock. The laboratory deactivates the portal
-    account during that wait. As a portal reply is refused when the account was deactivated while
-    it waited (settle_portal; review C-01), the creation is refused and nothing is saved."""
+    account during that wait, by a path that bypasses User.save (a queryset update), which the
+    hold of accounts.acting does not make wait. As a portal reply is refused when the account was
+    deactivated while it waited (settle_portal; review C-01), the creation reads the account
+    again after its locks and is refused; nothing is saved."""
     created = AuditEvent.objects.filter(action="request.created").count()
     sending = Sending(notice_in_category)
     session = Session(
@@ -598,7 +762,7 @@ def test_a_portal_ticket_whose_account_was_deactivated_while_it_waited_is_not_sa
     ).start()
     try:
         state = session.waiting_or_ended()
-        _deactivate(clinic_portal)()
+        _deactivate_bypassing_save(clinic_portal)()
     finally:
         assert sending.release() == "done"
     session.join()

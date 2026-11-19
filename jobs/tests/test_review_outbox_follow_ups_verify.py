@@ -290,6 +290,7 @@ def test_each_role_reading_holds_the_roles_in_its_documented_mode(
         _assign(agent, ticket, accessioning, technician)  # assignment, then its first attempt
         update_settings(actor=admin_actor, expected_revision=1, close_resolved_after_days=5)
     assert calls == [
+        (agent.pk, "key share", False),  # accounts.acting.hold_actor: the acting account
         (technician.pk, "key share", False),  # desk.services._current_assignee
         (technician.pk, "key share", True),  # desk.notifications._hold (first attempt)
         (admin_actor.pk, "share", False),  # jobs.services.update_settings

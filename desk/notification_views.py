@@ -39,8 +39,10 @@ def email_notices(request):
         enabled = form.cleaned_data["enabled"]
         with transaction.atomic():
             # A notice being sent to this account holds the account's row (jobs.outbox): the
-            # change waits for it, and every later attempt reads the new choice.
-            User.objects.select_for_update().filter(pk=request.user.pk).first()
+            # change waits for it, and every later attempt reads the new choice. FOR NO KEY
+            # UPDATE, so the person's own changes under way, which hold the account FOR KEY
+            # SHARE (accounts.acting), do not hold it up: it takes no access away.
+            User.objects.select_for_update(no_key=True).filter(pk=request.user.pk).first()
             # Written straight to the stored preference: not compared with this session's copy
             # (another session may have changed it), and never refused by the limit on saved
             # page layouts, so turning mail off always works.

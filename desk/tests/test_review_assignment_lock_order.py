@@ -762,7 +762,8 @@ def test_an_outsider_is_refused_before_any_persons_row_and_without_waiting(
 ):
     """Someone who may not read the ticket is refused before any team or person lock, the same
     way whatever is wrong with the choice, and without waiting while the chosen person's account
-    is held by another change."""
+    is held by another change. The acting account's own rows are held first (accounts.acting,
+    FOR KEY SHARE) and reveal nothing: no lock names the chosen person or the team."""
     actor = outsiders[audience]
     held, release = threading.Event(), threading.Event()
 
@@ -785,10 +786,18 @@ def test_an_outsider_is_refused_before_any_persons_row_and_without_waiting(
                     refusals.append("done")
                 except Exception as exc:  # compared below
                     refusals.append((type(exc).__name__, str(exc)))
-            locks = [
+            person_locks = [
                 query["sql"] for query in captured if _locked_tables(query["sql"]) & PERSON_TABLES
             ]
+            # The acting account's own rows are held first (accounts.acting): FOR KEY SHARE,
+            # naming the actor's own id. They reveal nothing about the ticket or the choice.
+            own = re.compile(rf"= {actor.pk}\b")
+            locks = [
+                sql for sql in person_locks if not ("FOR KEY SHARE" in sql and own.search(sql))
+            ]
             assert locks == [], locks
+            chosen = re.compile(rf"= {restricted.member.pk}\b")
+            assert [sql for sql in person_locks if chosen.search(sql)] == []
     finally:
         _set_lock_timeout("0")
         release.set()

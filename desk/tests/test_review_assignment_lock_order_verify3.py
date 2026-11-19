@@ -307,23 +307,8 @@ def _link_attachment(actor, ticket, lis, identifier):
     return attachment
 
 
-@pytest.mark.parametrize("meanwhile", ["demoted", "deactivated"])
-@pytest.mark.parametrize("change", ["remove", "show", "add"])
-def test_a_link_change_whose_actor_lost_the_ticket_while_it_waited_is_not_told_it_closed(
-    change, meanwhile, lead, restricted_ticket, lis
-):
-    """A supervisor in no team removes, shows to the client, or adds an order link on a
-    restricted ticket (Privacy request, Quality) while a colleague closes it, holding its lock.
-    During the wait the supervisor is demoted to technical staff (the ticket is no longer one
-    they may open), or deactivated. Who asks is answered before what is wrong with the ticket
-    (desk.services: "so who asks is answered before what is wrong with the choice"; _assign
-    "who asks is decided before what is wrong with the choice"): the change is refused as a
-    ticket they cannot open (DoesNotExist, the pages' 404: links.services.locked_request
-    "DoesNotExist otherwise (the view's 404)"; links.views._attachment_for "404 otherwise, so a
-    hidden record is indistinguishable from a missing one"), or as an account that may no longer
-    act (PermissionDenied). It does not say that the ticket it may no longer open is closed."""
-    ticket = restricted_ticket
-    attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000311")
+def _closing(ticket):
+    """What a colleague does while holding the ticket's lock: close it."""
 
     def close():
         ServiceRequest.objects.select_for_update().get(pk=ticket.pk)
@@ -332,7 +317,31 @@ def test_a_link_change_whose_actor_lost_the_ticket_while_it_waited_is_not_told_i
             status=Status.CLOSED, resolved_at=now, closed_at=now
         )
 
-    work = {
+    return close
+
+
+def _race_with_access_change(hold, change, access_change):
+    """`change` (its own session) waits for a lock that `hold` takes in another session, kept
+    open. `access_change` is then started in its own session: the change holds the account's rows
+    (accounts.acting), so it waits behind the change. The lock is released and both are joined.
+    Returns (whether the change waited, whether the access change waited, whether it waited behind
+    the change, the change's Session, the access change's Session)."""
+    holder = Held(hold)
+    session = Session(change).start()
+    try:
+        state = session.waiting_or_ended()
+        access = Session(access_change).start()
+        access_state = access.waiting_or_ended()
+        behind_change = access.pid is not None and _blocked_by(access.pid, session.pid)
+    finally:
+        assert holder.release() == "done"
+    session.join()
+    access.join()
+    return state, access_state, behind_change, session, access
+
+
+def _link_work(change, lead, ticket, attachment, lis):
+    return {
         "remove": lambda: link_services.remove_link(
             actor=lead, attachment_id=attachment.pk, reason="Wrong record"
         ),
@@ -347,11 +356,76 @@ def test_a_link_change_whose_actor_lost_the_ticket_while_it_waited_is_not_told_i
             identifier="ORD-TEST-000312",
         ),
     }[change]
-    change_meanwhile = {"demoted": _demote(lead), "deactivated": _deactivate(lead)}[meanwhile]
-    state, _statement_seen, session = _race(close, work, change_meanwhile)
+
+
+@pytest.mark.parametrize("change", ["remove", "show", "add"])
+def test_a_link_change_whose_actor_was_deactivated_while_it_waited_is_not_told_it_closed(
+    change, lead, restricted_ticket, lis
+):
+    """A supervisor in no team removes, shows to the client, or adds an order link on a
+    restricted ticket (Privacy request, Quality) while a colleague closes it, holding its lock.
+    During the wait the supervisor is deactivated by a path that bypasses User.save (a queryset
+    update), which the hold of accounts.acting does not make wait. Who asks is answered before
+    what is wrong with the ticket (desk.services: "so who asks is answered before what is wrong
+    with the choice"): the change reads the account again after its locks and is refused as an
+    account that may no longer act (PermissionDenied), or as a ticket they cannot open
+    (DoesNotExist). It does not say that the ticket is closed."""
+    ticket = restricted_ticket
+    attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000311")
+    work = _link_work(change, lead, ticket, attachment, lis)
+
+    def deactivate():
+        User.objects.filter(pk=lead.pk).update(is_active=False)
+
+    state, _statement_seen, session = _race(_closing(ticket), work, deactivate)
     assert state == "waiting", state  # for the ticket
-    expected = {"demoted": ("not found",), "deactivated": ("denied", "not found")}[meanwhile]
-    assert session.outcome in expected, (session.outcome, repr(session.error))
+    assert session.outcome in ("denied", "not found"), (session.outcome, repr(session.error))
+    current = LinkAttachment.objects.get(pk=attachment.pk)
+    assert (current.removed_at, current.shown_to_client) == (None, False)
+    assert LinkAttachment.objects.filter(request=ticket).count() == 1
+
+
+@pytest.mark.parametrize("change", ["remove", "show", "add"])
+def test_a_demotion_waits_for_a_link_change_under_way_on_a_ticket_a_colleague_closes(
+    change, lead, restricted_ticket, lis
+):
+    """The same change, but the supervisor is demoted to technical staff while it waits for the
+    ticket. The change holds the account's roles until it commits (accounts.acting), so the
+    demotion waits behind it, and the change is decided by an account that still may open the
+    ticket: it is refused on the merits (the ticket is closed: a refusal, not a 404), and nothing
+    is saved. The demotion commits after it."""
+    ticket = restricted_ticket
+    attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000311")
+    work = _link_work(change, lead, ticket, attachment, lis)
+    state, demotion_state, behind_change, session, demotion = _race_with_access_change(
+        _closing(ticket), work, _demote(lead)
+    )
+    assert state == "waiting", state  # for the ticket
+    assert (demotion_state, behind_change) == ("waiting", True)
+    assert demotion.outcome == "done", repr(demotion.error)
+    assert session.outcome == "refused", (session.outcome, repr(session.error))
+    current = LinkAttachment.objects.get(pk=attachment.pk)
+    assert (current.removed_at, current.shown_to_client) == (None, False)
+    assert LinkAttachment.objects.filter(request=ticket).count() == 1
+    roles = set(User.objects.get(pk=lead.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+@pytest.mark.parametrize("change", ["remove", "show", "add"])
+def test_a_link_change_whose_actor_was_demoted_before_it_began_is_not_told_it_closed(
+    change, lead, restricted_ticket, lis
+):
+    """The supervisor was demoted to technical staff (the ticket is no longer one they may open)
+    and the demotion committed before the change began, while the caller still holds the account
+    as it was. Who asks is answered before what is wrong with the ticket: the change is refused as
+    a ticket they cannot open (DoesNotExist, the pages' 404), even though a colleague closes the
+    ticket meanwhile. It does not say that the ticket is closed."""
+    ticket = restricted_ticket
+    attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000311")
+    work = _link_work(change, lead, ticket, attachment, lis)
+    _demote(lead)()
+    _state, _statement_seen, session = _race(_closing(ticket), work, lambda: None)
+    assert session.outcome == "not found", (session.outcome, repr(session.error))
     current = LinkAttachment.objects.get(pk=attachment.pk)
     assert (current.removed_at, current.shown_to_client) == (None, False)
     assert LinkAttachment.objects.filter(request=ticket).count() == 1
@@ -360,18 +434,10 @@ def test_a_link_change_whose_actor_lost_the_ticket_while_it_waited_is_not_told_i
 # Added by the author next to V3-01: a form correction has the same order. -----------------------
 
 
-@pytest.mark.parametrize("meanwhile", ["demoted", "deactivated"])
-def test_a_form_correction_whose_actor_lost_the_ticket_while_it_waited_is_not_told_it_closed(
-    meanwhile, lead, agent, privacy_category, quality
-):
-    """A supervisor in no team corrects a form value on a restricted ticket while a colleague
-    closes it, holding its lock; during the wait the supervisor is demoted or deactivated. Who
-    asks is answered before what is wrong with the ticket: the correction is refused as a ticket
-    they cannot open (DoesNotExist) or an account that may no longer act (PermissionDenied), never
-    told that the ticket is closed, and nothing is saved."""
+def _closable_form_ticket(agent, privacy_category, quality):
     from request_forms import definition
     from request_forms.models import FieldKind, FieldValue, RequestTemplate
-    from request_forms.services import correct_values, create_request_with_form
+    from request_forms.services import create_request_with_form
 
     template = RequestTemplate.objects.create(
         key="correction-neighbour", name="Correction form", category=privacy_category
@@ -388,16 +454,11 @@ def test_a_form_correction_whose_actor_lost_the_ticket_while_it_waited_is_not_to
     )
     row = FieldValue.objects.get(filled_form__request=ticket, superseded_at__isnull=True)
 
-    def close():
-        ServiceRequest.objects.select_for_update().get(pk=ticket.pk)
-        now = timezone.now()
-        ServiceRequest.objects.filter(pk=ticket.pk).update(
-            status=Status.CLOSED, resolved_at=now, closed_at=now
-        )
+    def correction(actor):
+        from request_forms.services import correct_values
 
-    def work():
-        correct_values(
-            actor=lead,
+        return lambda: correct_values(
+            actor=actor,
             request=ticket,
             expected_definition=definition.token(template),
             values={"note": "second"},
@@ -405,10 +466,67 @@ def test_a_form_correction_whose_actor_lost_the_ticket_while_it_waited_is_not_to
             expected={"note": row.pk},
         )
 
-    change_meanwhile = {"demoted": _demote(lead), "deactivated": _deactivate(lead)}[meanwhile]
-    state, _statement_seen, session = _race(close, work, change_meanwhile)
-    assert state == "waiting", state  # for the ticket
-    expected = {"demoted": ("not found",), "deactivated": ("denied", "not found")}[meanwhile]
-    assert session.outcome in expected, (session.outcome, repr(session.error))
+    return ticket, row, correction
+
+
+def _unchanged_value(ticket, row):
+    from request_forms.models import FieldValue
+
     current = FieldValue.objects.get(filled_form__request=ticket, superseded_at__isnull=True)
-    assert (current.pk, current.value) == (row.pk, row.value)
+    return (current.pk, current.value) == (row.pk, row.value)
+
+
+def test_a_form_correction_whose_actor_was_deactivated_while_it_waited_is_not_told_it_closed(
+    lead, agent, privacy_category, quality
+):
+    """A supervisor in no team corrects a form value on a restricted ticket while a colleague
+    closes it, holding its lock; during the wait the supervisor is deactivated by a path that
+    bypasses User.save (a queryset update), which the hold of accounts.acting does not make wait.
+    Who asks is answered before what is wrong with the ticket: the correction reads the account
+    again after its locks and is refused as an account that may no longer act (PermissionDenied)
+    or a ticket they cannot open (DoesNotExist), never told that the ticket is closed, and
+    nothing is saved."""
+    ticket, row, correction = _closable_form_ticket(agent, privacy_category, quality)
+
+    def deactivate():
+        User.objects.filter(pk=lead.pk).update(is_active=False)
+
+    state, _statement_seen, session = _race(_closing(ticket), correction(lead), deactivate)
+    assert state == "waiting", state  # for the ticket
+    assert session.outcome in ("denied", "not found"), (session.outcome, repr(session.error))
+    assert _unchanged_value(ticket, row)
+
+
+def test_a_demotion_waits_for_a_form_correction_under_way_on_a_ticket_a_colleague_closes(
+    lead, agent, privacy_category, quality
+):
+    """The supervisor is demoted to technical staff while the correction waits for the ticket.
+    The correction holds the account's roles until it commits (accounts.acting), so the demotion
+    waits behind it, and the correction is decided by an account that still may open the ticket:
+    it is refused on the merits (the ticket is closed: a refusal, not a 404), and nothing is
+    saved. The demotion commits after it."""
+    ticket, row, correction = _closable_form_ticket(agent, privacy_category, quality)
+    state, demotion_state, behind_change, session, demotion = _race_with_access_change(
+        _closing(ticket), correction(lead), _demote(lead)
+    )
+    assert state == "waiting", state  # for the ticket
+    assert (demotion_state, behind_change) == ("waiting", True)
+    assert demotion.outcome == "done", repr(demotion.error)
+    assert session.outcome == "refused", (session.outcome, repr(session.error))
+    assert _unchanged_value(ticket, row)
+    roles = set(User.objects.get(pk=lead.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+def test_a_form_correction_whose_actor_was_demoted_before_it_began_is_not_told_it_closed(
+    lead, agent, privacy_category, quality
+):
+    """The supervisor was demoted to technical staff and the demotion committed before the
+    correction began, while the caller still holds the account as it was. Who asks is answered
+    before what is wrong with the ticket: the correction is refused as a ticket they cannot open
+    (DoesNotExist), never told that the ticket is closed, and nothing is saved."""
+    ticket, row, correction = _closable_form_ticket(agent, privacy_category, quality)
+    _demote(lead)()
+    _state, _statement_seen, session = _race(_closing(ticket), correction(lead), lambda: None)
+    assert session.outcome == "not found", (session.outcome, repr(session.error))
+    assert _unchanged_value(ticket, row)

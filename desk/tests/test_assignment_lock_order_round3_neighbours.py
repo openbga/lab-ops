@@ -188,6 +188,48 @@ def _held_while(hold, change, meanwhile):
     return state, session
 
 
+def _deactivate_bypassing_save(user):
+    """A deactivation by a path that bypasses User.save (a queryset update). It takes a FOR NO KEY
+    UPDATE of the account row, which the hold of accounts.acting (FOR KEY SHARE) does not make
+    wait."""
+
+    def run():
+        User.objects.filter(pk=user.pk).update(is_active=False)
+
+    return run
+
+
+def _blocked_by(pid, other):
+    """Whether session `pid` waits for a lock that session `other` holds."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT %s = ANY(pg_blocking_pids(%s))", [other, pid])
+        return cursor.fetchone()[0]
+
+
+def _held_with_access_change(hold, change, access_change):
+    """`change` waits for a lock that `hold` takes (another session, kept open). Then
+    `access_change` is started in its own session. The change holds the account's rows
+    (accounts.acting), so the access change waits behind it. The lock is released and both are
+    joined. Returns (whether the change waited, whether the access change waited, whether it
+    waited behind the change, the change's Session, the access change's Session)."""
+    holder = Held(hold)
+    return _release_after_access_change(holder.release, change, access_change)
+
+
+def _release_after_access_change(release, change, access_change):
+    session = Session(change).start()
+    try:
+        state = session.waiting_or_ended()
+        access = Session(access_change).start()
+        access_state = access.waiting_or_ended()
+        behind_change = access.pid is not None and _blocked_by(access.pid, session.pid)
+    finally:
+        assert release() == "done"
+    session.join()
+    access.join()
+    return state, access_state, behind_change, session, access
+
+
 def _hold_ticket(ticket):
     return lambda: ServiceRequest.objects.select_for_update().get(pk=ticket.pk)
 
@@ -369,15 +411,9 @@ def capable_lead(make_user):
 # V2-01. The service's DoesNotExist or PermissionDenied is a 404 or 403 page, never a 500 -------
 
 
-def test_a_person_link_edit_whose_carrier_ticket_left_the_editors_reach_while_it_waited_is_404(
-    capable_lead, restricted_ticket, lis
-):
-    """A person-level link is editable by a reader of one of its carrier tickets with the
-    capability (update_link: person_link_readable, else ExternalRecordLink.DoesNotExist). The
-    edit waits for the system's lock; meanwhile the supervisor is demoted and so no longer reads
-    the restricted carrier ticket. The service raises DoesNotExist and the link_edit view answers
-    it as 404 (links/views.py "no longer readable while the change waited"), not 500. Nothing is
-    saved: the label and revision stay."""
+def _person_link_edit(capable_lead, restricted_ticket, lis):
+    """A patient link on a restricted ticket, the supervisor's signed-in browser, the edit page's
+    address and what it posts."""
     attachment = _link_attachment(
         capable_lead, restricted_ticket, lis, "PAT-TEST-000081", "patient"
     )
@@ -389,27 +425,57 @@ def test_a_person_link_edit_whose_carrier_ticket_left_the_editors_reach_while_it
         "reason_code": "other",
         "expected_revision": link.revision,
     }
-    state, session = _held_while(
+    return link, http, url, data
+
+
+def test_a_demotion_waits_for_a_person_link_edit_under_way_on_a_restricted_ticket(
+    capable_lead, restricted_ticket, lis
+):
+    """A person-level link is editable by a reader of one of its carrier tickets with the
+    capability. The edit waits for the system's lock; meanwhile the supervisor is demoted and
+    would no longer read the restricted carrier ticket. The edit holds the account's roles until
+    it commits (accounts.acting), so the demotion waits behind it. The edit is saved first (the
+    label changes, an event is written), by an account that still had its role, and the
+    supervisor role is gone afterwards."""
+    link, http, url, data = _person_link_edit(capable_lead, restricted_ticket, lis)
+    state, demotion_state, behind_edit, session, demotion = _held_with_access_change(
         _hold_system(lis), lambda: http.post(url, data), _demote(capable_lead)
     )
     assert state == "waiting", state  # for the system
-    assert session.outcome == "done", repr(session.error)
+    assert (demotion_state, behind_edit) == ("waiting", True)
+    assert (session.outcome, demotion.outcome) == ("done", "done"), repr(session.error)
+    assert session.result.status_code in (200, 302), session.result.status_code
     after = ExternalRecordLink.objects.get(pk=link.pk)
-    assert (session.result.status_code, after.display_label, after.revision) == (
-        404,
-        link.display_label,
-        link.revision,
-    )
+    assert (after.display_label, after.revision) == ("Alias for the patient", link.revision + 1)
+    assert AuditEvent.objects.filter(action="external_link.updated").exists()
+    roles = set(User.objects.get(pk=capable_lead.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+def test_a_person_link_edit_whose_carrier_ticket_left_the_editors_reach_before_it_began_is_404(
+    capable_lead, restricted_ticket, lis
+):
+    """The supervisor was demoted (and the demotion committed) before the edit began, so they no
+    longer read the restricted carrier ticket. The edit is answered as 404 (links/views.py), not
+    500. Nothing is saved: the label and revision stay."""
+    link, http, url, data = _person_link_edit(capable_lead, restricted_ticket, lis)
+    _demote(capable_lead)()
+    response = http.post(url, data)
+    assert response.status_code == 404, response.status_code
+    after = ExternalRecordLink.objects.get(pk=link.pk)
+    assert (after.display_label, after.revision) == (link.display_label, link.revision)
     assert not AuditEvent.objects.filter(action="external_link.updated").exists()
 
 
-def test_a_client_link_page_whose_account_was_deactivated_while_it_waited_is_403(
+def test_a_client_link_page_whose_account_was_deactivated_while_it_waited_bypassing_save_is_403(
     clerk, clinic, lis
 ):
     """Adding a link to a client organization locks the organization, the system, the link, then
     reads the account again (current_staff). The account is deactivated while the addition waits
-    for the organization's lock: the service raises PermissionDenied, which the page answers as
-    403 (not 500). Nothing is attached to the organization."""
+    for the organization's lock, by a path that bypasses User.save (a queryset update), which the
+    hold of accounts.acting does not make wait. The reading after the locks refuses it: the
+    service raises PermissionDenied, which the page answers as 403 (not 500). Nothing is attached
+    to the organization."""
     http = _signed_in(clerk)
     url = reverse("link_records:client-link-add", args=[clinic.pk])
     data = {
@@ -421,7 +487,7 @@ def test_a_client_link_page_whose_account_was_deactivated_while_it_waited_is_403
     state, session = _held_while(
         lambda: ClientOrg.objects.select_for_update().get(pk=clinic.pk),
         lambda: http.post(url, data),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state  # for the organization
     assert session.outcome == "done", repr(session.error)
@@ -430,24 +496,50 @@ def test_a_client_link_page_whose_account_was_deactivated_while_it_waited_is_403
     assert not ExternalRecordLink.objects.filter(identifier="ORD-TEST-000082").exists()
 
 
-def test_a_file_withdrawal_by_a_supervisor_demoted_while_it_waited_is_refused_not_a_500(
-    lead, agent, category, quality
-):
-    """Withdrawing a file locks the attachment, then the ticket (here an unrestricted one, still
-    readable by technical staff), then rereads the account: a supervisor demoted while the change
-    waited for the ticket is refused (PermissionDenied: 403, or a 404). Never a 500, and the file
-    stays unwithdrawn with no timeline entry."""
+def _withdrawal(lead, agent, category, quality):
+    """An attachment of an unrestricted ticket, the supervisor's signed-in browser, the withdraw
+    page's address and the ticket's timeline entries so far."""
     ticket = new_request(agent, category, team=quality)
     attachment = _file_on(lead, ticket)
     http = _signed_in(lead)
     url = reverse("attachments:withdraw", args=[attachment.pk])
-    entries = RequestEntry.objects.filter(request=ticket).count()
-    state, session = _held_while(
-        _hold_ticket(ticket), lambda: http.post(url, {"reason": "Wrong file"}), _demote(lead)
+    return ticket, attachment, http, url, RequestEntry.objects.filter(request=ticket).count()
+
+
+def test_a_demotion_waits_for_a_file_withdrawal_by_a_supervisor_under_way(
+    lead, agent, category, quality
+):
+    """Withdrawing a file locks the attachment, then the ticket (here an unrestricted one, still
+    readable by technical staff), then rereads the account. The supervisor is demoted while the
+    withdrawal waits for the ticket. The withdrawal holds the account's roles until it commits
+    (accounts.acting), so the demotion waits behind it. The file is withdrawn first, by an
+    account that still was a supervisor, with a timeline entry; the role is gone afterwards."""
+    ticket, attachment, http, url, entries = _withdrawal(lead, agent, category, quality)
+    state, demotion_state, behind_withdrawal, session, demotion = _held_with_access_change(
+        _hold_ticket(ticket),
+        lambda: http.post(url, {"reason": "Wrong file"}),
+        _demote(lead),
     )
     assert state == "waiting", state  # for the ticket
-    assert session.outcome == "done", repr(session.error)
-    assert session.result.status_code in (403, 404), session.result.status_code
+    assert (demotion_state, behind_withdrawal) == ("waiting", True)
+    assert (session.outcome, demotion.outcome) == ("done", "done"), repr(session.error)
+    assert session.result.status_code in (200, 302), session.result.status_code
+    assert Attachment.objects.get(pk=attachment.pk).withdrawn_at is not None
+    assert RequestEntry.objects.filter(request=ticket).count() == entries + 1
+    roles = set(User.objects.get(pk=lead.pk).groups.values_list("name", flat=True))
+    assert roles == {"technical"}
+
+
+def test_a_file_withdrawal_by_a_supervisor_demoted_before_it_began_is_refused_not_a_500(
+    lead, agent, category, quality
+):
+    """The supervisor was demoted (and the demotion committed) before the withdrawal began: it
+    is refused (PermissionDenied: 403, or a 404). Never a 500, and the file stays unwithdrawn
+    with no timeline entry."""
+    ticket, attachment, http, url, entries = _withdrawal(lead, agent, category, quality)
+    _demote(lead)()
+    response = http.post(url, {"reason": "Wrong file"})
+    assert response.status_code in (403, 404), response.status_code
     assert Attachment.objects.get(pk=attachment.pk).withdrawn_at is None
     assert RequestEntry.objects.filter(request=ticket).count() == entries
 
@@ -456,14 +548,16 @@ def test_a_file_withdrawal_by_a_supervisor_demoted_while_it_waited_is_refused_no
 
 
 @pytest.mark.parametrize("change", ["remove", "show"])
-def test_a_link_change_waiting_for_the_attachments_lock_refuses_an_account_deactivated_meanwhile(
+def test_a_link_change_waiting_for_the_attachments_lock_refuses_a_bypassing_deactivation(
     change, clerk, agent, category, quality, lis
 ):
     """remove_link and set_shown_to_client lock the ticket, then the attachment with its link,
     and read the account again after those (links.services._locked_attachment). Another session
     holds the attachment while the ticket is free, so the change waits for the attachment, after
-    the ticket's lock; the account is deactivated meanwhile. The reading taken after the last
-    lock refuses it (PermissionDenied); the attachment is unchanged and no entry is written."""
+    the ticket's lock; the account is deactivated meanwhile by a path that bypasses User.save (a
+    queryset update), which the hold of accounts.acting does not make wait. The reading taken
+    after the last lock refuses it (PermissionDenied); the attachment is unchanged and no entry
+    is written."""
     ticket = new_request(agent, category, team=quality)
     attachment = _link_attachment(agent, ticket, lis, "ORD-TEST-000091")
     entries = RequestEntry.objects.filter(request=ticket).count()
@@ -479,7 +573,7 @@ def test_a_link_change_waiting_for_the_attachments_lock_refuses_an_account_deact
     state, session = _held_while(
         lambda: LinkAttachment.objects.select_for_update().get(pk=attachment.pk),
         work,
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state  # for the attachment
     assert session.outcome == "denied", (session.outcome, repr(session.error))
@@ -488,12 +582,13 @@ def test_a_link_change_waiting_for_the_attachments_lock_refuses_an_account_deact
     assert RequestEntry.objects.filter(request=ticket).count() == entries
 
 
-def test_a_link_correction_waiting_for_its_system_refuses_an_account_deactivated_meanwhile(
+def test_a_link_correction_waiting_for_its_system_refuses_an_account_deactivated_bypassing_save(
     clerk, agent, category, quality, lis
 ):
     """update_link locks the system, then the link, then reads the account again. It waits for
-    the system's lock while the account is deactivated: refused (PermissionDenied); the label and
-    revision stay and no event is written."""
+    the system's lock while the account is deactivated by a path that bypasses User.save (a
+    queryset update), which the hold of accounts.acting does not make wait: refused
+    (PermissionDenied); the label and revision stay and no event is written."""
     ticket = new_request(agent, category, team=quality)
     attachment = _link_attachment(agent, ticket, lis, "ORD-TEST-000092")
     link = ExternalRecordLink.objects.get(pk=attachment.link_id)
@@ -506,7 +601,7 @@ def test_a_link_correction_waiting_for_its_system_refuses_an_account_deactivated
             display_label="Order 92",
             reason="Clearer label",
         ),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state  # for the system
     assert session.outcome == "denied", (session.outcome, repr(session.error))
@@ -515,12 +610,13 @@ def test_a_link_correction_waiting_for_its_system_refuses_an_account_deactivated
     assert not AuditEvent.objects.filter(action="external_link.updated").exists()
 
 
-def test_adding_a_link_to_an_organization_waiting_for_the_system_refuses_a_deactivated_account(
+def test_adding_a_link_to_an_organization_waiting_for_the_system_refuses_a_bypassing_deactivation(
     clerk, clinic, lis
 ):
     """add_link to an organization locks the organization, the system, the link, then reads the
-    account again. It waits for the system while the account is deactivated: refused
-    (PermissionDenied); nothing is attached and no link row is created."""
+    account again. It waits for the system while the account is deactivated by a path that
+    bypasses User.save (a queryset update), which the hold of accounts.acting does not make
+    wait: refused (PermissionDenied); nothing is attached and no link row is created."""
     state, session = _held_while(
         _hold_system(lis),
         lambda: link_services.add_link(
@@ -530,7 +626,7 @@ def test_adding_a_link_to_an_organization_waiting_for_the_system_refuses_a_deact
             record_type="order",
             identifier="ORD-TEST-000093",
         ),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state  # for the system
     assert session.outcome == "denied", (session.outcome, repr(session.error))
@@ -538,15 +634,9 @@ def test_adding_a_link_to_an_organization_waiting_for_the_system_refuses_a_deact
     assert not ExternalRecordLink.objects.filter(identifier="ORD-TEST-000093").exists()
 
 
-def test_a_patient_value_correction_waiting_for_the_definition_is_not_saved_without_the_capability(
-    capable, category, quality, notice_in_category
-):
-    """correct_values reads the account again after the form definition's locks (its category
-    among them). A staff notice being sent holds the category FOR SHARE, so the correction waits
-    there; the patient information capability is revoked meanwhile. On the reading after the
-    wait the patient field is no longer the account's to fill: the correction is refused (nothing
-    changed, or PermissionDenied) and the stored patient value stays current, with no new value
-    row, timeline entry or revision."""
+def _patient_correction(capable, category, quality):
+    """A ticket with a patient-information value, and the correction of it: (ticket, the value's
+    row, what it changes)."""
     template = RequestTemplate.objects.create(
         key="r3-patient", name="Patient form", category=category, offered_in_portal=False
     )
@@ -567,10 +657,9 @@ def test_a_patient_value_correction_waiting_for_the_definition_is_not_saved_with
     )
     row = FieldValue.objects.get(filled_form__request=ticket, superseded_at__isnull=True)
     token = definition.token(template)
-    before = (_fresh(ticket).revision, FieldValue.objects.count(), RequestEntry.objects.count())
-    sending = Sending(notice_in_category)
-    session = Session(
-        lambda: correct_values(
+
+    def correct():
+        return correct_values(
             actor=capable,
             request=ticket,
             expected_definition=token,
@@ -579,15 +668,47 @@ def test_a_patient_value_correction_waiting_for_the_definition_is_not_saved_with
             reason_code="typing",
             expected={"patient_ref": row.pk},
         )
-    ).start()
-    try:
-        state = session.waiting_or_ended()
-        _revoke(capable)()
-    finally:
-        assert sending.release() == "done"
-    session.join()
+
+    return ticket, row, correct
+
+
+def test_a_capability_revocation_waits_for_a_patient_value_correction_under_way(
+    capable, category, quality, notice_in_category
+):
+    """correct_values reads the account again after the form definition's locks (its category
+    among them). A staff notice being sent holds the category FOR SHARE, so the correction waits
+    there; the patient information capability is revoked meanwhile. The correction holds the
+    account's grants until it commits (accounts.acting), so the revocation waits behind it. The
+    correction is saved first, by an account that still had the capability (the new patient value
+    is current, the old one superseded), and the capability is gone afterwards."""
+    ticket, row, correct = _patient_correction(capable, category, quality)
+    revision = _fresh(ticket).revision
+    sending = Sending(notice_in_category)
+    state, revoke_state, behind_correction, session, revoke = _release_after_access_change(
+        sending.release, correct, _revoke(capable)
+    )
     assert state == "waiting", (state, session.outcome, repr(session.error))  # the category
-    assert session.outcome in ("refused", "denied"), (session.outcome, repr(session.error))
+    assert (revoke_state, behind_correction) == ("waiting", True)
+    assert (session.outcome, revoke.outcome) == ("done", "done"), repr(session.error)
+    assert FieldValue.objects.get(pk=row.pk).superseded_at is not None
+    current = FieldValue.objects.get(filled_form__request=ticket, superseded_at__isnull=True)
+    assert current.value == "PAT-TEST-000095"
+    assert _fresh(ticket).revision > revision
+    assert not User.objects.get(pk=capable.pk).user_permissions.filter(pk=_capability().pk).exists()
+
+
+def test_a_patient_value_correction_is_not_saved_by_an_account_that_lost_the_capability(
+    capable, category, quality
+):
+    """The patient information capability was revoked (and the revocation committed) before the
+    correction began, while the caller still holds the account as it was. The correction reads
+    the account again and is refused (nothing changed, or PermissionDenied): the stored patient
+    value stays current, with no new value row, timeline entry or revision."""
+    ticket, row, correct = _patient_correction(capable, category, quality)
+    before = (_fresh(ticket).revision, FieldValue.objects.count(), RequestEntry.objects.count())
+    _revoke(capable)()
+    outcome = run_here(correct)
+    assert outcome in ("refused", "denied"), outcome
     assert FieldValue.objects.get(pk=row.pk).superseded_at is None
     assert before == (
         _fresh(ticket).revision,
@@ -621,79 +742,127 @@ def _portal_raise(user, category, site):
     )
 
 
-def _raise_while_category_is_busy(notice, user, category, site, meanwhile):
+def _raise_while_category_is_busy_with_access_change(notice, user, category, site, access_change):
     sending = Sending(notice)
-    session = Session(_portal_raise(user, category, site)).start()
-    try:
-        state = session.waiting_or_ended()
-        meanwhile()
-    finally:
-        assert sending.release() == "done"
-    session.join()
-    return state, session
+    return _release_after_access_change(
+        sending.release, _portal_raise(user, category, site), access_change
+    )
 
 
-def test_a_portal_ticket_for_a_site_the_grant_dropped_while_it_waited_is_refused_on_the_site(
+def test_a_site_grant_drop_waits_for_a_portal_ticket_under_way_for_that_site(
     two_site_portal, category, notice_in_category
 ):
     """A portal account raises a ticket for site A while a notice being sent holds the category.
-    During the wait its grant is narrowed to site B. create_request reads the account again after
-    its locks (_creator_after_locks, check_portal_site): ValidationError on `site`; no ticket and
-    no creation event."""
+    During the wait its grant is narrowed to site B. The creation holds the account's access and
+    site grants until it commits (accounts.acting), so the change of grant waits behind it. The
+    ticket is saved first, for site A, by an account that still had that grant, with its creation
+    event; the grant is gone afterwards."""
+    created = AuditEvent.objects.filter(action="request.created").count()
+    portal = two_site_portal
+    state, drop_state, behind_creation, session, drop = (
+        _raise_while_category_is_busy_with_access_change(
+            notice_in_category,
+            portal.user,
+            category,
+            portal.a,
+            lambda: portal.access.sites.remove(portal.a),
+        )
+    )
+    assert state == "waiting", state  # for the category
+    assert (drop_state, behind_creation) == ("waiting", True)
+    assert (session.outcome, drop.outcome) == ("done", "done"), repr(session.error)
+    assert ServiceRequest.objects.get(subject="Portal question").site_id == portal.a.pk
+    assert AuditEvent.objects.filter(action="request.created").count() == created + 1
+    assert not portal.access.sites.filter(pk=portal.a.pk).exists()
+
+
+def test_a_portal_ticket_for_a_site_the_grant_dropped_before_it_began_is_refused_on_the_site(
+    two_site_portal, category
+):
+    """The portal account's grant of site A was dropped (and the change committed) before the
+    creation began, while the caller still holds the account as it was. create_request reads the
+    account again (_creator_after_locks, check_portal_site): ValidationError on `site`; no ticket
+    and no creation event."""
     created = AuditEvent.objects.filter(action="request.created").count()
     tickets = ServiceRequest.objects.count()
     portal = two_site_portal
-    state, session = _raise_while_category_is_busy(
-        notice_in_category,
-        portal.user,
-        category,
-        portal.a,
-        lambda: portal.access.sites.remove(portal.a),
-    )
-    assert state == "waiting", state  # for the category
+    portal.access.sites.remove(portal.a)
+    session = Session(_portal_raise(portal.user, category, portal.a))
+    session.start()
+    session.join()
     assert session.outcome == "refused", (session.outcome, repr(session.error))
     assert "site" in session.error.message_dict
     assert ServiceRequest.objects.count() == tickets
     assert AuditEvent.objects.filter(action="request.created").count() == created
 
 
-def test_a_portal_ticket_whose_account_moved_to_another_organization_while_it_waited_is_denied(
-    clinic_portal, water, agent, category, notice_in_category
-):
-    """A portal account raises a ticket while a notice being sent holds the category; meanwhile
-    it is moved to another organization (changed_by set, as clients.signals asks). The ticket
-    would be recorded for the old organization: the reading after the locks has another client,
-    so the creation is refused (PermissionDenied). Nothing is saved."""
-
+def _move_to_another_organization(account_pk, water, agent):
     def move():
-        account = User.objects.get(pk=clinic_portal.pk)
+        account = User.objects.get(pk=account_pk)
         account.client = water
         account.changed_by = agent
         account.save()
 
+    return move
+
+
+def test_a_move_to_another_organization_waits_for_a_portal_ticket_under_way(
+    clinic, clinic_portal, water, agent, category, notice_in_category
+):
+    """A portal account raises a ticket while a notice being sent holds the category; meanwhile
+    it is moved to another organization (changed_by set, as clients.signals asks). The creation
+    holds the account until it commits (accounts.acting) and the move is a save, which locks the
+    account FOR UPDATE first, so the move waits behind it. The ticket is saved first, for the
+    organization the account belonged to when it began, and the account is moved afterwards."""
     created = AuditEvent.objects.filter(action="request.created").count()
-    tickets = ServiceRequest.objects.count()
-    state, session = _raise_while_category_is_busy(
-        notice_in_category, clinic_portal, category, None, move
+    state, move_state, behind_creation, session, move = (
+        _raise_while_category_is_busy_with_access_change(
+            notice_in_category,
+            clinic_portal,
+            category,
+            None,
+            _move_to_another_organization(clinic_portal.pk, water, agent),
+        )
     )
     assert state == "waiting", state  # for the category
+    assert (move_state, behind_creation) == ("waiting", True)
+    assert (session.outcome, move.outcome) == ("done", "done"), repr(session.error)
+    assert ServiceRequest.objects.get(subject="Portal question").client_id == clinic.pk
+    assert AuditEvent.objects.filter(action="request.created").count() == created + 1
+    assert User.objects.get(pk=clinic_portal.pk).client_id == water.pk
+
+
+def test_a_portal_ticket_by_an_account_moved_to_another_organization_before_it_began_is_denied(
+    clinic_portal, water, agent, category
+):
+    """The portal account was moved to another organization (and the move committed) before the
+    creation began, while the caller still holds the account as it was. The ticket would be
+    recorded for the old organization: the reading has another client, so the creation is
+    refused (PermissionDenied). Nothing is saved."""
+    _move_to_another_organization(clinic_portal.pk, water, agent)()
+    created = AuditEvent.objects.filter(action="request.created").count()
+    tickets = ServiceRequest.objects.count()
+    session = Session(_portal_raise(clinic_portal, category, None)).start()
+    session.join()
     assert session.outcome == "denied", (session.outcome, repr(session.error))
     assert ServiceRequest.objects.count() == tickets
     assert AuditEvent.objects.filter(action="request.created").count() == created
 
 
-def test_a_staff_ticket_whose_creator_was_deactivated_while_it_waited_for_the_team_is_denied(
+def test_a_staff_ticket_whose_creator_was_deactivated_bypassing_save_while_it_waited_is_denied(
     clerk, category, quality
 ):
     """A clerk logs a ticket for the Quality team while another session holds the team's row. The
-    clerk's account is deactivated during that wait. create_request reads the creator again after
-    its last lock (current_staff): PermissionDenied; no ticket, entry or creation event."""
+    clerk's account is deactivated during that wait by a path that bypasses User.save (a queryset
+    update), which the hold of accounts.acting does not make wait. create_request reads the
+    creator again after its last lock (current_staff): PermissionDenied; no ticket, entry or
+    creation event."""
     created = AuditEvent.objects.filter(action="request.created").count()
     tickets = ServiceRequest.objects.count()
     state, session = _held_while(
         lambda: Team.objects.select_for_update().get(pk=quality.pk),
         lambda: new_request(clerk, category, subject="Team wait", team=quality),
-        _deactivate(clerk),
+        _deactivate_bypassing_save(clerk),
     )
     assert state == "waiting", state  # for the team
     assert session.outcome == "denied", (session.outcome, repr(session.error))

@@ -3,6 +3,14 @@ from django.db import models, transaction
 
 from .roles import CAPABILITIES
 
+# The columns whose change takes access away from the account's work under way: whether it
+# is active, and for a client portal account the organization it belongs to.
+ACCESS_FIELDS = frozenset({"is_active", "client", "client_id"})
+
+
+def _may_change_access(update_fields):
+    return update_fields is None or bool(ACCESS_FIELDS.intersection(update_fields))
+
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -27,6 +35,18 @@ class User(AbstractUser):
         # a deactivated account's assignments, resetting portal access on a move), so they
         # succeed or fail together on every path, inside or outside a caller's transaction.
         with transaction.atomic():
+            if self.pk is not None and _may_change_access(kwargs.get("update_fields")):
+                # The access gate, then FOR UPDATE, before the save: a change under way holds
+                # this account until it commits (accounts.acting), and the save waits for it.
+                from .acting import close_access
+
+                close_access([self.pk])
+                list(
+                    type(self)
+                    .objects.select_for_update()
+                    .filter(pk=self.pk)
+                    .values_list("pk", flat=True)
+                )
             super().save(*args, **kwargs)
 
     class Meta(AbstractUser.Meta):

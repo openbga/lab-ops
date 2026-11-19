@@ -131,10 +131,15 @@ def remove_member(*, actor, membership, reason=""):
     requests, the order an assignment takes them in (desk.services._hold_assignment), so an
     assignment to this person in this team either comes first and its ticket is returned here,
     or waits and is refused."""
+    from accounts.acting import close_access
     from desk.services import release_assignments
 
     if not can_manage_members(actor):
         raise PermissionDenied("Admins and supervisors manage team members.")
+    # The member's access gate first (accounts.acting): the removal waits for the member's
+    # changes under way, and a change of theirs that starts meanwhile waits for the removal.
+    # A membership never moves to another person, so its person is read without a lock.
+    close_access(TeamMembership.objects.filter(pk=membership.pk).values_list("user_id", flat=True))
     membership = TeamMembership.objects.select_for_update().get(pk=membership.pk)
     team, user = membership.team, membership.user
     membership.delete()
