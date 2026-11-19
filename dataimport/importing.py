@@ -847,13 +847,18 @@ def write_external_id(actor, existing, new_fields, data, reason):
 
 
 def hold_external_ids(rows):
-    """Lock the organizations, then the external systems, of the links the file adds, each in
-    id order, before any row is written. links.services.add_link locks a row's organization,
-    then its system, then the link. Written row by row, the file would lock its second
-    organization after its first row's system, while a link added on that organization's page
-    at the same moment locks the organization and then waits for the system: a cycle, which the
-    database ends by failing one of them. Taken all at first, in add_link's order, the file and
-    a link change only ever wait for each other one way."""
+    """Lock the organizations, then the external systems, of the links the file adds, before
+    any row is written. links.services.add_link locks a row's organization, then its system,
+    then the link. Written row by row, the file would lock its second organization after its
+    first row's system, while a link added on that organization's page at the same moment locks
+    the organization and then waits for the system: a cycle, which the database ends by failing
+    one of them. Taken all at first, in add_link's order, the file and a link change only ever
+    wait for each other one way.
+
+    The organizations are locked in the order the file first names them, as the rows would lock
+    them, and not by id: a change of an organization's group locks the organization and then
+    walks up to its new parent (clients.services._check_parent), and an order by id would meet
+    that walk the other way round whenever the group has the lower id."""
     from links.models import ExternalSystem
 
     adding = [
@@ -861,16 +866,15 @@ def hold_external_ids(rows):
         for row in rows
         if not row.errors and row.action == "create" and row.existing is None
     ]
-    for model, ids in (
-        (Client, {fields["client_id"] for fields in adding}),
-        (ExternalSystem, {fields["system"].pk for fields in adding}),
-    ):
-        list(
-            model.objects.select_for_update()
-            .filter(pk__in=ids)
-            .order_by("pk")
-            .values_list("pk", flat=True)
-        )
+    for organization_id in dict.fromkeys(fields["client_id"] for fields in adding):
+        list(Client.objects.select_for_update().filter(pk=organization_id).values_list("pk"))
+    systems = {fields["system"].pk for fields in adding}
+    list(
+        ExternalSystem.objects.select_for_update()
+        .filter(pk__in=systems)
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
 
 
 def external_id_early_label(keys):
@@ -1184,11 +1188,22 @@ def _service_errors(record_type, exc):
     return list(exc.messages)
 
 
+LOCKS_REFUSED = (
+    "Another change to the organizations or systems in this file was being saved at the same "
+    "moment. Nothing was imported; upload the file again."
+)
+
+
 def _apply(record_type, actor, preview, reason):
     """Run every changing row through its service inside the caller's transaction, after the
     records the rows share are locked in their service's order (RecordType.hold)."""
     source = f"{preview.filename}, SHA-256 {preview.file_hash}"
-    record_type.hold(preview.rows)
+    try:
+        with transaction.atomic():
+            record_type.hold(preview.rows)
+    except DatabaseError:  # a deadlock with a change saved at the same moment: refused, not a 500
+        preview.file_errors.append(LOCKS_REFUSED)
+        return
     for row in preview.rows:
         if row.errors or row.action not in ("create", "update"):
             continue

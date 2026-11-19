@@ -36,8 +36,11 @@ class User(AbstractUser):
         # succeed or fail together on every path, inside or outside a caller's transaction.
         with transaction.atomic():
             if self.pk is not None and _may_change_access(kwargs.get("update_fields")):
-                # FOR UPDATE before the save: a change under way holds this account FOR KEY
-                # SHARE until it commits (accounts.acting), and the save waits for it.
+                # The access gate, then FOR UPDATE, before the save: a change under way holds
+                # this account until it commits (accounts.acting), and the save waits for it.
+                from .acting import close_access
+
+                close_access([self.pk])
                 list(
                     type(self)
                     .objects.select_for_update()

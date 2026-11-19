@@ -89,6 +89,18 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
+### Review follow-up: a client's reply and the deactivation of the ticket's assignee
+
+- **Delivers:** a change to a ticket that sends its assignee a notice, such as a client's reply,
+  and the deactivation of that assignee at the same moment wait for each other one way instead of
+  failing with a database deadlock. Today the change locks the ticket and records a notice that
+  names the assignee, whose account the database checks only when the change commits, while the
+  deactivation locks the account and then waits for that person's tickets: the deactivation
+  fails, and the administrator sees an error page. The change holds its own account until it
+  commits, but not the accounts its notices name.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** nothing.
+
 ### Automatic sign-out and session control
 
 - **Delivers:** sign-out after a period without activity and a maximum session length, both set by

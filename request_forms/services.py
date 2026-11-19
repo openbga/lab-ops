@@ -1023,9 +1023,12 @@ def reveal_value(*, actor, value_id):
     """A patient-information value for a staff account holding the capability, on a request it
     may read. Audited; the event names the request, the field and the value row, never the
     value. Raises FieldValue.DoesNotExist for anything else."""
+    from desk.services import current_staff
+
     from .selectors import revealable_value
 
     require_staff(actor)
+    actor = current_staff(actor)  # the account as held (accounts.acting), not the request's copy
     row = revealable_value(actor, value_id)
     if row is None:
         raise FieldValue.DoesNotExist("No such value.")

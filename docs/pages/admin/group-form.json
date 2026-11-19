@@ -41,7 +41,7 @@
         },
         {
           "label": "Permissions",
-          "description": "Optional Available permissions and Chosen permissions with filtering, choose/remove and Choose all/Remove all. The accounts permission Can view patient information is the capability that lets active internal members see patient information; no role grants it by itself. Permissions do not create laboratory roles for arbitrary group names."
+          "description": "Optional Available permissions and Chosen permissions with filtering, choose/remove and Choose all/Remove all. The accounts permission Can view patient information is the capability that lets active internal members see patient information; no role grants it by itself. Permissions do not create laboratory roles for arbitrary group names. Saving waits for any change the group's members are saving at that moment, one member at a time; nothing a member saves after it still has a capability it removed."
         }
       ]
     },
@@ -82,6 +82,7 @@
     }
   ],
   "sources": [
+    "accounts/acting.py",
     "accounts/admin.py",
     "accounts/models.py",
     "accounts/roles.py",

@@ -112,8 +112,11 @@ def form_ticket(agent, category, quality):
 
 
 def _holds_account_rows(statement):
-    """Whether `statement` is one of accounts.acting's holds (it waited before its first lock)."""
-    return "FOR KEY SHARE" in statement and statement.lstrip().upper().startswith("SELECT")
+    """Whether `statement` is one of accounts.acting's holds (it waited before its first lock):
+    the account's access gate, or a row held FOR KEY SHARE."""
+    statement = statement.strip()
+    gate = statement.startswith("SELECT pg_advisory_xact_lock_shared(")
+    return gate or ("FOR KEY SHARE" in statement and statement.upper().startswith("SELECT"))
 
 
 # V3-02. A creation's commit waits while its account loses access --------------------------------

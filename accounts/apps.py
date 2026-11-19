@@ -5,4 +5,6 @@ class AccountsConfig(AppConfig):
     name = "accounts"
 
     def ready(self):
-        from . import signin_log  # noqa: F401
+        from . import acting, signin_log  # noqa: F401
+
+        acting.connect()  # removals that take access away take the access gate

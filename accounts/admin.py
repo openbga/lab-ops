@@ -131,6 +131,13 @@ class AccessRules:
                     "A client user cannot be staff or superuser or hold roles or permissions. "
                     "Clear the client to create a laboratory account."
                 )
+        if self.instance.pk and connection.in_atomic_block:
+            # The account's access gate before any other lock this save takes (the owner rows
+            # below, then the account): the save waits for the person's changes under way, which
+            # may lock an owner's row themselves (accounts.acting).
+            from .acting import close_access
+
+            close_access([self.instance.pk])
         owner = self.instance.is_superuser and self.instance.is_active and self.instance.is_staff
         if self.instance.pk and owner:
             # An owner opens account administration: active, superuser and staff.
@@ -366,6 +373,12 @@ class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
         return ("name",) if obj is not None and obj.name in ROLES else ()
 
     def save_model(self, request, obj, form, change):
+        if change:
+            # Every member's access gate before the group's row: a capability taken from the
+            # role waits for its members' changes under way (accounts.acting).
+            from .acting import close_access, role_members
+
+            close_access(role_members([obj.pk]))
         obj._audit_before = group_snapshot(Group.objects.get(pk=obj.pk)) if change else {}
         super().save_model(request, obj, form, change)
 

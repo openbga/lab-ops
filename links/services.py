@@ -532,6 +532,7 @@ def reveal_person_key(*, actor, attachment_id):
     """The full key of a person-level link on a request the actor may read. Audited; the event
     names the link and the request, never the key."""
     require_staff(actor)
+    actor = _reread(actor)  # the account as held (accounts.acting), not the request's copy
     require_capability(actor, CAPABILITY)
     attachment = LinkAttachment.objects.select_related("link", "link__system").get(pk=attachment_id)
     if (
@@ -577,6 +578,7 @@ def search_person_key(*, actor, key):
     """Ids of requests the actor may read that carry a current person-level link whose key is
     exactly `key`. Audited on the searching account with a keyed digest of the key."""
     require_staff(actor)
+    actor = _reread(actor)  # the account as held (accounts.acting), not the request's copy
     require_capability(actor, CAPABILITY)
     key = clean_identifier(key)
     links = list(

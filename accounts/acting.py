@@ -33,6 +33,17 @@ FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-
 assignment's FOR NO KEY UPDATE of its assignee), so two people assigning tickets to each other,
 or one person's two changes at once, never wait for each other here.
 
+Row locks alone would let a change started while an access change waits overtake it: PostgreSQL
+grants a share lock on a row at once when the row carries only share locks, whoever waits for a
+stronger one. So each account also has an access gate, a transaction-level advisory lock taken
+before anything else on either side. A change holds its account's gate shared (`hold_actor`); an
+access change takes the gate of every account it affects exclusively (`close_access`), in id
+order, before any row it locks. PostgreSQL queues advisory locks in order, so a change that
+starts while an access change waits queues behind it, reads the account once it has committed,
+and is refused. The account administration, the team page, the portal access form, the role
+group page and every removal of a role, a capability, a team membership or a portal site
+(the signals below) take the gate.
+
 Held first, the account comes before every ticket. Ending a person's work locks the account (a
 deactivation) or the membership (a removal from a team) and then that person's tickets. The
 person's own change holds the same rows and then locks a ticket. The two never wait for each
@@ -44,6 +55,30 @@ import functools
 from django.db import connection, transaction
 
 from .roles import CAPABILITIES
+
+# The advisory lock namespace of the access gates (PostgreSQL's two-key form, whose keys never
+# overlap the one-key locks used elsewhere): the first key names the gates, the second the account.
+ACCESS_GATE = 19553
+
+
+def _gate(user_ids, *, shared):
+    function = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
+    with connection.cursor() as cursor:
+        for user_id in sorted({pk for pk in user_ids if pk is not None}):
+            cursor.execute(f"SELECT {function}(%s, %s)", [ACCESS_GATE, user_id])
+
+
+def close_access(user_ids):
+    """Before a change that may take access away from these accounts (deactivation, a role, a
+    capability, a team membership, a portal site or portal access): take their access gates
+    exclusively, in id order, until the transaction ends. It waits for every change of theirs
+    under way (hold_actor), and a change of theirs that starts meanwhile waits for it. With several
+    accounts the gates are taken one at a time: an account not reached yet can still start a
+    change, which is then saved before this one. Call it before any other lock the access change
+    takes on those accounts' rows."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("An access gate is held for a transaction; open one first.")
+    _gate(user_ids, shared=False)
 
 
 def _rows(sql, params):
@@ -149,6 +184,7 @@ def hold_actor(actor):
     pk = getattr(actor, "pk", None)
     if pk is None:
         return None
+    _gate([pk], shared=True)  # behind an access change already waiting, if any
     current = _locked_account(pk)
     if current is None:
         return None
@@ -171,3 +207,109 @@ def acting_change(service):
 
     wrapper.holds_actor = True
     return wrapper
+
+
+# Removals that take access away, whatever saves them ------------------------------------------
+
+
+def role_members(group_ids):
+    from .models import User
+
+    return User.groups.through.objects.filter(group_id__in=group_ids).values_list(
+        "user_id", flat=True
+    )
+
+
+def _on_roles_or_grants(sender, instance, action, reverse, model, pk_set, **kwargs):
+    """A role (group membership) or a capability grant removed from accounts."""
+    from django.contrib.auth.models import Group
+
+    if action not in ("pre_remove", "pre_clear"):
+        return
+    if not reverse:  # account.groups / account.user_permissions
+        close_access([instance.pk])
+    elif isinstance(instance, Group):  # group.user_set
+        users = pk_set if action == "pre_remove" else role_members([instance.pk])
+        close_access(users)
+    else:  # permission.user_set
+        from .models import User
+
+        users = (
+            pk_set
+            if action == "pre_remove"
+            else User.user_permissions.through.objects.filter(
+                permission_id=instance.pk
+            ).values_list("user_id", flat=True)
+        )
+        close_access(users)
+
+
+def _on_group_permissions(sender, instance, action, reverse, model, pk_set, **kwargs):
+    """A capability taken from a role group (or a group from a capability): every member."""
+    from django.contrib.auth.models import Group
+
+    if action not in ("pre_remove", "pre_clear"):
+        return
+    if not reverse:  # group.permissions
+        close_access(role_members([instance.pk]))
+    else:  # permission.group_set
+        groups = (
+            pk_set
+            if action == "pre_remove"
+            else Group.permissions.through.objects.filter(permission_id=instance.pk).values_list(
+                "group_id", flat=True
+            )
+        )
+        close_access(role_members(list(groups)))
+
+
+def _on_portal_sites(sender, instance, action, reverse, model, pk_set, **kwargs):
+    """A site taken out of portal access."""
+    from clients.models import PortalAccess
+
+    if action not in ("pre_remove", "pre_clear"):
+        return
+    if not reverse:  # access.sites
+        close_access([instance.user_id])
+    else:  # site.portal_accesses
+        accesses = PortalAccess.objects.all()
+        accesses = (
+            accesses.filter(pk__in=pk_set)
+            if action == "pre_remove"
+            else accesses.filter(sites=instance)
+        )
+        close_access(accesses.values_list("user_id", flat=True))
+
+
+def _on_deleted_membership(sender, instance, **kwargs):
+    """A team membership, a portal access or a role group deleted."""
+    from django.contrib.auth.models import Group
+
+    if isinstance(instance, Group):
+        close_access(role_members([instance.pk]))
+    else:
+        close_access([instance.user_id])
+
+
+def connect():
+    from django.contrib.auth.models import Group
+    from django.db.models.signals import m2m_changed, pre_delete
+
+    from clients.models import PortalAccess
+    from teams.models import TeamMembership
+
+    from .models import User
+
+    for through, receiver, uid in (
+        (User.groups.through, _on_roles_or_grants, "acting-roles"),
+        (User.user_permissions.through, _on_roles_or_grants, "acting-grants"),
+        (Group.permissions.through, _on_group_permissions, "acting-group-grants"),
+        (PortalAccess.sites.through, _on_portal_sites, "acting-portal-sites"),
+    ):
+        m2m_changed.connect(receiver, sender=through, dispatch_uid=uid)
+    for model, uid in (
+        (TeamMembership, "acting-team-membership"),
+        (PortalAccess, "acting-portal-access"),
+        (Group, "acting-role-group"),
+    ):
+        pre_delete.connect(_on_deleted_membership, sender=model, dispatch_uid=uid)

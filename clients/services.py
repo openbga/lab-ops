@@ -304,9 +304,11 @@ def set_portal_access(
     revision is refused like a stale one); setting it the first time does not. Audited as
     `portal_access.set` with ids and flags only.
     """
+    from accounts.acting import close_access
     from accounts.models import User
 
     require_client_manager(actor)
+    close_access([user_id])  # waits for the account's changes under way (accounts.acting)
     account = User.objects.select_for_update().get(pk=user_id)
     if account.client_id is None:
         raise ValidationError("Portal access is for client portal accounts only.")
@@ -390,8 +392,10 @@ def reset_portal_access(
     reset. Not a staff action of its own, so it checks no role: the caller's own authorization
     covers the change of organization.
     """
+    from accounts.acting import close_access
     from accounts.models import User
 
+    close_access([user_id])  # waits for the account's changes under way (accounts.acting)
     account = User.objects.select_for_update().get(pk=user_id)
     _check_organization(account, expected_client_id)
     access = PortalAccess.objects.select_for_update().filter(user=account).first()
