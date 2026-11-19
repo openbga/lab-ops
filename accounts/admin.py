@@ -153,10 +153,16 @@ class AccessRules:
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
-    """The password status of an account whose password cannot be set, without the link to the
-    password form, which refuses it."""
+    """The password status of an account whose password cannot be set, with the reason and
+    without the link to the password form, which refuses it."""
 
     template_name = "admin/accounts/reserved_password.html"
+    explanation = "Nobody signs in as this account: it has no password, and none can be set."
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["explanation"] = self.explanation
+        return context
 
 
 class AccountChangeForm(AccessRules, UserChangeForm):
@@ -166,11 +172,10 @@ class AccountChangeForm(AccessRules, UserChangeForm):
         super().__init__(*args, **kwargs)
         password = self.fields.get("password")
         if password is not None and self.instance.pk and is_system_account(self.instance):
-            # Its page is read only and its password form refuses it: offer neither.
+            # Its page is read only and its password form refuses it: offer neither. (A read-only
+            # page shows the widget, not the field's help text, so the widget gives the reason.)
             password.widget = ReservedPasswordWidget()
-            password.help_text = (
-                "Nobody signs in as this account: it has no password, and none can be set."
-            )
+            password.help_text = ReservedPasswordWidget.explanation
 
 
 class AccountCreationForm(AccessRules, AdminUserCreationForm):
