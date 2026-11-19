@@ -73,6 +73,17 @@ def fact(key):
     return next(f for group in security_settings.in_force() for f in group.facts if f.key == key)
 
 
+def assert_changed(key, *names):
+    """The fact is the changed-configuration fact: it names exactly `names` and states nothing
+    else. Returns everything the fact says, lowered, for the absence checks of the caller."""
+    item = fact(key)
+    assert item.value == security_settings.CHANGED
+    assert item.source == "configuration"
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+    assert item.note.endswith(f"Check {listed} in config/settings.py."), item.note
+    return f"{item.value} {item.note}".lower()
+
+
 def wording(key):
     item = fact(key)
     return f"{item.value} {item.note}".lower()
@@ -405,7 +416,8 @@ def test_sign_in_record_description_accounts_for_database_records(client, admin)
 def test_password_rule_includes_account_forms_minimum():
     with pytest.raises(ValidationError, match="at least 6"):
         get_adapter().clean_password("abcde")
-    assert "6" in wording("passwords")
+    stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "6" not in stated and "characters" not in stated
 
 
 def test_password_rule_describes_the_attributes_actually_compared(settings):
@@ -419,8 +431,8 @@ def test_password_rule_describes_the_attributes_actually_compared(settings):
     get_adapter().clean_password(user.username, user=user)
     with pytest.raises(ValidationError, match="last name"):
         get_adapter().clean_password(user.last_name, user=user)
-    text = wording("passwords")
-    assert "username" not in text and ("last name" in text or "personal information" in text)
+    text = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "username" not in text and "last name" not in text and "close to" not in text
 
 
 def test_failed_password_limit_names_the_sign_in_identifier(admin, rf):
@@ -429,6 +441,7 @@ def test_failed_password_limit_names_the_sign_in_identifier(admin, rf):
     key = get_adapter()._get_login_attempts_cache_key
     assert key(request, username=admin.username) != key(request, email=admin.email)
     assert "for one account" not in wording("failed-sign-ins")
+    assert "username or email address" in wording("failed-sign-ins")
 
 
 def test_failed_password_limit_describes_the_ipv6_counting_unit():
@@ -443,19 +456,21 @@ def test_failed_sign_in_summary_requires_a_counter_that_retains_failures():
 
     cache.set("review-counter", [1], timeout=60)
     assert cache.get("review-counter") is None
-    assert "refused for a time" not in wording("failed-sign-ins")
+    assert "refused for a time" not in assert_changed("failed-sign-ins", "CACHES")
 
 
 @override_settings(ACCOUNT_RATE_LIMITS={"login_failed": "3/0.5s/ip"})
 def test_subsecond_failure_window_is_not_reported_as_zero():
-    assert "within 0 seconds" not in wording("failed-sign-ins")
+    stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "within 0 seconds" not in stated and "seconds" not in stated
 
 
 @override_settings(SESSION_EXPIRE_AT_BROWSER_CLOSE=True, ACCOUNT_SESSION_REMEMBER=None)
 def test_remember_me_matches_cookie_sent_by_password_sign_in(client, admin):
     response = password_sign_in(client, admin, remember="on")
     assert response.cookies[settings.SESSION_COOKIE_NAME]["max-age"] == settings.SESSION_COOKIE_AGE
-    assert fact("browser-close").value.lower() != "ends the session"
+    stated = assert_changed("browser-close", "SESSION_EXPIRE_AT_BROWSER_CLOSE")
+    assert "ends" not in stated.replace("changed in", "") and "remember me" not in stated
 
 
 def test_emailed_code_session_without_remember_me_matches_page(client, admin):
@@ -485,7 +500,8 @@ def test_self_password_change_description_matches_configured_sign_out(client, ad
     )
     assert response.status_code == 302
     assert SESSION_KEY not in client.session
-    assert "except the one that set it" not in wording("new-password")
+    stated = assert_changed("new-password", "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE")
+    assert "except the one that set it" not in stated and "stays signed in" not in stated
 
 
 def test_active_capability_count_agrees_with_the_patient_value_gate(admin):
@@ -508,8 +524,10 @@ def test_help_count_of_authenticator_apps_excludes_key_only_enrolments(admin, cl
     client.force_login(admin)
     response = client.get(reverse("security-settings"))
     body = response.content.decode()
-    if "accounts that have an authenticator app" in body:
-        assert "Active staff accounts with one: 0 of 1." in body
+    stated = assert_changed("second-factor", "MFA_SUPPORTED_TYPES")
+    assert "authenticator app" not in stated and "with one" not in stated
+    assert "Active staff accounts with one: 1 of 1." not in body
+    assert "Active staff accounts with one: 0 of 1." not in body
 
 
 def test_locked_demo_account_cannot_choose_to_enrol(client, staff):
@@ -530,10 +548,14 @@ def test_cookie_summary_matches_independent_browser_flags(client, admin, setting
     response = password_sign_in(client, admin)
     cookie = response.cookies[settings.SESSION_COOKIE_NAME]
     assert not cookie["httponly"] and bool(cookie["secure"]) == secure
-    assert "hidden from page scripts" not in wording("session-cookie")
+    note = fact("session-cookie").note
+    assert fact("session-cookie").value == security_settings.CHANGED
+    assert "SESSION_COOKIE_HTTPONLY" in note and "hidden from page scripts" not in wording(
+        "session-cookie"
+    )
 
 
-@override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False)
+@override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False, SESSION_COOKIE_SECURE=False)
 def test_no_https_redirect_does_not_mean_debug_is_on(client):
     assert client.get(reverse("health")).status_code == 200
     assert "debug mode is on" not in wording("https")
@@ -557,8 +579,12 @@ def test_default_image_policy_description_includes_the_data_scheme(client):
 
 @override_settings(CONTENT_SECURITY_POLICY="")
 def test_empty_csp_is_identified_as_unprotected(client):
-    assert client.get(reverse("health"))["Content-Security-Policy"] == ""
+    # A blank policy sends no header at all (an empty header value is not a policy).
+    assert "Content-Security-Policy" not in client.get(reverse("health"))
+    with override_settings(CONTENT_SECURITY_POLICY="\n"):
+        assert "Content-Security-Policy" not in client.get(reverse("health"))
     text = wording("content-security-policy")
+    assert fact("content-security-policy").value == "None"
     assert any(word in text for word in ("empty", "no policy", "disabled", "off", "no restriction"))
 
 
@@ -680,7 +706,8 @@ def test_unknown_or_inapplicable_password_rule_is_not_reported_as_absent(setting
     settings.AUTH_PASSWORD_VALIDATORS = [{"NAME": f"{__name__}.SyntheticPasswordRule"}]
     with pytest.raises(ValidationError):
         password_validation.validate_password("tiny")
-    assert fact("passwords").value != "No rule"
+    stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "no rule" not in stated and "any password" not in stated
 
 
 class SyntheticPasswordRule:
@@ -694,7 +721,8 @@ class SyntheticPasswordRule:
 
 @override_settings(ACCOUNT_RATE_LIMITS={"login_failed": "synthetic-invalid-config-marker"})
 def test_unreadable_rate_configuration_is_not_echoed_as_an_enforced_rule():
-    assert "synthetic-invalid-config-marker" not in wording("failed-sign-ins")
+    stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "synthetic-invalid-config-marker" not in stated
 
 
 @pytest.mark.parametrize(
@@ -836,7 +864,11 @@ def test_sliding_session_expiry_is_described(client, admin):
     client.get(reverse("dashboard"))
     session.refresh_from_db()
     assert session.expire_date > before
-    assert fact("inactivity").value != "None"
+    assert fact("inactivity").value == security_settings.CHANGED
+    assert fact("inactivity").note.endswith(
+        "Check SESSION_SAVE_EVERY_REQUEST in config/settings.py."
+    )
+    assert "after" not in wording("inactivity").replace("check", "")
 
 
 @override_settings(

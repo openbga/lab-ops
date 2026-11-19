@@ -238,9 +238,11 @@ The Security settings page, for administrators, lists what protects sign-in, ses
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
 It shows the password rule, the failed sign-in limit, sign-in with an emailed code, session length
-and what ends a session, how many active staff accounts with a role can view patient information
-and have a second factor, how many form fields hold patient information, and the HTTPS and content
-security policy settings. Each value is worked out from the configuration the deployment runs. It
+and what ends a session, how many active staff accounts with a role can view patient information,
+how many active staff and portal accounts have a second factor, how many form fields hold patient
+information, and the HTTPS and content security policy settings. It describes this release's
+configuration and follows the deployment settings read from the environment; where a deployment
+has changed a setting in `config/settings.py`, the item says so and names the setting. It
 reports facts and gives no score. Settings a laboratory changes are added to this page by later roadmap items,
 each change with a reason and an audit event. The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

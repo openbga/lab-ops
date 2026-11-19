@@ -99,6 +99,19 @@ def fact(key):
     return facts_of()[key]
 
 
+def assert_changed(key, *names):
+    """The fact is the changed-configuration fact: it names exactly `names` and states nothing
+    else. Returns everything the fact says, lowered, for the absence checks of the caller."""
+    item = fact(key)
+    assert item.value == security_settings.CHANGED
+    assert item.source == "configuration"
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+    assert item.note == (
+        f"This page describes this release's configuration. Check {listed} in config/settings.py."
+    ), item.note
+    return f"{item.value} {item.note}".lower()
+
+
 def words(key):
     item = fact(key)
     return f"{item.value} {item.note}"
@@ -547,82 +560,65 @@ class CustomRule:
         return "Synthetic custom rule."
 
 
-def test_similarity_validator_names_its_configured_attributes():
+def test_similarity_validator_with_other_attributes_is_a_changed_configuration():
     rules = validators(
         ("UserAttributeSimilarityValidator", {"user_attributes": ("username", "phone_number")})
     )
     with override_settings(AUTH_PASSWORD_VALIDATORS=rules):
-        value = fact("passwords").value
-    assert value == "Not close to the account's username or phone number"
-    rules = validators(
-        (
-            "UserAttributeSimilarityValidator",
-            {"user_attributes": ("first_name", "last_name", "email")},
-        )
-    )
-    with override_settings(AUTH_PASSWORD_VALIDATORS=rules):
-        assert fact("passwords").value == (
-            "Not close to the account's first name, last name or email address"
-        )
+        stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "close to" not in stated and "phone number" not in stated
 
 
-def test_an_unknown_validator_is_counted_next_to_a_minimum_length():
+def test_an_unknown_validator_next_to_a_minimum_length_claims_nothing_about_either():
     rules = validators(("MinimumLengthValidator", {"min_length": 10})) + [
-        {"NAME": f"{__name__}.CustomRule"},
-        {"NAME": f"{__name__}.CustomRule"},
+        {"NAME": f"{__name__}.CustomRule"}
     ]
     with override_settings(AUTH_PASSWORD_VALIDATORS=rules):
-        value = fact("passwords").value
-    assert value == "At least 10 characters and 2 other checks set in the configuration"
-    with override_settings(AUTH_PASSWORD_VALIDATORS=[{"NAME": f"{__name__}.CustomRule"}]):
-        assert fact("passwords").value == "1 other check set in the configuration"
+        stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "10" not in stated and "characters" not in stated and "other check" not in stated
 
 
-def test_allauth_minimum_is_ignored_while_django_validators_exist():
-    rules = validators(("MinimumLengthValidator", {"min_length": 8}))
-    with override_settings(AUTH_PASSWORD_VALIDATORS=rules, ACCOUNT_PASSWORD_MIN_LENGTH=20):
-        assert fact("passwords").value == "At least 8 characters"
+def test_allauth_minimum_never_changes_the_release_statement():
+    assert "At least 8 characters" in fact("passwords").value
+    with override_settings(ACCOUNT_PASSWORD_MIN_LENGTH=20):  # ignored while validators exist
+        assert "At least 8 characters" in fact("passwords").value
     with override_settings(AUTH_PASSWORD_VALIDATORS=[], ACCOUNT_PASSWORD_MIN_LENGTH=20):
-        assert fact("passwords").value == "At least 20 characters"
-    with override_settings(AUTH_PASSWORD_VALIDATORS=[], ACCOUNT_PASSWORD_MIN_LENGTH=0):
-        assert fact("passwords").value == "Any password"
+        stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "20" not in stated
 
 
 @pytest.mark.parametrize("rule", [False, {"login_failed": ""}, {"login_failed": None}, {}])
-def test_no_failed_sign_in_rule_is_stated_as_no_limit(rule):
+def test_no_failed_sign_in_rule_is_a_changed_configuration_not_a_limit(rule):
     with override_settings(ACCOUNT_RATE_LIMITS=rule, ACCOUNT_LOGIN_ATTEMPTS_LIMIT=0):
-        stated = fact("failed-sign-ins")
-    assert stated.value == "No limit", stated
+        stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "failures" not in stated and "refused" not in stated
 
 
-def test_a_per_user_rate_is_stated_for_one_account():
+def test_a_per_user_rate_is_a_changed_configuration():
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": "4/5m/user"}):
-        value = fact("failed-sign-ins").value
-    assert "4 failures within 5 minutes for one account" in value
+        stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "4 failures" not in stated and "one account" not in stated
 
 
-@pytest.mark.parametrize("bad", ["synthetic-invalid-marker", "x/y/z", "3/10m/key,junk-marker"])
-def test_an_unreadable_rule_is_never_echoed(bad):
+@pytest.mark.parametrize(
+    "bad", ["synthetic-invalid-marker", "x/y/z", "3/10m/key,junk-marker", 12345, ["a"]]
+)
+def test_an_unreadable_rule_is_never_echoed_and_never_an_error(bad):
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": bad}):
-        stated = fact("failed-sign-ins")
-    assert stated.value == "Set but unreadable"
-    assert "marker" not in f"{stated.value} {stated.note}"
+        stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "marker" not in stated and "junk" not in stated and "12345" not in stated
 
 
-def test_a_rule_that_is_not_text_is_stated_as_unreadable_not_an_error():
-    with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": 12345}):
-        assert fact("failed-sign-ins").value == "Set but unreadable"
-
-
-def test_a_sliding_session_is_an_inactivity_sign_out():
+def test_a_sliding_session_is_a_changed_configuration():
     assert fact("inactivity").value == "None"
     assert fact("inactivity").source == "unavailable"
     with override_settings(SESSION_COOKIE_AGE=900, SESSION_SAVE_EVERY_REQUEST=True):
-        stated = fact("inactivity")
-        assert stated.value == "After 15 minutes"
-        assert stated.source == "configuration"
-        assert "15 minutes" in fact("session-length").value
-        assert "last request" in fact("session-length").note
+        stated = assert_changed("inactivity", "SESSION_SAVE_EVERY_REQUEST")
+        length = fact("session-length")
+    assert "after 15" not in stated
+    assert length.value == security_settings.CHANGED
+    assert "SESSION_COOKIE_AGE" in length.note and "SESSION_SAVE_EVERY_REQUEST" in length.note
+    assert "15 minutes" not in length.note
 
 
 @pytest.fixture
@@ -650,9 +646,11 @@ def change_password(browser, new="Example-New-9327-Password"):
 
 
 @override_settings(ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE=True)
-def test_logout_on_password_change_signs_out_every_session_as_stated(two_sessions, admin):
-    assert fact("new-password").value == "Signs out every session of the account"
-    assert "stays signed in" not in fact("new-password").note
+def test_logout_on_password_change_is_a_changed_configuration_and_signs_everyone_out(
+    two_sessions, admin
+):
+    stated = assert_changed("new-password", "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE")
+    assert "stays signed in" not in stated and "other sessions" not in stated
     changer, other = two_sessions()
     assert change_password(changer).status_code == 302
     assert SESSION_KEY not in changer.session
@@ -667,22 +665,24 @@ def test_the_default_password_change_keeps_only_the_changing_session(two_session
     assert other.get("/").status_code == 302
 
 
-def test_https_wording_without_debug():
-    with override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False):
-        stated = fact("https")
-    assert stated.value == "Not required"
-    assert "debug" not in stated.note.lower()
-    assert "not redirected" in stated.note
-    with override_settings(DEBUG=True, SECURE_SSL_REDIRECT=False):
-        assert "Debug mode" in fact("https").note
+def test_https_wording_never_says_debug_mode_is_on_when_it_is_off():
+    """The redirect follows debug mode at startup in this release's configuration; the note says
+    so about the configuration and never claims debug mode is on now."""
+    for debug in (False, True):
+        with override_settings(DEBUG=debug, SECURE_SSL_REDIRECT=False, SESSION_COOKIE_SECURE=False):
+            stated = fact("https")
+        assert stated.value == "Not required"
+        assert "debug mode is on" not in stated.note.lower()
+        assert "In this release's configuration that happens only in debug mode" in stated.note
 
 
 def test_hsts_zero_says_browsers_are_not_told():
-    with override_settings(SECURE_SSL_REDIRECT=True, SECURE_HSTS_SECONDS=0):
+    redirect = {"SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
+    with override_settings(SECURE_HSTS_SECONDS=0, **redirect):
         stated = fact("https")
     assert stated.value == "Required"
     assert "not told" in stated.note and "only HTTPS for" not in stated.note
-    with override_settings(SECURE_SSL_REDIRECT=True, SECURE_HSTS_SECONDS=86400):
+    with override_settings(SECURE_HSTS_SECONDS=86400, **redirect):
         assert "only HTTPS for 1 day" in fact("https").note
 
 
@@ -721,12 +721,140 @@ def test_an_smtp_backend_and_a_disabled_code_carry_no_kept_email_note():
     assert stated.value == "Off" and "instead of sending" not in stated.note
 
 
-def test_webauthn_adds_a_security_key_to_the_second_factor_wording():
+def test_webauthn_is_a_changed_configuration_and_the_default_names_no_security_key():
     assert "security key" not in fact("second-factor").note
     with override_settings(MFA_SUPPORTED_TYPES=["totp", "recovery_codes", "webauthn"]):
-        assert "an authenticator app or a security key" in fact("second-factor").note
-    with override_settings(MFA_SUPPORTED_TYPES=["totp", "recovery_codes"]):
-        assert "security key" not in fact("second-factor").note
+        stated = assert_changed("second-factor", "MFA_SUPPORTED_TYPES")
+    assert "security key" not in stated
+    with override_settings(MFA_SUPPORTED_TYPES=["totp", "recovery_codes"]):  # same set, same fact
+        assert fact("second-factor").value == "Optional"
+
+
+# 5. the release configuration is pinned to config/settings.py
+
+
+def test_the_repositorys_own_settings_are_the_release_configuration():
+    assert security_settings.changed_settings(*security_settings.RELEASE) == []
+    for item in facts_of().values():
+        assert item.value != security_settings.CHANGED, item.key
+        assert item.source != "configuration" or "Check " not in item.note, item.key
+
+
+def test_changed_settings_lists_in_the_order_asked_and_treats_unreadable_as_changed():
+    with override_settings(SESSION_COOKIE_AGE=600, SESSION_SAVE_EVERY_REQUEST=True):
+        assert security_settings.changed_settings(
+            "SESSION_SAVE_EVERY_REQUEST", "SESSION_ENGINE", "SESSION_COOKIE_AGE"
+        ) == ["SESSION_SAVE_EVERY_REQUEST", "SESSION_COOKIE_AGE"]
+    original = security_settings.RELEASE["SESSION_ENGINE"]
+    try:
+
+        def unreadable():
+            raise RuntimeError("synthetic")
+
+        security_settings.RELEASE["SESSION_ENGINE"] = (unreadable, original[1])
+        assert security_settings.changed_settings("SESSION_ENGINE") == ["SESSION_ENGINE"]
+    finally:
+        security_settings.RELEASE["SESSION_ENGINE"] = original
+
+
+NO_MAIL_CACHE = "django.core.cache.backends.dummy.DummyCache"
+BOTH_OFF = {"SECURE_SSL_REDIRECT": False, "SESSION_COOKIE_SECURE": False}
+CHANGES = [
+    (
+        "accounts",
+        {"ACCOUNT_ADAPTER": "allauth.account.adapter.DefaultAccountAdapter"},
+        ["ACCOUNT_ADAPTER"],
+    ),
+    ("passwords", {"AUTH_PASSWORD_VALIDATORS": []}, ["AUTH_PASSWORD_VALIDATORS"]),
+    (
+        "second-factor",
+        {"MFA_SUPPORTED_TYPES": ["totp", "recovery_codes", "webauthn"]},
+        ["MFA_SUPPORTED_TYPES"],
+    ),
+    (
+        "second-factor-changes",
+        {"MFA_REAUTHENTICATION_REQUIRED": False},
+        ["MFA_REAUTHENTICATION_REQUIRED"],
+    ),
+    (
+        "second-factor-changes",
+        {"ACCOUNT_REAUTHENTICATION_TIMEOUT": 900},
+        ["ACCOUNT_REAUTHENTICATION_TIMEOUT"],
+    ),
+    (
+        "failed-sign-ins",
+        {"ACCOUNT_RATE_LIMITS": {"login_failed": "3/10m/key"}},
+        ["ACCOUNT_RATE_LIMITS"],
+    ),
+    ("failed-sign-ins", {"ALLAUTH_RATE_LIMIT_IPV6_PREFIX": 48}, ["ALLAUTH_RATE_LIMIT_IPV6_PREFIX"]),
+    ("failed-sign-ins", {"CACHES": {"default": {"BACKEND": NO_MAIL_CACHE}}}, ["CACHES"]),
+    ("sign-in-code", {"ACCOUNT_LOGIN_BY_CODE_TIMEOUT": 600}, ["ACCOUNT_LOGIN_BY_CODE_TIMEOUT"]),
+    ("sign-in-code", {"MFA_TRUST_ENABLED": True}, ["MFA_TRUST_ENABLED"]),
+    (
+        "sign-in-records",
+        {"SESSION_ENGINE": "django.contrib.sessions.backends.cache"},
+        ["SESSION_ENGINE"],
+    ),
+    ("session-length", {"SESSION_COOKIE_AGE": 600}, ["SESSION_COOKIE_AGE"]),
+    ("session-length", {"ACCOUNT_SESSION_COOKIE_AGE": 600}, ["ACCOUNT_SESSION_COOKIE_AGE"]),
+    ("session-length", {"SESSION_SAVE_EVERY_REQUEST": True}, ["SESSION_SAVE_EVERY_REQUEST"]),
+    ("inactivity", {"SESSION_SAVE_EVERY_REQUEST": True}, ["SESSION_SAVE_EVERY_REQUEST"]),
+    ("browser-close", {"ACCOUNT_SESSION_REMEMBER": True}, ["ACCOUNT_SESSION_REMEMBER"]),
+    ("browser-close", {"ACCOUNT_SESSION_REMEMBER": False}, ["ACCOUNT_SESSION_REMEMBER"]),
+    (
+        "browser-close",
+        {"SESSION_EXPIRE_AT_BROWSER_CLOSE": True},
+        ["SESSION_EXPIRE_AT_BROWSER_CLOSE"],
+    ),
+    (
+        "deactivation",
+        {"AUTHENTICATION_BACKENDS": ["django.contrib.auth.backends.ModelBackend"]},
+        ["AUTHENTICATION_BACKENDS"],
+    ),
+    (
+        "new-password",
+        {"ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE": True},
+        ["ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE"],
+    ),
+    ("session-cookie", {"SESSION_COOKIE_HTTPONLY": False}, ["SESSION_COOKIE_HTTPONLY"]),
+    ("https", {"SECURE_REDIRECT_EXEMPT": ["^health/$"]}, ["SECURE_REDIRECT_EXEMPT"]),
+    ("https", {"SECURE_HSTS_SECONDS": 3600, **BOTH_OFF}, ["SECURE_HSTS_SECONDS"]),
+    (
+        "https",
+        {"SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": False, "SECURE_HSTS_SECONDS": 0},
+        ["SECURE_SSL_REDIRECT"],
+    ),
+]
+
+
+@pytest.mark.parametrize(("key", "overrides", "names"), CHANGES, ids=lambda v: str(v)[:40])
+def test_changing_one_guarded_setting_yields_changed_naming_exactly_that_setting(
+    key, overrides, names
+):
+    with override_settings(**overrides):
+        assert_changed(key, *names)
+
+
+def test_changing_the_secure_cookie_flag_alone_is_named_by_the_cookie_fact():
+    with override_settings(SESSION_COOKIE_SECURE=not settings.SESSION_COOKIE_SECURE):
+        assert_changed("session-cookie", "SESSION_COOKIE_SECURE")
+
+
+def test_two_changed_settings_are_both_named_and_the_other_facts_stay_stated():
+    with override_settings(SESSION_COOKIE_AGE=600, SESSION_SAVE_EVERY_REQUEST=True):
+        assert_changed("session-length", "SESSION_COOKIE_AGE", "SESSION_SAVE_EVERY_REQUEST")
+        assert fact("deactivation").value == "Refused at its next request"
+        assert fact("passwords").value != security_settings.CHANGED
+
+
+def test_a_changed_fact_leaves_the_counts_and_the_unguarded_facts_alone():
+    with override_settings(AUTH_PASSWORD_VALIDATORS=[], MFA_SUPPORTED_TYPES=["totp", "webauthn"]):
+        shown = facts_of()
+    assert shown["passwords"].value == security_settings.CHANGED
+    assert shown["second-factor"].value == security_settings.CHANGED
+    assert shown["patient-capability"].value.endswith("active staff accounts")
+    assert shown["patient-fields"].value == "0 active fields"
+    assert shown["content-security-policy"].value == "The application's default"
 
 
 # 7. the patient information mark's help

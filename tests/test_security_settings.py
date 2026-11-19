@@ -13,7 +13,13 @@ from django.urls import reverse
 
 from accounts.models import User
 from accounts.roles import has_capability
-from core.security_settings import SOURCES, duration_text, in_force, patient_capability_holders
+from core.security_settings import (
+    CHANGED,
+    SOURCES,
+    duration_text,
+    in_force,
+    patient_capability_holders,
+)
 from request_forms.models import FieldKind, RequestTemplate, TemplateField
 from taxonomy.models import RequestCategory
 
@@ -40,6 +46,17 @@ def plain_static_storage(settings):
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
     settings.SECURE_SSL_REDIRECT = False
+
+
+def assert_changed(key, *names):
+    """The fact is the changed-configuration fact: it names exactly `names` and states nothing
+    else. Returns everything the fact says, lowered, for the absence checks of the caller."""
+    item = fact(key)
+    assert item.value == CHANGED
+    assert item.source == "configuration"
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+    assert item.note.endswith(f"Check {listed} in config/settings.py."), item.note
+    return f"{item.value} {item.note}".lower()
 
 
 def facts():
@@ -98,11 +115,11 @@ def test_every_group_key_and_source_is_valid_and_no_fact_claims_a_standard():
 # statements read from the configuration
 
 
-def test_session_length_follows_the_setting():
+def test_session_length_follows_the_release_setting():
+    assert fact("session-length").value == "2 weeks"
     with override_settings(SESSION_COOKIE_AGE=1800):
-        assert fact("session-length").value == "30 minutes"
-    with override_settings(SESSION_COOKIE_AGE=1209600):
-        assert fact("session-length").value == "2 weeks"
+        stated = assert_changed("session-length", "SESSION_COOKIE_AGE")
+    assert "30 minutes" not in stated
 
 
 CODE_ENDS = "ends a sign-in with an emailed code"
@@ -110,34 +127,35 @@ CODE_KEEPS = "does not end a sign-in with an emailed code"
 UNLESS = "Ends a password sign-in, unless Remember me was ticked"
 
 
+def test_closing_the_browser_under_the_release_configuration():
+    # A password sign-in follows Remember me; an emailed-code sign-in follows
+    # SESSION_EXPIRE_AT_BROWSER_CLOSE (allauth sets the expiry only for a password sign-in).
+    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=True):
+        stated = fact("browser-close")
+    assert stated.value == f"{UNLESS}; {CODE_KEEPS}" and stated.source == "person"
+    assert stated.note == "Some browsers keep a session when they reopen the last one."
+    with override_settings(ACCOUNT_LOGIN_BY_CODE_ENABLED=False):
+        assert fact("browser-close").value == UNLESS
+
+
 @pytest.mark.parametrize(
-    ("expire", "remember", "value", "source"),
+    ("expire", "remember", "names"),
     [
-        # A password sign-in follows Remember me; an emailed-code sign-in follows
-        # SESSION_EXPIRE_AT_BROWSER_CLOSE (allauth sets the expiry only for a password sign-in).
-        (True, None, f"{UNLESS}; {CODE_ENDS}", "person"),
-        (False, None, f"{UNLESS}; {CODE_KEEPS}", "person"),
-        (False, False, f"Ends a password sign-in; {CODE_KEEPS}", "configuration"),
-        (True, False, f"Ends a password sign-in; {CODE_ENDS}", "configuration"),
-        (False, True, f"Does not end a password sign-in; {CODE_KEEPS}", "configuration"),
-        (True, True, f"Does not end a password sign-in; {CODE_ENDS}", "configuration"),
+        (True, None, ["SESSION_EXPIRE_AT_BROWSER_CLOSE"]),
+        (False, False, ["ACCOUNT_SESSION_REMEMBER"]),
+        (False, True, ["ACCOUNT_SESSION_REMEMBER"]),
+        (True, False, ["ACCOUNT_SESSION_REMEMBER", "SESSION_EXPIRE_AT_BROWSER_CLOSE"]),
+        (True, True, ["ACCOUNT_SESSION_REMEMBER", "SESSION_EXPIRE_AT_BROWSER_CLOSE"]),
     ],
 )
-def test_closing_the_browser_follows_expiry_and_remember_me(expire, remember, value, source):
+def test_closing_the_browser_is_changed_when_expiry_or_remember_me_differ(expire, remember, names):
     with override_settings(
         SESSION_EXPIRE_AT_BROWSER_CLOSE=expire,
         ACCOUNT_SESSION_REMEMBER=remember,
         ACCOUNT_LOGIN_BY_CODE_ENABLED=True,
     ):
-        stated = fact("browser-close")
-    assert stated.value == value and stated.source == source
-    assert stated.note == "Some browsers keep a session when they reopen the last one."
-    with override_settings(
-        SESSION_EXPIRE_AT_BROWSER_CLOSE=expire,
-        ACCOUNT_SESSION_REMEMBER=remember,
-        ACCOUNT_LOGIN_BY_CODE_ENABLED=False,
-    ):
-        assert fact("browser-close").value == value.split(";")[0]
+        stated = assert_changed("browser-close", *names)
+    assert "ends" not in stated.replace("changed in", "") and "remember me" not in stated
 
 
 def test_a_session_that_ends_with_the_browser_follows_remember_me_at_sign_in(make_staff):
@@ -169,18 +187,23 @@ def test_sign_in_by_code_follows_the_setting():
     assert stated.value == "On" and "5 minutes" in stated.note
 
 
+REDIRECT = {"SECURE_SSL_REDIRECT": True, "SESSION_COOKIE_SECURE": True}
+NO_REDIRECT = {"SECURE_SSL_REDIRECT": False, "SESSION_COOKIE_SECURE": False}
+
+
 def test_https_required_names_the_hsts_period():
-    with override_settings(SECURE_SSL_REDIRECT=True, SECURE_HSTS_SECONDS=3600):
+    with override_settings(SECURE_HSTS_SECONDS=3600, **REDIRECT):
         stated = fact("https")
     assert stated.value == "Required" and "1 hour" in stated.note
-    with override_settings(SECURE_SSL_REDIRECT=True, SECURE_HSTS_SECONDS=0):
+    with override_settings(SECURE_HSTS_SECONDS=0, **REDIRECT):
         stated = fact("https")
     assert stated.value == "Required" and "only HTTPS" not in stated.note
 
 
 def test_https_not_required_when_the_redirect_is_off():
-    with override_settings(SECURE_SSL_REDIRECT=False):
-        assert fact("https").value == "Not required"
+    with override_settings(DEBUG=True, SECURE_HSTS_SECONDS=0, **NO_REDIRECT):
+        stated = fact("https")
+    assert stated.value == "Not required" and "only in debug mode" in stated.note
 
 
 def test_content_security_policy_default_or_replaced():
@@ -190,19 +213,24 @@ def test_content_security_policy_default_or_replaced():
 
 
 def test_session_cookie_wording_follows_the_secure_flag():
-    with override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True):
-        assert fact("session-cookie").value == "Sent over HTTPS only and hidden from page scripts"
-    with override_settings(SESSION_COOKIE_SECURE=False, DEBUG=True):
+    with override_settings(SECURE_HSTS_SECONDS=0, DEBUG=False, **REDIRECT):
+        stated = fact("session-cookie")
+    assert stated.value == "Sent over HTTPS only and hidden from page scripts"
+    assert stated.note == ""
+    with override_settings(SECURE_HSTS_SECONDS=0, DEBUG=True, **NO_REDIRECT):
         stated = fact("session-cookie")
     assert stated.value == "Also sent over plain HTTP and hidden from page scripts"
     assert "local development" in stated.note
-    with override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=False, DEBUG=False):
-        stated = fact("session-cookie")
-    assert stated.value == "Sent over HTTPS only and readable by page scripts"
-    assert stated.note == ""
+    with override_settings(SESSION_COOKIE_HTTPONLY=False):
+        stated = assert_changed("session-cookie", "SESSION_COOKIE_HTTPONLY")
+    assert "hidden from page scripts" not in stated
 
 
-def test_password_rule_follows_the_validators():
+def test_password_rule_is_the_release_rule_and_any_other_is_changed():
+    assert fact("passwords").value == (
+        "At least 8 characters, not a common password, not only digits and not close to "
+        "the account's username, first name, last name or email address"
+    )
     validators = [
         {
             "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -210,32 +238,36 @@ def test_password_rule_follows_the_validators():
         }
     ]
     with override_settings(AUTH_PASSWORD_VALIDATORS=validators):
-        assert fact("passwords").value == "At least 12 characters"
+        stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "12" not in stated and "characters" not in stated
     with override_settings(AUTH_PASSWORD_VALIDATORS=[]):
-        # allauth's own minimum applies while Django has no validators.
-        assert fact("passwords").value == "At least 6 characters"
-    with override_settings(AUTH_PASSWORD_VALIDATORS=[], ACCOUNT_PASSWORD_MIN_LENGTH=0):
-        assert fact("passwords").value == "Any password"
+        stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
+    assert "6" not in stated and "any password" not in stated
 
 
-def test_failed_sign_in_limit_reads_the_rate_limit_setting_at_call_time():
+def test_failed_sign_in_limit_is_the_release_limit_and_any_other_is_changed():
+    stated = fact("failed-sign-ins")
+    assert stated.value == (
+        "Refused for a time after 5 failures within 5 minutes for one username or email "
+        "address, or 10 failures within a minute from one network address"
+    )
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": "3/10m/key"}):
-        stated = fact("failed-sign-ins")
-    assert "3 failures within 10 minutes for one username or email address" in stated.value
+        stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "3 failures" not in stated and "10 minutes" not in stated
     with override_settings(ACCOUNT_RATE_LIMITS={"login_failed": False}):
-        assert fact("failed-sign-ins").value == "No limit"
+        stated = assert_changed("failed-sign-ins", "ACCOUNT_RATE_LIMITS")
+    assert "no limit" not in stated
 
 
-def test_per_process_note_only_for_a_local_memory_cache():
-    caches = {"default": {"BACKEND": DEFAULT_ENGINE}}
-    with override_settings(CACHES=caches):
-        assert "Each server process keeps its own count." in fact("failed-sign-ins").note
-    caches = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache"}}
-    with override_settings(CACHES=caches):
-        assert "server process" not in fact("failed-sign-ins").note
-    caches = {"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
-    with override_settings(CACHES=caches):
-        assert fact("failed-sign-ins").value == "Not enforced"
+def test_per_process_note_belongs_to_the_local_memory_cache_of_the_release():
+    assert "Each server process keeps its own count." in fact("failed-sign-ins").note
+    for backend in (
+        "django.core.cache.backends.db.DatabaseCache",
+        "django.core.cache.backends.dummy.DummyCache",
+    ):
+        with override_settings(CACHES={"default": {"BACKEND": backend}}):
+            stated = assert_changed("failed-sign-ins", "CACHES")
+        assert "server process" not in stated and "not enforced" not in stated
 
 
 # counts

@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
+from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -122,11 +123,13 @@ def contact_history(limit=HISTORY_LIMIT):
     return events
 
 
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def lab_profile(request):
-    require_staff(request.user)
-    # One reading for the whole page: the panels and the history agree.
+    # One reading for the access check and the whole page: the panels and the history agree.
+    # The page is drawn after the reading, so what drawing writes is not done inside it.
     with one_reading():
+        require_staff(request.user)
         lab = _lab()
         can_manage = lab is not None and service.can_manage(request.user)
         certificates = service.certificates_with_state(timezone.localdate()) if lab else []
@@ -134,22 +137,19 @@ def lab_profile(request):
             row.state_label, row.state_tone = service.CERTIFICATE_STATES[row.state]
             row.label = f"{row.authority} {row.number}"
             row.token = record_token(row) if can_manage else ""
-        return render(
-            request,
-            "core/lab_profile.html",
-            {
-                "page_title": "Laboratory profile",
-                "lab": lab,
-                "logo": service.logo_facts(lab),
-                "certificates": certificates,
-                "can_manage": can_manage,
-                "lab_token": record_token(lab) if can_manage else "",
-                "contacts": service.contacts() if lab else [],
-                "history": _history() if lab else [],
-                "modules": modules.states(),
-                "can_manage_modules": modules.can_manage(request.user),
-            },
-        )
+        context = {
+            "page_title": "Laboratory profile",
+            "lab": lab,
+            "logo": service.logo_facts(lab),
+            "certificates": certificates,
+            "can_manage": can_manage,
+            "lab_token": record_token(lab) if can_manage else "",
+            "contacts": service.contacts() if lab else [],
+            "history": _history() if lab else [],
+            "modules": modules.states(),
+            "can_manage_modules": modules.can_manage(request.user),
+        }
+    return render(request, "core/lab_profile.html", context)
 
 
 def _module_title(enable, name):

@@ -54,7 +54,11 @@ records from that URL. [Product access rules](product.md#roles-and-capabilities)
 ## Security settings
 
 `core.security_settings` reads what protects sign-in, sessions and patient information from the
-running configuration and the database on each request and stores nothing. A laboratory setting
+running configuration and the database on each request and stores nothing. Each fact describes
+this release's configuration and follows the deployment settings read from the environment. The
+code-level settings a fact depends on are listed with their release values (`RELEASE`); when a
+deployment changes one, the fact says so and names it instead of describing it. The page and the
+laboratory profile read in one snapshot (`core.concurrency.one_reading`) and are drawn after it. A laboratory setting
 added there later is a row with a revision: its change takes the row lock, checks the revision the
 form showed, rereads the acting account, requires a reason and records one audit event, as a
 security or privacy contact does in `core.lab_profile`. The same change updates

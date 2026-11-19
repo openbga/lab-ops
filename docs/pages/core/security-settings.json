@@ -64,7 +64,7 @@
     {
       "title": "Groups of settings",
       "paragraphs": [
-        "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
+        "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
         "Sessions: how long a session lasts, sign-out after a period without activity, what closing the browser does, what deactivating an account and setting a new password do to its sessions, and how the session cookie is sent.",
         "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
@@ -84,7 +84,7 @@
         },
         {
           "label": "Details",
-          "description": "What the value means in practice, or a dash. Debug mode is on: for local development only appears when the deployment runs in debug mode, where the session cookie and HTTPS are not enforced."
+          "description": "What the value means in practice, or a dash. Debug mode notes appear when the deployment runs in debug mode, which in this release's configuration turns off the HTTPS redirect and HTTPS-only session cookies. Changed in the application configuration means the deployment changed a setting in config/settings.py that the value depends on; the details name it and the page describes it no further."
         }
       ]
     },

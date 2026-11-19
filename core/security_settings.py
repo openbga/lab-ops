@@ -3,15 +3,19 @@
 
 `in_force()` reads the running configuration and the database at the time of the request and
 returns facts, not a judgement: nothing here scores, rates or tells a laboratory it complies.
-Each fact is worked out from the settings that enforce it (Django, allauth and this
-application's own), so a changed setting changes the fact; where a setting cannot be read, the
-fact says so rather than repeating it. Each fact names where it is set: this release's code,
-the application's configuration (config/settings.py: changing it changes the code), a
-deployment setting (an environment variable), each person, or a page of the application.
 
-Later safeguards items add the settings a laboratory changes; each such change takes the
-setting's row lock, checks the revision the form showed, rereads the acting account, needs a
-reason and records one audit event, like the contacts in core.lab_profile.
+Each fact describes this release's configuration (config/settings.py) and follows the deployment
+settings that configuration reads from the environment (debug mode, HSTS, the content security
+policy, the email backend). The configuration settings each fact depends on are listed with
+their values in this release (RELEASE). Where a deployment has changed one of them, the fact says
+so, names the setting and describes nothing further: describing every possible Django and allauth
+configuration is not this page's job, and a guess would mislead.
+
+Each fact names where it is set: this release's code, the application's configuration, a
+deployment setting (an environment variable), each person, or a page of the application. Later
+safeguards items add the settings a laboratory changes; each such change takes the setting's row
+lock, checks the revision the form showed, rereads the acting account, needs a reason and records
+one audit event, like the contacts in core.lab_profile.
 """
 
 from dataclasses import dataclass, field
@@ -21,7 +25,7 @@ from allauth.account import app_settings as account_settings
 from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
 from django.conf import settings
-from django.contrib.auth import get_user_model, password_validation
+from django.contrib.auth import get_user_model
 from django.db.models import Count, Exists, OuterRef, Q
 
 from accounts.roles import CAPABILITIES, ROLES
@@ -41,6 +45,92 @@ SOURCES = {
     "forms": "Ticket forms",
     "unavailable": "Not available yet",
 }
+CHANGED = "Changed in the application configuration"
+
+_VALIDATORS = "django.contrib.auth.password_validation."
+# setting name: (how to read it now, its value in this release's configuration)
+RELEASE = {
+    "ACCOUNT_ADAPTER": (lambda: settings.ACCOUNT_ADAPTER, "accounts.adapter.ClosedSignupAdapter"),
+    "AUTHENTICATION_BACKENDS": (
+        lambda: list(settings.AUTHENTICATION_BACKENDS),
+        [
+            "django.contrib.auth.backends.ModelBackend",
+            "allauth.account.auth_backends.AuthenticationBackend",
+        ],
+    ),
+    "AUTH_PASSWORD_VALIDATORS": (
+        lambda: [dict(entry) for entry in settings.AUTH_PASSWORD_VALIDATORS],
+        [
+            {"NAME": f"{_VALIDATORS}UserAttributeSimilarityValidator"},
+            {"NAME": f"{_VALIDATORS}MinimumLengthValidator"},
+            {"NAME": f"{_VALIDATORS}CommonPasswordValidator"},
+            {"NAME": f"{_VALIDATORS}NumericPasswordValidator"},
+        ],
+    ),
+    "MFA_SUPPORTED_TYPES": (
+        lambda: sorted(mfa_settings.SUPPORTED_TYPES),
+        ["recovery_codes", "totp"],
+    ),
+    "MFA_TRUST_ENABLED": (lambda: mfa_settings.TRUST_ENABLED, False),
+    "MFA_REAUTHENTICATION_REQUIRED": (lambda: mfa_settings.REAUTHENTICATION_REQUIRED, True),
+    "ACCOUNT_REAUTHENTICATION_TIMEOUT": (lambda: account_settings.REAUTHENTICATION_TIMEOUT, 300),
+    "ACCOUNT_RATE_LIMITS": (
+        lambda: account_settings.RATE_LIMITS.get("login_failed"),
+        "10/m/ip,5/300s/key",
+    ),
+    "ALLAUTH_RATE_LIMIT_IPV6_PREFIX": (lambda: allauth_settings.RATE_LIMIT_IPV6_PREFIX, 64),
+    "CACHES": (
+        lambda: settings.CACHES.get("default", {}).get("BACKEND"),
+        "django.core.cache.backends.locmem.LocMemCache",
+    ),
+    "ACCOUNT_LOGIN_BY_CODE_TIMEOUT": (lambda: account_settings.LOGIN_BY_CODE_TIMEOUT, 300),
+    "SESSION_ENGINE": (lambda: settings.SESSION_ENGINE, "django.contrib.sessions.backends.db"),
+    "SESSION_COOKIE_AGE": (lambda: settings.SESSION_COOKIE_AGE, 1209600),
+    # allauth's own session age for a remembered password sign-in (deprecated; defaults to
+    # Django's): equal to SESSION_COOKIE_AGE in this release.
+    "ACCOUNT_SESSION_COOKIE_AGE": (
+        lambda: account_settings.SESSION_COOKIE_AGE == settings.SESSION_COOKIE_AGE,
+        True,
+    ),
+    "SESSION_SAVE_EVERY_REQUEST": (lambda: settings.SESSION_SAVE_EVERY_REQUEST, False),
+    "SESSION_EXPIRE_AT_BROWSER_CLOSE": (lambda: settings.SESSION_EXPIRE_AT_BROWSER_CLOSE, False),
+    "ACCOUNT_SESSION_REMEMBER": (lambda: account_settings.SESSION_REMEMBER, None),
+    "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE": (
+        lambda: account_settings.LOGOUT_ON_PASSWORD_CHANGE,
+        False,
+    ),
+    "SESSION_COOKIE_HTTPONLY": (lambda: settings.SESSION_COOKIE_HTTPONLY, True),
+    # Both follow debug mode in this release: secure cookie exactly when HTTP is redirected.
+    "SESSION_COOKIE_SECURE": (
+        lambda: settings.SESSION_COOKIE_SECURE == settings.SECURE_SSL_REDIRECT,
+        True,
+    ),
+    "SECURE_SSL_REDIRECT": (
+        lambda: settings.SECURE_SSL_REDIRECT == settings.SESSION_COOKIE_SECURE,
+        True,
+    ),
+    "SECURE_REDIRECT_EXEMPT": (lambda: list(settings.SECURE_REDIRECT_EXEMPT), []),
+    # Debug mode sets HSTS to 0 in this release; HSTS is sent only with the redirect on.
+    "SECURE_HSTS_SECONDS": (
+        lambda: settings.SECURE_SSL_REDIRECT or not settings.SECURE_HSTS_SECONDS,
+        True,
+    ),
+}
+
+
+def changed_settings(*names):
+    """Which of `names` differ from this release's configuration (RELEASE), in that order."""
+    differ = []
+    for name in names:
+        read, release = RELEASE[name]
+        try:
+            current = read()
+        except Exception:  # a setting so changed it cannot be read is changed
+            differ.append(name)
+            continue
+        if current != release:
+            differ.append(name)
+    return differ
 
 
 @dataclass(frozen=True)
@@ -65,24 +155,34 @@ class Group:
     facts: list = field(default_factory=list)
 
 
+def _fact(key, label, depends_on, build):
+    """The fact `build()` returns, or the changed-configuration fact when a setting it depends
+    on differs from this release's."""
+    differ = changed_settings(*depends_on)
+    if differ:
+        return Fact(
+            key,
+            label,
+            CHANGED,
+            "configuration",
+            "This page describes this release's configuration. Check "
+            + _either(differ)
+            + " in config/settings.py.",
+        )
+    return build()
+
+
 _UNITS = (("week", 604800), ("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1))
 
 
 def duration_text(seconds):
-    """`1209600` -> "2 weeks", `300` -> "5 minutes": the largest unit that divides evenly; a
-    period that is not a whole number of seconds is given in seconds as it is."""
-    if seconds != int(seconds):
-        return f"{float(seconds):g} seconds"
+    """`1209600` -> "2 weeks", `300` -> "5 minutes": the largest unit that divides evenly."""
     seconds = int(seconds)
     for name, size in _UNITS:
         if seconds >= size and seconds % size == 0:
             count = seconds // size
             return f"{count} {name}{'' if count == 1 else 's'}"
     return f"{seconds} seconds"
-
-
-def _within(seconds):
-    return "a minute" if seconds == 60 else duration_text(seconds)
 
 
 def _count(number, singular, plural=None):
@@ -92,95 +192,6 @@ def _count(number, singular, plural=None):
 def _either(names):
     """["a", "b", "c"] -> "a, b or c"."""
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
-
-
-def _sentence(parts):
-    text = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1]
-    return text[0].upper() + text[1:]
-
-
-_PASSWORD_CHECKS = {
-    "CommonPasswordValidator": "not a common password",
-    "NumericPasswordValidator": "not only digits",
-}
-_ATTRIBUTE_NAMES = {
-    "username": "username",
-    "first_name": "first name",
-    "last_name": "last name",
-    "email": "email address",
-}
-
-
-def _password_rule():
-    """The rule every password form applies: allauth's own minimum (used only while Django has
-    no validators) and each configured validator. A validator this page does not know is
-    counted, never left out."""
-    validators = password_validation.get_default_password_validators()
-    lengths = [account_settings.PASSWORD_MIN_LENGTH or 0]
-    parts, others = [], 0
-    for validator in validators:
-        name = type(validator).__name__
-        if name == "MinimumLengthValidator":
-            lengths.append(validator.min_length)
-        elif name in _PASSWORD_CHECKS:
-            parts.append(_PASSWORD_CHECKS[name])
-        elif name == "UserAttributeSimilarityValidator":
-            attributes = [
-                _ATTRIBUTE_NAMES.get(attribute, attribute.replace("_", " "))
-                for attribute in validator.user_attributes
-            ]
-            if attributes:
-                parts.append("not close to the account's " + _either(attributes))
-        else:
-            others += 1
-    if max(lengths):
-        parts.insert(0, f"at least {max(lengths)} characters")
-    if others:
-        parts.append(_count(others, "other check") + " set in the configuration")
-    if not parts:
-        return "Any password"
-    return _sentence(parts)
-
-
-_PER = {
-    "key": "for one username or email address",
-    "user": "for one account",
-}
-
-
-def _failed_sign_ins():
-    """The failed sign-in limit as allauth enforces it (ACCOUNT_RATE_LIMITS "login_failed"),
-    counted in the default cache."""
-    backend = settings.CACHES.get("default", {}).get("BACKEND", "")
-    rule = account_settings.RATE_LIMITS.get("login_failed")
-    if not rule:
-        return "No limit", ""
-    if backend.endswith("DummyCache"):
-        return (
-            "Not enforced",
-            "The deployment's cache keeps no counters, so failures are not counted.",
-        )
-    try:
-        from allauth.core.internal.ratelimit import parse_rates
-
-        rates = parse_rates(rule)
-    except ImportError, ValueError, TypeError, AttributeError:
-        return "Set but unreadable", "The configured limit could not be read, so it is not shown."
-    if not rates:
-        return "No limit", ""
-    prefix = allauth_settings.RATE_LIMIT_IPV6_PREFIX
-    who = {**_PER, "ip": f"from one network address (an IPv6 /{prefix} network counts as one)"}
-    # The per-name limit first: it is the one a person meets.
-    rates.sort(key=lambda rate: rate.per != "key")
-    parts = [
-        f"{_count(rate.amount, 'failure')} within {_within(rate.duration)} "
-        f"{who.get(rate.per, 'per ' + rate.per)}"
-        for rate in rates
-    ]
-    note = "A username and the account's email address are counted separately."
-    if backend.endswith("LocMemCache"):
-        note += " Each server process keeps its own count."
-    return "Refused for a time after " + ", or ".join(parts), note
 
 
 def _second_factor_counts():
@@ -237,156 +248,212 @@ _MAIL_KEPT = {
 
 
 def _sign_in_code():
-    by_code = account_settings.LOGIN_BY_CODE_ENABLED
-    if not by_code:
-        note = "Available only while the deployment sends email."
-    else:
-        note = (
-            "A code emailed to the account's address takes the place of the password and is "
-            f"valid for {duration_text(account_settings.LOGIN_BY_CODE_TIMEOUT)}. The second "
-            "factor is still asked for where the account has one."
+    if not account_settings.LOGIN_BY_CODE_ENABLED:
+        return Fact(
+            "sign-in-code",
+            "Sign-in with an emailed code",
+            "Off",
+            "deployment",
+            "Available only while the deployment sends email.",
+            "EMAIL_BACKEND",
         )
-        kept = next(
-            (text for name, text in _MAIL_KEPT.items() if f".{name}." in settings.EMAIL_BACKEND),
-            "",
-        )
-        if kept:
-            note += " " + kept
+    note = (
+        "A code emailed to the account's address takes the place of the password and is valid "
+        f"for {duration_text(account_settings.LOGIN_BY_CODE_TIMEOUT)}. The second factor is "
+        "still asked for where the account has one."
+    )
+    kept = next(
+        (text for name, text in _MAIL_KEPT.items() if f".{name}." in settings.EMAIL_BACKEND), ""
+    )
     return Fact(
         "sign-in-code",
         "Sign-in with an emailed code",
-        "On" if by_code else "Off",
+        "On",
         "deployment",
-        note,
+        f"{note} {kept}".strip(),
         "EMAIL_BACKEND",
     )
 
 
 def _sign_in(facts):
     staff_with, staff, portal_with, portal = _second_factor_counts()
-    failed, failed_note = _failed_sign_ins()
-    kinds = (
-        "an authenticator app or a security key"
-        if "webauthn" in mfa_settings.SUPPORTED_TYPES
-        else "an authenticator app"
-    )
     facts += [
-        Fact(
+        _fact(
             "accounts",
             "New accounts",
-            "Created by the laboratory",
-            "release",
-            "Nobody can sign up.",
+            ["ACCOUNT_ADAPTER"],
+            lambda: Fact(
+                "accounts",
+                "New accounts",
+                "Created by the laboratory",
+                "release",
+                "Nobody can sign up.",
+            ),
         ),
-        Fact("passwords", "Passwords", _password_rule(), "configuration"),
-        Fact(
+        _fact(
+            "passwords",
+            "Passwords",
+            ["AUTH_PASSWORD_VALIDATORS"],
+            lambda: Fact(
+                "passwords",
+                "Passwords",
+                "At least 8 characters, not a common password, not only digits and not close to "
+                "the account's username, first name, last name or email address",
+                "configuration",
+                "The account pages and the admin console's password form check the same rule.",
+            ),
+        ),
+        _fact(
             "second-factor",
             "Second sign-in factor",
-            "Optional",
-            "person",
-            f"An account's holder can add {kinds}, with recovery codes. Shared demonstration "
-            "accounts cannot. "
-            f"Active staff accounts with one: {staff_with} of {staff}. "
-            f"Active client portal accounts with one: {portal_with} of {portal}.",
+            ["MFA_SUPPORTED_TYPES"],
+            lambda: Fact(
+                "second-factor",
+                "Second sign-in factor",
+                "Optional",
+                "person",
+                "An account's holder can add an authenticator app, with recovery codes. Shared "
+                "demonstration accounts cannot. "
+                f"Active staff accounts with one: {staff_with} of {staff}. "
+                f"Active client portal accounts with one: {portal_with} of {portal}.",
+            ),
         ),
-        Fact("failed-sign-ins", "Failed sign-ins", failed, "configuration", failed_note),
-        _sign_in_code(),
-        Fact(
+        _fact(
+            "second-factor-changes",
+            "Changing the second factor",
+            ["MFA_REAUTHENTICATION_REQUIRED", "ACCOUNT_REAUTHENTICATION_TIMEOUT"],
+            lambda: Fact(
+                "second-factor-changes",
+                "Changing the second factor",
+                "Needs a recent re-authentication",
+                "configuration",
+                "Adding or removing an authenticator app, or seeing or renewing recovery codes, "
+                "asks the person to confirm who they are again unless they did so in the last 5 "
+                "minutes.",
+            ),
+        ),
+        _fact(
+            "failed-sign-ins",
+            "Failed sign-ins",
+            ["ACCOUNT_RATE_LIMITS", "ALLAUTH_RATE_LIMIT_IPV6_PREFIX", "CACHES"],
+            lambda: Fact(
+                "failed-sign-ins",
+                "Failed sign-ins",
+                "Refused for a time after 5 failures within 5 minutes for one username or email "
+                "address, or 10 failures within a minute from one network address",
+                "configuration",
+                "A username and the account's email address are counted separately. An IPv6 /64 "
+                "network counts as one address. Each server process keeps its own count.",
+            ),
+        ),
+        _fact(
+            "sign-in-code",
+            "Sign-in with an emailed code",
+            ["ACCOUNT_LOGIN_BY_CODE_TIMEOUT", "MFA_TRUST_ENABLED"],
+            _sign_in_code,
+        ),
+        _fact(
             "sign-in-records",
             "Record of sign-ins",
-            "Application log, and the last sign-in time",
-            "release",
-            "Sign-ins, failures and sign-outs are written to the application log with the "
-            "username; the deployment's log retention applies. The database keeps each "
-            "account's last sign-in time and, while a session lasts, how it signed in. There "
-            "is no stored list of sign-ins.",
+            ["SESSION_ENGINE"],
+            lambda: Fact(
+                "sign-in-records",
+                "Record of sign-ins",
+                "Application log, and the last sign-in time",
+                "release",
+                "Sign-ins, failures and sign-outs are written to the application log, with the "
+                "username when the account is known; the deployment's log retention applies. "
+                "The database keeps each account's last sign-in time and, in each session while "
+                "it lasts, how it signed in. There is no stored list of sign-ins.",
+            ),
         ),
     ]
 
 
-def _browser_close():
-    """What closing the browser does. A password sign-in follows Remember me (allauth's
-    ACCOUNT_SESSION_REMEMBER: each person's choice when None); every other sign-in, an emailed
-    code among them, follows SESSION_EXPIRE_AT_BROWSER_CLOSE."""
-    remember = account_settings.SESSION_REMEMBER
-    if remember is None:
-        password, source = "Ends a password sign-in, unless Remember me was ticked", "person"
-    elif remember:
-        password, source = "Does not end a password sign-in", "configuration"
-    else:
-        password, source = "Ends a password sign-in", "configuration"
-    parts = [password]
-    if account_settings.LOGIN_BY_CODE_ENABLED:
-        parts.append(
-            "ends a sign-in with an emailed code"
-            if settings.SESSION_EXPIRE_AT_BROWSER_CLOSE
-            else "does not end a sign-in with an emailed code"
-        )
-    return Fact(
-        "browser-close",
-        "Closing the browser",
-        "; ".join(parts),
-        source,
-        "Some browsers keep a session when they reopen the last one.",
-    )
-
-
 def _sessions(facts):
-    age = duration_text(settings.SESSION_COOKIE_AGE)
-    sliding = settings.SESSION_SAVE_EVERY_REQUEST
-    secure, script_safe = settings.SESSION_COOKIE_SECURE, settings.SESSION_COOKIE_HTTPONLY
-    own_session_ends = account_settings.LOGOUT_ON_PASSWORD_CHANGE
     facts += [
-        Fact(
+        _fact(
             "session-length",
             "Session length",
-            age,
-            "configuration",
-            "A session ends this long after its last request."
-            if sliding
-            else "A session ends this long after it was last saved: at sign-in, and again when "
-            "the person changes a display preference.",
+            ["SESSION_COOKIE_AGE", "ACCOUNT_SESSION_COOKIE_AGE", "SESSION_SAVE_EVERY_REQUEST"],
+            lambda: Fact(
+                "session-length",
+                "Session length",
+                duration_text(settings.SESSION_COOKIE_AGE),
+                "configuration",
+                "A session ends this long after it was last saved: at sign-in, and again when "
+                "the person changes a display preference.",
+            ),
         ),
-        Fact(
+        _fact(
             "inactivity",
             "Sign-out after a period without activity",
-            f"After {age}" if sliding else "None",
-            "configuration" if sliding else "unavailable",
-            "Every request renews the session." if sliding else "",
+            ["SESSION_SAVE_EVERY_REQUEST"],
+            lambda: Fact(
+                "inactivity", "Sign-out after a period without activity", "None", "unavailable"
+            ),
         ),
-        _browser_close(),
-        Fact(
+        _fact(
+            "browser-close",
+            "Closing the browser",
+            ["ACCOUNT_SESSION_REMEMBER", "SESSION_EXPIRE_AT_BROWSER_CLOSE"],
+            lambda: Fact(
+                "browser-close",
+                "Closing the browser",
+                "Ends a password sign-in, unless Remember me was ticked"
+                + (
+                    "; does not end a sign-in with an emailed code"
+                    if account_settings.LOGIN_BY_CODE_ENABLED
+                    else ""
+                ),
+                "person",
+                "Some browsers keep a session when they reopen the last one.",
+            ),
+        ),
+        _fact(
             "deactivation",
             "Deactivating an account",
-            "Refused at its next request",
-            "release",
-            "The account's sessions are not deleted: if it is made active again before they "
-            "expire, those browsers are signed in again.",
+            ["AUTHENTICATION_BACKENDS"],
+            lambda: Fact(
+                "deactivation",
+                "Deactivating an account",
+                "Refused at its next request",
+                "release",
+                "The account's sessions are not deleted: if it is made active again before they "
+                "expire, those browsers are signed in again.",
+            ),
         ),
-        Fact(
+        _fact(
             "new-password",
             "A new password",
-            "Signs out every session of the account"
-            if own_session_ends
-            else "Signs out the account's other sessions",
-            "configuration",
-            ""
-            if own_session_ends
-            else "A person who changes their own password stays signed in where they changed "
-            "it. A password a superuser sets signs out every session of the account.",
+            ["ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE"],
+            lambda: Fact(
+                "new-password",
+                "A new password",
+                "Signs out the account's other sessions",
+                "configuration",
+                "Whoever changes their own password, on the account pages or in the admin "
+                "console, stays signed in where they changed it. A password a superuser sets for "
+                "another account signs out every session of that account.",
+            ),
         ),
-        Fact(
+        _fact(
             "session-cookie",
             "Session cookie",
-            _sentence(
-                [
-                    "sent over HTTPS only" if secure else "also sent over plain HTTP",
-                    "hidden from page scripts" if script_safe else "readable by page scripts",
-                ]
+            ["SESSION_COOKIE_HTTPONLY", "SESSION_COOKIE_SECURE"],
+            lambda: Fact(
+                "session-cookie",
+                "Session cookie",
+                "Sent over HTTPS only and hidden from page scripts"
+                if settings.SESSION_COOKIE_SECURE
+                else "Also sent over plain HTTP and hidden from page scripts",
+                "deployment",
+                ""
+                if settings.SESSION_COOKIE_SECURE
+                else "In this release's configuration that happens only in debug mode, for local "
+                "development.",
+                "DEBUG",
             ),
-            "deployment",
-            "Debug mode is on: for local development only." if settings.DEBUG else "",
-            "DEBUG",
         ),
     ]
 
@@ -439,22 +506,35 @@ def _patient(facts):
     ]
 
 
-def _connection(facts):
-    hsts = settings.SECURE_HSTS_SECONDS
+def _https():
     if settings.SECURE_SSL_REDIRECT:
+        hsts = settings.SECURE_HSTS_SECONDS
         note = "Plain HTTP requests are redirected. " + (
             f"Browsers are told to use only HTTPS for {duration_text(hsts)} (SECURE_HSTS_SECONDS)."
             if hsts
             else "Browsers are not told to keep using HTTPS (SECURE_HSTS_SECONDS is 0)."
         )
-        facts.append(Fact("https", "HTTPS", "Required", "deployment", note, "DEBUG"))
-    else:
-        note = (
-            "Debug mode is on: for local development only."
-            if settings.DEBUG
-            else "Plain HTTP requests are not redirected."
+        return Fact("https", "HTTPS", "Required", "deployment", note, "DEBUG")
+    return Fact(
+        "https",
+        "HTTPS",
+        "Not required",
+        "deployment",
+        "Plain HTTP requests are not redirected. In this release's configuration that happens "
+        "only in debug mode, for local development.",
+        "DEBUG",
+    )
+
+
+def _connection(facts):
+    facts.append(
+        _fact(
+            "https",
+            "HTTPS",
+            ["SECURE_SSL_REDIRECT", "SECURE_REDIRECT_EXEMPT", "SECURE_HSTS_SECONDS"],
+            _https,
         )
-        facts.append(Fact("https", "HTTPS", "Not required", "deployment", note, "DEBUG"))
+    )
     policy = (settings.CONTENT_SECURITY_POLICY or "").strip()
     if not policy:
         value, note = "None", "The deployment set an empty policy, so pages may load anything."
@@ -465,10 +545,8 @@ def _connection(facts):
             "the application or embedded in the page (data:)."
         )
     else:
-        value, note = (
-            "Replaced by the deployment",
-            "The deployment's policy decides what pages may load.",
-        )
+        value = "Replaced by the deployment"
+        note = "The deployment's policy decides what pages may load."
     facts.append(
         Fact(
             "content-security-policy",

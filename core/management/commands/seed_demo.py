@@ -157,7 +157,12 @@ class Command(BaseCommand):
         # Every profile change locks the laboratory row first (core.lab_profile), so with the row
         # locked here a change committed before is seen by the check below, and one that starts
         # later waits for this seed's transaction.
-        Lab.objects.select_for_update().filter(pk=1).first()
+        # The name is read again under the lock: setup_lab may have renamed the laboratory since
+        # the seed checked it, and a laboratory that is no longer the demonstration's gets no
+        # invented profile.
+        lab = Lab.objects.select_for_update().filter(pk=1).first()
+        if lab is None or lab.name != DEMO_LAB_NAME:
+            return
         if AuditEvent.objects.filter(
             action__in=lab_profile.PROFILE_ACTIONS
         ).exists() or not lab_profile.can_manage(admin):
