@@ -15,6 +15,7 @@ The facts and conversation share a column beside the composer. On a phone the co
 follows the conversation. Add entry jumps directly to it.
 {% endcomment %}
 {% block title %}{{ req.number }} · Tickets · OpenBGA Lab Ops{% endblock %}
+{% block page_header_class %}vr-ticket-header{% endblock %}
 {% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
 {% block page_heading %}<span class="vr-id">{{ req.number }}</span> {{ req.subject }}{% endblock %}
 {% block page_meta %}{% page_meta %}

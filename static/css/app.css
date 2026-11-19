@@ -5527,6 +5527,30 @@ details.card:not([open]) > summary.card-header {
    entries a client sees is decided on the server; here only the labels: every entry and the
    composer state their visibility in words, with the colour as a second cue. */
 
+/* Give the subject the whole first row. The badges and actions share the next row
+   when they fit, in the same order as the underlying record header. */
+.vr-ticket-header .vr-page-header-row {
+  align-items: center;
+  gap: var(--vr-space-2) var(--vr-space-4);
+}
+
+.vr-ticket-header .vr-page-header-row > :first-child {
+  display: contents;
+}
+
+.vr-ticket-header .vr-page-title {
+  flex: 0 0 100%;
+  min-width: 0;
+  font-size: var(--vr-font-size-7);
+  overflow-wrap: anywhere;
+  text-wrap: wrap;
+}
+
+.vr-ticket-header .vr-page-meta {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
 .vr-ticket-fact-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -92,3 +92,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   installed from it, and deployments need no change.
 
   </details>
+
+- **Changed:** Give the ticket subject a full-width heading (2026-11-18, Tickets)
+
+  Staff tickets show the number and subject in a smaller heading above the status and actions, leaving more room for the conversation and details.
