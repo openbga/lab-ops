@@ -7,7 +7,7 @@ complaints, reply withdrawal and the bulk actions of the request list.
 """
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import connection, transaction
+from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 
 from accounts.roles import require_staff
@@ -143,9 +143,14 @@ def _current_assignee(assignee, team):
 def _current_default_team():
     """The default team as it stands now, locked. A move of the default (teams.services) locks the
     team it moves from, so one in progress makes this wait; the team is then read again, and if it
-    is no longer the default, the new default is taken instead."""
+    is no longer the default, the new default is taken instead. On a database with no default,
+    ensure_default_team makes one; if another session made one first, that one is read."""
     for _attempt in range(3):
-        chosen = ensure_default_team()
+        try:
+            with transaction.atomic():
+                chosen = ensure_default_team()
+        except IntegrityError:  # team_one_default: another session's default committed first
+            continue
         team = Team.objects.select_for_update(no_key=True).filter(pk=chosen.pk).first()
         if team is not None and team.is_default:
             if not team.is_active:
