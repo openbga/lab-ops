@@ -39,9 +39,13 @@ def lock_of(table):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_restricted_ticket_left_by_the_actor_after_the_lock_is_not_changed(
+def test_a_member_cannot_leave_a_restricted_ticket_while_their_note_holds_it(
     restricted_ticket, make_user, quality_team
 ):
+    """The member's note holds their account's rows, team memberships included, from before the
+    ticket's lock until it commits (accounts.acting): removing the membership at the ticket's
+    lock has to wait for the note (here it gives up after its bounded wait), and the note, written
+    by a member who could still read the ticket, is saved."""
     member = make_user("member", "client_services")
     TeamMembership.objects.create(team=quality_team, user=member)
 
@@ -49,15 +53,36 @@ def test_a_restricted_ticket_left_by_the_actor_after_the_lock_is_not_changed(
         TeamMembership.objects.filter(team=quality_team, user=member).delete()
 
     with at_read(lock_of("desk_servicerequest"), leave) as concurrent:
-        with pytest.raises(ServiceRequest.DoesNotExist):
-            desk_services.add_entry(
-                actor=member,
-                request=restricted_ticket,
-                kind=EntryKind.NOTE,
-                body="Synthetic note",
-                expected_revision=restricted_ticket.revision,
-            )
-    assert concurrent == [True]
+        desk_services.add_entry(
+            actor=member,
+            request=restricted_ticket,
+            kind=EntryKind.NOTE,
+            body="Synthetic note",
+            expected_revision=restricted_ticket.revision,
+        )
+    assert concurrent == [False]
+    assert RequestEntry.objects.filter(body="Synthetic note").count() == 1
+    assert TeamMembership.objects.filter(team=quality_team, user=member).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_restricted_ticket_left_by_the_actor_before_the_change_is_not_changed(
+    restricted_ticket, make_user, quality_team
+):
+    """The member left the ticket's team after the page was drawn and before the note was
+    saved: the ticket is no longer one they may open, so the note is refused as a missing ticket
+    and nothing is written."""
+    member = make_user("member", "client_services")
+    TeamMembership.objects.create(team=quality_team, user=member)
+    TeamMembership.objects.filter(team=quality_team, user=member).delete()
+    with pytest.raises(ServiceRequest.DoesNotExist):
+        desk_services.add_entry(
+            actor=member,
+            request=restricted_ticket,
+            kind=EntryKind.NOTE,
+            body="Synthetic note",
+            expected_revision=restricted_ticket.revision,
+        )
     assert not RequestEntry.objects.filter(body="Synthetic note").exists()
 
 
@@ -86,8 +111,11 @@ def test_a_category_change_rechecks_the_actor_after_the_category_lock(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_withdrawing_a_reply_rechecks_the_supervisor_after_the_entry_lock(plain_ticket, lead):
-    ticket = desk_services.add_entry(
+def test_a_supervisor_cannot_be_demoted_while_their_withdrawal_holds_the_role(plain_ticket, lead):
+    """The withdrawal holds the supervisor's roles from before its first lock until it commits
+    (accounts.acting): removing them at the entry's lock has to wait (here it gives up after its
+    bounded wait), and the reply is withdrawn by a supervisor who still had the role."""
+    desk_services.add_entry(
         actor=lead,
         request=plain_ticket,
         kind=EntryKind.REPLY,
@@ -101,11 +129,32 @@ def test_withdrawing_a_reply_rechecks_the_supervisor_after_the_entry_lock(plain_
         User.objects.get(pk=lead.pk).groups.clear()
 
     with at_read(lock_of("desk_requestentry"), demote, before=True) as concurrent:
-        with pytest.raises(PermissionDenied):
-            desk_services.withdraw_reply(
-                actor=lead, entry=reply, reason="Example", expected_revision=ticket.revision
-            )
-    assert concurrent == [True]
+        desk_services.withdraw_reply(
+            actor=lead, entry=reply, reason="Example", expected_revision=ticket.revision
+        )
+    assert concurrent == [False]
+    assert fresh(reply).withdrawn_at is not None
+    assert User.objects.get(pk=lead.pk).groups.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_withdrawing_a_reply_refuses_a_supervisor_demoted_before_it(plain_ticket, lead):
+    """The supervisor lost their roles after the page was drawn: the withdrawal is refused as
+    someone no longer staff, and the reply stays."""
+    desk_services.add_entry(
+        actor=lead,
+        request=plain_ticket,
+        kind=EntryKind.REPLY,
+        body="Synthetic reply",
+        expected_revision=plain_ticket.revision,
+    )
+    reply = RequestEntry.objects.get(body="Synthetic reply")
+    ticket = fresh(plain_ticket)
+    User.objects.get(pk=lead.pk).groups.clear()
+    with pytest.raises(PermissionDenied):
+        desk_services.withdraw_reply(
+            actor=lead, entry=reply, reason="Example", expected_revision=ticket.revision
+        )
     assert fresh(reply).withdrawn_at is None
 
 
