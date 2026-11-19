@@ -101,6 +101,8 @@ Top to bottom, all through the blocks of `templates/base.html`:
 | Description | `page_intro` | At most one sentence, under the title. Explanatory text never floats between the header and the first panel |
 | Actions | `page_actions` | Right of the title on one row at every width from 992px. Order left to right: destructive (outline danger), secondary actions, primary last. At most one primary and three secondary; anything further goes in a `More` dropdown |
 
+- On a staff ticket, the number and subject have a full-width line above the key facts and
+  actions. Long subjects wrap. The primary action stays in the thumb bar on phones.
 - A button-only action (no input needed) that changes the record's state lives in the header.
   An action that needs input opens a form dialog with its own action row.
 - A header button carries an icon only when it creates something (`plus`) or downloads or prints

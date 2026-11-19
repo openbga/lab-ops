@@ -44,6 +44,30 @@ def test_reply_notice_leaves_room_for_its_message(page: Page, demo: Lab):
         ), f"The reply notice squeezes its message at {width}px"
 
 
+def test_ticket_subject_uses_the_whole_header_above_the_actions(page: Page, demo: Lab):
+    from desk.models import ServiceRequest
+
+    ticket = ServiceRequest.objects.get(
+        subject="Electronic deliverable rejected by the state portal"
+    )
+    page.set_viewport_size({"width": 1157, "height": 840})
+    sign_in(page, "demo_supervisor", demo.password)
+    page.goto(f"/requests/{ticket.pk}/")
+    page.get_by_role("button", name="Collapse menu").click()
+    title = page.get_by_role("heading", level=1, name=f"{ticket.number} {ticket.subject}")
+    page.evaluate("document.fonts.ready")
+    box = title.bounding_box()
+    header = page.locator(".vr-page-header").bounding_box()
+    line_height = title.evaluate("el => parseFloat(getComputedStyle(el).lineHeight)")
+    assert box["width"] == pytest.approx(header["width"], abs=1)
+    assert box["height"] == pytest.approx(line_height, abs=1)
+    assert box["y"] + box["height"] <= page.get_by_role("link", name="Assign").bounding_box()["y"]
+
+    page.set_viewport_size(NARROW)
+    assert title.bounding_box()["height"] > line_height
+    assert title.evaluate("el => el.scrollWidth <= el.clientWidth")
+
+
 def test_ticket_conversation_follows_the_facts_independently_of_the_editor(page: Page, demo: Lab):
     from desk.models import ServiceRequest
 
