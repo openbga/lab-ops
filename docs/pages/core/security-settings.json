@@ -80,7 +80,7 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration file (config/settings.py), which a deployment changes only by changing that file. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration (config/settings.py and the logging configuration in config/logging.py), which a deployment changes only by changing those files. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",

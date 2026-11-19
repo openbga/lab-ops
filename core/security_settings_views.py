@@ -28,13 +28,15 @@ def security_settings_page(request):
         reader = reading_account(request)
         require_role(reader, *security_settings.SECURITY_ROLES)
         roles = menu_reading(request, reader)
-        lab_ready = Lab.objects.filter(pk=1).exists()
+        lab = Lab.objects.filter(pk=1).first()
         groups = security_settings.in_force()
         context = {
             "page_title": "Security settings",
             "contacts": lab_profile.contacts(),
             # The contact form needs the laboratory row; without it there is nothing to edit.
-            "can_edit_contacts": lab_ready and lab_profile.can_manage(reader),
+            "can_edit_contacts": lab is not None and lab_profile.can_manage(reader),
+            # The page header names the laboratory from this reading too.
+            "lab": lab,
             "groups": groups,
             "toc": [
                 ("contacts-heading", "Security and privacy contacts"),

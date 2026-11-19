@@ -18,6 +18,7 @@ lock, checks the revision the form showed, rereads the acting account, needs a r
 one audit event, like the contacts in core.lab_profile.
 """
 
+import contextvars
 import hashlib
 import logging
 from dataclasses import dataclass, field
@@ -93,6 +94,22 @@ def settings_file_digest():
     return module_digest(SETTINGS_MODULE)
 
 
+def _writes_info(name):
+    """Whether the running logger `name` passes an INFO record to at least one handler that
+    accepts it, following propagation as logging does."""
+    logger = logging.getLogger(name)
+    if not logger.isEnabledFor(logging.INFO):
+        return False
+    current = logger
+    while current is not None:
+        if any(handler.level <= logging.INFO for handler in current.handlers):
+            return True
+        if not current.propagate:
+            return False
+        current = current.parent
+    return False
+
+
 def _startup(name):
     """A setting's value as the settings module computed it at startup (from the environment),
     before anything in the running process overrode it."""
@@ -127,13 +144,10 @@ RELEASE = {
             "core.form_dialog.FormDialogMiddleware",
         ],
     ),
-    # The configuration as loaded, and the sign-in logger as it runs (its level can be changed
-    # in place).
+    # The configuration as loaded, and the sign-in logger as it runs (its level and its
+    # handlers' levels can be changed in place).
     "LOGGING": (
-        lambda: (
-            settings.LOGGING == _startup("LOGGING")
-            and logging.getLogger("lab_ops.signin").isEnabledFor(logging.INFO)
-        ),
+        lambda: settings.LOGGING == _startup("LOGGING") and _writes_info("lab_ops.signin"),
         True,
     ),
     "ACCOUNT_ADAPTER": (lambda: settings.ACCOUNT_ADAPTER, "accounts.adapter.ClosedSignupAdapter"),
@@ -255,20 +269,50 @@ class Group:
     facts: list = field(default_factory=list)
 
 
+# The settings module and the configuration files, read once for every fact of one in_force().
+_files_reading = contextvars.ContextVar("security_settings_files", default=None)
+_FILE_MODULES = (("config/settings.py", "config.settings"), ("config/logging.py", "config.logging"))
+
+
+def _read_files():
+    """{MODULE: loaded settings module name, file name: its digest ("" when unreadable)}."""
+    return {
+        MODULE: settings_module_name(),
+        **{name: module_digest(module) for name, module in _FILE_MODULES},
+    }
+
+
+def _files_differ(reading):
+    return [name for name in FILES if reading[name] != RELEASE[name][1]]
+
+
+def _file_reasons(reading, differ):
+    """Why the settings module or a configuration file differs, from the same reading."""
+    reasons = []
+    if MODULE in differ:
+        reasons.append(
+            f"this deployment loads its settings from {reading[MODULE]}"
+            if reading[MODULE]
+            else "this deployment's settings were configured without a settings module"
+        )
+    for name, _module in _FILE_MODULES:
+        if name in differ:
+            reasons.append(
+                f"this deployment's {name} differs from it"
+                if reading[name]
+                else f"this deployment's {name} could not be read"
+            )
+    return reasons
+
+
 def _fact(key, label, depends_on, build):
     """The fact `build()` returns, or the changed-configuration fact when a setting it depends
     on differs from this release's."""
-    differ = changed_settings(*FILES, *depends_on)
+    reading = _files_reading.get() or _read_files()
+    differ = _files_differ(reading) + changed_settings(*depends_on)
     if not differ:
         return build()
-    files = []
-    if MODULE in differ:
-        files.append(
-            f"this deployment loads its settings from {settings_module_name() or 'another module'}"
-        )
-    files += [
-        f"this deployment's {name} differs from it" for name in RELEASE_FILES if name in differ
-    ]
+    files = _file_reasons(reading, differ)
     names = [name for name in differ if name not in FILES]
     note = "This page describes this release's configuration"
     note += (", and " + " and ".join(files) + ".") if files else "."
@@ -712,7 +756,16 @@ def _policy():
 
 
 def in_force():
-    """Groups of facts, in page order: sign-in, sessions, patient information, connection."""
+    """Groups of facts, in page order: sign-in, sessions, patient information, connection. The
+    settings module and configuration files are read once for all of them."""
+    token = _files_reading.set(_read_files())
+    try:
+        return _groups()
+    finally:
+        _files_reading.reset(token)
+
+
+def _groups():
     groups = []
     for key, title, fill in (
         ("sign-in", "Sign-in", _sign_in),

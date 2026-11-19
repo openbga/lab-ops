@@ -159,10 +159,13 @@ def lab_profile(request):
 
 def reading_account(request):
     """The signed-in account as it stands in the current reading (core.concurrency.one_reading):
-    its status, organization and roles decide access together with what the page shows."""
-    account = get_user_model().objects.filter(pk=request.user.pk).first()
+    its status, organization and roles decide access together with what the page shows. It
+    becomes the request's user, with its groups, so every part of the page drawn after the
+    reading (the account menu, the sidebar) shows the same account."""
+    account = get_user_model().objects.prefetch_related("groups").filter(pk=request.user.pk).first()
     if account is None:
         raise PermissionDenied("Your account is no longer available.")
+    request.user = account
     return account
 
 
