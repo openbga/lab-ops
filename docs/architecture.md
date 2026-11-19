@@ -165,3 +165,8 @@ recovery objectives and access policy. [Deployment](../README.md) and [operation
 Run server tests with PostgreSQL, collect static files before testing templates, and exercise
 staff and portal journeys at desktop and phone widths. Use a separate database for restore
 checks. The contributor guide lists the test commands. [Contributing](../CONTRIBUTING.md)
+
+Pull requests and a weekly run on `main` also go through static analysis, a dependency audit, a
+secret scan and a scan of the container image, and build a software bill of materials. They run
+apart from the checks a deployment waits for, so an advisory published for a dependency does not
+stop an unrelated fix from deploying. [Security policy](../SECURITY.md#what-is-checked)

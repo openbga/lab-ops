@@ -60,6 +60,7 @@ ships, move it to Built in the same change.
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The public demonstration has no scheduler and keeps email off |
+| Release checks | On every pull request and weekly: static analysis of the application code and its workflows, an audit of the locked and vendored dependencies for known vulnerabilities, a scan of the history for committed secrets and a scan of the container image; a software bill of materials of the image for each run and each published release; the security policy says what is checked and what is not. Penetration testing, a bug bounty and scanning of anyone's deployment are left out |
 
 ## Why this order
 
@@ -103,18 +104,6 @@ matter once a laboratory uses the desk every day, so they come last.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** a risk analysis, any score or checklist that tells a laboratory it complies, and
   deployment settings.
-
-### Release security checks
-
-- **Delivers:** on every pull request and weekly, static analysis of the application code, a
-  vulnerability audit of the locked dependencies, a scan for committed secrets and a scan of the
-  container image; a software bill of materials built for each release; the security policy updated
-  to say what is checked and what is not.
-- **Basis:** a product choice. The proposed changes to the Security Rule would ask regulated
-  entities for vulnerability scans every six months and penetration tests every twelve (90 FR 898,
-  proposed §164.312(h)). They are not in force and would fall on the laboratory.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** penetration testing, a bug bounty and scanning of anyone's deployment.
 
 ### Automatic sign-out and session control
 

@@ -85,6 +85,35 @@ On Linux, add `--with-deps` to the browser installation command. CI runs the app
 browser journeys and a container test for a fresh database migration, sign-in, static assets
 and health endpoints.
 
+### Security checks
+
+Every pull request also runs the security checks listed in the
+[security policy](SECURITY.md#what-is-checked): static analysis, a dependency audit, a secret scan
+and a container image scan. To run the last three before pushing, install
+[gitleaks](https://github.com/gitleaks/gitleaks), [Grype](https://github.com/anchore/grype) and
+[Syft](https://github.com/anchore/syft), then:
+
+```sh
+gitleaks git --log-opts=HEAD --redact --config .gitleaks.toml .
+grype dir:. --exclude ./.venv --exclude ./staticfiles --config .grype.yaml --fail-on low
+docker build --tag lab-ops:local .
+syft lab-ops:local --output cyclonedx-json@1.6=sbom.cdx.json
+grype sbom:sbom.cdx.json --config .grype.yaml --only-fixed --fail-on high
+```
+
+When a check fails:
+
+- **A real secret**: revoke or rotate it first. Removing it from the branch does not remove it
+  from history, and anything pushed to a public branch must be treated as exposed.
+- **A synthetic test value**: add the exact value to `.gitleaks.toml` with a comment saying where
+  it is used.
+- **A vulnerable dependency**: update it (`uv lock --upgrade-package NAME`, a newer base image, or
+  a new vendored copy as `static/vendor/README.md` describes). If the vulnerability does not apply
+  or no fixed release exists yet, add an entry to `.grype.yaml` with the package version and the
+  reason, and say so in the pull request.
+- **A static analysis alert**: fix the code. A false positive is dismissed in the alert with the
+  reason, by a maintainer.
+
 ### Presentation website
 
 The [product website](https://openbga.github.io/lab-ops/) is built from `website/` and published

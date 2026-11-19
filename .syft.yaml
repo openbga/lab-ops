@@ -1,0 +1,7 @@
+# Software bill of materials settings for Syft (see SECURITY.md, "What is checked").
+#
+# An image scan normally reads only installed packages. The browser packages vendored under
+# static/vendor/ are recorded in its package-lock.json instead, so the lockfile cataloger is
+# added to include them in the image's SBOM.
+select-catalogers:
+  - "+javascript-lock-cataloger"

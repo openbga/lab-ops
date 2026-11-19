@@ -1,0 +1,148 @@
+name: security
+
+# Release security checks; SECURITY.md ("What is checked") says what each job covers and what
+# fails it. They run on every pull request, weekly on main and on demand, and attach the software
+# bill of materials (SBOM) to each published release. They do not run on pushes to main: the
+# demonstration deploys a main commit once its checks pass, and an advisory published for a
+# dependency must not hold back an unrelated fix. The weekly run reports such an advisory.
+on:
+  pull_request:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dependencies:
+    # Every package in uv.lock (all dependency groups), the vendored browser packages listed in
+    # static/vendor/package-lock.json and the actions these workflows use. Any known
+    # vulnerability fails the job, fixed or not: an unfixed one needs a decision recorded in
+    # .grype.yaml.
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit locked and vendored dependencies
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          path: .
+          config: .grype.yaml
+          severity-cutoff: low
+          output-format: table
+
+  secrets:
+    # Every commit reachable from the checked-out revision: on a pull request, its own commits
+    # and the history of the branch it targets. Findings are redacted in the log. gitleaks is
+    # downloaded at a pinned version and checked against its published checksum; update both
+    # together from https://github.com/gitleaks/gitleaks/releases.
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 --output "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan the history for secrets
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --log-opts=HEAD --redact --verbose --no-banner \
+            --config .gitleaks.toml .
+
+  image:
+    # The application image as the Dockerfile builds it, operating-system and Python packages
+    # alike. A vulnerability rated High or Critical with a fixed version fails the job. To list
+    # every finding, whatever its severity or fix state, run Grype on the SBOM artifact.
+    name: image scan and SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the application image (no push)
+        env:
+          REVISION: ${{ github.event.release.tag_name || github.sha }}
+        run: |
+          revision="${REVISION//[^A-Za-z0-9._-]/-}"
+          echo "IMAGE=lab-ops:${revision}" >> "$GITHUB_ENV"
+          mkdir -p sbom
+          docker build --tag "lab-ops:${revision}" .
+      - name: SBOM in SPDX
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.IMAGE }}
+          config: .syft.yaml
+          format: spdx-json
+          output-file: sbom/lab-ops.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: SBOM in CycloneDX
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.IMAGE }}
+          config: .syft.yaml
+          format: cyclonedx-json@1.6
+          output-file: sbom/lab-ops.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Fail on a fixable High or Critical vulnerability
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom/lab-ops.cdx.json
+          config: .grype.yaml
+          severity-cutoff: high
+          only-fixed: true
+          output-format: table
+
+  release-sbom:
+    # Only this job can write, and it runs no repository code: it attaches the SBOM built above
+    # to the release that triggered the run.
+    name: attach SBOM to release
+    if: ${{ github.event_name == 'release' && !cancelled() }}
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # upload release assets
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sbom
+          path: sbom
+      - name: Upload the SBOM as release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          name="lab-ops-${TAG//[^A-Za-z0-9._-]/-}"
+          mv sbom/lab-ops.spdx.json "sbom/${name}.spdx.json"
+          mv sbom/lab-ops.cdx.json "sbom/${name}.cdx.json"
+          gh release upload "$TAG" "sbom/${name}.spdx.json" "sbom/${name}.cdx.json" \
+            --clobber --repo "$GITHUB_REPOSITORY"
