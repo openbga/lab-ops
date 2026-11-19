@@ -96,7 +96,9 @@ Setup > Security settings shows administrators the values this deployment runs w
 the session length, the failed sign-in limit, `SECURE_HSTS_SECONDS`, `CONTENT_SECURITY_POLICY` and
 whether email sign-in codes are available. Deployment settings are changed on the host, not on that
 page. The page compares the configuration files as they were when the application started, so
-restart the application after changing them, and do not replace them while it starts or runs. The [safeguards reference](safeguards.md) separates what the application does from what
+restart the application after changing them, and do not replace them while it starts or runs.
+Bytecode compiled in unchecked-hash mode is not compared with its source, so do not ship the
+configuration that way. The [safeguards reference](safeguards.md) separates what the application does from what
 stays with the laboratory and its host.
 
 ## Sign-in limits behind a proxy

@@ -263,12 +263,17 @@ def _file_reasons(reading, differ):
         # Another settings module: what it recorded describes that module, not these files.
         return reasons
     for name, _module in _FILE_MODULES:
-        if name in differ:
-            reasons.append(
-                f"this deployment's {name} could not be read"
-                if reading[name] == ""
-                else f"this deployment's {name} differs from it"
-            )
+        if name not in differ:
+            continue
+        if reading[name] == "":
+            reasons.append(f"this deployment's {name} could not be read")
+        elif reading[name] is not None:
+            reasons.append(f"this deployment's {name} differs from it")
+        elif name == "config/logging.py" and "config/settings.py" not in differ:
+            # No record of the logging file: the settings did not take one, not a changed file.
+            reasons.append("this deployment's config/settings.py does not record config/logging.py")
+        elif name == "config/settings.py":
+            reasons.append(f"this deployment's {name} differs from it")
     return reasons
 
 
@@ -284,7 +289,12 @@ def _fact(key, label, depends_on, build):
     note = "This page describes this release's configuration"
     note += (", and " + " and ".join(files) + ".") if files else "."
     if names:
-        note += f" Check {_either(names)} in config/settings.py."
+        where = (
+            "config/settings.py"
+            if reading[MODULE] == SETTINGS_MODULE
+            else (reading[MODULE] or "the deployment's settings")
+        )
+        note += f" Check {_either(names)} in {where}."
     return Fact(key, label, CHANGED, "configuration", note)
 
 
