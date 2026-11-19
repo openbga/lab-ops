@@ -1,6 +1,8 @@
 """Third confirmation of the Security settings decision at fc02be0."""
 
 import hashlib
+import importlib
+import importlib.util
 import json
 import os
 import py_compile
@@ -24,6 +26,7 @@ from django.test import Client, override_settings
 from django.urls import reverse
 
 from accounts import signin_log
+from config.logging import source_sha256
 from core import security_settings
 from tests.test_review_security_round1 import PASSWORD
 from tests.test_review_security_round1_signoff import probe
@@ -307,8 +310,19 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
     assert outcome and set(outcome) == {CHANGED}, outcome
 
 
+def loading_digest(name):
+    """What a module loading under `name` records: `config.logging.source_sha256` called with
+    its own file and loader, as config/settings.py and config/logging.py call it. A module
+    that cannot be found has no file and no loader, so nothing is recorded."""
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        return source_sha256("", None)
+    return source_sha256(spec.origin or "", spec.loader)
+
+
 @pytest.mark.parametrize("form", ["namespace", "absent", "bytecode", "literal source"])
 def test_digest_distinguishes_source_from_other_module_specs(tmp_path, monkeypatch, form):
+    # Adopted: digests are recorded while the configuration loads (confirmation 5 resolution).
     name = "third_" + form.replace(" ", "_")
     source = b'# Synthetic Python source.\r\nraise AssertionError("digest executed the module")\r\n'
     if form == "namespace":
@@ -321,16 +335,24 @@ def test_digest_distinguishes_source_from_other_module_specs(tmp_path, monkeypat
         (tmp_path / f"{name}.py").write_bytes(source)
     monkeypatch.syspath_prepend(str(tmp_path))
     expected = hashlib.sha256(source).hexdigest() if form == "literal source" else ""
-    assert security_settings.module_digest(name) == expected
+    assert loading_digest(name) == expected
     assert name not in sys.modules
 
 
-def test_missing_source_can_appear_before_the_next_reading(tmp_path, monkeypatch):
+def test_a_module_records_the_source_it_ran_not_one_that_appears_later(tmp_path, monkeypatch):
+    # Adopted: digests are recorded while the configuration loads (confirmation 5 resolution).
+    # The source is read once, when the module loads (a restart reads it again).
     name = "third_appearing_source"
     monkeypatch.syspath_prepend(str(tmp_path))
-    assert security_settings.module_digest(name) == ""
-    source = b"# A synthetic module made available after the first reading.\n"
+    assert loading_digest(name) == ""
+    body = (
+        b"from config.logging import source_sha256\nDIGEST = source_sha256(__file__, __loader__)\n"
+    )
+    source = b"# A synthetic module made available after the first reading.\n" + body
     (tmp_path / f"{name}.py").write_bytes(source)
     invalidate_caches()
-    assert security_settings.module_digest(name) == hashlib.sha256(source).hexdigest()
-    assert name not in sys.modules
+    with patch.dict(sys.modules):
+        module = importlib.import_module(name)
+        assert module.DIGEST == hashlib.sha256(source).hexdigest()
+        (tmp_path / f"{name}.py").write_bytes(source + b"# a later revision\n")
+        assert module.DIGEST == hashlib.sha256(source).hexdigest()

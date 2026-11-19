@@ -223,19 +223,19 @@ def test_source_of_inactive_module_with_standard_lazy_loader_is_still_readable(t
     assert "config/settings.py could not be read" not in note, note
 
 
-def test_non_io_loader_failure_names_only_the_unreadable_file_and_retries():
+def test_unreadable_logging_source_names_only_that_file_and_is_restored_by_its_record():
+    # Adopted: digests are recorded while the configuration loads (confirmation 5 resolution).
+    # The source is read once, when the file loads (a restart reads it again), so an unreadable
+    # source is a recorded "" and there is no retry within the process.
     value, note, recovered = probe(
         ROOT,
         """
-        from importlib.machinery import SourceFileLoader
-        read = SourceFileLoader.get_data
-        expected = Path("config/logging.py").resolve()
-        def first_read(loader, path):
-            if Path(path) == expected:
-                raise RuntimeError("synthetic loader temporarily unavailable")
-            return read(loader, path)
-        with patch.object(SourceFileLoader, "get_data", first_read):
-            initial = https()
+        recorded = settings.LOGGING_SHA256
+        settings.LOGGING_SHA256 = ""
+        initial = https()
+        again = https()
+        assert (initial.value, initial.note) == (again.value, again.note)
+        settings.LOGGING_SHA256 = recorded
         print(json.dumps([initial.value, initial.note, https().value]))
         """,
     )

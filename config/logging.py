@@ -1,5 +1,22 @@
 """Standard-library logging: one console stream, every record tagged with the request ID."""
 
+import hashlib
+
+
+def source_sha256(path, loader):
+    """SHA-256 of a configuration module's source as its own loader reads it while the module
+    runs, so it describes exactly the configuration this process loaded; "" when the source
+    cannot be read. A module loaded from bytecode is described by the source beside it.
+    core.security_settings compares it with this release's."""
+    try:
+        source = path if path.endswith(".py") else path[:-1] if path.endswith(".pyc") else ""
+        return hashlib.sha256(loader.get_data(source)).hexdigest() if source else ""
+    except Exception:  # an unreadable source is not this release's
+        return ""
+
+
+LOGGING_SHA256 = source_sha256(__file__, __loader__)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

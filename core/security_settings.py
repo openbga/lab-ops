@@ -19,11 +19,7 @@ one audit event, like the contacts in core.lab_profile.
 """
 
 import contextvars
-import hashlib
-import logging
 from dataclasses import dataclass, field
-from importlib import import_module
-from importlib.util import find_spec
 
 from allauth import app_settings as allauth_settings
 from allauth.account import app_settings as account_settings
@@ -57,8 +53,8 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "4673a44c6183e0545e74a7801558dcda253f75a0c846dc64248aa78d76c0d462"
-RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
+RELEASE_SETTINGS_SHA256 = "cdb5ca1c9479a2d2d24923e697af05d89143707b8ff29a51fb6fd2bbad9e13fa"
+RELEASE_LOGGING_SHA256 = "8c573741a37f3120a29334349e93c168eca91efa882983b18858f25cdfb2df30"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
 
@@ -74,60 +70,20 @@ def settings_module_name():
     return getattr(layer, "SETTINGS_MODULE", "") or ""
 
 
-_digests = {}
+_LOADED = {"config.settings": "SETTINGS_SHA256", "config.logging": "LOGGING_SHA256"}
 
 
 def module_digest(module_name):
-    """SHA-256 of the Python source of the module Python loads for `module_name`, found without
-    running it (an inactive module that would fail to import is still read); "" when there is no
-    readable source, such as a module shipped as bytecode only. Only a digest that was read is
-    kept: a passing failure is tried again next time."""
-    if module_name not in _digests:
-        try:
-            spec = find_spec(module_name)
-            origin = spec.origin if spec else None
-            # The source: the origin itself, or the .py beside a .pyc Python loads instead.
-            if origin and origin.endswith(".py"):
-                source = origin
-            elif origin and origin.endswith(".pyc"):
-                source = origin[:-1]
-            else:
-                return ""
-            # Through the module's loader (unwrapping importlib.util.LazyLoader), so a source in
-            # an archive is read as Python reads it; a missing source raises and is unreadable.
-            loader = getattr(spec.loader, "loader", spec.loader)
-            data = loader.get_data(source)
-        except Exception:  # a source that cannot be found or read is not this release's
-            return ""
-        _digests[module_name] = hashlib.sha256(data).hexdigest()
-    return _digests[module_name]
+    """SHA-256 of a configuration module's source as recorded while it loaded
+    (config.logging.source_sha256): exactly the configuration this process runs, read by the
+    module's own loader, with nothing imported or read here; "" when it could not be read or a
+    loaded settings module does not record it."""
+    return getattr(settings, _LOADED[module_name], "") or ""
 
 
 def settings_file_digest():
     """SHA-256 of config/settings.py as loaded (kept for the release pin test)."""
     return module_digest(SETTINGS_MODULE)
-
-
-def _writes_info(name):
-    """Whether the running logger `name` passes an INFO record to at least one handler that
-    accepts it, following propagation as logging does."""
-    logger = logging.getLogger(name)
-    if not logger.isEnabledFor(logging.INFO):
-        return False
-    current = logger
-    while current is not None:
-        if any(handler.level <= logging.INFO for handler in current.handlers):
-            return True
-        if not current.propagate:
-            return False
-        current = current.parent
-    return False
-
-
-def _startup(name):
-    """A setting's value as the settings module computed it at startup (from the environment),
-    before anything in the running process overrode it."""
-    return getattr(import_module(SETTINGS_MODULE), name)
 
 
 _VALIDATORS = "django.contrib.auth.password_validation."
@@ -157,12 +113,6 @@ RELEASE = {
             "django.middleware.clickjacking.XFrameOptionsMiddleware",
             "core.form_dialog.FormDialogMiddleware",
         ],
-    ),
-    # The configuration as loaded, and the sign-in logger as it runs (its level and its
-    # handlers' levels can be changed in place).
-    "LOGGING": (
-        lambda: settings.LOGGING == _startup("LOGGING") and _writes_info("lab_ops.signin"),
-        True,
     ),
     "ACCOUNT_ADAPTER": (lambda: settings.ACCOUNT_ADAPTER, "accounts.adapter.ClosedSignupAdapter"),
     "ACCOUNT_LOGIN_METHODS": (lambda: set(account_settings.LOGIN_METHODS), {"username", "email"}),
@@ -551,9 +501,10 @@ def _sign_in(facts):
                 "release",
                 "The application passes completed sign-ins, refused passwords, wrong codes "
                 "entered for an existing account and sign-outs made with Sign out to its sign-in "
-                "log (lab_ops.signin), with the username when the account is known. Some refusals "
-                "are not passed: an expired code, a code for an address with no account, and a "
-                "request stopped by the request limit before any check. A session that stops "
+                "log (lab_ops.signin), with the username when the account is known. Some "
+                "refusals are not passed: an expired emailed code, a code for an address with no "
+                "account, and a request stopped by the request limit before any check. A session "
+                "that stops "
                 "working without Sign out, after a new password or a deactivation, is not passed "
                 "either. Where that log goes and how long it is kept is set by the logging "
                 "configuration and the host. The "

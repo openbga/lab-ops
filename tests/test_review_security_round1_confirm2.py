@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from pathlib import Path
 from threading import Barrier, local
-from types import SimpleNamespace
 
 import pytest
 from django.db import connection
@@ -40,6 +39,8 @@ PAGES = {"lab-profile": lab_profile_views, "security-settings": security_setting
     ],
 )
 def test_signin_fact_matches_output_of_the_running_logging_route(monkeypatch, route, delivered):
+    # Adopted: digests are recorded while the configuration loads (confirmation 5 resolution).
+    # The fact no longer reads the logging configuration, so only the delivery is observed.
     # Private logger hierarchy. The receiver and the fact each see the same test logger.
     # The process's application loggers and handlers continue to run normally.
     root = logging.RootLogger(logging.INFO)
@@ -63,11 +64,6 @@ def test_signin_fact_matches_output_of_the_running_logging_route(monkeypatch, ro
             root.addHandler(logging.StreamHandler(stream))
 
     monkeypatch.setattr(signin_log, "logger", logger)
-    monkeypatch.setattr(
-        security_settings,
-        "logging",
-        SimpleNamespace(getLogger=manager.getLogger, INFO=logging.INFO),
-    )
     signin_log.log_sign_out(None, None, User(username="synthetic-confirm-two"))
     assert ("signout user=synthetic-confirm-two" in stream.getvalue()) is delivered
     rows = [row for group in security_settings.in_force() for row in group.facts]
@@ -196,22 +192,19 @@ def test_source_help_allows_an_alternate_module_with_both_release_files_intact(t
 
 
 def test_changed_label_help_allows_a_release_file_that_cannot_be_verified():
+    # Adopted: digests are recorded while the configuration loads (confirmation 5 resolution).
     value, note, matched = probe(
         ROOT,
         """
-        import hashlib
-        from importlib.machinery import SourceFileLoader
-        source = Path("config/logging.py").resolve()
-        digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        get_data = SourceFileLoader.get_data
-        # Adopted: the digest reads through the module's loader (resolution of confirmation 3).
-        def unavailable(self, path):
-            if Path(path) == source:
-                raise OSError("Synthetic temporary read failure")
-            return get_data(self, path)
-        with patch.object(SourceFileLoader, "get_data", unavailable):
-            row = https()
-        print(json.dumps([row.value, row.note, digest == security.RELEASE_LOGGING_SHA256]))
+        # The source is read once, when the file loads (a restart reads it again): an
+        # unreadable source is recorded as "" and stays so until then.
+        recorded = settings.LOGGING_SHA256
+        settings.LOGGING_SHA256 = ""
+        row = https()
+        settings.LOGGING_SHA256 = recorded
+        restored = https()
+        matched = recorded == security.RELEASE_LOGGING_SHA256 and restored.value != security.CHANGED
+        print(json.dumps([row.value, row.note, matched]))
         """,
     )
     assert matched and value == CHANGED and "could not be read" in note
