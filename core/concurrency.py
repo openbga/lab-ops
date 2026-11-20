@@ -52,14 +52,16 @@ def one_reading():
     if connection.in_atomic_block:
         yield
         return
-    opened = _IN_OWN_READING.set(True)
-    try:
-        with transaction.atomic():
-            with connection.cursor() as cursor:
-                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        # Marked only while the reading's transaction is open: cleared before it commits, so
+        # what runs once it has committed (after_reading's writes) is outside it.
+        opened = _IN_OWN_READING.set(True)
+        try:
             yield
-    finally:
-        _IN_OWN_READING.reset(opened)
+        finally:
+            _IN_OWN_READING.reset(opened)
 
 
 def after_reading(write):

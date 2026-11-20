@@ -617,6 +617,7 @@ def request_detail(request, pk):
     return response
 
 
+@transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @login_required
 @require_POST
 def request_entry(request, pk):
@@ -649,6 +650,8 @@ def request_entry(request, pk):
     # scope while the form was validated. Drawn from one reading, like the page.
     with one_reading():
         request_obj = _request_or_404(reading_account(request), pk)
+        if request_obj.status == Status.CLOSED:
+            form.offer_note_only()  # closed meanwhile: as the page shows it
         context = _detail_context(request, request_obj, composer=form)
         response = render(request, "desk/request_detail.html", context, status=400)
     patch_cache_control(response, private=True)  # like the page (request_detail)

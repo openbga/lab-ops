@@ -265,7 +265,11 @@ class EntryForm(RevisionForm):
     def __init__(self, *args, closed=False, **kwargs):
         super().__init__(*args, **kwargs)
         if closed:
-            self.fields["kind"].choices = [(EntryKind.NOTE, "Note")]
+            self.offer_note_only()
+
+    def offer_note_only(self):
+        """A closed ticket takes internal notes only: the composer offers nothing else."""
+        self.fields["kind"].choices = [(EntryKind.NOTE, "Note")]
 
     def clean(self):
         data = super().clean()

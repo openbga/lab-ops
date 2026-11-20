@@ -18,6 +18,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import require_staff
 from clients.models import Client
+from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
 from desk.selectors import staff_requests
@@ -321,8 +322,13 @@ def attachment_shown(request, pk):
     require_staff(request.user)
     attachment = _attachment_for(request.user, pk)
     shown = request.POST.get("shown") == "1"
+    # The ticket's revision on the page the form was on; a form without one (drawn before it
+    # carried one) is refused as stale, as a page drawn before a change is.
+    expected = whole_number(request.POST.get("expected_revision", "")) or 0
     try:
-        set_shown_to_client(actor=request.user, attachment_id=attachment.pk, shown=shown)
+        set_shown_to_client(
+            actor=request.user, attachment_id=attachment.pk, shown=shown, expected_revision=expected
+        )
     except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
         raise Http404 from error
     except ValidationError as exc:

@@ -34,8 +34,10 @@ def whats_new_button(context):
         if seen is not None:
 
             def record():
+                # Only while there is none: a mark saved meanwhile (another tab's first page, or
+                # opening What's new) is newer than this page's reading and stays.
                 try:
-                    preferences.save(request, preferences.WHATS_NEW_KEY, seen)
+                    preferences.save_if_absent(request, preferences.WHATS_NEW_KEY, seen)
                 except ValueError:
                     pass  # too many saved preferences: the next page tries again
 

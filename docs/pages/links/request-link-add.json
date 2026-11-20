@@ -103,7 +103,7 @@
         },
         {
           "label": "History",
-          "description": "Adding a link is audited with the person and time, and an event appears on the ticket's timeline. For a person-level link the event holds only the record type, never the label or key."
+          "description": "Adding a link is audited with the person and time, and an event appears on the ticket's timeline. For a person-level link the event holds only the record type, never the label or key. Adding a link to a ticket changes the ticket: a reply, note or other change from a page of it opened before is refused as stale."
         },
         {
           "label": "Refusals",
@@ -149,7 +149,7 @@
         },
         {
           "label": "Show to client / Hide from client",
-          "description": "In the row's Actions menu, for links that are not person-level. A POST that changes whether the client sees the link and records it. Only a current link on a ticket can be changed."
+          "description": "In the row's Actions menu, for links that are not person-level. A POST that changes whether the client sees the link and records it. Only a current link on a ticket can be changed. It is refused as stale when the ticket changed after the page was opened; the ticket page then shows it as it is now. Showing or hiding a link changes the ticket, so a client's reply from a page opened before is refused too."
         },
         {
           "label": "Remove link",

@@ -58,7 +58,7 @@
       "title": "Access",
       "paragraphs": [
         "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list or Find, the page keeps the list's filters so Previous in list and Next in list can step through it.",
-        "The page is read at one moment: its details, conversation, links and the revision every form on it sends agree with each other, and your roles are checked in the same reading. A change saved from it is refused as stale only if the ticket changed after the page opened. When an entry is refused, the page is shown again read the same way, and the entry form keeps what you typed and the revision it was opened with.",
+        "The page is read at one moment: its details, conversation, links and the ticket revision its forms send agree with each other, and your roles are checked in the same reading. A change saved from it is refused as stale only if the ticket changed after the page opened. When an entry is refused, the page is shown again read the same way, and the entry form keeps what you typed and the revision it was opened with.",
         "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again."
       ]
     },
@@ -215,7 +215,8 @@
     {
       "title": "Links",
       "paragraphs": [
-        "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access."
+        "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access.",
+        "Adding, removing, showing or hiding a link changes the ticket, like a note or a status change: a form on a page opened before it, in this tab or another, is refused as stale."
       ],
       "items": [
         {

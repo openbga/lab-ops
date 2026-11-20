@@ -240,6 +240,7 @@ def _request_page(request, number, reply_form):
     )
 
 
+@transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @client_required
 @require_POST
 def request_reply(request, number):

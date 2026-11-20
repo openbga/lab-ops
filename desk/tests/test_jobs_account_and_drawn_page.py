@@ -6,11 +6,12 @@ synthetic."""
 
 import re
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 from django.contrib.auth.models import Group
-from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection, transaction
 from django.test import Client as HttpClient
 from django.urls import reverse
 from django.utils import timezone
@@ -21,16 +22,16 @@ from core import changelog, concurrency, preferences
 from core.models import AuditEvent, UserPreference
 from desk import portal_views, views
 from desk import services as portal_services
-from desk.models import EntryKind, RequestEntry
+from desk.models import EntryKind, RequestEntry, ServiceRequest, Status
 from jobs import actor as job_actor
 from jobs.models import JobSettings
 from links.models import ExternalSystem
-from links.services import add_link
+from links.services import add_link, remove_link, set_shown_to_client, update_link
 from links.templatetags import record_links
 from service_levels import jobs as clock_jobs
 from service_levels.models import RequestClock, ServiceTarget
 
-from .test_contract import new_request
+from .test_contract import new_request, set_status
 from .test_review_acting_account_until_commit import Gate, gated
 from .test_review_assignment_lock_order_verify3 import Held, Session, _blocked_by
 
@@ -145,7 +146,7 @@ def test_a_saved_account_holding_the_drawn_identity_in_another_case_is_passed_ov
     field, monkeypatch, make_user
 ):
     suffixes = iter(["0a1b2c3d", "4e5f6a7b"])
-    monkeypatch.setattr(job_actor.secrets, "token_hex", lambda n: next(suffixes))
+    monkeypatch.setattr(job_actor, "secrets", SimpleNamespace(token_hex=lambda n: next(suffixes)))
     person = make_user("neighbour_holder", "client_services")
     first = f"{job_actor.USERNAME}-0a1b2c3d"
     value = first.upper() if field == "username" else f"{first}@{job_actor.EMAIL_DOMAIN}".upper()
@@ -527,3 +528,303 @@ def test_staff_page_from_another_session_is_unaffected(staff_ticket, make_user):
     for page in pages:
         page.join()
         assert page.outcome == "done" and page.result.status_code == 200, page.error
+
+
+# ------------------------------------- review round 1: the cases next to its findings (1-9)
+
+
+def _revision(ticket):
+    return ServiceRequest.objects.values_list("revision", flat=True).get(pk=ticket.pk)
+
+
+@pytest.fixture
+def linked_ticket(staff_ticket, agent):
+    lims = ExternalSystem.objects.create(key="lims", name="Example LIMS", kind="lims")
+    attachment, _ = add_link(
+        actor=agent,
+        system=lims,
+        record_type="order",
+        identifier="ORD-TEST-000920",
+        request_id=staff_ticket.pk,
+    )
+    staff_ticket.refresh_from_db()
+    return staff_ticket, lims, attachment
+
+
+def test_each_change_of_a_tickets_links_advances_its_revision_once(linked_ticket, agent):
+    """Finding 2: attaching, showing, hiding and removing a ticket's link are changes to the
+    ticket; a refused change advances nothing."""
+    ticket, lims, attachment = linked_ticket
+    start = _revision(ticket)
+    set_shown_to_client(actor=agent, attachment_id=attachment.pk, shown=True)
+    assert _revision(ticket) == start + 1
+    set_shown_to_client(actor=agent, attachment_id=attachment.pk, shown=False)
+    assert _revision(ticket) == start + 2
+    with pytest.raises(ValidationError):
+        set_shown_to_client(actor=agent, attachment_id=attachment.pk, shown=False)
+    assert _revision(ticket) == start + 2
+    remove_link(actor=agent, attachment_id=attachment.pk, reason="Entered on the wrong ticket")
+    assert _revision(ticket) == start + 3
+    with pytest.raises(ValidationError):
+        remove_link(actor=agent, attachment_id=attachment.pk, reason="Entered twice")
+    assert _revision(ticket) == start + 3
+    add_link(
+        actor=agent,
+        system=lims,
+        record_type="sample",
+        identifier="ORD-TEST-000921",
+        request_id=ticket.pk,
+    )
+    assert _revision(ticket) == start + 4
+
+
+def test_an_organizations_link_and_a_links_own_edit_change_no_ticket(
+    linked_ticket, agent, clinic, make_user
+):
+    """Only a change to the ticket's own links advances it: an organization's link, or a
+    correction of a link's label (the link's own record, with its own revision), does not."""
+    ticket, lims, attachment = linked_ticket
+    start = _revision(ticket)
+    add_link(
+        actor=agent,
+        system=lims,
+        record_type="project",
+        identifier="ORD-TEST-000922",
+        client_id=clinic.pk,
+    )
+    link = attachment.link
+    link.refresh_from_db()
+    update_link(
+        actor=agent,
+        link_id=link.pk,
+        expected_revision=link.revision,
+        display_label="Order ORD-TEST-000920",
+        reason="Clearer label",
+    )
+    assert _revision(ticket) == start
+
+
+def test_staff_note_from_a_page_drawn_before_a_link_change_is_refused(client, linked_ticket, agent):
+    ticket, lims, _attachment = linked_ticket
+    page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    add_link(
+        actor=agent,
+        system=lims,
+        record_type="report",
+        identifier="ORD-TEST-000923",
+        request_id=ticket.pk,
+    )
+    refused = _staff_note(client, ticket, page, "Checked the order.")
+    assert refused.status_code == 400
+    assert not RequestEntry.objects.filter(request=ticket, body="Checked the order.").exists()
+    again = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    assert b"ORD-TEST-000923" in again.content
+    assert _staff_note(client, ticket, again, "Checked the order.").status_code == 302
+
+
+def test_portal_reply_from_a_page_drawn_before_a_reference_is_hidden_is_refused(
+    client, linked_ticket, agent, clinic_portal
+):
+    ticket, _lims, attachment = linked_ticket
+    set_shown_to_client(actor=agent, attachment_id=attachment.pk, shown=True)
+    client.force_login(clinic_portal)
+    url = reverse("portal:request-detail", args=[ticket.number])
+    page = client.get(url)
+    assert b"ORD-TEST-000920" in page.content
+    set_shown_to_client(actor=agent, attachment_id=attachment.pk, shown=False)
+    text = "Is ORD-TEST-000920 the right order?"
+    refused = _confirm_two_fresh_send(client, page, text)
+    assert refused.status_code == 200 and refused.context["reply_form"].non_field_errors()
+    assert not RequestEntry.objects.filter(request=ticket, body=text).exists()
+    fresh = client.get(url)
+    assert b"ORD-TEST-000920" not in fresh.content
+    assert _confirm_two_fresh_send(client, fresh, text).status_code == 302
+
+
+def _shown_form_revision(page, attachment):
+    action = reverse("link_records:attachment-shown", args=[attachment.pk])
+    html = page.content.decode()
+    form = html[html.index(f'action="{action}"') :]
+    form = form[: form.index("</form>")]
+    return re.search(r'name="expected_revision" value="(\d+)"', form).group(1)
+
+
+def test_show_to_client_from_the_current_page_works_and_advances_the_revision(
+    client, linked_ticket
+):
+    """Finding 7: the Show/Hide form carries the ticket's revision; a current one is taken."""
+    ticket, _lims, attachment = linked_ticket
+    page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    revision = _shown_form_revision(page, attachment)
+    assert int(revision) == _revision(ticket)
+    action = reverse("link_records:attachment-shown", args=[attachment.pk])
+    posted = client.post(action, {"shown": "1", "expected_revision": revision}, follow=True)
+    attachment.refresh_from_db()
+    assert attachment.shown_to_client and _revision(ticket) == int(revision) + 1
+    assert b"Shown to the client." in posted.content
+
+
+@pytest.mark.parametrize("sent", [None, "0", "not-a-number"], ids=["missing", "zero", "text"])
+def test_show_to_client_without_the_pages_revision_is_refused(client, linked_ticket, sent):
+    """A form drawn before it carried the revision, or a made-up value, changes nothing."""
+    ticket, _lims, attachment = linked_ticket
+    start = _revision(ticket)
+    fields = {"shown": "1"}
+    if sent is not None:
+        fields["expected_revision"] = sent
+    action = reverse("link_records:attachment-shown", args=[attachment.pk])
+    posted = client.post(action, fields, follow=True)
+    attachment.refresh_from_db()
+    assert not attachment.shown_to_client and _revision(ticket) == start
+    assert b"This ticket changed" in posted.content
+
+
+@pytest.mark.parametrize("audience", ["staff", "portal"])
+def test_writes_from_current_pages_still_save_with_request_transactions_on(
+    client, staff_ticket, clinic_portal, audience, monkeypatch
+):
+    """Finding 1: the reply and entry posts run without the request transaction, so a refused
+    one draws its own reading; one that is accepted is still saved, once."""
+    monkeypatch.setitem(connection.settings_dict, "ATOMIC_REQUESTS", True)
+    ticket = staff_ticket
+    text = "Saved with request transactions on: ORD-TEST-000924."
+    if audience == "portal":
+        client.force_login(clinic_portal)
+        page = client.get(reverse("portal:request-detail", args=[ticket.number]))
+        sent = _confirm_two_fresh_send(client, page, text)
+    else:
+        page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+        sent = _staff_note(client, ticket, page, text)
+    assert sent.status_code == 302
+    assert RequestEntry.objects.filter(request=ticket, body=text).count() == 1
+
+
+@pytest.mark.parametrize("audience", ["staff", "portal"])
+def test_a_refused_post_with_request_transactions_on_stores_nothing(
+    client, staff_ticket, clinic_portal, agent, audience, monkeypatch
+):
+    monkeypatch.setitem(connection.settings_dict, "ATOMIC_REQUESTS", True)
+    ticket = staff_ticket
+    if audience == "portal":
+        client.force_login(clinic_portal)
+        page = client.get(reverse("portal:request-detail", args=[ticket.number]))
+    else:
+        page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    _confirm_two_staff_update(agent, ticket, "The courier has the package.")
+    text = "Refused with request transactions on: ORD-TEST-000925."
+    if audience == "portal":
+        refused = _confirm_two_fresh_send(client, page, text)
+        assert refused.status_code == 200
+    else:
+        refused = _staff_note(client, ticket, page, text)
+        assert refused.status_code == 400
+    assert b"The courier has the package." in refused.content
+    assert not RequestEntry.objects.filter(request=ticket, body=text).exists()
+
+
+def test_a_refused_entry_on_an_open_ticket_still_offers_every_kind(client, staff_ticket):
+    """Finding 6's neighbour: only a ticket closed meanwhile narrows the composer to notes."""
+    ticket = staff_ticket
+    page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    refused = client.post(
+        reverse("desk:request-entry", args=[ticket.pk]),
+        {
+            "kind": EntryKind.REPLY,
+            "body": "",
+            "expected_revision": page.context["composer"]["expected_revision"].value(),
+        },
+    )
+    assert refused.status_code == 400
+    kinds = [value for value, _label in refused.context["composer"].fields["kind"].choices]
+    assert set(kinds) == {EntryKind.REPLY, EntryKind.NOTE, EntryKind.CONTACT}
+
+
+def test_a_refused_entry_on_a_ticket_closed_meanwhile_offers_notes_only(
+    client, staff_ticket, agent
+):
+    ticket = staff_ticket
+    page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    set_status(ticket, Status.CLOSED)  # closed meanwhile (the revision is left as it was)
+    refused = client.post(
+        reverse("desk:request-entry", args=[ticket.pk]),
+        {
+            "kind": EntryKind.REPLY,
+            "body": "After the close.",
+            "expected_revision": page.context["composer"]["expected_revision"].value(),
+        },
+    )
+    assert refused.status_code == 400
+    assert not RequestEntry.objects.filter(request=ticket, body="After the close.").exists()
+    kinds = [value for value, _label in refused.context["composer"].fields["kind"].choices]
+    assert kinds == [EntryKind.NOTE]
+    assert refused.context["is_closed"]
+
+
+def _preference_request(user):
+    from django.test import RequestFactory
+
+    request = RequestFactory().get("/")
+    request.user = user
+    return request
+
+
+def test_save_if_absent_creates_keeps_and_repairs(make_user):
+    """Finding 8's neighbours: a first mark is created; a readable one is never replaced; an
+    unreadable one counts as none."""
+    person = make_user("neighbour_marks", "client_services")
+    marks = UserPreference.objects.filter(user=person, key=preferences.WHATS_NEW_KEY)
+    newest = changelog.seen_marker(changelog.entries())
+    preferences.save_if_absent(_preference_request(person), preferences.WHATS_NEW_KEY, newest)
+    assert marks.get().value == newest
+    older = changelog.seen_marker(changelog.entries()[1:])
+    assert older and older != newest
+    kept = marks.values_list("value", "updated_at").get()
+    preferences.save_if_absent(_preference_request(person), preferences.WHATS_NEW_KEY, older)
+    assert marks.values_list("value", "updated_at").get() == kept
+    marks.update(value="not a marker")
+    preferences.save_if_absent(_preference_request(person), preferences.WHATS_NEW_KEY, older)
+    assert marks.get().value == older
+
+
+def test_opening_whats_new_still_replaces_the_first_mark(client, staff_ticket, make_user):
+    newcomer = make_user("neighbour_reader_two", "client_services")
+    client.force_login(newcomer)
+    client.get(reverse("desk:request-detail", args=[staff_ticket.pk]))
+    mark = UserPreference.objects.get(user=newcomer, key=preferences.WHATS_NEW_KEY)
+    mark.value = changelog.seen_marker(changelog.entries()[1:])
+    mark.save(update_fields=["value"])
+    client.logout()
+    client.force_login(newcomer)
+    assert client.get(reverse("whats-new")).status_code == 200
+    mark.refresh_from_db()
+    assert mark.value == changelog.seen_marker(changelog.entries())
+
+
+def test_after_reading_inside_a_callback_of_a_finished_reading_runs_at_once():
+    """Finding 9: once the reading has committed, its callbacks are outside it."""
+    calls = []
+
+    def callback():
+        with transaction.atomic():
+            concurrency.after_reading(lambda: calls.append("at once"))
+            calls.append("inside the callback's transaction")
+
+    with concurrency.one_reading():
+        concurrency.after_reading(callback)
+    assert calls == ["at once", "inside the callback's transaction"]
+
+
+def test_a_person_saving_the_drawn_name_itself_is_waited_for_once(monkeypatch):
+    """Findings 3 and 4 (documented bound): only a person saving the very value just drawn,
+    which needs it known in advance, meets the job. An exact match is waited for and then
+    passed over with a new draw; the job's account is created once."""
+    JobSettings.objects.create()
+    suffixes = iter(["aabbccdd", "bbccddee"])
+    monkeypatch.setattr(job_actor, "secrets", SimpleNamespace(token_hex=lambda n: next(suffixes)))
+    drawn = f"{job_actor.USERNAME}-aabbccdd"
+    person = Held(lambda: User.objects.create_user(drawn, email="neighbour-guess@example.invalid"))
+    state, creation = _while_change_is_open(person, job_actor.system_account)
+    assert state == "waiting" and creation.outcome == "done", (state, creation.error)
+    assert creation.result.username == f"{job_actor.USERNAME}-bbccddee"
+    assert User.objects.get(username=drawn).is_active
+    assert AuditEvent.objects.filter(action="jobs.system_account_created").count() == 1

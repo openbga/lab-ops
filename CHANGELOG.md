@@ -98,13 +98,19 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   Deactivating a ticket's assignee while a client replies, and changing organizations or site codes during an import, now wait for each other instead of one failing.
 
+- **Changed:** Link changes count as ticket changes (2026-11-20, Tickets)
+
+  Adding, removing, showing or hiding a ticket's link now refuses a reply or note sent from a page opened before it.
+
 - **Fixed:** Ticket pages agree with the replies they show (2026-11-20)
 
   A ticket opened while someone replies shows that reply only with forms that accept your answer to it, on the desk and in the portal.
 
   <details><summary>Technical notes</summary>
 
-  The scheduled jobs' account, when a deployment's first job run creates it, is now named `scheduled-jobs-` followed by eight random characters, with the matching address in the reserved `lab-ops.invalid` domain, so a person's account being created at that moment never delays it or ends up differing from it only in letter case. An account created earlier keeps its name.
+  The scheduled jobs' account, when a deployment's first job run creates it, is now named `scheduled-jobs-` followed by eight random characters, with the matching address in the reserved `lab-ops.invalid` domain, so a person's account registered at that moment under the old name does not delay it or end up differing from it only in letter case. An account created earlier keeps its name.
+
+  The ticket reply and entry posts now run outside any request transaction, also where a deployment turns `ATOMIC_REQUESTS` on; their services open their own.
 
   </details>
 
