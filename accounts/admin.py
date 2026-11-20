@@ -123,12 +123,10 @@ COLUMNS = tuple(name for name in PAGE_FIELDS if name not in RELATIONS)
 
 
 def _plain(value):
-    if isinstance(value, Group):  # a role as the page shows it: its name with its id
-        return [value.pk, value.name]
     if hasattr(value, "pk"):
         return value.pk
-    if isinstance(value, (list, tuple)) and len(value) == 2 and isinstance(value[1], str):
-        return [value[0], value[1]]  # a (group id, name) pair of an account_reading
+    if isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], str):
+        return value[0]  # a role's (id, name) of an account_reading: the membership is its id
     if isinstance(value, (list, tuple, set, frozenset)) or hasattr(value, "values_list"):
         return sorted(_plain(item) for item in value)
     return value
@@ -141,8 +139,8 @@ def _digest(values):
 
 def account_reading(user):
     """The page's fields of `user` as stored: its columns from this instance, its roles as
-    (id, name) pairs (the page shows the names) and its capability grants as ids, each read once,
-    sorted."""
+    (id, name) pairs and its capability grants as ids, each read once, sorted. The fingerprint
+    takes the roles' ids: a role renamed on its own page changes no account."""
     reading = model_to_dict(user, fields=COLUMNS)
     reading["groups"] = sorted(user.groups.values_list("pk", "name"))
     reading["user_permissions"] = sorted(user.user_permissions.values_list("pk", flat=True))
@@ -289,8 +287,13 @@ class AccessRules:
         ):
             raise forms.ValidationError(CHANGED_SINCE_DRAWN)
         # What the save starts from: the audit's before values, and the roles and grants it
-        # changes by difference (AccountAdmin.save_related).
+        # changes by difference (AccountAdmin.save_related); and, read once now, the names of
+        # the roles it holds and is given, so the audit names each the same way before and after.
         self.held_reading = reading
+        posted = {group.pk for group in data.get("groups") or ()}
+        self.role_names = dict(
+            Group.objects.filter(pk__in=_group_ids(reading) | posted).values_list("pk", "name")
+        )
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
@@ -476,6 +479,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         if not change:
             super().save_related(request, form, formsets, change)
             after = account_snapshot(obj)
+            changed = after != obj._audit_before
         else:
             # Roles and capability grants by difference from the reading the check held. A role
             # added by other means after that reading (nothing locks an addition) stays, and the
@@ -500,16 +504,19 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             for formset in formsets:
                 self.save_formset(request, form, formset, change=change)
             after.update(model_to_dict(obj, fields=COLUMNS))
-            # One reading of the names for both, so a role renamed meanwhile on the role group
-            # page (recorded there) does not show as a change of this account.
-            names = dict(form.held_reading["groups"])
+            # One reading of the names for both (taken with the check), so a role renamed meanwhile
+            # on the role group page (recorded there) does not show as a change of this account.
+            names = dict(form.role_names)
             unnamed = set(after["groups"]) - set(names)
             names.update(Group.objects.filter(pk__in=unnamed).values_list("pk", "name"))
             labels = _labels(set(before["user_permissions"]) | set(after["user_permissions"]))
+            # Whether anything changed is decided on the values themselves (role ids), not on
+            # their names: two roles renamed meanwhile could otherwise hide a change.
+            changed = _digest(before) != _digest(after)
             obj._audit_before = _snapshot(before, names, labels)
             after = _snapshot(after, names, labels)
         before = obj._audit_before
-        if after != before:
+        if changed:
             record_event(
                 actor=request.user,
                 action="account.updated" if change else "account.created",

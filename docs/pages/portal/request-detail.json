@@ -40,7 +40,7 @@
     "A closed ticket takes no more replies. If it closes while you write, your text comes back unsent; select [[New follow-up ticket]] to send it there.",
     "Laboratory replies are signed with the team's name and the laboratory's name, never a person's.",
     "You never see the laboratory's internal notes, who is assigned, priorities, service clocks, complaint records or patient links.",
-    "If the ticket changed after you opened the page, your reply is not sent. The page shows the ticket as it is now, with your text still in the box: select [[Send reply]] again."
+    "If the ticket changed after you opened the page, your reply is not sent. Your text stays in the box: copy it, open the ticket again from [[Tickets]] and send it there."
   ],
   "sections": [
     {
@@ -177,7 +177,7 @@
         },
         {
           "label": "Ticket changed meanwhile",
-          "description": "If the ticket changed after you opened the page, the reply is refused with a message that the ticket changed. The page then shows the ticket as it is now, with the text you wrote still in the box; read what changed and select Send reply again to send it to the ticket as it is now. Choose files again if you had chosen any."
+          "description": "If the ticket changed after you opened the page, the reply is refused with a message that the ticket changed, and the text you wrote stays in the box. Sending it again from this page is refused the same way (also when your own earlier reply was what changed the ticket, so it is never sent twice): copy the text, open the ticket again from Tickets, read what changed, and send it there. Choose files again if you had chosen any."
         },
         {
           "label": "Your reply, not sent",

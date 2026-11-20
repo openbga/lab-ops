@@ -168,6 +168,12 @@ def setup_lab(
         result.did(f"Created administrator '{actor.username}' (staff and superuser).")
     elif actor is not None:
         result.messages.append(f"Account '{actor.username}' exists; password and flags unchanged.")
+    if roles and not user_created:
+        # The account's access gate, as the account page takes it on every save: a role given
+        # there at this moment is saved first and read below, so it is not recorded as setup's.
+        from .acting import close_access
+
+        close_access([actor.pk])
     before = account_snapshot(actor) if actor is not None else {}
     if roles:
         actor.groups.add(*Group.objects.filter(name__in=roles))

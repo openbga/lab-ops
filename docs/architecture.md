@@ -155,8 +155,9 @@ person or on the account's password page, saves the password only: a full save o
 as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored
 and never compares it with the copy of the account it read earlier
 ([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
-drawn (a fingerprint of the values it draws: names, email, organization, flags, roles with their names,
-and capabilities, `accounts.admin.PAGE_FIELDS`). After the gate and the remaining owners' rows it
+drawn (a fingerprint of the values it draws: names, email, organization, flags, the roles and
+capabilities it holds, `accounts.admin.PAGE_FIELDS`; a role renamed on its own page changes no
+account). After the gate and the remaining owners' rows it
 locks the account's row FOR NO KEY UPDATE, so any other change of the account under way, an
 email corrected on its own included, commits first, and refuses the save when what it reads
 then differs from what the page showed. It writes only the columns it edits, so a password or

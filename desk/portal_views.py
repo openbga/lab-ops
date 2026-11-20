@@ -195,12 +195,6 @@ def request_detail(request, number, reply_form=None):
         unsent_reply = UnsentReplyForm(initial={"body": body})
         unsent_reply.has_text = bool(body.strip())
         reply_form = None
-    if reply_form is not None and reply_form.is_bound:
-        # Refused (the ticket changed, or the text is missing): the page shows the ticket as it
-        # is now, so the form answers to this reading. Sending the kept text again after reading
-        # it is then a reply to the current ticket, and a further change refuses it again.
-        reply_form.data = reply_form.data.copy()
-        reply_form.data["expected_revision"] = service_request.revision
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})
     return render(

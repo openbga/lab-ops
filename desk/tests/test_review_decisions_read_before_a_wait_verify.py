@@ -73,11 +73,10 @@ def test_account_drawn_with_a_group_name_that_changed_prompts_to_reopen(
     rename_group(client, group, "Friday planning")
     response = client.post(account_url(account), page)
     account.refresh_from_db()
+    # Adapted (V3, resolved in the page help and architecture after C4): the roles count by
+    # which ones the account holds; a role renamed on its own page changes no account.
     assert list(account.groups.values_list("name", flat=True)) == ["Friday planning"]
-    assert (response.status_code, account.first_name) == (200, "")
-    assert (
-        account_admin.CHANGED_SINCE_DRAWN in response.context["adminform"].form.non_field_errors()
-    )
+    assert (response.status_code, account.first_name) == (302, "Riley")
 
 
 def test_a_group_rename_is_attributed_only_to_its_editor(client, verify_editor, make_user):
@@ -654,12 +653,18 @@ def test_open_ticket_stale_reply_can_follow_the_reload_and_send_instructions(
     assert refreshed.status_code == 200
     form = refreshed.context["reply_form"]
     assert form["body"].value() == body
-    sent = client.post(
+    # Adapted (V10, resolved in the page help after C3): sending again from the refused page is
+    # refused the same way, so a reply already delivered is never sent twice; the help says to
+    # copy the text, open the ticket again and send it there.
+    resent = client.post(
         refreshed.context["reply_url"],
         {"body": form["body"].value(), "expected_revision": form["expected_revision"].value()},
     )
-    # Opening the ticket separately also shows what can actually be recovered there.
+    assert resent.status_code == 200 and not RequestEntry.objects.filter(body=body).exists()
     fresh_form = client.get(detail_url).context["reply_form"]
+    sent = client.post(
+        url, {"body": body, "expected_revision": fresh_form["expected_revision"].value()}
+    )
     assert RequestEntry.objects.filter(request=ticket, body=body).count() == 1, {
         "status_after_sending": sent.status_code,
         "original_revision": drawn_revision,

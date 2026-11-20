@@ -144,9 +144,12 @@ def client_edit(request, pk):
         else:
             messages.success(request, "Changes recorded with their reason.")
             return redirect(record_url)
-    elif request.method == "POST" and request.POST.get("expected_revision") != str(client.revision):
+    elif form.is_bound and request.POST.get("expected_revision") != str(
+        Client.objects.filter(pk=client.pk).values_list("revision", flat=True).first()
+    ):
         # Refused by the form itself (a choice no longer offered, such as an owner replaced and
-        # deactivated meanwhile), on a page drawn before another change: say so first.
+        # deactivated meanwhile), on a page drawn before another change (read now, after the
+        # form's checks): say so first.
         form.add_error(None, CHANGED)
     return render(
         request,

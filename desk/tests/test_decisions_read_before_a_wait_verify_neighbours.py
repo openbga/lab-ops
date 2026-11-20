@@ -225,13 +225,17 @@ def test_a_first_run_deferred_by_the_settings_creates_the_account_at_the_next(
 # V10: a refused reply on a ticket still open ---------------------------------------------------
 
 
-def test_a_reply_refused_as_changed_is_sent_by_sending_it_again(
+def test_a_reply_refused_as_changed_is_sent_from_the_ticket_opened_again(
     client, agent, sample_category, clinic, clinic_portal
 ):
+    """After C3: the refused page keeps the revision it was drawn with, so sending from it again
+    is refused (a reply that was in fact delivered is never sent twice); opened again, the
+    ticket takes the reply once."""
     PortalAccess.objects.create(user=clinic_portal, client=clinic, whole_organization=True)
     ticket = new_request(agent, sample_category, client=clinic)
     client.force_login(clinic_portal)
-    page = client.get(reverse("portal:request-detail", args=[ticket.number]))
+    detail = reverse("portal:request-detail", args=[ticket.number])
+    page = client.get(detail)
     drawn = page.context["reply_form"]["expected_revision"].value()
     url = page.context["reply_url"]
     services.add_entry(
@@ -240,27 +244,14 @@ def test_a_reply_refused_as_changed_is_sent_by_sending_it_again(
     body = "Order ORD-TEST-000870 is the one."
     refused = client.post(url, {"body": body, "expected_revision": drawn})
     assert refused.status_code == 200 and refused.context["reply_form"].errors
-    assert b"Checked." in refused.content  # the page shows the ticket as it is now
     form = refused.context["reply_form"]
     assert form["body"].value() == body
     again = {"body": form["body"].value(), "expected_revision": form["expected_revision"].value()}
-    # A further change before sending again refuses it again.
-    ticket.refresh_from_db()
-    services.add_entry(
-        actor=agent,
-        request=ticket,
-        kind=EntryKind.REPLY,
-        body="One more thing.",
-        expected_revision=ticket.revision,
-    )
-    second = client.post(url, again)
-    assert second.status_code == 200 and second.context["reply_form"].errors
+    assert client.post(url, again).status_code == 200
     assert not RequestEntry.objects.filter(request=ticket, body=body).exists()
-    form = second.context["reply_form"]
-    sent = client.post(
-        url, {"body": form["body"].value(), "expected_revision": form["expected_revision"].value()}
-    )
-    assert sent.status_code == 302
+    fresh = client.get(detail).context["reply_form"]["expected_revision"].value()
+    assert client.post(url, {"body": body, "expected_revision": fresh}).status_code == 302
+    assert client.post(url, {"body": body, "expected_revision": fresh}).status_code == 200
     assert RequestEntry.objects.filter(request=ticket, body=body).count() == 1
     ticket.refresh_from_db()
     assert ticket.status == Status.OPEN
@@ -276,3 +267,59 @@ def test_a_reply_refused_for_a_missing_text_keeps_the_revision_it_was_drawn_with
     refused = client.post(url, {"body": "", "expected_revision": ticket.revision})
     assert refused.status_code == 200
     assert str(refused.context["reply_form"]["expected_revision"].value()) == str(ticket.revision)
+
+
+# Confirmation round (C1 to C11): the cases next to the fixes ------------------------------------
+
+
+def test_switching_roles_records_one_event_naming_both(client, owner, make_user):
+    account = make_user("switching_roles")
+    first = Group.objects.create(name="Example first rota")
+    second = Group.objects.create(name="Example second rota")
+    account.groups.add(first)
+    client.force_login(owner)
+    data = _admin_change_data(client, account, groups=[str(second.pk)])
+    assert client.post(reverse(ACCOUNT_URL, args=[account.pk]), data).status_code == 302
+    event = AuditEvent.objects.get(action="account.updated", object_id=str(account.pk))
+    assert (event.before["groups"], event.after["groups"]) == (
+        ["Example first rota"],
+        ["Example second rota"],
+    )
+
+
+def test_setup_giving_a_role_the_account_holds_records_nothing(make_user):
+    from accounts.setup import setup_lab
+
+    person = make_user("setup_holder", "technical", is_staff=True, is_superuser=True)
+    setup_lab(lab_name="Example laboratory", username=person.username)
+    events = AuditEvent.objects.filter(action="setup.account_roles_added").count()
+    setup_lab(username=person.username, roles=["technical"])
+    assert AuditEvent.objects.filter(action="setup.account_roles_added").count() == events
+
+
+def test_an_empty_post_to_the_organization_pages_draws_the_form(client, agent, clinic):
+    client.force_login(agent)
+    for url in (
+        reverse("clients:client-edit", args=[clinic.pk]),
+        reverse("clients:client-create"),
+    ):
+        response = client.post(url, {})
+        assert response.status_code == 200, url
+    assert Client.objects.get(pk=clinic.pk).revision == clinic.revision
+
+
+def test_a_stale_valid_organization_form_is_told_to_reload_by_the_service(client, agent, clinic):
+    client.force_login(agent)
+    url = reverse("clients:client-edit", args=[clinic.pk])
+    data = edit_data(clinic, phone="555-0182")
+    directory.update_client(
+        actor=agent,
+        client_id=clinic.pk,
+        expected_revision=clinic.revision,
+        reason="Notes",
+        notes="Synthetic note",
+    )
+    response = client.post(url, data)
+    assert response.status_code == 200
+    assert directory.CHANGED in str(response.context["form"].non_field_errors())
+    assert Client.objects.get(pk=clinic.pk).phone != "555-0182"
