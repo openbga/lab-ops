@@ -104,7 +104,8 @@ def client_list(request):
 @login_required
 def client_create(request):
     require_client_manager(request.user)
-    form = ClientForm(request.POST or None)
+    # Bound for every POST, an empty one included, so it says what is missing.
+    form = ClientForm(request.POST if request.method == "POST" else None)
     list_url = reverse("clients:client-list")
     if request.method == "POST" and form.is_valid():
         try:
@@ -134,7 +135,9 @@ def client_edit(request, pk):
     name = client.name  # a failed ModelForm validation copies the input onto the instance
     record_url = reverse("clients:client-detail", kwargs={"pk": client.pk})
     form = ClientEditForm(
-        request.POST or None, instance=client, initial={"expected_revision": client.revision}
+        request.POST if request.method == "POST" else None,
+        instance=client,
+        initial={"expected_revision": client.revision},
     )
     if request.method == "POST" and form.is_valid():
         try:
@@ -144,7 +147,7 @@ def client_edit(request, pk):
         else:
             messages.success(request, "Changes recorded with their reason.")
             return redirect(record_url)
-    elif form.is_bound and request.POST.get("expected_revision") != str(
+    elif form.is_bound and _posted_revision(request) != (
         Client.objects.filter(pk=client.pk).values_list("revision", flat=True).first()
     ):
         # Refused by the form itself (a choice no longer offered, such as an owner replaced and
@@ -168,6 +171,14 @@ def client_edit(request, pk):
             "cancel_url": record_url,
         },
     )
+
+
+def _posted_revision(request):
+    """The revision a posted form was drawn with, as a number (None when it is not one)."""
+    try:
+        return int(request.POST.get("expected_revision", ""))
+    except ValueError:
+        return None
 
 
 def _portal_accounts(client):

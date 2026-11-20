@@ -323,3 +323,32 @@ def test_a_stale_valid_organization_form_is_told_to_reload_by_the_service(client
     assert response.status_code == 200
     assert directory.CHANGED in str(response.context["form"].non_field_errors())
     assert Client.objects.get(pk=clinic.pk).phone != "555-0182"
+
+
+# Second confirmation (D1 to D11): the cases next to the fixes ------------------------------------
+
+
+def test_setup_with_held_and_missing_roles_reports_and_records_only_the_missing(make_user):
+    from accounts.setup import setup_lab
+
+    person = make_user("mixed_roles", "admin", is_staff=True, is_superuser=True)
+    setup_lab(lab_name="Example laboratory", username=person.username)
+    result = setup_lab(username=person.username, roles=["admin", "technical", "supervisor"])
+    added = [message for message in result.messages if message.startswith("Added roles")]
+    assert added == ["Added roles to 'mixed_roles': technical, supervisor."]
+    event = AuditEvent.objects.get(action="setup.account_roles_added", object_id=str(person.pk))
+    assert set(event.after["groups"]) - set(event.before["groups"]) == {"technical", "supervisor"}
+
+
+def test_a_stale_portal_reply_says_how_to_recover_without_sending_twice(
+    client, agent, sample_category, clinic, clinic_portal
+):
+    PortalAccess.objects.create(user=clinic_portal, client=clinic, whole_organization=True)
+    ticket = new_request(agent, sample_category, client=clinic)
+    client.force_login(clinic_portal)
+    url = reverse("portal:request-reply", args=[ticket.number])
+    response = client.post(
+        url, {"body": "Synthetic text", "expected_revision": ticket.revision - 1}
+    )
+    errors = " ".join(response.context["reply_form"].non_field_errors())
+    assert "do not send it again" in errors and "Reload" not in errors

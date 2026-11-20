@@ -40,6 +40,7 @@ from .portal_forms import (
     client_status,
 )
 from .portal_scope import portal_requests
+from .services import STALE
 from .visibility import client_visible
 
 SIGNATURE_LIMIT = 3  # follow-up chain shown on the page
@@ -252,11 +253,22 @@ def request_reply(request, number):
         except ServiceRequest.DoesNotExist:
             raise Http404("No such ticket.") from None
         except ValidationError as exc:
-            _form_errors(form, exc)
+            if STALE in exc.messages:
+                # The shared message says to reload, which here would send the form again.
+                form.add_error(None, STALE_REPLY)
+            else:
+                _form_errors(form, exc)
         else:
             messages.success(request, "Reply sent to the laboratory.")
             return redirect(f"{detail_url}#conversation")
     return request_detail(request, number, reply_form=form)
+
+
+STALE_REPLY = (
+    "This ticket changed after you opened it, so your reply was not sent. Copy your text, open "
+    "the ticket again from Tickets and read the conversation. If your reply is already there, it "
+    "was sent: do not send it again. Otherwise paste it and send it."
+)
 
 
 def _form_errors(form, exc):

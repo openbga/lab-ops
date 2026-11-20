@@ -89,6 +89,18 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
+### Review follow-up: the jobs' account's first use and a page drawn across a change
+
+- **Delivers:** three small changes that the independent review of "decisions read before a wait"
+  found predating it. The first run of the scheduled jobs can wait for a person's account being
+  created at that moment with the jobs' account's preferred username or address. Two such
+  accounts created at the same moment can end up with names or addresses that differ only in
+  letter case. A portal ticket page drawn while a staff reply commits can show that reply with a
+  reply form one revision older: the client's reply is then refused, and they open the ticket
+  again. Acceptance cases: the review's tests for D5, D6 and D11.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** nothing.
+
 ### Automatic sign-out and session control
 
 - **Delivers:** sign-out after a period without activity and a maximum session length, both set by
