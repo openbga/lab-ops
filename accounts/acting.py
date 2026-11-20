@@ -186,8 +186,7 @@ def _hold_portal_rows(pk):
     )
 
 
-# On the thread's own connection: account pk -> (PostgreSQL transaction id, the savepoints open
-# when it was held, the reading), for the holds still in force.
+# On the thread's own connection: account pk -> (PostgreSQL transaction id, the reading).
 _HELD = "_acting_held"
 
 
@@ -198,15 +197,23 @@ def _transaction_id():
 
 
 def _still_held(pk, xid):
-    """The reading of an earlier hold of `pk` in this transaction, or None: the same top-level
-    transaction (its id is never reused), and every savepoint open at that hold still open, since
-    rolling one back releases the locks taken inside it."""
+    """The reading of an earlier hold of `pk` in this transaction, or None. The same top-level
+    transaction (its id is never reused), and this session still holds the account's gate
+    shared: PostgreSQL releases it, with the rows held after it, when a savepoint taken before
+    the hold rolls back (through atomic() or Django's savepoint API), and keeps both when one
+    is released."""
     conn = transaction.get_connection()
     found = getattr(conn, _HELD, {}).get(pk)
     if found is None or found[0] != xid:
         return None
-    savepoints = tuple(conn.savepoint_ids[: len(found[1])])
-    return found[2] if savepoints == found[1] else None
+    with conn.cursor() as cursor:
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
+            "AND pid = pg_backend_pid() AND granted AND mode = 'ShareLock' "
+            "AND classid::bigint = %s AND objid::bigint = %s AND objsubid = 2)",
+            [ACCESS_GATE, pk % INT4],
+        )
+        return found[1] if cursor.fetchone()[0] else None
 
 
 def hold_actor(actor):
@@ -237,7 +244,7 @@ def hold_actor(actor):
         _hold_portal_rows(pk)
     conn = transaction.get_connection()
     held = {key: value for key, value in getattr(conn, _HELD, {}).items() if value[0] == xid}
-    held[pk] = (xid, tuple(conn.savepoint_ids), current)
+    held[pk] = (xid, current)
     setattr(conn, _HELD, held)
     return current
 

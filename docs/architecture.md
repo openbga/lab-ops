@@ -142,9 +142,10 @@ added to a role, do not wait; a full save of the account (its page, a password c
 every save of a portal account's access take the gate and wait for the person's change under
 way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
-organization and changing a site, which can wait for the directory lock below and hold their
-actor as an import does. A second hold of the same account in the same transaction (an
-organization change inside an import) returns the first reading and locks nothing new. The services that reveal patient
+organization, a site or a contact, which can wait for the directory lock or an organization an
+import holds, and hold their actor as an import does. A second hold of the same account in the same transaction (an
+organization change inside an import) returns the first reading and locks nothing new while the
+first is in force, which PostgreSQL's own lock table tells. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
@@ -156,15 +157,17 @@ order of its own, first takes the organization directory lock, a transaction-lev
 ([clients/services.py](../clients/services.py) `hold_directory`), after holding its actor:
 every import, before it reads the file; creating an organization; changing an organization's
 name, account code or parent (which locks the organization and then walks up the new parent's
-chain); changing a site's code; and the demonstration seed, before its organizations, their
-links and its table locks. They take their turns: the second waits for the first to commit and
+chain); changing a site's code; and the demonstration seed, after holding the accounts it acts
+as and before anything else it locks. They take their turns: the second waits for the first to commit and
 decides on what it saved, so a parent that would now close a loop is refused, a code taken
 meanwhile is refused as a duplicate, and an import reads names and codes as the change before it
 left them. An organization change decides whether it needs the lock from a reading before its
 locks; the revision check makes that reading the saved state for every change made through the
 services. Changing an organization's other details, taking it out of its group, its contacts, a
-site's other details and links do not take that lock. A contact's served sites are held and
-checked as read under that hold. Should the database still end an import's locks to break a
+site's other details and links do not take that lock. A sites or contacts file locks its
+organizations in file order before its first row, and a contact's served sites are held and
+checked as read under that hold, so a file and a contact saved at the same moment wait for each
+other one way. Should the database still end an import's locks to break a
 deadlock, the file is refused with nothing imported.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.

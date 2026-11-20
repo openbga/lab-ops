@@ -107,7 +107,8 @@ class RecordType:
     # person-level identifier, which is never shown).
     early_label: Callable = lambda keys: " · ".join(value for value in keys.values() if value)
     # (rows) -> None: before any row is written, lock the records the rows share in the order
-    # their service locks them (external identifiers: hold_external_ids).
+    # their service locks them (external identifiers: hold_external_ids; sites and contacts:
+    # hold_organizations).
     hold: Callable = lambda rows: None
 
     @property
@@ -563,8 +564,31 @@ def write_site(actor, existing, new_fields, data, reason):
         )
 
 
+def _changing(rows):
+    return [row for row in rows if not row.errors and row.action in ("create", "update")]
+
+
+def _row_organization(row):
+    if row.existing is not None and getattr(row.existing, "client_id", None) is not None:
+        return row.existing.client_id
+    return (row.new_fields or {}).get("client_id")
+
+
+def hold_organizations(rows):
+    """Lock the organizations of the rows that change something, in the order the file first
+    names them, before any row is written. A site or contact row's service locks its organization
+    and then, for a contact, the sites it serves (clients.services._served_sites), while a
+    sites file updates a site before a later row needs its organization: taken all at first, the
+    file and a contact saved at the same moment wait for each other one way. The import holds the
+    directory lock already (_hold_importer), so no other change locks several of them meanwhile."""
+    for organization_id in dict.fromkeys(_row_organization(row) for row in _changing(rows)):
+        if organization_id is not None:
+            list(Client.objects.select_for_update().filter(pk=organization_id).values_list("pk"))
+
+
 SITES = RecordType(
     slug="sites",
+    hold=hold_organizations,
     title="Sites",
     noun="site",
     needs="Organizations: every account_code must exist already.",
@@ -672,6 +696,7 @@ def write_contact(actor, existing, new_fields, data, reason):
 
 CONTACTS = RecordType(
     slug="contacts",
+    hold=hold_organizations,
     title="Contacts",
     noun="contact",
     needs="Organizations, and the sites named in site_codes.",

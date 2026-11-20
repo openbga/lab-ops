@@ -9,8 +9,10 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from accounts.acting import hold_actor
 from accounts.models import User
 from accounts.roles import ROLE_LABELS, ROLES
+from clients.services import hold_directory
 from core import demo, lab_profile
 from core.announcements import save_announcement
 from core.audit import record_event
@@ -60,6 +62,9 @@ ANNOUNCED_ACCOUNTS = (
     ("demo_client_water", "client portal of a water utility, one plant only"),
 )
 
+# Every account the seed's steps act as (see each app's seed).
+SEED_ACTORS = ("demo_admin", *(username for username, _summary in ANNOUNCED_ACCOUNTS))
+
 
 class Command(BaseCommand):
     help = "Create synthetic demo records once; never reset existing data or passwords."
@@ -85,6 +90,13 @@ class Command(BaseCommand):
             raise CommandError(
                 "DEMO_ADMIN_PASSWORD needs at least 12 characters, or leave it unset."
             )
+        # The demonstration accounts the seed acts as, in id order (as an access change takes
+        # their gates), then the organization directory lock, before anything else it locks: no
+        # step of the seed then holds a record an import needs while it waits for the import.
+        actors = User.objects.filter(username__in=SEED_ACTORS).order_by("pk")
+        for account in actors:
+            hold_actor(account)
+        hold_directory()
         # Only a seed that starts from an empty database (the test reset_demo applies) may seal
         # the laboratory it creates: the seal is what later lets reset_demo erase everything.
         # The lock keeps every other connection from writing until this seed commits, so the

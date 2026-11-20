@@ -266,7 +266,8 @@ def _served_sites(contact, sites):
 
 @transaction.atomic
 def add_contact(*, actor, client_id, sites=(), **data):
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
+    actor = _held_manager(actor)
     client = Client.objects.select_for_update().get(pk=client_id)
     contact = ClientContact(client=client, **{k: v for k, v in data.items() if k in CONTACT_FIELDS})
     _strip(contact, ("name", "role", "email", "phone"))
@@ -287,8 +288,9 @@ def add_contact(*, actor, client_id, sites=(), **data):
 @transaction.atomic
 def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, **data):
     """Change a contact. `sites` None leaves the served sites as they are."""
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
+    actor = _held_manager(actor)
     contact = ClientContact.objects.select_for_update().get(pk=contact_id)
     if contact.revision != expected_revision:
         raise ValidationError("This contact changed. Reload and review the current record.")
@@ -323,12 +325,13 @@ def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, 
 def create_site(*, actor, client_id, **data):
     """Add a site to an organization. Its code, when given, is unique within the organization
     whatever its case (database constraint client_site_code)."""
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
+    actor = _held_manager(actor)
     client = Client.objects.select_for_update().get(pk=client_id)
     site = ClientSite(client=client, **{k: v for k, v in data.items() if k in SITE_FIELDS})
     _strip(site, ("code", "name", "phone", "city", "postal_code"))
     site.full_clean()
-    site.save()
+    _save_unique(site)
     record_event(actor=actor, action="site.created", obj=site, after=snapshot(site))
     return site
 
@@ -364,7 +367,7 @@ def update_site(*, actor, site_id, expected_revision, reason, **data):
     if snapshot(site) == before:
         raise ValidationError("Change at least one detail before saving.")
     site.revision += 1
-    site.save()
+    _save_unique(site)
     record_event(
         actor=actor,
         action="site.updated",
