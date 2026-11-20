@@ -22,12 +22,13 @@ USERNAME = "scheduled-jobs"
 EMAIL_DOMAIN = "lab-ops.invalid"
 
 
-def locked_settings():
-    """The settings row, created with its defaults if absent, locked for this transaction."""
+def locked_settings(nowait=False):
+    """The settings row, created with its defaults if absent, locked for this transaction. With
+    `nowait`, a row someone is saving raises OperationalError (lock not available) at once."""
     if not connection.in_atomic_block:
         raise RuntimeError("Lock the scheduled job settings inside a transaction.")
     JobSettings.objects.get_or_create(pk=1)
-    return JobSettings.objects.select_for_update().get(pk=1)
+    return JobSettings.objects.select_for_update(nowait=nowait).get(pk=1)
 
 
 def _free(field, base, template):
@@ -40,8 +41,10 @@ def _free(field, base, template):
     return value
 
 
-def system_account():
-    """The scheduled jobs' account, created on first use."""
+def system_account(nowait=False):
+    """The scheduled jobs' account, created on first use. With `nowait`, creating it while an
+    administrator is saving the job settings raises OperationalError (lock not available) at
+    once instead of waiting for them."""
     from accounts.models import User
 
     # Once created, its id never changes: read it without the settings row's lock, which an
@@ -52,7 +55,7 @@ def system_account():
         if user is not None:
             return user
     with transaction.atomic():
-        settings_row = locked_settings()
+        settings_row = locked_settings(nowait=nowait)
         if settings_row.system_account_id is not None:
             return User.objects.get(pk=settings_row.system_account_id)
         user = User(

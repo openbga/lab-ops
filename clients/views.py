@@ -30,6 +30,7 @@ from .forms import (
 from .models import Client, ClientContact, ClientSite, PortalAccess
 from .permissions import require_client_manager
 from .services import (
+    CHANGED,
     add_contact,
     create_client,
     create_site,
@@ -143,6 +144,10 @@ def client_edit(request, pk):
         else:
             messages.success(request, "Changes recorded with their reason.")
             return redirect(record_url)
+    elif request.method == "POST" and request.POST.get("expected_revision") != str(client.revision):
+        # Refused by the form itself (a choice no longer offered, such as an owner replaced and
+        # deactivated meanwhile), on a page drawn before another change: say so first.
+        form.add_error(None, CHANGED)
     return render(
         request,
         "core/record_form.html",

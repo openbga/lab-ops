@@ -1,6 +1,7 @@
 """Changes to client organizations and their contacts. Each change locks the record, rechecks its
 revision, and records an attributed audit event in the same transaction."""
 
+import contextlib
 import json
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -61,6 +62,29 @@ def _strip(obj, names):
 OWNER_REFUSED = "Choose an active laboratory staff account as the account owner."
 
 
+# On the transaction's connection: owner id -> (account, roles) held already for a block of work
+# (owners_scope).
+_OWNERS = "_held_owners"
+
+
+@contextlib.contextmanager
+def owners_scope(readings):
+    """For a block of work: hold_owners of an account in `readings` ({id: (account, roles)}, held
+    by this transaction before the block, as an import holds the owners its file names) returns
+    that reading and locks nothing again, so a row's service never waits for a membership taken
+    or given after the file was read while it holds organizations. Every savepoint the block
+    opens comes after those holds, so none can release them."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("A scope of held owners lasts for a transaction; open one first.")
+    conn = transaction.get_connection()
+    previous = getattr(conn, _OWNERS, {})
+    setattr(conn, _OWNERS, {**previous, **readings})
+    try:
+        yield
+    finally:
+        setattr(conn, _OWNERS, previous)
+
+
 def hold_owners(owners):
     """Lock the accounts named as organizations' owners, in id order, until the transaction
     ends: each account FOR NO KEY UPDATE, then its roles (held FOR KEY SHARE, as an assignment
@@ -79,8 +103,12 @@ def hold_owners(owners):
     from accounts.roles import held_roles
 
     user_model = get_user_model()
+    scoped = getattr(transaction.get_connection(), _OWNERS, {})
     held = {}
     for pk in sorted({getattr(owner, "pk", owner) for owner in owners if owner is not None}):
+        if pk in scoped:
+            held[pk] = scoped[pk]
+            continue
         current = user_model.objects.select_for_update(no_key=True).filter(pk=pk).first()
         held[pk] = (current, held_roles(current, mode="key share") if current else set())
     return held

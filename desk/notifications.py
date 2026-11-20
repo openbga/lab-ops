@@ -165,6 +165,8 @@ def try_hold_notice_settings(user_ids):
     tries again at its next run); then a change started afterwards waits for the job."""
     from accounts.acting import INT4
 
+    if not connection.in_atomic_block:
+        raise RuntimeError("The notice setting locks are held for a transaction; open one first.")
     keys = sorted({pk % INT4 for pk in user_ids if pk is not None})
     with connection.cursor() as cursor:
         for key in keys:

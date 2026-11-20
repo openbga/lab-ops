@@ -69,7 +69,16 @@ def notice_breaches(now=None):
         page = list(page.order_by("pk").values_list("pk", "request_id")[:BREACH_BATCH])
         if not page:
             break
-        actor = actor or system_account()
+        if actor is None:
+            try:
+                actor = system_account(nowait=True)
+            except OperationalError as exc:
+                if not is_lock_unavailable(exc):
+                    raise
+                # Created on first use, under the job settings' lock, which an administrator
+                # saving the settings holds: this run waits for nobody and leaves it to the next.
+                counts["busy"] += 1
+                break
         for clock_id, request_id in page:
             after = clock_id
             try:

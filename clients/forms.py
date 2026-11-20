@@ -2,7 +2,7 @@ from django import forms
 from django.db import models
 
 from core.forms import REASON_HELP, ActiveFilter, GroupedForm, StaffChoiceField, StyledForm
-from core.lookups import RemoteSelect
+from core.lookups import RemoteSelect, role_holders
 from core.vocabulary import US_STATES
 from core.widgets import ListOrOtherField, TelInput
 
@@ -34,6 +34,8 @@ class ParentField(forms.ModelChoiceField):
 class ClientForm(GroupedForm, StyledForm, forms.ModelForm):
     parent = ParentField()
     account_owner = StaffChoiceField(
+        queryset=role_holders().order_by("first_name", "last_name", "username"),
+        widget=RemoteSelect("role-holders"),
         required=False,
         empty_label="No account owner",
         label="Account owner",
@@ -109,7 +111,7 @@ class ClientEditForm(ClientForm):
             # and the service checks one that is set or changed).
             field = self.fields["account_owner"]
             field.queryset = field.queryset.model.objects.filter(
-                models.Q(is_active=True, client__isnull=True) | models.Q(pk=owner_id)
+                models.Q(pk__in=role_holders().values("pk")) | models.Q(pk=owner_id)
             ).order_by("first_name", "last_name", "username")
             name = field.label_from_instance
             field.label_from_instance = lambda user: (

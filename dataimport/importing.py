@@ -189,6 +189,9 @@ class Preview:
     rows: list = field(default_factory=list)
     file_errors: list = field(default_factory=list)
     state_token: str = ""
+    # The accounts the file names as owners, held before its rows were read (_hold_named_accounts):
+    # {id: (account, roles)}, for the rows' services (clients.services.owners_scope).
+    held_owners: dict = field(default_factory=dict)
 
     @property
     def ok(self):
@@ -1190,6 +1193,9 @@ def parse(record_type, data, filename):
     if preview.file_errors:
         return preview
     accounts = _hold_named_accounts(record_type, names, text)
+    preview.held_owners = {
+        account.pk: (account, roles) for account, roles in (accounts or {}).values()
+    }
     present = set(names)
     seen = {}
     context = {"new_codes": set(), "new_names": set(), "notes": {}, "not_applied": {}, "bound": {}}
@@ -1333,7 +1339,8 @@ def preview_file(record_type, *, actor, data, filename):
     with transaction.atomic(), _importing(actor):
         preview = parse(record_type, data, filename)
         if not preview.file_errors:
-            _apply(record_type, actor, preview, "")
+            with services.owners_scope(preview.held_owners):
+                _apply(record_type, actor, preview, "")
         transaction.set_rollback(True)
     return preview
 
@@ -1359,7 +1366,8 @@ def commit_file(record_type, *, actor, data, filename, reason, state_token):
             )
         if preview.needs_reason and not reason:
             raise ValidationError({"reason": "Give the reason for changing existing records."})
-        _apply(record_type, actor, preview, reason)
+        with services.owners_scope(preview.held_owners):
+            _apply(record_type, actor, preview, reason)
         if not preview.ok:
             transaction.set_rollback(True)
             if preview.file_errors:  # refused as a whole (LOCKS_REFUSED): say why
