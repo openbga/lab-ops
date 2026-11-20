@@ -18,6 +18,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import require_staff
 from clients.models import Client
+from core.concurrency import reading_account
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -60,6 +61,14 @@ LINK_PAGE_STALE = (
     "This ticket changed after you opened this page, so nothing was saved. Go back to the ticket, "
     "check it as it is now, and reopen this page."
 )
+
+
+def _flag_stale(form, service_request, revision):
+    """On a link page drawn again with errors, say it is stale when the ticket has changed since
+    the page was opened, so correcting a field alone is not met with a second refusal."""
+    if form.errors and service_request.revision != revision:
+        if LINK_PAGE_STALE not in form.non_field_errors():
+            form.add_error(None, LINK_PAGE_STALE)
 
 
 def _errors(form, exc):
@@ -243,11 +252,18 @@ def request_link_add(request, pk):
             )
             return redirect(back)
     if request.method == "POST":
-        # Drawn again as the ticket is now: one closed meanwhile takes no link.
-        service_request = _readable_request(request.user, pk)
+        # Drawn again as the account and the ticket are now: who asks first, then the ticket (one
+        # closed meanwhile takes no link), the types the capability offers, and whether the page
+        # is already stale (a field to correct must not hide that).
+        reader = reading_account(request)
+        require_staff(reader)
+        service_request = _readable_request(reader, pk)
         if service_request.status == "closed":
             messages.info(request, CLOSED_MESSAGE)
             return redirect(back)
+        allow_person = can_see_person_links(reader)
+        form.offer_types(allow_person)
+        _flag_stale(form, service_request, revision)
     response = _add_page(
         request,
         form,
@@ -339,12 +355,17 @@ def attachment_remove(request, pk):
             messages.success(request, "Link removed. Its history stays.")
             return redirect(back)
     if request.method == "POST":
-        # Drawn again (refused, or a field to correct) as the link and its ticket are now, not as
-        # they were read before: removed meanwhile, shown or hidden, or the ticket closed.
-        attachment = _attachment_for(request.user, pk)
-        if attachment.request_id is not None and attachment.request.status == "closed":
-            messages.info(request, CLOSED_MESSAGE)
-            return redirect(back)
+        # Drawn again (refused, or a field to correct) as the account, the link and its ticket are
+        # now, not as they were read before: who asks first, then removed meanwhile, shown or
+        # hidden, the ticket closed, or the page already stale.
+        reader = reading_account(request)
+        require_staff(reader)
+        attachment = _attachment_for(reader, pk)
+        if attachment.request_id is not None:
+            if attachment.request.status == "closed":
+                messages.info(request, CLOSED_MESSAGE)
+                return redirect(back)
+            _flag_stale(form, attachment.request, revision)
     target = attachment.request.number if attachment.request_id else attachment.client.name
     response = render(
         request,

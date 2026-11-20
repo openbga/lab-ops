@@ -133,15 +133,20 @@ class LinkForm(GroupedForm, StyledForm, forms.Form):
     def __init__(self, *args, allow_person=False, for_request=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["system"].queryset = ExternalSystem.objects.filter(is_active=True)
+        self.offer_types(allow_person and for_request)
+        if not for_request:
+            self.fields.pop("shown_to_client")
+
+    def offer_types(self, allow_person):
+        """The record types offered: person-level ones only with the capability, as it stands
+        when the form is drawn (again after a refusal)."""
         choices = list(NON_PERSON_TYPES)
-        if allow_person and for_request:
+        if allow_person:
             choices += [(value, f"{label} (person-level)") for value, label in PERSON_TYPES]
             self.person_warning = PERSON_WARNING
         else:
             self.person_warning = ""
         self.fields["record_type"].choices = choices
-        if not for_request:
-            self.fields.pop("shown_to_client")
 
     def clean(self):
         data = super().clean()

@@ -666,7 +666,9 @@ def request_take(request, pk):
         services.take(
             actor=request.user,
             request=request_obj,
-            expected_revision=int(request.POST.get("expected_revision") or 0),
+            # A malformed value (a page from before revisions were sent as plain numbers) is no
+            # revision: refused as stale, not an error.
+            expected_revision=whole_number(request.POST.get("expected_revision", "")) or 0,
         )
     except ServiceRequest.DoesNotExist:
         raise Http404("No such ticket.") from None
@@ -1193,13 +1195,20 @@ def view_edit(request, pk):
     )
     if not is_supervisor(request.user) and view.shared_with == "private":
         form.fields["shared_with"].choices = [("private", "Only me")]
+    # The view's revision the page belongs to: read now when drawn; on a POST the one the page
+    # sent, kept when it is drawn again, so a refused page is not made current by drawing it.
+    drawn = (
+        whole_number(request.POST.get("expected_revision", "")) or 0
+        if request.method == "POST"
+        else view.revision
+    )
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
             saved_views.update_view(
                 actor=request.user,
                 view=view,
-                expected_revision=int(request.POST.get("expected_revision") or 0),
+                expected_revision=drawn,
                 name=data["name"],
                 shared_with=data["shared_with"],
                 team=data["team"],
@@ -1218,6 +1227,7 @@ def view_edit(request, pk):
             "page_title": f"Edit view {view.name}",
             "form": form,
             "view": view,
+            "drawn_revision": drawn,
             "cancel_url": _saved_url(view),
             "submit_label": "Save changes",
             "crumbs": [("Tickets", reverse("desk:request-list")), (view.name, None)],
