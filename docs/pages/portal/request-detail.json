@@ -177,7 +177,7 @@
         },
         {
           "label": "Ticket changed meanwhile",
-          "description": "If the ticket changed after you opened the page, the reply is refused with a message saying so, and the text you wrote stays in the box. Sending it again from this page, or reloading it, is refused the same way (also when your own earlier reply was what changed the ticket, so the page never sends it twice): copy the text and open the ticket again from Tickets. If your reply already shows in the Conversation, it was sent: do not send it again. Otherwise paste it and send it. Choose files again if you had chosen any."
+          "description": "The page shows the ticket as it stood at the moment you opened it: the conversation, status and details are read together, and the reply box sends against that moment. If the ticket changed after you opened the page, the reply is refused with a message saying so, and the text you wrote stays in the box. Sending it again from this page, or reloading it, is refused the same way (also when your own earlier reply was what changed the ticket, so the page never sends it twice): copy the text and open the ticket again from Tickets. If your reply already shows in the Conversation, it was sent: do not send it again. Otherwise paste it and send it. Choose files again if you had chosen any."
         },
         {
           "label": "Your reply, not sent",
@@ -188,7 +188,7 @@
     {
       "title": "Access",
       "paragraphs": [
-        "Only an active client portal account can open this page, and only for a ticket it may see: one it raised, or one of its organization's or its sites' tickets when the laboratory gave it that access. A ticket in a restricted category is seen only by the account that raised it. Any other ticket number answers as not found. The page never shows internal notes, logged contacts, who is assigned, priorities, service clocks, complaint records or patient links. Sending a reply is a POST-only action of this page and has no page of its own."
+        "Only an active client portal account can open this page, and only for a ticket it may see: one it raised, or one of its organization's or its sites' tickets when the laboratory gave it that access. A ticket in a restricted category is seen only by the account that raised it. Any other ticket number answers as not found. The page never shows internal notes, logged contacts, who is assigned, priorities, service clocks, complaint records or patient links. Sending a reply is a POST-only action of this page and has no page of its own. Your account is checked again as the page is read: an account deactivated, or moved to another organization, while the page opens is refused."
       ]
     }
   ],

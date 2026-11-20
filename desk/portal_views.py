@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.db.models import Case, CharField, IntegerField, Value, When
 from django.db.models.functions import Extract
 from django.http import Http404
@@ -24,6 +25,7 @@ from django.views.decorators.http import require_POST
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.portal import client_required
+from core.concurrency import one_reading, reading_account
 from core.lists import list_response, return_list_params
 from taxonomy import terms
 from taxonomy.choices import Priority
@@ -174,8 +176,20 @@ def _portal_request(user, number):
 
 
 @never_cache  # form details may hold the client's patient information (request_forms)
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @client_required
 def request_detail(request, number, reply_form=None):
+    # One reading for the access check and the whole page, drawing included: the reply form
+    # carries the revision of the conversation, status and details shown, so a reply the
+    # laboratory adds while the page is drawn is either shown with its revision or not at all.
+    with one_reading():
+        reader = reading_account(request)
+        if reader.client_id is None or not reader.is_active:
+            raise PermissionDenied("The client portal is for client accounts.")
+        return _request_page(request, number, reply_form)
+
+
+def _request_page(request, number, reply_form):
     service_request = _portal_request(request.user, number)
     # Also drawn by a refused reply: the help is this page's (core.page_docs).
     request.documentation_page = ("portal:request-detail", {"number": number})

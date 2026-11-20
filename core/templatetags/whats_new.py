@@ -6,13 +6,16 @@ Shown to every signed-in staff account (with or without a lab role); client acco
 new. The count is the entries in changelog.d/ newer than what this user saw when they last opened
 the page (core.changelog.unread and the whats_new.seen preference), so it needs no query of its own.
 An account without a seen mark yet (a new account) has nothing new: the first shell it sees records
-the newest entries as seen and shows no count.
+the newest entries as seen and shows no count. A page drawn inside one reading of the database
+(core.concurrency.one_reading) records the mark after that reading ends, so the page writes
+nothing inside it.
 """
 
 from django import template
 from django.urls import reverse
 
 from core import changelog, preferences
+from core.concurrency import after_reading
 
 register = template.Library()
 
@@ -29,10 +32,14 @@ def whats_new_button(context):
         count = 0
         seen = changelog.seen_marker(entries)
         if seen is not None:
-            try:
-                preferences.save(request, preferences.WHATS_NEW_KEY, seen)
-            except ValueError:
-                pass  # too many saved preferences: the next page tries again
+
+            def record():
+                try:
+                    preferences.save(request, preferences.WHATS_NEW_KEY, seen)
+                except ValueError:
+                    pass  # too many saved preferences: the next page tries again
+
+            after_reading(record)
     else:
         count = len(changelog.unread(entries, marker))
     match = getattr(request, "resolver_match", None)

@@ -29,6 +29,10 @@ its authorization and the current state, makes the changes and records their aud
 the same transaction. Row locks and expected revisions protect decisions against concurrent
 changes. A form posted with an earlier revision of its record is shown again, to anyone who may
 still read the record, with what was typed and the reason it cannot be saved: nothing is written.
+A ticket's page, on the desk and in the portal, is read and drawn in one snapshot of the database
+(`core.concurrency.one_reading`), the signed-in account and its access included, so the revision
+its forms carry is the one of everything it shows; what drawing writes (the What's new mark) is
+saved after the snapshot (`core.concurrency.after_reading`).
 After its last lock a change reads the acting account and its scope again before it writes. The
 deployment's `TIME_ZONE` defines local input and display. The laboratory profile
 records the zone selected at setup.
@@ -230,7 +234,9 @@ jobs page.
 
 A job that changes a record acts as a dedicated "Scheduled jobs" account ([jobs/actor.py](../jobs/actor.py)),
 created on first use, inactive, with no usable password, role or deliverable address. Its id is
-stored in the job settings, not looked up by name. A job decides from records read under its own
+stored in the job settings, not looked up by name. Its name and address are a base name with a
+random suffix, so a person's account being created at the same moment holds neither, in any
+letter case, and the first run never waits for one. A job decides from records read under its own
 locks: the automatic close locks the settings row and then the ticket, and the breach notice
 locks the ticket and then its clock, the same order as the ticket services, and then, without
 waiting, the access gates of everyone the rule names, shared

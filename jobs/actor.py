@@ -9,10 +9,16 @@ team and an address in the reserved .invalid domain (RFC 6761), so nobody can si
 given work or receive mail as it. Sign-in refuses it even if someone activates it and sets a
 password in the admin console (accounts.adapter). Its id is kept in JobSettings.system_account
 and never looked up by name, so a person's account with a similar name is never taken for it.
-Creating it is audited.
+Its name and address are a base name with a random suffix chosen when it is created, so no
+person's account, saved already or being created at that moment, holds either of them in any
+letter case: the first run never waits for a person's account being created, and the two never
+differ only in case. Creating it is audited.
 """
 
+import secrets
+
 from django.db import IntegrityError, OperationalError, connection, transaction
+from django.db.models import Q
 
 from core.audit import record_event
 
@@ -56,14 +62,20 @@ def locked_settings(nowait=False):
         raise
 
 
-def _free(field, base, template):
+def _identity():
+    """A name and address for the jobs' account that no account holds, in any letter case. The
+    suffix is random, so no person's account being created at this moment holds them: the check
+    below cannot see an account that is not committed yet, and an insert with its name would wait
+    for it. The check covers the accounts already saved."""
     from accounts.models import User
 
-    value, n = base, 1
-    while User.objects.filter(**{f"{field}__iexact": value}).exists():
-        n += 1
-        value = template.format(n=n)
-    return value
+    for _attempt in range(5):
+        username = f"{USERNAME}-{secrets.token_hex(4)}"
+        email = f"{username}@{EMAIL_DOMAIN}"
+        taken = Q(username__iexact=username) | Q(email__iexact=email)
+        if not User.objects.filter(taken).exists():
+            return username, email
+    raise RuntimeError("No free name for the scheduled jobs' account.")
 
 
 def system_account(nowait=False):
@@ -94,13 +106,12 @@ def _create_system_account(nowait):
         if settings_row.system_account_id is not None:
             return User.objects.get(pk=settings_row.system_account_id)
         for attempt in range(5):
-            # The name and address are chosen free; an account created with one of them at the
-            # same moment takes it first, and the next attempt chooses again.
+            # A name and address nobody holds (_identity); should an account saved since the
+            # check hold one of them, the next attempt chooses again.
+            username, email = _identity()
             user = User(
-                username=_free("username", USERNAME, USERNAME + "-{n}"),
-                email=_free(
-                    "email", f"{USERNAME}@{EMAIL_DOMAIN}", USERNAME + "-{n}@" + EMAIL_DOMAIN
-                ),
+                username=username,
+                email=email,
                 first_name="Scheduled",
                 last_name="jobs",
                 is_active=False,

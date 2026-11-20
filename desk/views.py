@@ -27,6 +27,7 @@ from attachments.models import Attachment
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.models import Client
+from core.concurrency import one_reading, reading_account
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -600,10 +601,16 @@ def _nonconformance_context(request, request_obj):
     }
 
 
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def request_detail(request, pk):
-    request_obj = _request_or_404(request.user, pk)
-    response = render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    # One reading for the access check and the whole page, drawing included: every form on it
+    # carries the revision of the timeline, details and links it shows, so a change committed
+    # while the page is drawn is either shown with its revision or not at all.
+    with one_reading():
+        request_obj = _request_or_404(reading_account(request), pk)
+        context = _detail_context(request, request_obj)
+        response = render(request, "desk/request_detail.html", context)
     # Never kept by a shared cache. Not no-store: the browser restores the page from its history,
     # scrubbing a revealed key (static/js, e2e/test_links_journey.py).
     patch_cache_control(response, private=True)
@@ -639,10 +646,11 @@ def request_entry(request, pk):
             messages.success(request, label[entry.kind] + ".")
             return redirect(_record_url(request_obj, _back(request)))
     # Scope again before anything about the request is rendered: it may have left the actor's
-    # scope while the form was validated.
-    request_obj = _request_or_404(request.user, pk)
-    context = _detail_context(request, request_obj, composer=form)
-    response = render(request, "desk/request_detail.html", context, status=400)
+    # scope while the form was validated. Drawn from one reading, like the page.
+    with one_reading():
+        request_obj = _request_or_404(reading_account(request), pk)
+        context = _detail_context(request, request_obj, composer=form)
+        response = render(request, "desk/request_detail.html", context, status=400)
     patch_cache_control(response, private=True)  # like the page (request_detail)
     return response
 

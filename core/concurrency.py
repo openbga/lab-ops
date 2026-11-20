@@ -3,9 +3,11 @@ reading of the database for pages whose parts must agree."""
 
 import json
 from contextlib import contextmanager
+from contextvars import ContextVar
 
 from django import forms
-from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.utils.crypto import constant_time_compare, salted_hmac
 
@@ -37,6 +39,10 @@ def check_original_state(instance, expected):
         )
 
 
+# Whether this thread's reads are inside a reading one_reading opened (its own transaction).
+_IN_OWN_READING = ContextVar("in_own_reading", default=False)
+
+
 @contextmanager
 def one_reading():
     """Reads that must agree with each other, such as a page's panels and its history: one
@@ -46,7 +52,33 @@ def one_reading():
     if connection.in_atomic_block:
         yield
         return
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-        yield
+    opened = _IN_OWN_READING.set(True)
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            yield
+    finally:
+        _IN_OWN_READING.reset(opened)
+
+
+def after_reading(write):
+    """Run `write`, something a page saves while it is drawn, once the reading one_reading opened
+    for the page has ended, or at once when none is open. A page drawn inside its reading thus
+    writes nothing inside it, where a row changed since the snapshot would fail the write."""
+    if _IN_OWN_READING.get():
+        transaction.on_commit(write)
+    else:
+        write()
+
+
+def reading_account(request):
+    """The signed-in account as it stands in the current reading (core.concurrency.one_reading):
+    its status, organization and roles decide access together with what the page shows. It
+    becomes the request's user, with its groups, so every part of the page drawn after the
+    reading (the account menu, the sidebar) shows the same account."""
+    account = get_user_model().objects.prefetch_related("groups").filter(pk=request.user.pk).first()
+    if account is None:
+        raise PermissionDenied("Your account is no longer available.")
+    request.user = account
+    return account
