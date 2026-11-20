@@ -142,26 +142,30 @@ added to a role, do not wait; a full save of the account (its page, a password c
 every save of a portal account's access take the gate and wait for the person's change under
 way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
-organization, which can wait for the directory lock below and holds its actor as an import
-does. The services that reveal patient
+organization and changing a site, which can wait for the directory lock below and hold their
+actor as an import does. A second hold of the same account in the same transaction (an
+organization change inside an import) returns the first reading and locks nothing new. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
 organization locks the organization in the ticket's place. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
 before its first row, so it and a link added at the same moment wait for each other one way.
-Whatever changes how organizations are found or grouped, or may lock several of them in an order
-of its own, first takes the organization directory lock, a transaction-level advisory lock
+Whatever changes how an import finds or checks records, or may lock several organizations in an
+order of its own, first takes the organization directory lock, a transaction-level advisory lock
 ([clients/services.py](../clients/services.py) `hold_directory`), after holding its actor:
-every import, before it reads the file; creating an organization; and changing an
-organization's parent (which locks the organization and then walks up the new parent's chain)
-or its account code. They take their turns: the second waits for the first to commit and
+every import, before it reads the file; creating an organization; changing an organization's
+name, account code or parent (which locks the organization and then walks up the new parent's
+chain); changing a site's code; and the demonstration seed, before its organizations, their
+links and its table locks. They take their turns: the second waits for the first to commit and
 decides on what it saved, so a parent that would now close a loop is refused, a code taken
-meanwhile is refused as a duplicate, and an import reads its file's codes after a renumbering
-has committed (its preview then no longer matches). Changing an organization's other details,
-taking it out of its group, its contacts, sites and links do not take that lock. The demonstration's
-seed and reset take it before they lock the tables. Should the database still end an import's
-locks to break a deadlock, the file is refused with nothing imported.
+meanwhile is refused as a duplicate, and an import reads names and codes as the change before it
+left them. An organization change decides whether it needs the lock from a reading before its
+locks; the revision check makes that reading the saved state for every change made through the
+services. Changing an organization's other details, taking it out of its group, its contacts, a
+site's other details and links do not take that lock. A contact's served sites are held and
+checked as read under that hold. Should the database still end an import's locks to break a
+deadlock, the file is refused with nothing imported.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

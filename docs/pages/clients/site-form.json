@@ -54,7 +54,7 @@
         },
         {
           "label": "Site code",
-          "description": "Optional short code for the site. When given it must be unique within the organization; \"WEST\" and \"west\" count as the same code. Organizations do not share codes with each other, so another organization may use it. In the portal the code is shown beside the site name."
+          "description": "Optional short code for the site. When given it must be unique within the organization; \"WEST\" and \"west\" count as the same code. Organizations do not share codes with each other, so another organization may use it. In the portal the code is shown beside the site name. Contact imports find sites by this code, so changing it waits for an import being saved at that moment, and an import waits for it. If your role to manage client organizations is taken away while you save, the save is refused."
         },
         {
           "label": "Kind",

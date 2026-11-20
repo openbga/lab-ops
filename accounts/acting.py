@@ -186,18 +186,47 @@ def _hold_portal_rows(pk):
     )
 
 
+# On the thread's own connection: account pk -> (PostgreSQL transaction id, the savepoints open
+# when it was held, the reading), for the holds still in force.
+_HELD = "_acting_held"
+
+
+def _transaction_id():
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_current_xact_id()::text")
+        return cursor.fetchone()[0]
+
+
+def _still_held(pk, xid):
+    """The reading of an earlier hold of `pk` in this transaction, or None: the same top-level
+    transaction (its id is never reused), and every savepoint open at that hold still open, since
+    rolling one back releases the locks taken inside it."""
+    conn = transaction.get_connection()
+    found = getattr(conn, _HELD, {}).get(pk)
+    if found is None or found[0] != xid:
+        return None
+    savepoints = tuple(conn.savepoint_ids[: len(found[1])])
+    return found[2] if savepoints == found[1] else None
+
+
 def hold_actor(actor):
     """Hold the acting account's rows until the transaction ends (see the module docstring) and
     return the account as read under its lock, or None for an account that does not exist.
 
-    Call it before anything else the change locks. Calling it again in the same transaction
-    holds nothing new and does not wait. It decides nothing: the change's own checks, made
-    after its locks (desk.services.settle and the like), read the account as it is held."""
+    Call it before anything else the change locks. Called again in the same transaction while
+    the first hold is in force (an organization change inside an import), it returns the first
+    reading and locks nothing: a membership added since is not held, and nothing waits for it.
+    It decides nothing: the change's own checks, made after its locks (desk.services.settle and
+    the like), read the account as it is held."""
     if not connection.in_atomic_block:
         raise RuntimeError("The acting account is held for a transaction; open one first.")
     pk = getattr(actor, "pk", None)
     if pk is None:
         return None
+    xid = _transaction_id()
+    earlier = _still_held(pk, xid)
+    if earlier is not None:
+        return earlier
     _gate([pk], shared=True)  # behind an access change already waiting, if any
     current = _locked_account(pk)
     if current is None:
@@ -206,6 +235,10 @@ def hold_actor(actor):
         _hold_staff_rows(pk)
     else:
         _hold_portal_rows(pk)
+    conn = transaction.get_connection()
+    held = {key: value for key, value in getattr(conn, _HELD, {}).items() if value[0] == xid}
+    held[pk] = (xid, tuple(conn.savepoint_ids), current)
+    setattr(conn, _HELD, held)
     return current
 
 

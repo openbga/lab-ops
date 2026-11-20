@@ -5,8 +5,10 @@ billing system. Organization links are seeded here; request links come
 with the requests' story (`seed_request_link`), all with synthetic TEST identifiers.
 """
 
+from accounts.acting import hold_actor
 from accounts.models import User
 from clients.models import Client
+from clients.services import hold_directory
 
 from .models import ExternalSystem
 from .services import add_link, create_system, update_system
@@ -50,6 +52,10 @@ def seed_setup(ctx):
 
 def seed_records(ctx):
     actor = User.objects.get(username="demo_account_manager")
+    # The actor, then the directory lock, before the first organization's lock: the links lock
+    # their organizations in this list's order, which an import may take the other way round.
+    hold_actor(actor)
+    hold_directory()
     for account, system_key, record_type, identifier, label in CLIENT_LINKS:
         client = Client.objects.filter(account_number=account).first()
         if client is None or client.link_attachments.exists():

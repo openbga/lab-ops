@@ -9,6 +9,7 @@ toxicology), a water utility (environmental), a manufacturer (QC), a research in
 demo_client_water is narrowed to one site.
 """
 
+from accounts.acting import hold_actor
 from accounts.models import User
 
 from .models import Client, ClientContact, ClientSite
@@ -16,6 +17,7 @@ from .services import (
     add_contact,
     create_client,
     create_site,
+    hold_directory,
     set_portal_access,
     update_client,
 )
@@ -310,6 +312,10 @@ def _seed_clients(actor):
     """Create the synthetic client organizations once, through the audited services. Returns
     those created in this run by account code (none when they already existed)."""
     created = {}
+    # The actor, then the directory lock, before deciding: an import under way is waited for and
+    # its organizations seen (clients.services.hold_directory).
+    hold_actor(actor)
+    hold_directory()
     if Client.objects.exists():
         return created
     for fields, parent_code, sites, contacts in DEMO_CLIENTS:

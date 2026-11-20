@@ -859,9 +859,11 @@ def test_a_code_taken_by_a_write_that_skipped_the_directory_lock_is_refused_as_a
 
 def test_a_parent_changed_without_a_new_revision_after_the_first_reading_is_refused(make_user):
     """update_client decides whether it needs the directory lock from a reading before its
-    locks, relying on every change of an organization advancing its revision. A change that
-    did not (a queryset update, standing in for one) between that reading and the lock is
-    refused as changed, never decided on without the lock."""
+    locks, relying on every change made through the services advancing the revision. A write
+    that bypassed them (a queryset update) between that reading and the lock, and that makes
+    this save need the directory lock, is refused as changed, never saved without the lock.
+    Other bypassing writes are not detected: the first case below, leaving the group, is saved
+    over one."""
     group, member = _group_and_member()
     other = Client.objects.create(name="Example Other Group", account_number="EXOTHERG")
     manager = make_user("agd_parent_manager", "account_manager")
