@@ -282,12 +282,9 @@ def add_link(
         raise ValidationError({"role": "Choose a role."})
     request = locked_request(actor, request_id) if request_id is not None else None
     if request is not None:
-        # Who asks is answered before anything about the ticket (changed, closed, its links), and
-        # again after the last lock below.
+        # Who asks is answered before anything about the ticket (closed, its links), and again
+        # after the last lock below.
         actor = _reread(actor, request)
-        if person:
-            require_capability(actor, CAPABILITY)
-        _check_revision(request, expected_revision)
         require_open(request)
     client = Client.objects.select_for_update().get(pk=client_id) if client_id is not None else None
     if client is not None and person:
@@ -300,6 +297,8 @@ def add_link(
         actor = _reread(actor, request)
         if person:
             require_capability(actor, CAPABILITY)
+        # The page's revision, after who asks (the capability included) as it stands now.
+        _check_revision(request, expected_revision)
     if not system.is_active:
         raise ValidationError({"system": "This system is inactive and takes no new links."})
     errors = {}
