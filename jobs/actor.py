@@ -44,6 +44,13 @@ def system_account():
     """The scheduled jobs' account, created on first use."""
     from accounts.models import User
 
+    # Once created, its id never changes: read it without the settings row's lock, which an
+    # administrator saving the job settings holds, so a job does not wait for them.
+    existing = system_account_id()
+    if existing is not None:
+        user = User.objects.filter(pk=existing).first()
+        if user is not None:
+            return user
     with transaction.atomic():
         settings_row = locked_settings()
         if settings_row.system_account_id is not None:

@@ -103,7 +103,7 @@ def try_hold_access(user_ids):
     lets go and tries again later); True when all are held. Whatever takes access away from them
     (close_access) then waits for this transaction, so a decision taken from their accounts,
     roles, capabilities and team memberships read afterwards stays true until it commits. Other
-    changes to the accounts, and assignments to them, do not wait."""
+    changes to the accounts, and assignments to them, do not wait for the gates."""
     if not connection.in_atomic_block:
         raise RuntimeError("An access gate is held for a transaction; open one first.")
     keys = sorted({pk % INT4 for pk in user_ids if pk is not None})

@@ -102,6 +102,19 @@ class ClientEditForm(ClientForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk:  # the service refuses deeper loops; this keeps itself off the list
             self.fields["parent"].queryset = Client.objects.exclude(pk=self.instance.pk)
+        owner_id = self.instance.account_owner_id
+        if owner_id is not None:
+            # The current owner stays shown and chosen after leaving, so saving other details
+            # keeps them; a new owner must still be active staff (the lookup offers no other,
+            # and the service checks one that is set or changed).
+            field = self.fields["account_owner"]
+            field.queryset = field.queryset.model.objects.filter(
+                models.Q(is_active=True, client__isnull=True) | models.Q(pk=owner_id)
+            ).order_by("first_name", "last_name", "username")
+            name = field.label_from_instance
+            field.label_from_instance = lambda user: (
+                name(user) if user.is_active else f"{name(user)}, inactive"
+            )
 
     class Meta(ClientForm.Meta):
         fields = [*ClientForm.Meta.fields, "is_active"]

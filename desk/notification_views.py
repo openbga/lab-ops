@@ -14,7 +14,7 @@ from core import preferences
 from core.forms import StyledForm
 from core.models import UserPreference
 
-from .notifications import OPT_OUT_KEY, wants_notices
+from .notifications import OPT_OUT_KEY, lock_notice_setting, wants_notices
 
 
 class EmailNoticesForm(StyledForm, forms.Form):
@@ -38,6 +38,10 @@ def email_notices(request):
     if request.method == "POST" and form.is_valid():
         enabled = form.cleaned_data["enabled"]
         with transaction.atomic():
+            # The setting's own lock first: the breach job decides whom to tell holding it shared
+            # for everyone it may tell, so this change either comes before (and the job reads it)
+            # or waits for the job, and a job run meanwhile leaves the ticket for its next run.
+            lock_notice_setting(request.user.pk)
             # A notice being sent to this account holds the account's row (jobs.outbox): the
             # change waits for it, and every later attempt reads the new choice. FOR NO KEY
             # UPDATE, so the person's own changes under way, which hold the account FOR KEY

@@ -511,6 +511,8 @@ def _neighbours(user, request_obj, list_query):
 
 def _detail_context(request, request_obj, composer=None):
     user = request.user
+    # Also drawn by a refused change posted from this page: the help is this page's.
+    request.documentation_page = ("desk:request-detail", {"pk": request_obj.pk})
     list_query = _back(request)
     entries = describe(
         list(

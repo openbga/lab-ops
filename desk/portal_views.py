@@ -176,6 +176,8 @@ def _portal_request(user, number):
 @client_required
 def request_detail(request, number, reply_form=None):
     service_request = _portal_request(request.user, number)
+    # Also drawn by a refused reply: the help is this page's (core.page_docs).
+    request.documentation_page = ("portal:request-detail", {"number": number})
     follow_up_of = service_request.follow_up_of
     if (
         follow_up_of is not None
@@ -186,10 +188,12 @@ def request_detail(request, number, reply_form=None):
     can_reply = service_request.status in REPLYABLE
     unsent_reply = None
     if reply_form is not None and not can_reply:
-        # A reply refused because the ticket is closed now, read after the refusal: the text
-        # comes back, read only, instead of a reply form the ticket no longer takes.
+        # A reply refused because the ticket is closed now, read after the refusal: the notice
+        # says so and the text comes back, read only, instead of a reply form the ticket no
+        # longer takes (a reply of files only gets the notice).
         body = reply_form.data.get("body", "")
-        unsent_reply = UnsentReplyForm(initial={"body": body}) if body.strip() else None
+        unsent_reply = UnsentReplyForm(initial={"body": body})
+        unsent_reply.has_text = bool(body.strip())
         reply_form = None
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})

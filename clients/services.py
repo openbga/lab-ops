@@ -231,15 +231,24 @@ def update_client(*, actor, client_id, expected_revision, reason, **data):
     # which come before the organization's lock. Every change made through these services
     # advances the revision, so when the revision below is the one the form was drawn from, this
     # reading was of that state.
-    found = Client.objects.filter(pk=client_id).values(*DIRECTORY_FIELDS, "account_owner_id")
-    found = found.first()
+    found = Client.objects.filter(pk=client_id)
+    found = found.values(*DIRECTORY_FIELDS, "account_owner_id", "revision").first()
+    if found is not None and found["revision"] != expected_revision:
+        raise ValidationError(CHANGED)  # a revision only grows: the locked one differs too
     directory = found is not None and _directory_changes(found, data)
     if directory:
         hold_directory()
     owner = data.get("account_owner")
     appointing = found is not None and owner is not None and owner.pk != found["account_owner_id"]
     if appointing:  # the new owner, held and checked as it stands now
-        data = {**data, "account_owner": _held_owner(owner)}
+        try:
+            data = {**data, "account_owner": _held_owner(owner)}
+        except ValidationError:
+            # The organization changed while this waited for the directory lock or the owner:
+            # that comes first, as the reload is what the person needs to do.
+            if not Client.objects.filter(pk=client_id, revision=expected_revision).exists():
+                raise ValidationError(CHANGED) from None
+            raise
     obj = Client.objects.select_for_update().get(pk=client_id)
     if obj.revision != expected_revision:
         raise ValidationError(CHANGED)

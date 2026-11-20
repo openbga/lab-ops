@@ -305,10 +305,9 @@ def test_an_update_that_takes_no_access_away_does_not_wait_for_the_persons_chang
         session.join()
     assert first.outcome == "done", repr(first.error)
     assert session.outcome == "done", repr(session.error)
-    if update == "password change":  # a full save: waits for the note, then goes through
-        assert (state, behind_note) == ("waiting", True), state
-    else:
-        assert state == "ended", (state, "behind the note" if behind_note else "")
+    # Adapted (decisions read before a wait): a password change saves the password only, so it
+    # takes no access away and, like the others, does not wait for the note.
+    assert state == "ended", (state, "behind the note" if behind_note else "")
 
 
 # V5. A capability removed from a role, and a member it has not reached yet -----------------------

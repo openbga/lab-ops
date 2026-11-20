@@ -112,7 +112,8 @@ the person it names. An organization's new account owner is locked as an assigne
 FOR NO KEY UPDATE, then its roles), after the directory lock and before any organization's row,
 and checked on that reading ([clients/services.py](../clients/services.py) `hold_owners`): a
 deactivation or role removal either committed before and refuses the owner, or waits for the
-save. A ticket created naming that person as its assignee holds the account and checks the
+save. The edit form keeps showing a current owner who has since left, so saving other details
+keeps them; an import decides each row's owner from the reading it held before the rows. A ticket created naming that person as its assignee holds the account and checks the
 organization when it commits, so the two wait for each other one way; an import holds every
 owner its file names, in id order, before it reads the rows that lock organizations.
 
@@ -150,11 +151,14 @@ person or on the account's password page, saves the password only: a full save o
 as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored
 and never compares it with the copy of the account it read earlier
 ([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
-drawn (`accounts.admin.drawn_state`: names, email, organization, flags, roles and capabilities).
-After the gate and the remaining owners' rows it locks the account's row FOR NO KEY UPDATE, so
-any other change of the account under way, an email corrected on its own included, commits
-first, and refuses the save when what it reads then differs from what the page showed. It
-writes only the columns it edits, so a password or sign-in time recorded meanwhile is kept. Setup changes (teams, categories,
+drawn (a fingerprint of the values it draws: names, email, organization, flags, roles and
+capabilities, `accounts.admin.PAGE_FIELDS`). After the gate and the remaining owners' rows it
+locks the account's row FOR NO KEY UPDATE, so any other change of the account under way, an
+email corrected on its own included, commits first, and refuses the save when what it reads
+then differs from what the page showed. It writes only the columns it edits, so a password or
+sign-in time recorded meanwhile is kept, and saves roles and capability grants as the
+difference from that reading, so a role added by other means afterwards (nothing locks an
+addition) is kept and the audit records only this page's change. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
 organization, a site or a contact, which can wait for the directory lock or an organization an
 import holds, and hold their actor as an import does. An import holds its actor for the whole of its work
@@ -223,9 +227,14 @@ stored in the job settings, not looked up by name. A job decides from records re
 locks: the automatic close locks the settings row and then the ticket, and the breach notice
 locks the ticket and then its clock, the same order as the ticket services, and then, without
 waiting, the access gates of everyone the rule names, shared
-(`accounts.acting.try_hold_access`), before reading who may be told, then their accounts: a
-deactivation or a removal of a role or a team membership committed before is seen, one under way
-leaves the ticket for the next run, and one that starts afterwards waits for the job. Each breach run has its own identifier, which a
+(`accounts.acting.try_hold_access`), and their accounts and its own FOR KEY SHARE, before
+reading who may be told, and their email notice setting locks
+(`desk.notifications.try_hold_notice_settings`; the setting's page takes its lock exclusively): a
+deactivation, a removal of a role or a team membership, or a change of the notice setting
+committed before is seen, one under way leaves the ticket for the next run, and one that starts
+afterwards waits for the job.
+A sign-in or an assignment of the same person does not wait for it. The job's account is looked
+up without the settings row's lock once it exists. Each breach run has its own identifier, which a
 waiting notice must still match when it is sent. Later items add their
 periodic work and their notice topics to the registry.
 

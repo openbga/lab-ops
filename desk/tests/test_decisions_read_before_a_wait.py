@@ -847,7 +847,7 @@ def test_a_reply_to_a_ticket_closed_before_it_was_sent_shows_the_text_again(
     assert page.count(f'href="{follow_up}"') == 2  # the page action and the panel's own
 
 
-def test_a_closed_ticket_shows_no_unsent_panel_without_a_refused_reply(
+def test_a_reply_of_no_text_to_a_closed_ticket_gets_the_notice_alone(
     client, agent, clinic_portal, portal_ticket
 ):
     url, data = _draw_reply(client, clinic_portal, portal_ticket, "   ")
@@ -857,13 +857,14 @@ def test_a_closed_ticket_shows_no_unsent_panel_without_a_refused_reply(
         expected_revision=portal_ticket.revision,
         status=Status.CLOSED,
     )
-    for response in (
-        client.post(url, data),
-        client.get(reverse("portal:request-detail", args=[portal_ticket.number])),
-    ):
-        assert response.status_code == 200
-        assert response.context["unsent_reply"] is None
-        assert b"so nothing was sent" not in response.content  # the panel's notice (help aside)
+    refused = client.post(url, data)
+    assert refused.status_code == 200
+    assert refused.context["unsent_reply"] is not None
+    assert b"nothing was sent, files included" in refused.content
+    assert b'id="id_body"' not in refused.content  # no text to show back
+    page = client.get(reverse("portal:request-detail", args=[portal_ticket.number]))
+    assert page.context["unsent_reply"] is None
+    assert b"so nothing was sent" not in page.content  # the panel's notice (help aside)
 
 
 def test_a_reply_refused_on_a_ticket_still_open_keeps_its_form(

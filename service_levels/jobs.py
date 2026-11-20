@@ -118,10 +118,15 @@ def _notice_request(request_id, actor, now):
         share_lock(
             TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
         )
-        if not try_hold_access([pk for pk, _role in notifications.breach_roles(request)]):
-            return {"busy": 1}  # someone's access is being changed right now: next run
+        candidates = [pk for pk, _role in notifications.breach_roles(request)]
+        if not (try_hold_access(candidates) and notifications.try_hold_notice_settings(candidates)):
+            # Someone's access or notice setting is being changed right now: next run.
+            return {"busy": 1}
+        # The accounts the notices and the audit event will name, FOR KEY SHARE (what the
+        # database checks at COMMIT, taken now so the COMMIT waits for nothing), before reading
+        # them: a sign-in or an assignment to them goes on, an address being changed defers.
+        share_lock(User, [*candidates, actor.pk], nowait=True, mode="key share")
         recipients = notifications.breach_recipients(request)
-        share_lock(User, [user.pk for user, _role in recipients], nowait=True)
         changed, recorded = [], []
         for which in CLOCKS:
             noticed_field = f"{which}_breach_noticed_at"

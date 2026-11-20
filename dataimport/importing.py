@@ -283,8 +283,10 @@ def _choice(column, text):
     return found
 
 
-def _cell(column, text):
-    """Converted value of a nonblank data cell. Raises RowError naming the column."""
+def _cell(column, text, accounts=None):
+    """Converted value of a nonblank data cell. Raises RowError naming the column. `accounts`:
+    for a file with account columns, the accounts it names as held before its rows were read
+    (_hold_named_accounts), by username; the cell is decided from that reading alone."""
     name = column.name
     if column.max_length and len(text) > column.max_length:
         raise RowError(f"{name}: longer than {column.max_length} characters.")
@@ -311,10 +313,15 @@ def _cell(column, text):
             raise RowError(f"{name}: '{text}' is not a two-letter US state or territory code.")
         return code
     if column.kind == "user":
-        user = get_user_model().objects.filter(username=text).first()
+        if accounts is not None:
+            user, roles = accounts.get(text, (None, set()))
+            eligible = user is not None and user.is_active and roles.intersection(ROLES)
+        else:
+            user = get_user_model().objects.filter(username=text).first()
+            eligible = user is not None and user.is_active and has_role(user, *ROLES)
         if user is None:
             raise RowError(f"{name}: no account with username '{text}'.")
-        if not (user.is_active and has_role(user, *ROLES)):
+        if not eligible:
             raise RowError(f"{name}: '{text}' is not an active laboratory staff account.")
         return user
     return text
@@ -1059,7 +1066,7 @@ def _read_row(record_type, row, present, seen, context):
         text = row.values[column.name]
         if text:
             try:
-                data[column.attr] = _cell(column, text)
+                data[column.attr] = _cell(column, text, context.get("accounts"))
             except RowError as exc:
                 row.errors += exc.messages
         elif not column.blank_ok:
@@ -1123,7 +1130,10 @@ def _hold_named_accounts(record_type, names, text):
     holds its owner before the organization's row, but by then an earlier row of the file has
     locked organizations, and a ticket created naming that person as its assignee holds them and
     then checks its organization at its COMMIT. Held first, the two wait for each other one way.
-    A username that names no account is left to the row's own check."""
+    Returns {username: (account, roles)} as read under those locks, or None for a file without
+    account columns: the rows decide from this reading alone, so an account created or renamed
+    after it is not taken (it would not be held), and a username it does not hold names no
+    account."""
     columns = {column.name: column for column in record_type.columns}
     positions = [
         index
@@ -1131,7 +1141,7 @@ def _hold_named_accounts(record_type, names, text):
         if name in columns and columns[name].kind == "user"
     ]
     if not positions:
-        return
+        return None
     usernames = set()
     reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     try:
@@ -1141,7 +1151,12 @@ def _hold_named_accounts(record_type, names, text):
     except csv.Error:
         pass  # the rows read so far; the file's own reading reports the error
     found = get_user_model().objects.filter(username__in=usernames).values_list("pk", flat=True)
-    services.hold_owners(list(found))
+    held = services.hold_owners(list(found))
+    return {
+        account.username: (account, roles)
+        for account, roles in held.values()
+        if account is not None and account.username in usernames
+    }
 
 
 def parse(record_type, data, filename):
@@ -1174,10 +1189,11 @@ def parse(record_type, data, filename):
     names = _read_header(record_type, header, preview)
     if preview.file_errors:
         return preview
-    _hold_named_accounts(record_type, names, text)
+    accounts = _hold_named_accounts(record_type, names, text)
     present = set(names)
     seen = {}
     context = {"new_codes": set(), "new_names": set(), "notes": {}, "not_applied": {}, "bound": {}}
+    context["accounts"] = accounts
     line = reader.line_num + 1
     try:
         for raw in reader:

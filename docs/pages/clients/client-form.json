@@ -74,7 +74,7 @@
         },
         {
           "label": "Account owner",
-          "description": "Optional. The laboratory staff member who looks after the relationship; choose No account owner for none. It must be an active laboratory staff account (an account with a laboratory role); a client portal account or an inactive account is refused. The owner is checked when it is set or changed, on the account as it stands when the save is made: a person deactivated, or whose laboratory role was removed, while your save waited for an import or another organization change is refused with this message. Once the save has checked the owner, a deactivation or role change of that person waits for it to finish. Keeping an owner who has since left does not refuse other changes."
+          "description": "Optional. The laboratory staff member who looks after the relationship; choose No account owner for none. It must be an active laboratory staff account (an account with a laboratory role); a client portal account or an inactive account is refused. The owner is checked when it is set or changed, on the account as it stands when the save is made: a person deactivated, or whose laboratory role was removed, while your save waited for an import or another organization change is refused with this message. Once the save has checked the owner, a deactivation or role change of that person waits for it to finish. An owner who has since left stays shown, marked inactive, and saving other changes keeps them; the list offers only active staff to choose instead."
         },
         {
           "label": "General email",

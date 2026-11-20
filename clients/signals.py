@@ -25,6 +25,9 @@ PREVIOUS = "_previous_client_id"
 
 
 def remember_organization_change(sender, instance, raw=False, update_fields=None, **kwargs):
+    # What an earlier save of this instance remembered and could not use, because its update
+    # failed (a duplicate email) and its post_save never ran: never carried into this save.
+    instance.__dict__.pop(PREVIOUS, None)
     if raw or instance.pk is None:
         return
     if update_fields is not None and not {"client", "client_id"}.intersection(update_fields):

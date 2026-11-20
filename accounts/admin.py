@@ -40,6 +40,7 @@ from django.contrib.auth.models import Group, Permission
 from django.db import connection, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
+from django.forms.models import model_to_dict
 
 from core.audit import record_event
 
@@ -103,12 +104,71 @@ CHANGED_SINCE_DRAWN = (
 )
 
 
+# What the account page shows and saves: names, email, organization, flags, roles and
+# capabilities (not the password, the sign-in time or the date joined, which it does not edit).
+PAGE_FIELDS = (
+    "username",
+    "first_name",
+    "last_name",
+    "email",
+    "client",
+    "groups",
+    "is_active",
+    "is_staff",
+    "is_superuser",
+    "user_permissions",
+)
+RELATIONS = ("groups", "user_permissions")
+COLUMNS = tuple(name for name in PAGE_FIELDS if name not in RELATIONS)
+
+
+def _plain(value):
+    if hasattr(value, "pk"):
+        return value.pk
+    if isinstance(value, (list, tuple, set, frozenset)) or hasattr(value, "values_list"):
+        return sorted(_plain(item) for item in value)
+    return value
+
+
+def _digest(values):
+    state = {name: _plain(values.get(name)) for name in PAGE_FIELDS}
+    return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def account_reading(user):
+    """The page's fields of `user` as stored: its columns from this instance and its roles and
+    capability grants read once each, as sorted ids."""
+    reading = model_to_dict(user, fields=COLUMNS)
+    reading["groups"] = sorted(user.groups.values_list("pk", flat=True))
+    reading["user_permissions"] = sorted(user.user_permissions.values_list("pk", flat=True))
+    return reading
+
+
 def drawn_state(user):
-    """A fingerprint of what the account page shows and saves of `user`, as stored: names, email,
-    organization, flags, roles and capabilities (account_snapshot, without the password, the
-    sign-in time or the date joined, which the page does not edit)."""
-    state = json.dumps(account_snapshot(user), sort_keys=True, default=str)
-    return hashlib.sha256(state.encode()).hexdigest()
+    """A fingerprint of the page's fields of `user` as stored (account_reading)."""
+    return _digest(account_reading(user))
+
+
+def _snapshot(reading):
+    """account_snapshot's shape (the audit's) of an account_reading."""
+    permissions = Permission.objects.filter(pk__in=reading["user_permissions"])
+    return {
+        "username": reading["username"],
+        "email": reading["email"],
+        "first_name": reading["first_name"],
+        "last_name": reading["last_name"],
+        "is_active": reading["is_active"],
+        "is_staff": reading["is_staff"],
+        "is_superuser": reading["is_superuser"],
+        "client": reading["client"],
+        "groups": sorted(
+            Group.objects.filter(pk__in=reading["groups"]).values_list("name", flat=True)
+        ),
+        "permissions": sorted(
+            f"{app}.{code}"
+            for app, code in permissions.values_list("content_type__app_label", "codename")
+        ),
+    }
 
 
 def _owns_administration(user):
@@ -209,12 +269,16 @@ class AccessRules:
         if connection.in_atomic_block:
             rows = rows.select_for_update(no_key=True)
         current = rows.first()
+        reading = account_reading(current) if current is not None else None
         if (
-            current is None
-            or data.get("drawn") != drawn_state(current)
+            reading is None
+            or data.get("drawn") != _digest(reading)
             or _owns_administration(current) != owner
         ):
             raise forms.ValidationError(CHANGED_SINCE_DRAWN)
+        # What the save starts from: the audit's before values, and the roles and grants it
+        # changes by difference (AccountAdmin.save_related).
+        self.held_reading = reading
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
@@ -239,7 +303,10 @@ class AccountChangeForm(AccessRules, UserChangeForm):
 
         super().__init__(*args, **kwargs)
         if self.instance.pk and not self.is_bound:
-            self.initial["drawn"] = drawn_state(self.instance)
+            # The values this form draws, not a second reading of the account: a role added
+            # between the two would otherwise be in the fingerprint and missing from the page.
+            drawn = {name: self.initial[name] for name in PAGE_FIELDS if name in self.initial}
+            self.initial["drawn"] = _digest({**account_reading(self.instance), **drawn})
         password = self.fields.get("password")
         if password is not None and self.instance.pk and is_system_account(self.instance):
             # Its page is read only and its password form refuses it: offer neither. (A read-only
@@ -377,7 +444,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     def save_model(self, request, obj, form, change):
         # Read under the row lock the form's check took (AccessRules._check_drawn): the account
         # as the page was drawn.
-        obj._audit_before = account_snapshot(User.objects.get(pk=obj.pk)) if change else {}
+        obj._audit_before = _snapshot(form.held_reading) if change else {}
         obj.changed_by = request.user  # a change of organization resets portal access (clients)
         if not change:
             super().save_model(request, obj, form, change)
@@ -393,9 +460,29 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         obj.save(update_fields=edited)
 
     def save_related(self, request, form, formsets, change):
-        super().save_related(request, form, formsets, change)
         obj = form.instance
-        after = account_snapshot(obj)
+        if not change:
+            super().save_related(request, form, formsets, change)
+            after = account_snapshot(obj)
+        else:
+            # Roles and capability grants by difference from the reading the check held: a role
+            # added by other means after that reading (which nothing locks) stays, and the audit
+            # records this page's change, not that one.
+            after = dict(form.held_reading)
+            for name in RELATIONS:
+                if name not in form.cleaned_data:
+                    continue
+                held = set(form.held_reading[name])
+                posted = {item.pk for item in form.cleaned_data[name]}
+                manager = getattr(obj, name)
+                if held - posted:
+                    manager.remove(*(held - posted))
+                if posted - held:
+                    manager.add(*(posted - held))
+                after[name] = sorted(posted)
+            for formset in formsets:
+                self.save_formset(request, form, formset, change=change)
+            after = _snapshot({**after, **model_to_dict(obj, fields=COLUMNS)})
         before = obj._audit_before
         if after != before:
             record_event(
