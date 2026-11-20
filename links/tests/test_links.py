@@ -244,10 +244,9 @@ def test_organization_links(agent, lis, client_org, client):
         },
     )
     assert response.status_code == 302
-    response = client.post(
-        reverse("link_records:attachment-remove", args=[attachment.pk]),
-        {"reason": "Closed project"},
-    )
+    url = reverse("link_records:attachment-remove", args=[attachment.pk])
+    drawn = client.get(url).context["form"]["original_state"].value()  # the link as shown
+    response = client.post(url, {"reason": "Closed project", "original_state": drawn})
     assert response.status_code == 302
     assert LinkAttachment.objects.filter(client=client_org, removed_at__isnull=True).count() == 1
 

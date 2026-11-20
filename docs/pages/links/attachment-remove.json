@@ -42,7 +42,7 @@
         },
         {
           "label": "Remove link",
-          "description": "Marks the link removed, with who, when and why, and returns to the ticket's or organization's Links section. The attachment row is never deleted. On a ticket, a removal event is added to the timeline with the record type and no label or key. Removing a ticket's link changes the ticket: a form on a page of it opened before is refused as stale."
+          "description": "Marks the link removed, with who, when and why, and returns to the ticket's or organization's Links section. The attachment row is never deleted. On a ticket, a removal event is added to the timeline with the record type and no label or key. Removing a ticket's link changes the ticket: a reply, note, status or assignment change sent from a page of it opened before is refused as stale. The removal itself is refused when someone showed, hid or removed the link after this form was opened: open it again and check before removing."
         },
         {
           "label": "Cancel",

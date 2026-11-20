@@ -25,6 +25,7 @@ from accounts.models import User
 from attachments.models import Attachment
 from attachments.services import add_entry_with_files
 from attachments.tests.conftest import png_file
+from core.concurrency import record_token
 from core.models import AuditEvent
 from desk import notifications, services
 from desk.models import EntryKind, RequestEntry, ServiceRequest
@@ -421,7 +422,21 @@ def _page_case(page, lead, technician, restricted_ticket, lis, quality):
         attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000052")
         name = "attachment-remove" if page == "link-remove" else "attachment-shown"
         url = reverse(f"link_records:{name}", args=[attachment.pk])
-        data = {"reason": "Wrong record"} if page == "link-remove" else {"shown": "1"}
+        # The fields the page sends: the removal form its link as shown, Show/Hide the ticket's
+        # revision (contract since "the jobs' account's first use and a page drawn across a
+        # change": a removal or Show/Hide without them is refused).
+        if page == "link-remove":
+            data = {
+                "reason": "Wrong record",
+                "original_state": record_token(LinkAttachment.objects.get(pk=attachment.pk)),
+            }
+        else:
+            data = {
+                "shown": "1",
+                "expected_revision": ServiceRequest.objects.values_list("revision", flat=True).get(
+                    pk=ticket.pk
+                ),
+            }
 
         def unchanged():
             current = LinkAttachment.objects.get(pk=attachment.pk)

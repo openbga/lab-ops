@@ -184,9 +184,11 @@ information read the account again after the hold.
 A link change locks the ticket first, then the link's system, then the link; a link on an
 organization locks the organization in the ticket's place. Attaching a link to a ticket, removing
 it, and showing it to the client or hiding it are changes to the ticket and advance its revision;
-Show to client and Hide from client also check the revision of the page they were sent from. A
-correction of a link's own label or address is a change to the link (its own revision), not to
-the tickets that carry it. An import of external identifiers
+Show to client and Hide from client also check the revision of the page they were sent from, right
+after the acting account is read again, so any change since is refused as stale. A removal checks
+the link as its form showed it (`core.concurrency.record_token`); adding a link checks only for
+the same link in the same role. A correction of a link's own label or address is a change to the
+link (its own revision), not to the tickets that carry it. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
 before its first row, so it and a link added at the same moment wait for each other one way.
 Whatever changes how an import finds or checks records, or may lock several organizations in an

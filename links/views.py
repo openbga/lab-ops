@@ -18,6 +18,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import require_staff
 from clients.models import Client
+from core.concurrency import protect_form
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -285,9 +286,19 @@ def attachment_remove(request, pk):
         messages.info(request, CLOSED_MESSAGE)
         return redirect(back)
     form = RemoveLinkForm(request.POST or None, person=attachment.is_person)
+    # The link as this form shows it: shown to the client or not, current or removed. A removal
+    # sent after someone else changed it is refused (links.services.remove_link).
+    protect_form(form, attachment)
     if request.method == "POST" and form.is_valid():
+        data = dict(form.cleaned_data)
+        expected_state = data.pop("original_state")
         try:
-            remove_link(actor=request.user, attachment_id=attachment.pk, **form.cleaned_data)
+            remove_link(
+                actor=request.user,
+                attachment_id=attachment.pk,
+                expected_state=expected_state,
+                **data,
+            )
         except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
             raise Http404 from error
         except ValidationError as exc:
@@ -321,7 +332,11 @@ def attachment_remove(request, pk):
 def attachment_shown(request, pk):
     require_staff(request.user)
     attachment = _attachment_for(request.user, pk)
-    shown = request.POST.get("shown") == "1"
+    choice = request.POST.get("shown")
+    if choice not in ("0", "1"):  # only the form's two actions: anything else changes nothing
+        messages.error(request, "Choose Show to client or Hide from client.")
+        return redirect(f"{_target_url(attachment)}#links")
+    shown = choice == "1"
     # The ticket's revision on the page the form was on; a form without one (drawn before it
     # carried one) is refused as stale, as a page drawn before a change is.
     expected = whole_number(request.POST.get("expected_revision", "")) or 0
