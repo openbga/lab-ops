@@ -232,7 +232,10 @@ def hold_actors(users):
 def scope(readings):
     """For a block of work: hold_actor of an account in `readings` (accounts this transaction
     holds already, taken before the block) returns that reading and locks nothing again. Every
-    savepoint the block opens comes after those holds, so none can release them."""
+    savepoint the block opens comes after those holds, so none can release them. The readings
+    must come from the transaction open now."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("A scope of held accounts lasts for a transaction; open one first.")
     conn = transaction.get_connection()
     scoped = getattr(conn, _SCOPED, {})
     setattr(conn, _SCOPED, {**{current.pk: current for current in readings}, **scoped})

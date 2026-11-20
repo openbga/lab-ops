@@ -144,8 +144,9 @@ way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
 organization, a site or a contact, which can wait for the directory lock or an organization an
 import holds, and hold their actor as an import does. An import holds its actor for the whole of its work
-(`accounts.acting.holding`), and the demonstration seed the accounts it acts as
-(`accounts.acting.scope`); the services they call get that reading and lock nothing again. The services that reveal patient
+(`accounts.acting.holding`), and the demonstration seed the accounts it acts as that exist when
+it begins (`accounts.acting.scope`); the services they call get that reading and lock nothing
+again. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an

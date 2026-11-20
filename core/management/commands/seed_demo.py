@@ -82,18 +82,6 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        # One seed at a time; then the demonstration accounts it acts as, in their gates' order
-        # (as an access change takes them), held for the whole seed (accounts.acting.scope: its
-        # steps lock them nothing again), then the organization directory lock, before anything
-        # else it locks: no step of the seed then holds a record an import needs while it waits
-        # for the import, and a seed that waited sees the accounts the one before made.
-        demo.hold_seed_lock()
-        actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
-        with scope(actors):
-            hold_directory()
-            return self._seed(*args, **options)
-
-    def _seed(self, *args, **options):
         password = os.environ.get("DEMO_PASSWORD")
         if not password or len(password) < 12:
             raise CommandError("Set DEMO_PASSWORD to at least 12 characters; it is never printed.")
@@ -102,6 +90,20 @@ class Command(BaseCommand):
             raise CommandError(
                 "DEMO_ADMIN_PASSWORD needs at least 12 characters, or leave it unset."
             )
+        # The settings first, before any lock. Then one seed at a time; then the demonstration
+        # accounts it acts as, in their gates' order (as an access change takes them), held for
+        # the whole seed (accounts.acting.scope: its steps lock those that existed when it began
+        # nothing again; accounts it creates are its own until it commits); then the
+        # organization directory lock, before anything else it locks. No step of the seed then
+        # holds a record an import needs while it waits for the import, and a seed that waited
+        # sees the accounts the one before made.
+        demo.hold_seed_lock()
+        actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
+        with scope(actors):
+            hold_directory()
+            return self._seed(password, admin_password, *args, **options)
+
+    def _seed(self, password, admin_password, *args, **options):
         # Only a seed that starts from an empty database (the test reset_demo applies) may seal
         # the laboratory it creates: the seal is what later lets reset_demo erase everything.
         # The lock keeps every other connection from writing until this seed commits, so the
