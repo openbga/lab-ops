@@ -24,8 +24,13 @@ from .models import PortalAccess
 PREVIOUS = "_previous_client_id"
 
 
-def remember_organization_change(sender, instance, raw=False, **kwargs):
+def remember_organization_change(sender, instance, raw=False, update_fields=None, **kwargs):
     if raw or instance.pk is None:
+        return
+    if update_fields is not None and not {"client", "client_id"}.intersection(update_fields):
+        # The save writes other columns only (a sign-in's time, a notice preference): the
+        # organization stays as stored, whatever this copy of the account, read earlier, says.
+        # Comparing it would refuse the save when someone moved the account meanwhile.
         return
     previous = sender.objects.filter(pk=instance.pk).values_list("client_id", flat=True).first()
     if previous == instance.client_id:

@@ -416,7 +416,7 @@ def prepare_request_notice(notice):
 # Service target breaches ---------------------------------------------------------------------
 
 
-def _breach_roles(request):
+def breach_roles(request):
     """[(user id, role)] responsible for `request` now: the assignee and the team's leads, or
     every member of the team when it has neither. Accounts only; checked by the callers."""
     from teams.models import TeamMembership
@@ -439,7 +439,7 @@ def breach_recipients(request):
     jobs' account)."""
     from accounts.models import User
 
-    chosen = _breach_roles(request)
+    chosen = breach_roles(request)
     users = User.objects.in_bulk([pk for pk, _role in chosen])
     return [
         (users[pk], role)
@@ -491,7 +491,7 @@ def prepare_breach_notice(notice):
         return None
     if not (
         user.email
-        and user.pk in {pk for pk, _role in _breach_roles(request)}
+        and user.pk in {pk for pk, _role in breach_roles(request)}
         and wants_notices(user)
         and _staff_can_read(user, request, roles)
     ):

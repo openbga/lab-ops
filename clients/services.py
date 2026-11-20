@@ -9,7 +9,7 @@ from django.db import IntegrityError, connection, transaction
 from django.forms.models import model_to_dict
 
 from accounts.acting import hold_actor
-from accounts.roles import ROLES, has_role
+from accounts.roles import ROLES
 from core.audit import record_event, snapshot
 
 from .models import Client, ClientContact, ClientSite, PortalAccess, Responsibility
@@ -58,12 +58,41 @@ def _strip(obj, names):
         setattr(obj, name, (getattr(obj, name) or "").strip())
 
 
-def _check_account_owner(obj):
-    owner = obj.account_owner
-    if owner is not None and not (owner.is_active and has_role(owner, *ROLES)):
-        raise ValidationError(
-            {"account_owner": "Choose an active laboratory staff account as the account owner."}
-        )
+OWNER_REFUSED = "Choose an active laboratory staff account as the account owner."
+
+
+def hold_owners(owners):
+    """Lock the accounts named as organizations' owners, in id order, until the transaction
+    ends: each account FOR NO KEY UPDATE, then its roles (held FOR KEY SHARE, as an assignment
+    holds its assignee's, desk.services._held_assignee). Returns {id: (account or None, roles)}
+    as read under those locks. Nothing is decided here (_held_owner).
+
+    A deactivation (accounts.models.User.save) locks the account FOR NO KEY UPDATE, and removing
+    a role deletes a held membership: either committed before and the reading sees it, or it
+    waits for this change. Taken after the directory lock and before any organization's row: a
+    ticket created naming the owner as its assignee holds the account and then checks the
+    organization at its COMMIT, and an import holds every owner its file names before reading
+    the rows (dataimport.importing._hold_named_accounts), which lock organizations one by one.
+    Taking them again in the same transaction does not wait."""
+    from django.contrib.auth import get_user_model
+
+    from accounts.roles import held_roles
+
+    user_model = get_user_model()
+    held = {}
+    for pk in sorted({getattr(owner, "pk", owner) for owner in owners if owner is not None}):
+        current = user_model.objects.select_for_update(no_key=True).filter(pk=pk).first()
+        held[pk] = (current, held_roles(current, mode="key share") if current else set())
+    return held
+
+
+def _held_owner(owner):
+    """`owner` as it stands now, held until the transaction ends (hold_owners), if it may own an
+    organization's account: an active staff account with a staff role."""
+    current, roles = hold_owners([owner])[owner.pk]
+    if current is None or not (current.is_active and roles.intersection(ROLES)):
+        raise ValidationError({"account_owner": OWNER_REFUSED})
+    return current
 
 
 # The advisory lock of the organization directory (PostgreSQL's two-key form; the first key is
@@ -164,10 +193,11 @@ def create_client(*, actor, reason="", **data):
     require_client_manager(actor)  # who asks, before anything is locked
     actor = _held_manager(actor)
     hold_directory()  # before the parent chain's locks and the account code's uniqueness check
+    if data.get("account_owner") is not None:  # held before any organization's row
+        data = {**data, "account_owner": _held_owner(data["account_owner"])}
     obj = Client(**{k: v for k, v in data.items() if k in CLIENT_FIELDS})
     _strip(obj, ("name", "account_number", "phone", "city", "postal_code"))
     obj.full_clean()
-    _check_account_owner(obj)
     _check_parent(obj)
     _save_unique(obj)
     record_event(
@@ -197,13 +227,19 @@ def update_client(*, actor, client_id, expected_revision, reason, **data):
     require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
     actor = _held_manager(actor)
-    # Read without a lock to decide whether the directory lock is needed, which comes before the
-    # organization's lock. Every change made through these services advances the revision, so
-    # when the revision below is the one the form was drawn from, this reading was of that state.
-    found = Client.objects.filter(pk=client_id).values(*DIRECTORY_FIELDS).first()
+    # Read without a lock to decide whether the directory lock and a new owner's lock are needed,
+    # which come before the organization's lock. Every change made through these services
+    # advances the revision, so when the revision below is the one the form was drawn from, this
+    # reading was of that state.
+    found = Client.objects.filter(pk=client_id).values(*DIRECTORY_FIELDS, "account_owner_id")
+    found = found.first()
     directory = found is not None and _directory_changes(found, data)
     if directory:
         hold_directory()
+    owner = data.get("account_owner")
+    appointing = found is not None and owner is not None and owner.pk != found["account_owner_id"]
+    if appointing:  # the new owner, held and checked as it stands now
+        data = {**data, "account_owner": _held_owner(owner)}
     obj = Client.objects.select_for_update().get(pk=client_id)
     if obj.revision != expected_revision:
         raise ValidationError(CHANGED)
@@ -224,8 +260,10 @@ def update_client(*, actor, client_id, expected_revision, reason, **data):
     obj.full_clean()
     if snapshot(obj) == before:
         raise ValidationError("Change at least one detail before saving.")
-    if obj.account_owner_id != before["account_owner"]:
-        _check_account_owner(obj)
+    if obj.account_owner_id not in (before["account_owner"], None) and not appointing:
+        # The stored owner changed without a new revision (a write that bypassed these
+        # services), so this save would set an owner it did not hold: refused as changed.
+        raise ValidationError(CHANGED)
     obj.revision += 1
     _save_unique(obj)
     record_event(

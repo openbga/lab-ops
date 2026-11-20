@@ -491,7 +491,9 @@ def test_closed_request_refuses_replies(client, agent, category, clinic, whole):
         reverse("portal:request-reply", args=[request.number]),
         {"body": "Late reply", "expected_revision": request.revision},
     )
-    assert response.status_code == 302
+    # Refused, and the text comes back read only to carry into a follow-up ticket.
+    assert response.status_code == 200
+    assert response.context["unsent_reply"]["body"].value() == "Late reply"
     assert not request.entries.filter(body="Late reply").exists()
 
 

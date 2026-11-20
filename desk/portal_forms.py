@@ -115,6 +115,19 @@ class ReplyForm(StyledForm, forms.Form):
     expected_revision = forms.IntegerField(widget=forms.HiddenInput)
 
 
+class UnsentReplyForm(StyledForm, forms.Form):
+    """A reply the portal could not send because the ticket was closed (before the page sent
+    it, or while it was being saved), shown back read only so the client can copy it into a
+    follow-up ticket. Never submitted."""
+
+    body = forms.CharField(
+        label="Your reply, not sent",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4, "readonly": True}),
+        help_text="Copy it into a follow-up ticket. Files you chose were not sent either.",
+    )
+
+
 class PortalRequestFilter(SearchFilter):
     status = forms.ChoiceField(
         required=False,

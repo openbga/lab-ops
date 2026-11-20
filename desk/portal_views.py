@@ -36,6 +36,7 @@ from .portal_forms import (
     PortalRequestFilter,
     RaiseRequestForm,
     ReplyForm,
+    UnsentReplyForm,
     client_status,
 )
 from .portal_scope import portal_requests
@@ -183,6 +184,13 @@ def request_detail(request, number, reply_form=None):
         follow_up_of = None  # never name a request the account cannot see
     list_params = return_list_params(request, PortalRequestFilter)
     can_reply = service_request.status in REPLYABLE
+    unsent_reply = None
+    if reply_form is not None and not can_reply:
+        # A reply refused because the ticket is closed now, read after the refusal: the text
+        # comes back, read only, instead of a reply form the ticket no longer takes.
+        body = reply_form.data.get("body", "")
+        unsent_reply = UnsentReplyForm(initial={"body": body}) if body.strip() else None
+        reply_form = None
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})
     return render(
@@ -201,6 +209,7 @@ def request_detail(request, number, reply_form=None):
             "signature": _signature(service_request),
             "can_reply": can_reply,
             "reply_form": reply_form,
+            "unsent_reply": unsent_reply,
             "list_url": reverse("portal:request-list", query=list_params),
             "reply_url": reverse(
                 "portal:request-reply",
@@ -224,8 +233,8 @@ def request_reply(request, number):
     )
     form = ReplyForm(request.POST, request.FILES)
     if service_request.status not in REPLYABLE:
-        messages.error(request, "This ticket is closed. Open a follow-up ticket instead.")
-        return redirect(detail_url)
+        # Closed after the page was drawn: the page again, with the text typed (never sent).
+        return request_detail(request, number, reply_form=form)
     if form.is_valid():
         try:
             add_entry_with_files(

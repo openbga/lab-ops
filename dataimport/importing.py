@@ -1117,6 +1117,33 @@ def _display(column, value):
     return show(value)
 
 
+def _hold_named_accounts(record_type, names, text):
+    """Hold the accounts the file names in its account columns (an organization's owner) before
+    any row is read, all at once in id order (clients.services.hold_owners). A row's service
+    holds its owner before the organization's row, but by then an earlier row of the file has
+    locked organizations, and a ticket created naming that person as its assignee holds them and
+    then checks its organization at its COMMIT. Held first, the two wait for each other one way.
+    A username that names no account is left to the row's own check."""
+    columns = {column.name: column for column in record_type.columns}
+    positions = [
+        index
+        for index, name in enumerate(names)
+        if name in columns and columns[name].kind == "user"
+    ]
+    if not positions:
+        return
+    usernames = set()
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+    try:
+        next(reader, None)  # the header
+        for raw in reader:
+            usernames.update(raw[i].strip() for i in positions if i < len(raw) and raw[i].strip())
+    except csv.Error:
+        pass  # the rows read so far; the file's own reading reports the error
+    found = get_user_model().objects.filter(username__in=usernames).values_list("pk", flat=True)
+    services.hold_owners(list(found))
+
+
 def parse(record_type, data, filename):
     """Read and resolve the uploaded bytes. Reads the database; writes nothing."""
     preview = Preview(
@@ -1147,6 +1174,7 @@ def parse(record_type, data, filename):
     names = _read_header(record_type, header, preview)
     if preview.file_errors:
         return preview
+    _hold_named_accounts(record_type, names, text)
     present = set(names)
     seen = {}
     context = {"new_codes": set(), "new_names": set(), "notes": {}, "not_applied": {}, "bound": {}}

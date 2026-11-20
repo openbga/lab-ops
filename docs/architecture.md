@@ -108,7 +108,13 @@ waits for it. A reply that comes second waits for the ticket and, as the release
 ticket, is refused as changed; sent again, it finds the ticket unassigned. A nonconformance
 names people (its owner, an action's assignee) by locking the record and then the person, and
 never locks a ticket after
-the person it names.
+the person it names. An organization's new account owner is locked as an assignee is (the account
+FOR NO KEY UPDATE, then its roles), after the directory lock and before any organization's row,
+and checked on that reading ([clients/services.py](../clients/services.py) `hold_owners`): a
+deactivation or role removal either committed before and refuses the owner, or waits for the
+save. A ticket created naming that person as its assignee holds the account and checks the
+organization when it commits, so the two wait for each other one way; an import holds every
+owner its file names, in id order, before it reads the rows that lock organizations.
 
 A ticket is locked by its id and the reader's scope is read again after the lock
 (`desk.selectors.locked_in_scope`), so a change that waited while a colleague recategorized the
@@ -138,9 +144,17 @@ page, takes their gates one at a time in id order: a member it has not reached y
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
 Updates that take no access away, such as a sign-in, the email notice preference or a capability
-added to a role, do not wait; a full save of the account (its page, a password change) and
-every save of a portal account's access take the gate and wait for the person's change under
-way. Setup changes (teams, categories,
+added to a role, do not wait; a save on the account's page and every save of a portal account's
+access take the gate and wait for the person's change under way. A password change, by the
+person or on the account's password page, saves the password only: a full save of the account
+as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored
+and never compares it with the copy of the account it read earlier
+([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
+drawn (`accounts.admin.drawn_state`: names, email, organization, flags, roles and capabilities).
+After the gate and the remaining owners' rows it locks the account's row FOR NO KEY UPDATE, so
+any other change of the account under way, an email corrected on its own included, commits
+first, and refuses the save when what it reads then differs from what the page showed. It
+writes only the columns it edits, so a password or sign-in time recorded meanwhile is kept. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
 organization, a site or a contact, which can wait for the directory lock or an organization an
 import holds, and hold their actor as an import does. An import holds its actor for the whole of its work
@@ -208,7 +222,10 @@ created on first use, inactive, with no usable password, role or deliverable add
 stored in the job settings, not looked up by name. A job decides from records read under its own
 locks: the automatic close locks the settings row and then the ticket, and the breach notice
 locks the ticket and then its clock, the same order as the ticket services, and then, without
-waiting, the accounts of the people to tell. Each breach run has its own identifier, which a
+waiting, the access gates of everyone the rule names, shared
+(`accounts.acting.try_hold_access`), before reading who may be told, then their accounts: a
+deactivation or a removal of a role or a team membership committed before is seen, one under way
+leaves the ticket for the next run, and one that starts afterwards waits for the job. Each breach run has its own identifier, which a
 waiting notice must still match when it is sent. Later items add their
 periodic work and their notice topics to the registry.
 

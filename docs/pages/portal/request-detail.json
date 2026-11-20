@@ -37,7 +37,7 @@
   ],
   "good_to_know": [
     "Replying to a ticket that is Waiting for you or Resolved sends it back to the laboratory, and it shows With the laboratory again.",
-    "A closed ticket takes no more replies. Select [[New follow-up ticket]] to continue. The new ticket links back to the closed one.",
+    "A closed ticket takes no more replies. If it closes while you write, your text comes back unsent; select [[New follow-up ticket]] to send it there.",
     "Laboratory replies are signed with the team's name and the laboratory's name, never a person's.",
     "You never see the laboratory's internal notes, who is assigned, priorities, service clocks, complaint records or patient links.",
     "If the ticket changed after you opened the page, your reply is not sent. Your text stays in the box; reload and send it again."
@@ -159,7 +159,8 @@
     {
       "title": "Reply",
       "paragraphs": [
-        "The Reply panel is shown while the ticket is With the laboratory, Waiting for you, With a third party or Resolved. It is not shown on a closed ticket."
+        "The Reply panel is shown while the ticket is With the laboratory, Waiting for you, With a third party or Resolved. It is not shown on a closed ticket.",
+        "Reply not sent takes its place when the laboratory closed the ticket after you opened the page, before your reply reached it (also while it was being saved): nothing is sent, and the text you wrote is shown read only, under Your reply, not sent, with a New follow-up ticket button. Copy the text into the follow-up ticket. Files you chose are not kept; choose them again there. The text is shown only on that response and is not stored."
       ],
       "items": [
         {
@@ -172,11 +173,15 @@
         },
         {
           "label": "Send reply",
-          "description": "Sends the message and returns to the Conversation with the message Reply sent to the laboratory. A reply on a ticket that was Waiting for you or Resolved sends it back to the laboratory, so its status becomes With the laboratory. A closed ticket refuses the reply with a message to open a follow-up ticket."
+          "description": "Sends the message and returns to the Conversation with the message Reply sent to the laboratory. A reply on a ticket that was Waiting for you or Resolved sends it back to the laboratory, so its status becomes With the laboratory. A ticket closed after you opened the page refuses the reply and shows Reply not sent with your text."
         },
         {
           "label": "Ticket changed meanwhile",
           "description": "If the ticket changed after you opened the page, the reply is refused with a message that the ticket changed, and the text you wrote stays in the box. Reload the page and send it again."
+        },
+        {
+          "label": "Your reply, not sent",
+          "description": "Shown under Reply not sent: the text of a reply the closed ticket refused, read only so you can select and copy it. It is not stored and disappears when you leave or reload the page."
         }
       ]
     },
@@ -202,6 +207,7 @@
     "docs/workflows.md",
     "request_forms/selectors.py",
     "request_forms/templates/request_forms/_details.html",
-    "request_forms/templatetags/request_forms.py"
+    "request_forms/templatetags/request_forms.py",
+    "desk/tests/test_decisions_read_before_a_wait.py"
   ]
 }

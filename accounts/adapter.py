@@ -35,3 +35,10 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
         if user.credentials_locked:
             return
         super().send_password_reset_mail(user, email, context)
+
+    def set_password(self, user, password):
+        # The password only: `user` was read when the request began, and a full save would put
+        # back what changed since, such as a deactivation committed while the password was being
+        # checked and hashed.
+        user.set_password(password)
+        user.save(update_fields=["password"])

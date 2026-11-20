@@ -6,9 +6,12 @@ has passed; at the due time itself it is still on time, as service_levels.rules 
 each breached clock not yet noticed in this run of it, the job records a notice for each person
 desk.notifications.breach_recipients names (the assignee and the team's leads, or the whole team
 when it has neither), marks the clock noticed and records an audit event, in one transaction with
-the request and then its clock locked (the services' order). A request or clock someone is
-changing at that moment is left for the next run. The request itself does not change, so
-nobody's open page of it goes stale.
+the request and then its clock locked (the services' order). Who may be told is read after the
+access of everyone the rule names is held (accounts.acting.try_hold_access): a person
+deactivated, or whose role or team membership was taken away, before then is not told, and such
+a change made afterwards waits for the job. A request or clock someone is changing at that
+moment, or a person whose access is being changed, is left for the next run. The request itself
+does not change, so nobody's open page of it goes stale.
 
 A run of a clock ends when it is met or resolved, or when a recalculation moves its due time
 (service_levels.rules): its mark is cleared, a later breach is noticed again, and a notice of the
@@ -24,6 +27,7 @@ from django.db import OperationalError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from accounts.acting import try_hold_access
 from core.audit import record_event
 from jobs import outbox
 from jobs.actor import system_account
@@ -105,12 +109,17 @@ def _notice_request(request_id, actor, now):
             return {"busy": 1}
         # Who is responsible, held while it is decided and recorded: the team and its
         # memberships against a member added or a lead changed (key share: assignments go on),
-        # then the accounts the notices reference, all without waiting.
+        # then the access of everyone the rule names, before reading whether each may be told:
+        # a deactivation, or a role or membership taken away, either committed before (and the
+        # reading sees it) or waits for this transaction. Then the accounts the notices
+        # reference. All without waiting.
         share_lock(Team, [request.team_id], nowait=True, mode="key share")
         memberships = TeamMembership.objects.filter(team_id=request.team_id)
         share_lock(
             TeamMembership, memberships.values_list("pk", flat=True), nowait=True, mode="key share"
         )
+        if not try_hold_access([pk for pk, _role in notifications.breach_roles(request)]):
+            return {"busy": 1}  # someone's access is being changed right now: next run
         recipients = notifications.breach_recipients(request)
         share_lock(User, [user.pk for user, _role in recipients], nowait=True)
         changed, recorded = [], []

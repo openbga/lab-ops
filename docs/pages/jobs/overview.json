@@ -72,7 +72,7 @@
         },
         {
           "label": "Service target breaches",
-          "description": "Records one email notice when a ticket passes its first-response or resolution target: to the assignee and the leads of the ticket's team, or to every member of the team when it has neither. Each target is noticed once."
+          "description": "Records one email notice when a ticket passes its first-response or resolution target: to the assignee and the leads of the ticket's team, or to every member of the team when it has neither. Only people who are active and can read the ticket when the job decides are told: someone deactivated, or whose role or team membership was removed, before then gets no notice. A ticket someone is changing at that moment, or a person whose access is being changed, is left for the next run. Each target is noticed once."
         },
         {
           "label": "Send email notices",
