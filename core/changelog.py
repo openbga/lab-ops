@@ -44,8 +44,9 @@ LINK = re.compile(r"^[a-z0-9_-]+(?::[a-z0-9_-]+)*$")  # a Django route name with
 NOTES_HEADING = "## Technical notes"
 TITLE_MAX = 120
 # An entry dated less than this long before the newest one a user has seen still counts as new if
-# the user has not seen it (it merged later than its date). Bounds the stored list of ids: more
-# than SEEN_IDS_MAX entries inside the window would leave the oldest of them unread.
+# the user has not seen it (it merged later than its date). Bounds the stored list of ids: with
+# more than SEEN_IDS_MAX entries inside the window, the earliest published beyond SEEN_IDS_MAX
+# stay unread after a visit.
 SEEN_WINDOW = datetime.timedelta(days=60)
 SEEN_IDS_MAX = 400
 
@@ -278,30 +279,34 @@ def stale(entries, path=None):
 
 def seen_marker(entries):
     """What to remember when a user opens What's new: the newest date and the ids in the window
-    before it. None when there are no entries."""
+    before it, the most recently published first when there are more than SEEN_IDS_MAX, kept in id
+    order. None when there are no entries."""
     if not entries:
         return None
     newest = max(entry.date for entry in entries)
-    ids = sorted((entry.id for entry in entries if entry.date > newest - SEEN_WINDOW), reverse=True)
-    return {"date": newest.isoformat(), "ids": ids[:SEEN_IDS_MAX]}
+    recent = sorted(
+        (entry for entry in entries if entry.date > newest - SEEN_WINDOW),
+        key=lambda entry: (entry.date, entry.id),
+        reverse=True,
+    )
+    ids = sorted((entry.id for entry in recent[:SEEN_IDS_MAX]), reverse=True)
+    return {"date": newest.isoformat(), "ids": ids}
 
 
 def combined_marker(stored, seen):
     """What to remember after a visit that saw `seen` (seen_marker) when `stored` is the mark kept
     already, from another tab or a process of another release whose entries differ: every entry
-    either marks as seen stays seen. The newer date, and the ids of this visit, then those only
-    the stored mark has, up to SEEN_IDS_MAX, in seen_marker's order: an id outside the window is
-    harmless, so none is dropped by a date read from its name.
+    either marks as seen stays seen, within SEEN_IDS_MAX. The newer date; the ids of the mark with
+    that date first (this visit's on a tie), then the other's, each once, up to SEEN_IDS_MAX, in
+    seen_marker's order. No date is read from an id.
     """
     if not valid_marker(stored):
         return seen
     if not valid_marker(seen):
         return stored
-    newest = max(stored["date"], seen["date"])  # ISO dates compare as text
-    ids = list(seen["ids"])
-    visited = set(ids)
-    ids += [entry_id for entry_id in stored["ids"] if entry_id not in visited]
-    return {"date": newest, "ids": sorted(ids[:SEEN_IDS_MAX], reverse=True)}
+    newer, older = (stored, seen) if stored["date"] > seen["date"] else (seen, stored)
+    ids = list(dict.fromkeys([*newer["ids"], *older["ids"]]))[:SEEN_IDS_MAX]
+    return {"date": newer["date"], "ids": sorted(ids, reverse=True)}  # ISO dates compare as text
 
 
 def valid_marker(value):

@@ -56,39 +56,44 @@
             return;
           }
           if (response.status !== 400 || response.redirected) {
-            notSaved(false);
+            notSaved("refused");
             return;
           }
           // core/preferences.py answers a refusal at the limit with exactly this text.
           return response.text().then(
             function (reason) {
-              notSaved(reason.trim() === "Too many saved preferences.");
+              notSaved(reason.trim() === "Too many saved preferences." ? "full" : "refused");
             },
             function () {
-              notSaved(false);
+              notSaved("refused");
             }
           );
         },
         function () {
-          notSaved(false);
+          notSaved("unknown"); // no answer: the server may have saved it all the same
         }
       );
     },
   };
 
-  // Refused or not sent: the setting applies to this page only. Say so where Django messages
-  // appear, as for any failed background request (app.js, docs/ui-standards.md section 8).
-  function notSaved(full) {
+  // A setting the server refused applies to this page only; one whose answer never came may have
+  // been saved. Say so where Django messages appear, as for any failed background request
+  // (app.js, docs/ui-standards.md section 8).
+  var NOT_SAVED = {
+    full:
+      "Your display setting applies to this page only: your account already keeps as many " +
+      "saved list settings and layouts as it can.",
+    refused:
+      "Your display setting could not be saved and applies to this page only. Reload the page " +
+      "and try again.",
+    unknown:
+      "Your display setting may not have been saved: no answer came from the server. Reload the " +
+      "page to see what is saved.",
+  };
+
+  function notSaved(outcome) {
     document.dispatchEvent(
-      new CustomEvent("vr:request-error", {
-        detail: {
-          message: full
-            ? "Your display setting applies to this page only: your account already keeps as " +
-              "many saved list settings and layouts as it can."
-            : "Your display setting applies to this page only: it could not be saved. Reload " +
-              "the page and try again.",
-        },
-      })
+      new CustomEvent("vr:request-error", { detail: { message: NOT_SAVED[outcome] } })
     );
   }
 

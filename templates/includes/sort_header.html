@@ -1,5 +1,7 @@
 {% load ui %}{% comment %}
-Sortable column header; the view validates the sort value against its whitelist. Parameters:
+Sortable column header; the view validates the sort value against its whitelist. Its link keeps the
+other parameters the person chose on this page, not those added from their saved settings
+(grid_query, core/templatetags/ui.py). Parameters:
   label   column label
   asc     ascending sort value (e.g. "lab_id"); desc: descending value, if the view allows one
   first   "desc" when the first click should sort newest/highest first
@@ -9,5 +11,5 @@ Sortable column header; the view validates the sort value against its whitelist.
           a saved layout wins); never the identifier, the status or the first name column
 {% endcomment %}
 <th scope="col" class="{{ class }}"{% if col %} data-vr-col="{{ col }}"{% endif %}{% if locked %} data-vr-col-locked{% endif %}{% if hidden %} data-vr-col-hidden{% endif %}{% if priority %} data-vr-col-priority="{{ priority }}"{% endif %} data-vr-col-label="{{ label }}"{% if sort == asc %} aria-sort="ascending"{% elif desc and sort == desc %} aria-sort="descending"{% endif %}>
-  <a class="vr-sort" draggable="false" href="{% if sort == asc and desc %}{% querystring sort=desc page=None %}{% elif sort == desc %}{% querystring sort=asc page=None %}{% elif first == 'desc' and desc %}{% querystring sort=desc page=None %}{% else %}{% querystring sort=asc page=None %}{% endif %}">{{ label }}{% if sort == asc %}{% icon name="arrow-up" %}{% elif desc and sort == desc %}{% icon name="arrow-down" %}{% else %}{% icon name="arrow-down-up" %}{% endif %}</a>
+  <a class="vr-sort" draggable="false" href="{% if sort == asc and desc %}{% grid_query sort=desc page=None %}{% elif sort == desc %}{% grid_query sort=asc page=None %}{% elif first == 'desc' and desc %}{% grid_query sort=desc page=None %}{% else %}{% grid_query sort=asc page=None %}{% endif %}">{{ label }}{% if sort == asc %}{% icon name="arrow-up" %}{% elif desc and sort == desc %}{% icon name="arrow-down" %}{% else %}{% icon name="arrow-down-up" %}{% endif %}</a>
 </th>

@@ -43,9 +43,9 @@ class GridRequest:
 
 
 def shown(request, grid):
-    """Note on `request` the page size and sort its list shows rows with, once its filters are
-    valid: the list middleware (core.preferences.GridPreferenceMiddleware) saves those the
-    address gave, and only those, when the response succeeds."""
+    """Note on `request` the page size and sort its list applies, once its filters are valid (with
+    or without matching rows): the list middleware (core.preferences.GridPreferenceMiddleware)
+    saves those the address gave, and only those, when the response succeeds."""
     request.vr_grid = grid
     return grid
 

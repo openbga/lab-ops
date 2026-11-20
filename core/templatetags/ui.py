@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from django import template
+from django.http import QueryDict
 from django.template.base import token_kwargs
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
@@ -370,25 +371,56 @@ def page_size_field(per_page, noun):
     return form["per_page"]
 
 
+def _chosen_query(context):
+    """The request's query parameters without those added from the person's saved settings
+    (request.vr_saved_params, core.preferences): a link or form of a list re-sends only what the
+    person chose on this page, so it never saves again a value another tab has changed since."""
+    request = context.get("request")
+    if not hasattr(request, "GET"):  # a component drawn without a request
+        return QueryDict(mutable=True)
+    query = request.GET.copy()
+    for name in getattr(request, "vr_saved_params", ()):
+        query.pop(name, None)
+    return query
+
+
 @register.simple_tag(takes_context=True)
 def page_size_params(context, page_parameter="page"):
-    """The query parameters the rows-per-page form of includes/pagination.html carries: all but
-    the page, the page size and those added from the person's saved settings
-    (request.vr_saved_params, core.preferences), so it saves only what they choose."""
-    request = context["request"]
-    left_out = {page_parameter or "page", "per_page", *getattr(request, "vr_saved_params", ())}
+    """The query parameters the rows-per-page form of includes/pagination.html carries: all the
+    person chose but the page and the page size."""
+    query = _chosen_query(context)
+    left_out = {page_parameter or "page", "per_page"}
     return [
-        (key, value)
-        for key, values in request.GET.lists()
-        if key not in left_out
-        for value in values
+        (key, value) for key, values in query.lists() if key not in left_out for value in values
     ]
 
 
 @register.simple_tag(takes_context=True)
+def chosen_param(context, name):
+    """One query parameter as the person chose it on this page ("" when it came from their saved
+    settings or is absent): the hidden sort and page size of a list's filter form."""
+    return _chosen_query(context).get(name, "")
+
+
+@register.simple_tag(takes_context=True)
+def grid_query(context, **changes):
+    """A list link's query string: what the person chose on this page, with `changes` applied
+    (None removes a parameter). For sort headings, as Django's querystring tag but without the
+    values added from saved settings."""
+    query = _chosen_query(context)
+    for name, value in changes.items():
+        if value is None:
+            query.pop(name, None)
+        else:
+            query[name] = value
+    return "?" + query.urlencode()
+
+
+@register.simple_tag(takes_context=True)
 def pagination_query(context, page_number, page_parameter="page"):
-    """Change one table's GET page while preserving the other table and filter parameters."""
-    query = context["request"].GET.copy()
+    """Change one table's GET page while preserving the other table and filter parameters the
+    person chose (not those added from saved settings)."""
+    query = _chosen_query(context)
     query[page_parameter or "page"] = page_number
     return "?" + query.urlencode()
 

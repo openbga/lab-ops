@@ -27,9 +27,10 @@ Parameters:
                chips or q also count
   clear_url    target of Clear all; default request.path
   grid         the table's data-vr-grid key: renders the Columns button; omit for entry grids
-  sort         the current sort value, carried when hidden is not given
-  hidden       bound hidden fields to carry; without it sort and rows per page
-               (request.GET.per_page) are carried
+  sort         the current sort value
+  hidden       bound hidden fields to carry; without it the sort and rows per page the person
+               chose on this page are carried, not those added from their saved settings
+               (chosen_param, core/templatetags/ui.py)
 The button's count and the summary of the active filters are derived from chips (or
 active_filters) and q. Documented page reads ({% grid_toolbar %}, core/templatetags/ui.py): q, placeholder, inline, more,
 more_open, active and sort when not passed, and filter_form and active_filters (for invalid and
@@ -59,8 +60,9 @@ Usage:
   </div>
   {% endif %}
   {% if hidden %}{% for field in hidden %}{{ field }}{% endfor %}{% else %}
-  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
-  {% if request.GET.per_page %}<input type="hidden" name="per_page" value="{{ request.GET.per_page }}">{% endif %}
+  {% chosen_param "sort" as chosen_sort %}{% chosen_param "per_page" as chosen_per_page %}
+  {% if chosen_sort %}<input type="hidden" name="sort" value="{{ chosen_sort }}">{% endif %}
+  {% if chosen_per_page %}<input type="hidden" name="per_page" value="{{ chosen_per_page }}">{% endif %}
   {% endif %}
 </form>
 <section class="vr-sort-section" aria-labelledby="{{ sheet_id }}-sort-title" data-vr-sort-slot hidden>

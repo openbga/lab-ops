@@ -4,7 +4,8 @@ in the session". All application records are synthetic.
 Adopted from the reviewer's file (archived as test_preferences_in_session_round1_verify_original.py)
 with these changes, each explained at the test: V5 and V11's 401-entry case assert the documented
 bounds; V13 asserts the window as now documented (less than 60 days); the timeline case looks for
-the rows-per-page form itself (the shared page help names Rows per page on every page).
+the rows-per-page form itself (the shared page help names Rows per page on every page). In the
+confirmation round, V7 became a documented bound and the offline notice case follows C14.
 """
 
 import json
@@ -217,12 +218,17 @@ def test_rollout_bound_with_two_earlier_writers(client, agent):
 
 
 def test_explicit_list_choice_on_first_page_at_299(client, agent, clinic):
+    """Adapted in the confirmation round (V7, documented bound in docs/architecture.md): the
+    first page's What's new mark is recorded as the page is drawn, so on an account at 299 that
+    has never been shown a staff page it takes the last place before the list's choice. The page
+    still follows its address; the choice is not saved."""
     client.force_login(agent)
     fill(agent, preferences.MAX_PREFERENCES - 1)
     first = client.get(reverse(LIST_ROUTE), {"per_page": 50})
     assert first.status_code == 200 and first.context["page_obj"].paginator.per_page == 50
     following = client.get(reverse(LIST_ROUTE))
-    assert following.context["page_obj"].paginator.per_page == 50
+    assert following.context["page_obj"].paginator.per_page == 25
+    assert UserPreference.objects.filter(user=agent).count() == preferences.MAX_PREFERENCES
 
 
 def test_release_note_describes_the_lock_taken_for_a_bigint_account(make_user):
@@ -306,7 +312,12 @@ vrPreferences.set('nav.collapsed', true).then(() => console.log(JSON.stringify(e
     )
     events = json.loads(result.stdout)
     assert len(events) == 1 and events[0][0] == "vr:request-error"
-    assert "page only" in events[0][1]
+    # Adapted in the confirmation round (C14): with no answer the setting may have been saved,
+    # so that notice does not say it applies to this page only.
+    if outcome == "offline":
+        assert "may not have been saved" in events[0][1] and "page only" not in events[0][1]
+    else:
+        assert "page only" in events[0][1]
     assert ("as many saved" in events[0][1]) == outcome.startswith("limit")
     if outcome == "limit-without-layout":
         # Follow the advertised remedy for an account containing only page settings.

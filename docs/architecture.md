@@ -307,13 +307,16 @@ read once for each request and never copied into the session, because two tabs o
 can answer at the same moment and each saves its whole session as it ends. Every save compares
 with what is stored, not with what the request read: a list's page size and sort, and the What's
 new mark, are combined with the stored value holding its row, and a list saves only the page
-size and sort it showed rows with, once the response is ready (not a sort it does not offer, not
-with refused filters, nothing for a lookup or an error); the first page's What's new mark is
-saved after it, so an explicit choice takes a last free place first. A person keeps at most 300; an
+size and sort it applied with valid filters, once the response is ready (not a sort it does not
+offer, not with refused filters, nothing for a lookup or an error). A list's links and forms
+re-send only what the person chose on that page, not values added from their saved settings,
+so they never put back a value another tab changed. A person keeps at most 300; an
 addition counts and inserts holding that person's additions lock, a transaction-level advisory
 lock keyed like the access gate, so two at the same moment cannot both take the last place,
 while changing or removing a stored one takes no lock. The count needs READ COMMITTED, Django's
-default; a save in a transaction with an older snapshot is refused. Processes of an earlier
+default; a save checks its own transaction's isolation and is refused in one with an older
+snapshot. The first page's What's new mark, recorded as that page is drawn, can take a last free
+place before the page's list choice is saved. Processes of an earlier
 release take no such lock and keep a copy in the session, so while a deploy replaces processes
 one by one the limit and the next-page guarantee hold only between processes of this release.
 [UI standards](ui-standards.md)

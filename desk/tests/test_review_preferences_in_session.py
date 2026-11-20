@@ -537,10 +537,7 @@ def test_refused_new_ticket_marks_first_page_inside_the_request_transaction(
     with paused(preferences, "save_if_absent", record):
         page = client.post(reverse("desk:request-create"), {"subject": "Collection"})
     assert page.status_code in (200, 400, 422) and page.context["form"].errors
-    # Adapted in the verification round: the first mark is now saved once the response is ready
-    # (core.preferences.after_response), after the request's transaction, not inside it.
-    assert in_transaction == [False]
-    assert stored(agent).filter(key=preferences.WHATS_NEW_KEY).exists()
+    assert in_transaction == [True] and stored(agent).filter(key=preferences.WHATS_NEW_KEY).exists()
 
 
 def test_authenticator_setup_is_an_account_page_that_saves_the_session(client, agent, settings):
