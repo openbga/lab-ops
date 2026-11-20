@@ -27,6 +27,7 @@ from attachments.models import Attachment
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.models import Client
+from core.concurrency import one_reading, reading_account
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -600,16 +601,23 @@ def _nonconformance_context(request, request_obj):
     }
 
 
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def request_detail(request, pk):
-    request_obj = _request_or_404(request.user, pk)
-    response = render(request, "desk/request_detail.html", _detail_context(request, request_obj))
+    # One reading for the access check and the whole page, drawing included: every form on it
+    # carries the revision of the timeline, details and links it shows, so a change committed
+    # while the page is drawn is either shown with its revision or not at all.
+    with one_reading():
+        request_obj = _request_or_404(reading_account(request), pk)
+        context = _detail_context(request, request_obj)
+        response = render(request, "desk/request_detail.html", context)
     # Never kept by a shared cache. Not no-store: the browser restores the page from its history,
     # scrubbing a revealed key (static/js, e2e/test_links_journey.py).
     patch_cache_control(response, private=True)
     return response
 
 
+@transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @login_required
 @require_POST
 def request_entry(request, pk):
@@ -639,10 +647,13 @@ def request_entry(request, pk):
             messages.success(request, label[entry.kind] + ".")
             return redirect(_record_url(request_obj, _back(request)))
     # Scope again before anything about the request is rendered: it may have left the actor's
-    # scope while the form was validated.
-    request_obj = _request_or_404(request.user, pk)
-    context = _detail_context(request, request_obj, composer=form)
-    response = render(request, "desk/request_detail.html", context, status=400)
+    # scope while the form was validated. Drawn from one reading, like the page.
+    with one_reading():
+        request_obj = _request_or_404(reading_account(request), pk)
+        if request_obj.status == Status.CLOSED:
+            form.offer_note_only()  # closed meanwhile: as the page shows it
+        context = _detail_context(request, request_obj, composer=form)
+        response = render(request, "desk/request_detail.html", context, status=400)
     patch_cache_control(response, private=True)  # like the page (request_detail)
     return response
 
@@ -655,7 +666,9 @@ def request_take(request, pk):
         services.take(
             actor=request.user,
             request=request_obj,
-            expected_revision=int(request.POST.get("expected_revision") or 0),
+            # A malformed value (a page from before revisions were sent as plain numbers) is no
+            # revision: refused as stale, not an error.
+            expected_revision=whole_number(request.POST.get("expected_revision", "")) or 0,
         )
     except ServiceRequest.DoesNotExist:
         raise Http404("No such ticket.") from None
@@ -1182,13 +1195,20 @@ def view_edit(request, pk):
     )
     if not is_supervisor(request.user) and view.shared_with == "private":
         form.fields["shared_with"].choices = [("private", "Only me")]
+    # The view's revision the page belongs to: read now when drawn; on a POST the one the page
+    # sent, kept when it is drawn again, so a refused page is not made current by drawing it.
+    drawn = (
+        whole_number(request.POST.get("expected_revision", "")) or 0
+        if request.method == "POST"
+        else view.revision
+    )
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
             saved_views.update_view(
                 actor=request.user,
                 view=view,
-                expected_revision=int(request.POST.get("expected_revision") or 0),
+                expected_revision=drawn,
                 name=data["name"],
                 shared_with=data["shared_with"],
                 team=data["team"],
@@ -1207,6 +1227,7 @@ def view_edit(request, pk):
             "page_title": f"Edit view {view.name}",
             "form": form,
             "view": view,
+            "drawn_revision": drawn,
             "cancel_url": _saved_url(view),
             "submit_label": "Save changes",
             "crumbs": [("Tickets", reverse("desk:request-list")), (view.name, None)],

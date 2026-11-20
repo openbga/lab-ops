@@ -7,7 +7,6 @@ collect input, show the service's errors on the form and redirect to the profile
 from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.handlers.exception import response_for_exception
@@ -24,7 +23,7 @@ from clients.permissions import MANAGE_ROLES as CLIENT_ROLES
 
 from . import lab_profile as service
 from . import modules
-from .concurrency import one_reading, protect_form, record_token
+from .concurrency import one_reading, protect_form, reading_account, record_token
 from .lab_profile_forms import (
     LabCertificateForm,
     LabContactForm,
@@ -155,18 +154,6 @@ def lab_profile(request):
             **roles,
         }
     return render(request, "core/lab_profile.html", context)
-
-
-def reading_account(request):
-    """The signed-in account as it stands in the current reading (core.concurrency.one_reading):
-    its status, organization and roles decide access together with what the page shows. It
-    becomes the request's user, with its groups, so every part of the page drawn after the
-    reading (the account menu, the sidebar) shows the same account."""
-    account = get_user_model().objects.prefetch_related("groups").filter(pk=request.user.pk).first()
-    if account is None:
-        raise PermissionDenied("Your account is no longer available.")
-    request.user = account
-    return account
 
 
 def menu_reading(request, reader):

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui desk static %}
+{% load ui desk static l10n %}
 {% comment %}
 One request: its facts, the composer (reply, note or logged contact), its service clock and links
 (slots filled by the service_levels and links apps), the complaint record when it is a complaint,
@@ -28,7 +28,7 @@ follows the conversation. Add entry jumps directly to it.
 {% block page_actions %}
 {% if not is_closed %}
 {% if is_member and req.assignee_id != user.pk %}{# form: button-target #}
-<form method="post" action="{% url 'desk:request-take' req.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ req.revision }}"><input type="hidden" name="list" value="{{ list_query }}"><button class="btn btn-outline-secondary" type="submit">Take it</button></form>{% endif %}
+<form method="post" action="{% url 'desk:request-take' req.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ req.revision|unlocalize }}"><input type="hidden" name="list" value="{{ list_query }}"><button class="btn btn-outline-secondary" type="submit">Take it</button></form>{% endif %}
 <a class="btn btn-outline-secondary" href="{% url 'desk:request-assign' req.pk %}?list={{ list_query|urlencode }}">Assign</a>
 <a class="btn btn-outline-secondary" href="{% url 'desk:request-status' req.pk %}?list={{ list_query|urlencode }}">Status</a>
 {% endif %}

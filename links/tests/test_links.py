@@ -279,6 +279,8 @@ def test_client_reference_prefills_and_stays(agent, lis, make_request, client):
     url = reverse("link_records:request-link-add", args=[service_request.pk])
     form_page = client.get(url + "?from=reference").content.decode()
     assert 'value="COC-TEST-000021"' in form_page
+    service_request.refresh_from_db()
+    assert f'name="expected_revision" value="{service_request.revision}"' in form_page
     client.post(
         url,
         {
@@ -286,6 +288,7 @@ def test_client_reference_prefills_and_stays(agent, lis, make_request, client):
             "record_type": "custody_form",
             "identifier": "COC-TEST-000021",
             "role": "primary",
+            "expected_revision": service_request.revision,  # the page's (a link page carries it)
         },
     )
     service_request.refresh_from_db()

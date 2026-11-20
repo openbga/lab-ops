@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% load ui %}
+{% load ui l10n %}
 {% comment %}
 Add a link to a request or an organization (L2, L3, L4). Context: form (LinkForm, which offers
 person-level record types only to holders of view_patient_information, on a request), crumbs,
-cancel_url. A record already linked elsewhere is reused: the label and address typed here are
+cancel_url, ticket_revision (on a ticket, the ticket's revision the page belongs to, sent back
+with the form). A record already linked elsewhere is reused: the label and address typed here are
 then ignored and the existing ones kept.
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
@@ -11,5 +12,6 @@ then ignored and the existing ones kept.
 {% if form.person_warning %}{% notice tone="warning" label="Patients, participants, donors" %}{{ form.person_warning }}{% endnotice %}{% endif %}
 {% form_page form=form cancel_url=cancel_url submit_label="Add link" %}
   {% include "includes/grouped_fields.html" %}
+  {% if ticket_revision is not None %}<input type="hidden" name="expected_revision" value="{{ ticket_revision|unlocalize }}">{% endif %}
 {% endform_page %}
 {% endblock %}

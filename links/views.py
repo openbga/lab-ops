@@ -18,6 +18,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import require_staff
 from clients.models import Client
+from core.concurrency import reading_account
+from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
 from desk.selectors import staff_requests
@@ -35,6 +37,7 @@ from .identifiers import url_on_system_host
 from .models import ExternalRecordLink, ExternalSystem, LinkAttachment
 from .services import (
     CLOSED_MESSAGE,
+    STALE,
     add_link,
     can_see_person_links,
     create_system,
@@ -53,10 +56,27 @@ SYSTEM_COLUMNS = {"name": "name", "kind": "kind", "base_url": "base_url", "is_ac
 NO_STORE = "no-store, max-age=0"
 
 
+# The desk's stale message says to reload, which on a page answering a POST would send it again.
+LINK_PAGE_STALE = (
+    "This ticket changed after you opened this page, so nothing was saved. Go back to the ticket, "
+    "check it as it is now, and reopen this page."
+)
+
+
+def _flag_stale(form, service_request, revision):
+    """On a link page drawn again with errors, say it is stale when the ticket has changed since
+    the page was opened, so correcting a field alone is not met with a second refusal."""
+    if form.errors and service_request.revision != revision:
+        if LINK_PAGE_STALE not in form.non_field_errors():
+            form.add_error(None, LINK_PAGE_STALE)
+
+
 def _errors(form, exc):
     if hasattr(exc, "message_dict"):
         for name, errors in exc.message_dict.items():
             form.add_error(name if name in form.fields else None, errors)
+    elif STALE in exc.messages:
+        form.add_error(None, LINK_PAGE_STALE)
     else:
         form.add_error(None, exc)
 
@@ -171,7 +191,18 @@ def system_edit(request, pk):
 # Adding and removing links (L2, L3, L4) ----------------------------------------------------
 
 
-def _add_page(request, form, *, title, crumbs, cancel_url):
+def _drawn_revision(request, service_request):
+    """The ticket's revision a link page belongs to: read now when the page is drawn; on a POST,
+    the one the page sent, kept when it is drawn again. A value the ticket has not reached, or
+    none (a page drawn before it carried one), counts as 0, which no ticket has: refused as stale,
+    and never put back in the page."""
+    if request.method == "POST":
+        sent = whole_number(request.POST.get("expected_revision", "")) or 0
+        return sent if sent <= service_request.revision else 0
+    return service_request.revision
+
+
+def _add_page(request, form, *, title, crumbs, cancel_url, ticket_revision=None):
     return render(
         request,
         "links/link_form.html",
@@ -180,6 +211,7 @@ def _add_page(request, form, *, title, crumbs, cancel_url):
             "form": form,
             "crumbs": crumbs,
             "cancel_url": cancel_url,
+            "ticket_revision": ticket_revision,
         },
     )
 
@@ -197,10 +229,14 @@ def request_link_add(request, pk):
     if request.GET.get("from") == "reference" and service_request.client_reference:
         initial = {"identifier": service_request.client_reference}
     form = LinkForm(request.POST or None, initial=initial, allow_person=allow_person)
+    revision = _drawn_revision(request, service_request)
     if request.method == "POST" and form.is_valid():
         try:
             attachment, created = add_link(
-                actor=request.user, request_id=service_request.pk, **form.cleaned_data
+                actor=request.user,
+                request_id=service_request.pk,
+                expected_revision=revision,
+                **form.cleaned_data,
             )
         except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
             raise Http404 from error
@@ -215,12 +251,26 @@ def request_link_add(request, pk):
                 "elsewhere, so the existing link was reused.",
             )
             return redirect(back)
+    if request.method == "POST":
+        # Drawn again as the account and the ticket are now: who asks first, then the ticket (one
+        # closed meanwhile takes no link), the types the capability offers, and whether the page
+        # is already stale (a field to correct must not hide that).
+        reader = reading_account(request)
+        require_staff(reader)
+        service_request = _readable_request(reader, pk)
+        if service_request.status == "closed":
+            messages.info(request, CLOSED_MESSAGE)
+            return redirect(back)
+        allow_person = can_see_person_links(reader)
+        form.offer_types(allow_person)
+        _flag_stale(form, service_request, revision)
     response = _add_page(
         request,
         form,
         title="Add link",
         crumbs=[("Tickets", None), (service_request.number, back), ("Add link", None)],
         cancel_url=back,
+        ticket_revision=revision,
     )
     return _no_store(response) if allow_person else response
 
@@ -284,9 +334,19 @@ def attachment_remove(request, pk):
         messages.info(request, CLOSED_MESSAGE)
         return redirect(back)
     form = RemoveLinkForm(request.POST or None, person=attachment.is_person)
+    # On a ticket, the page belongs to the ticket's revision it was drawn with: a removal sent
+    # after the ticket changed (this link shown or hidden, a note) is refused as stale.
+    revision = (
+        _drawn_revision(request, attachment.request) if attachment.request_id is not None else None
+    )
     if request.method == "POST" and form.is_valid():
         try:
-            remove_link(actor=request.user, attachment_id=attachment.pk, **form.cleaned_data)
+            remove_link(
+                actor=request.user,
+                attachment_id=attachment.pk,
+                expected_revision=revision,
+                **form.cleaned_data,
+            )
         except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
             raise Http404 from error
         except ValidationError as exc:
@@ -294,6 +354,18 @@ def attachment_remove(request, pk):
         else:
             messages.success(request, "Link removed. Its history stays.")
             return redirect(back)
+    if request.method == "POST":
+        # Drawn again (refused, or a field to correct) as the account, the link and its ticket are
+        # now, not as they were read before: who asks first, then removed meanwhile, shown or
+        # hidden, the ticket closed, or the page already stale.
+        reader = reading_account(request)
+        require_staff(reader)
+        attachment = _attachment_for(reader, pk)
+        if attachment.request_id is not None:
+            if attachment.request.status == "closed":
+                messages.info(request, CLOSED_MESSAGE)
+                return redirect(back)
+            _flag_stale(form, attachment.request, revision)
     target = attachment.request.number if attachment.request_id else attachment.client.name
     response = render(
         request,
@@ -310,6 +382,7 @@ def attachment_remove(request, pk):
             "crumbs": [(target, back), ("Remove link", None)],
             "cancel_url": back,
             "removed": attachment.removed_at is not None,
+            "ticket_revision": revision,
         },
     )
     return _no_store(response)
@@ -320,9 +393,18 @@ def attachment_remove(request, pk):
 def attachment_shown(request, pk):
     require_staff(request.user)
     attachment = _attachment_for(request.user, pk)
-    shown = request.POST.get("shown") == "1"
+    choice = request.POST.get("shown")
+    if choice not in ("0", "1"):  # only the form's two actions: anything else changes nothing
+        messages.error(request, "Choose Show to client or Hide from client.")
+        return redirect(f"{_target_url(attachment)}#links")
+    shown = choice == "1"
+    # The ticket's revision on the page the form was on; a form without one (drawn before it
+    # carried one) is refused as stale, as a page drawn before a change is.
+    expected = whole_number(request.POST.get("expected_revision", "")) or 0
     try:
-        set_shown_to_client(actor=request.user, attachment_id=attachment.pk, shown=shown)
+        set_shown_to_client(
+            actor=request.user, attachment_id=attachment.pk, shown=shown, expected_revision=expected
+        )
     except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
         raise Http404 from error
     except ValidationError as exc:

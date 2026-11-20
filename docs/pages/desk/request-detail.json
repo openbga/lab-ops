@@ -49,7 +49,7 @@
   "good_to_know": [
     "Only a reply that has not been withdrawn is visible to the client. Notes, logged contacts and events never are. Entries cannot be edited or deleted.",
     "If a notice says Nobody in the portal sees this ticket, a reply is recorded but reaches nobody. Call the client and log the contact instead.",
-    "If someone changed the ticket after you opened it, your change is refused as stale. Reload, read the latest entries and try again.",
+    "If someone changed the ticket after you opened it, a change from this page or its link pages is refused as stale. Reload and try again. Edit form details checks only its own fields.",
     "A complaint closes only after a supervisor who did not record the decision, and was never assigned the ticket, has reviewed it.",
     "A closed ticket cannot be reopened or reassigned; only internal notes can be added. Raise a new ticket for anything more."
   ],
@@ -58,6 +58,7 @@
       "title": "Access",
       "paragraphs": [
         "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list or Find, the page keeps the list's filters so Previous in list and Next in list can step through it.",
+        "The page is read at one moment: its details, conversation, links and the ticket revision its forms send agree with each other, and your roles are checked in the same reading. A change saved from it is refused as stale only if the ticket changed after the page opened. When an entry is refused, the page is shown again read the same way, and the entry form keeps what you typed and the revision it was opened with.",
         "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again."
       ]
     },
@@ -214,7 +215,8 @@
     {
       "title": "Links",
       "paragraphs": [
-        "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access."
+        "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access.",
+        "Adding, removing, showing or hiding a link changes the ticket, like a note or a status change: a change sent from a page opened before it, in this tab or another, is refused as stale (this page's forms, Show to client / Hide from client, and the Add link and Remove link pages), and so is a client's reply. Edit form details checks the fields it changes."
       ],
       "items": [
         {

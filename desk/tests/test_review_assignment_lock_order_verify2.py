@@ -409,6 +409,11 @@ def _page_case(page, lead, technician, restricted_ticket, lis, quality):
             "record_type": "order",
             "identifier": "ORD-TEST-000051",
             "role": "related",
+            # The page's revision (contract since "the jobs' account's first use and a page drawn
+            # across a change": a link page without it is refused as stale).
+            "expected_revision": ServiceRequest.objects.values_list("revision", flat=True).get(
+                pk=ticket.pk
+            ),
         }
 
         def unchanged():
@@ -421,7 +426,13 @@ def _page_case(page, lead, technician, restricted_ticket, lis, quality):
         attachment = _link_attachment(lead, ticket, lis, "ORD-TEST-000052")
         name = "attachment-remove" if page == "link-remove" else "attachment-shown"
         url = reverse(f"link_records:{name}", args=[attachment.pk])
-        data = {"reason": "Wrong record"} if page == "link-remove" else {"shown": "1"}
+        # The ticket's revision the page sends (contract since "the jobs' account's first use and
+        # a page drawn across a change": a removal or Show/Hide without it is refused as stale).
+        revision = ServiceRequest.objects.values_list("revision", flat=True).get(pk=ticket.pk)
+        if page == "link-remove":
+            data = {"reason": "Wrong record", "expected_revision": revision}
+        else:
+            data = {"shown": "1", "expected_revision": revision}
 
         def unchanged():
             current = LinkAttachment.objects.get(pk=attachment.pk)

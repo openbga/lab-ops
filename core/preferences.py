@@ -122,6 +122,30 @@ def save(request, key, value):
     _remember(request, prefs)
 
 
+def save_if_absent(request, key, value):
+    """Store `value` as the signed-in user's `key` only while they have none, and keep a value
+    stored meanwhile (by another tab, or an explicit choice). Raises ValueError."""
+    if clean(key, value) != value:
+        raise ValueError(f"Not a valid value for {key!r}.")
+    prefs = for_request(request)
+    if key in prefs:
+        return
+    stored = UserPreference.objects.filter(user=request.user, key=key).first()
+    if stored is None:
+        if UserPreference.objects.filter(user=request.user).count() >= MAX_PREFERENCES:
+            raise ValueError("Too many saved preferences.")
+        stored, _created = UserPreference.objects.get_or_create(
+            user=request.user, key=key, defaults={"value": value}
+        )
+    elif clean(key, stored.value) is None:
+        # Unreadable, so as good as none: replaced, unless it was replaced meanwhile.
+        UserPreference.objects.filter(pk=stored.pk, value=stored.value).update(value=value)
+        stored.refresh_from_db()
+    if (kept := clean(key, stored.value)) is not None:
+        prefs[key] = kept
+        _remember(request, prefs)
+
+
 @login_required
 @require_POST
 def preference(request):

@@ -13,8 +13,8 @@ from django.shortcuts import render
 from accounts.roles import require_role
 
 from . import lab_profile, security_settings
-from .concurrency import one_reading
-from .lab_profile_views import contact_history, menu_reading, reading_account
+from .concurrency import one_reading, reading_account
+from .lab_profile_views import contact_history, menu_reading
 from .models import Lab
 
 

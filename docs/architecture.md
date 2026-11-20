@@ -29,6 +29,13 @@ its authorization and the current state, makes the changes and records their aud
 the same transaction. Row locks and expected revisions protect decisions against concurrent
 changes. A form posted with an earlier revision of its record is shown again, to anyone who may
 still read the record, with what was typed and the reason it cannot be saved: nothing is written.
+A ticket's page, on the desk and in the portal, is read and drawn in one snapshot of the database
+(`core.concurrency.one_reading`), the signed-in account and its access included, so the revision
+its forms carry is the one of the ticket as it shows it: details, conversation, status and links.
+The reply and entry posts run outside any request transaction (their services open their own),
+so the page drawn again after a refusal has a snapshot of its own too. What drawing writes (the
+What's new mark, only while the account has none) is saved after the snapshot
+(`core.concurrency.after_reading`).
 After its last lock a change reads the acting account and its scope again before it writes. The
 deployment's `TIME_ZONE` defines local input and display. The laboratory profile
 records the zone selected at setup.
@@ -175,7 +182,13 @@ again. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
-organization locks the organization in the ticket's place. An import of external identifiers
+organization locks the organization in the ticket's place. Attaching a link to a ticket, removing
+it, and showing it to the client or hiding it are changes to the ticket and advance its revision;
+Show to client and Hide from client, and a ticket's Add link and Remove link pages, send the
+ticket's revision of the page they came from; it is checked right after the acting account (and
+the capability for a person-level link) is read again, so any change to the ticket since is
+refused as stale. A correction of a link's own label or address is a change to the link (its own
+revision), not to the tickets that carry it; an organization's link pages carry no such check. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
 before its first row, so it and a link added at the same moment wait for each other one way.
 Whatever changes how an import finds or checks records, or may lock several organizations in an
@@ -230,7 +243,11 @@ jobs page.
 
 A job that changes a record acts as a dedicated "Scheduled jobs" account ([jobs/actor.py](../jobs/actor.py)),
 created on first use, inactive, with no usable password, role or deliverable address. Its id is
-stored in the job settings, not looked up by name. A job decides from records read under its own
+stored in the job settings, not looked up by name. Its name and address are a base name with a
+random suffix drawn when it is created, so a person's account saved at that moment meets neither,
+in any letter case, unless it is given that very suffix, which nobody can know before it is
+drawn: the old base name or address being registered never delays the first run. A job decides
+from records read under its own
 locks: the automatic close locks the settings row and then the ticket, and the breach notice
 locks the ticket and then its clock, the same order as the ticket services, and then, without
 waiting, the access gates of everyone the rule names, shared
@@ -241,8 +258,9 @@ deactivation, a removal of a role or a team membership, or a change of the notic
 committed before is seen, one under way leaves the ticket for the next run, and one that starts
 afterwards waits for the job.
 A sign-in or an assignment of the same person does not wait for it. The job's account is looked
-up without the settings row's lock once it exists; a first run that meets the settings being
-saved leaves its work to the next run. Each breach run has its own identifier, which a
+up without the settings row's lock once it exists; a first breach run that meets the settings
+being saved leaves its work to the next run, while the automatic close waits for the save, as
+each of its closes does, because it decides from the period in force. Each breach run has its own identifier, which a
 waiting notice must still match when it is sent. Later items add their
 periodic work and their notice topics to the registry.
 

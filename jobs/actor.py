@@ -9,10 +9,17 @@ team and an address in the reserved .invalid domain (RFC 6761), so nobody can si
 given work or receive mail as it. Sign-in refuses it even if someone activates it and sets a
 password in the admin console (accounts.adapter). Its id is kept in JobSettings.system_account
 and never looked up by name, so a person's account with a similar name is never taken for it.
-Creating it is audited.
+Its name and address are a base name with a random suffix drawn when it is created: a person's
+account, saved already or being saved at that moment, meets neither in any letter case unless it
+is given that very suffix, which nobody can know before it is drawn. So the old base name being
+registered never delays the first run, and the two do not differ only in case. Creating it is
+audited.
 """
 
+import secrets
+
 from django.db import IntegrityError, OperationalError, connection, transaction
+from django.db.models import Q
 
 from core.audit import record_event
 
@@ -56,14 +63,20 @@ def locked_settings(nowait=False):
         raise
 
 
-def _free(field, base, template):
+def _identity():
+    """A name and address for the jobs' account that no saved account holds, in any letter case.
+    The check cannot see an account not committed yet (an insert with its name would wait for it,
+    and a case variant would be saved beside it); the random suffix, from the operating system's
+    secure source, is what keeps one being saved at this moment from holding it."""
     from accounts.models import User
 
-    value, n = base, 1
-    while User.objects.filter(**{f"{field}__iexact": value}).exists():
-        n += 1
-        value = template.format(n=n)
-    return value
+    for _attempt in range(5):
+        username = f"{USERNAME}-{secrets.token_hex(4)}"
+        email = f"{username}@{EMAIL_DOMAIN}"
+        taken = Q(username__iexact=username) | Q(email__iexact=email)
+        if not User.objects.filter(taken).exists():
+            return username, email
+    raise RuntimeError("No free name for the scheduled jobs' account.")
 
 
 def system_account(nowait=False):
@@ -94,13 +107,12 @@ def _create_system_account(nowait):
         if settings_row.system_account_id is not None:
             return User.objects.get(pk=settings_row.system_account_id)
         for attempt in range(5):
-            # The name and address are chosen free; an account created with one of them at the
-            # same moment takes it first, and the next attempt chooses again.
+            # A name and address nobody holds (_identity); should an account saved since the
+            # check hold one of them, the next attempt chooses again.
+            username, email = _identity()
             user = User(
-                username=_free("username", USERNAME, USERNAME + "-{n}"),
-                email=_free(
-                    "email", f"{USERNAME}@{EMAIL_DOMAIN}", USERNAME + "-{n}@" + EMAIL_DOMAIN
-                ),
+                username=username,
+                email=email,
                 first_name="Scheduled",
                 last_name="jobs",
                 is_active=False,

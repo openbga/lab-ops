@@ -1,4 +1,4 @@
-{% load ui %}{% comment %}
+{% load ui l10n %}{% comment %}
 The Links section of a staff request page (L2 to L4), rendered by {% request_links request user %}
 (links/templatetags/record_links.py) into the template links/_request_links.html.
 Context: service_request, current and removed (links.access.LinkRow, already masked for the
@@ -48,7 +48,7 @@ POST whose answer replaces the row's key cell and is recorded in the audit histo
             {% url 'link_records:attachment-shown' row.attachment_id as shown_url %}{% url 'link_records:attachment-remove' row.attachment_id as remove_url %}
             {% more_actions label="Actions" %}
               {# form: menu #}
-              {% if not row.is_person %}<li><form method="post" action="{{ shown_url }}">{% csrf_token %}<input type="hidden" name="shown" value="{% if row.shown_to_client %}0{% else %}1{% endif %}"><button class="dropdown-item" type="submit">{% if row.shown_to_client %}Hide from client{% else %}Show to client{% endif %}</button></form></li>{% endif %}
+              {% if not row.is_person %}<li><form method="post" action="{{ shown_url }}">{% csrf_token %}<input type="hidden" name="shown" value="{% if row.shown_to_client %}0{% else %}1{% endif %}"><input type="hidden" name="expected_revision" value="{{ service_request.revision|unlocalize }}"><button class="dropdown-item" type="submit">{% if row.shown_to_client %}Hide from client{% else %}Show to client{% endif %}</button></form></li>{% endif %}
               <li><a class="dropdown-item" href="{{ remove_url }}">Remove link</a></li>
             {% endmore_actions %}
           {% endif %}</td>
