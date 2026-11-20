@@ -84,7 +84,8 @@ def hold_directory():
     - changing an organization's name, account code or parent (its own row, then the new
       parent's chain upwards, _check_parent);
     - changing a site's code;
-    - adding a contact, or changing a contact's email;
+    - adding a contact, or changing a contact's email or name (a contact without an email is
+      found by name);
     - the demonstration seed, after holding the accounts it acts as.
 
     One of them at a time: the second waits for the first to commit, then reads and locks what it
@@ -294,16 +295,19 @@ def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, 
     require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
     actor = _held_manager(actor)
-    # A new email takes the directory lock first (an import finds contacts by email); decided
-    # from a reading before the locks, as in update_client.
-    found = ClientContact.objects.filter(pk=contact_id).values_list("email", flat=True).first()
-    directory = found is not None and _value_changes(found, data, "email")
+    # A new email or name takes the directory lock first (an import finds contacts by email,
+    # and one without an email by name); decided from a reading before the locks, as in
+    # update_client.
+    found = ClientContact.objects.filter(pk=contact_id).values("email", "name").first()
+    directory = found is not None and _contact_identity_changes(found, data)
     if directory:
         hold_directory()
     contact = ClientContact.objects.select_for_update().get(pk=contact_id)
     if contact.revision != expected_revision:
         raise ValidationError("This contact changed. Reload and review the current record.")
-    if not directory and _value_changes(contact.email, data, "email"):
+    if not directory and _contact_identity_changes(
+        {"email": contact.email, "name": contact.name}, data
+    ):
         raise ValidationError("This contact changed. Reload and review the current record.")
     current = set(contact.sites.values_list("pk", flat=True))
     before = _contact_state(contact, current)
@@ -345,6 +349,10 @@ def create_site(*, actor, client_id, **data):
     _save_unique(site)
     record_event(actor=actor, action="site.created", obj=site, after=snapshot(site))
     return site
+
+
+def _contact_identity_changes(found, data):
+    return any(_value_changes(found[name], data, name) for name in ("email", "name"))
 
 
 def _value_changes(stored, data, name):

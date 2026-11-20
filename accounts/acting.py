@@ -222,30 +222,36 @@ def hold_actor(actor):
 
 def hold_actors(users):
     """Hold several accounts (hold_actor), in the order of their gates' keys, the order
-    close_access takes them in, so the two never take the same gates the other way round."""
-    for user in sorted(users, key=lambda user: user.pk % INT4):
-        hold_actor(user)
+    close_access takes them in, so the two never take the same gates the other way round.
+    Returns the readings of those that exist."""
+    readings = [hold_actor(user) for user in sorted(users, key=lambda user: user.pk % INT4)]
+    return [current for current in readings if current is not None]
+
+
+@contextlib.contextmanager
+def scope(readings):
+    """For a block of work: hold_actor of an account in `readings` (accounts this transaction
+    holds already, taken before the block) returns that reading and locks nothing again. Every
+    savepoint the block opens comes after those holds, so none can release them."""
+    conn = transaction.get_connection()
+    scoped = getattr(conn, _SCOPED, {})
+    setattr(conn, _SCOPED, {**{current.pk: current for current in readings}, **scoped})
+    try:
+        yield
+    finally:
+        setattr(conn, _SCOPED, scoped)
 
 
 @contextlib.contextmanager
 def holding(actor):
     """Hold the acting account (hold_actor) for a block of work inside a transaction, such as an
     import whose rows go through services that hold their actor themselves: within the block they
-    get this reading and lock nothing again. The hold is taken before anything inside the block,
-    so no savepoint the block opens can release it, and it lasts until the transaction ends.
-    Yields the reading (None for an account that does not exist)."""
+    get this reading and lock nothing again (scope). The hold is taken before anything inside the
+    block and lasts until the transaction ends. Yields the reading (None for an account that does
+    not exist)."""
     current = hold_actor(actor)
-    conn = transaction.get_connection()
-    scoped = getattr(conn, _SCOPED, {})
-    pk = getattr(current, "pk", None)
-    if current is None or pk in scoped:
+    with scope([current] if current is not None else []):
         yield current
-        return
-    setattr(conn, _SCOPED, {**scoped, pk: current})
-    try:
-        yield current
-    finally:
-        setattr(conn, _SCOPED, scoped)
 
 
 def acting_change(service):

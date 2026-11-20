@@ -144,8 +144,8 @@ way. Setup changes (teams, categories,
 forms, calendars and the like) do not hold their actor, except creating or changing a client
 organization, a site or a contact, which can wait for the directory lock or an organization an
 import holds, and hold their actor as an import does. An import holds its actor for the whole of its work
-(`accounts.acting.holding`), and the services its rows go through get that reading and lock
-nothing again. The services that reveal patient
+(`accounts.acting.holding`), and the demonstration seed the accounts it acts as
+(`accounts.acting.scope`); the services they call get that reading and lock nothing again. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
@@ -157,7 +157,7 @@ order of its own, first takes the organization directory lock, a transaction-lev
 ([clients/services.py](../clients/services.py) `hold_directory`), after holding its actor:
 every import, before it reads the file; creating an organization; changing an organization's
 name, account code or parent (which locks the organization and then walks up the new parent's
-chain); changing a site's code; adding a contact or changing a contact's email; and the
+chain); changing a site's code; adding a contact or changing a contact's email or name; and the
 demonstration seed, which first takes a lock of its own (one seed or reset at a time) and holds
 the accounts it acts as. They take their turns: the second waits for the first to commit and
 decides on what it saved, so a parent that would now close a loop is refused, a code taken

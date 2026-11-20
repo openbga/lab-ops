@@ -4,7 +4,8 @@ commit (assignee-group-deadlocks-round-1-confirmation-2-resolution.md in the rev
 Adapted to that resolution: S2 (adding a contact takes the directory lock, so the file and the
 contact wait there), S3 (organizations held FOR NO KEY UPDATE), S7 (taking an organization out
 of its group waits for an import that changes that organization's own records, as the help now
-says)."""
+says). The folded-gate-order case is replaced by the third confirmation's stronger one, which
+follows the seed past its own lock to the actor gates."""
 
 import io
 
@@ -232,51 +233,6 @@ def test_edit_form_preserves_the_submitted_choice_when_the_last_site_is_retired(
         assert "sites" in bound.errors and bound["reason"].value() == data["reason"]
     else:
         assert (response.status_code, clinic_contact.name, events) == (302, data["name"], 1)
-
-
-@pytest.mark.parametrize("high_id", [False, True], ids=["small-ids", "folded-key"])
-def test_seed_acquires_shared_gates_in_the_order_of_the_access_gate_service(
-    make_user, monkeypatch, high_id
-):
-    """Observe each operation’s gate order on its own PostgreSQL connection."""
-    from accounts.acting import ACCESS_GATE, INT4, close_access
-
-    small = make_user("demo_admin", "admin", pk=400)
-    large = make_user("demo_account_manager", "account_manager", pk=INT4 + 17 if high_id else 17)
-    seed_keys, access_keys = [], []
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
-    monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
-
-    class BeforeSetup(Exception):
-        pass
-
-    def seed_sql(execute, sql, params, many, context):
-        if "pg_advisory_xact_lock_shared" in sql and params[0] == ACCESS_GATE:
-            seed_keys.append(params[1])
-        if "pg_advisory_xact_lock(" in sql or 'FROM "core_lab"' in sql:
-            raise BeforeSetup
-        return execute(sql, params, many, context)
-
-    def seed_prefix():
-        with connection.execute_wrapper(seed_sql), pytest.raises(BeforeSetup):
-            call_command("seed_demo", stdout=io.StringIO(), stderr=io.StringIO())
-
-    def access_sql(execute, sql, params, many, context):
-        if "pg_advisory_xact_lock(" in sql and params[0] == ACCESS_GATE:
-            access_keys.append(params[1])
-        return execute(sql, params, many, context)
-
-    def access_change():
-        with transaction.atomic(), connection.execute_wrapper(access_sql):
-            close_access([small.pk, large.pk])
-
-    seed = Session(seed_prefix).start()
-    assert seed.join() == "done", seed.error
-    access = Session(access_change).start()
-    assert access.join() == "done", access.error
-    assert access_keys == [17, 400]
-    # The earlier revision acquired no shared actor gates in the command preamble.
-    assert not seed_keys or seed_keys == access_keys, (seed_keys, access_keys)
 
 
 @pytest.mark.parametrize(
