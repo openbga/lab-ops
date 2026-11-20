@@ -12,6 +12,7 @@ nothing inside it.
 """
 
 from django import template
+from django.db import IntegrityError
 from django.urls import reverse
 
 from core import changelog, preferences
@@ -32,14 +33,23 @@ def whats_new_button(context):
         count = 0
         seen = changelog.seen_marker(entries)
         if seen is not None and request.method != "HEAD":  # a HEAD response carries no page
+            drawn_for = user.pk
 
             def record():
+                # Only for the account the page was drawn for: if the request's account changed
+                # before the page's reading ended, nobody saw this page as the new one.
+                if getattr(request.user, "pk", None) != drawn_for:
+                    return
                 # Only while there is none: a mark saved meanwhile (another tab's first page, or
                 # opening What's new) is newer than this page's reading and stays.
                 try:
                     preferences.save_if_absent(request, preferences.WHATS_NEW_KEY, seen)
                 except ValueError:
                     pass  # too many saved preferences: the next page tries again
+                except IntegrityError as error:
+                    if getattr(error.__cause__, "sqlstate", None) != "23503":
+                        raise
+                    # The account was removed while the page was drawn: nobody to record it for.
 
             after_reading(record)
     else:

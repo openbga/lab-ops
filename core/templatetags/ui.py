@@ -34,7 +34,7 @@ from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 
-from core.grids import PageSizeForm
+from core.grids import PageSizeForm, chosen_query
 
 register = template.Library()
 
@@ -378,10 +378,7 @@ def _chosen_query(context):
     request = context.get("request")
     if not hasattr(request, "GET"):  # a component drawn without a request
         return QueryDict(mutable=True)
-    query = request.GET.copy()
-    for name in getattr(request, "vr_saved_params", ()):
-        query.pop(name, None)
-    return query
+    return chosen_query(request)
 
 
 @register.simple_tag(takes_context=True)
@@ -411,9 +408,26 @@ def grid_query(context, **changes):
     for name, value in changes.items():
         if value is None:
             query.pop(name, None)
+        elif isinstance(value, (list, tuple)):
+            query.setlist(name, [str(item) for item in value])
         else:
             query[name] = value
     return "?" + query.urlencode()
+
+
+@register.simple_tag(takes_context=True)
+def chosen_query_string(context):
+    """The list's query string as the person chose it ("" when none): a record link's `list`
+    parameter, which its breadcrumb sends back to the list."""
+    return _chosen_query(context).urlencode()
+
+
+@register.simple_tag(takes_context=True)
+def saved_param_names(context):
+    """The query parameters the list middleware added from the person's saved settings, which a
+    list's forms leave out (bound hidden fields of the filter toolbar)."""
+    request = context.get("request")
+    return sorted(getattr(request, "vr_saved_params", ()))
 
 
 @register.simple_tag(takes_context=True)

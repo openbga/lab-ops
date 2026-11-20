@@ -315,8 +315,11 @@ addition counts and inserts holding that person's additions lock, a transaction-
 lock keyed like the access gate, so two at the same moment cannot both take the last place,
 while changing or removing a stored one takes no lock. The count needs READ COMMITTED, Django's
 default; a save checks its own transaction's isolation and is refused in one with an older
-snapshot. The first page's What's new mark, recorded as that page is drawn, can take a last free
-place before the page's list choice is saved. Processes of an earlier
+snapshot. The first page's What's new mark is recorded as that page is drawn, for the account it
+is drawn for: it can take a last free place before the page's list choice is saved, and it is
+kept when the page is then replaced (an address without its trailing slash draws a 404 page
+before redirecting) or fails after drawing the top bar, unless `ATOMIC_REQUESTS` rolls the
+request back. Processes of an earlier
 release take no such lock and keep a copy in the session, so while a deploy replaces processes
 one by one the limit and the next-page guarantee hold only between processes of this release.
 [UI standards](ui-standards.md)

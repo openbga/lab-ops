@@ -243,7 +243,8 @@ def save_combined(request, key, combine):
 def save_if_absent(request, key, value):
     """Store `value` as the signed-in user's `key` only while they have none stored, and keep a
     value stored meanwhile (by another tab, or an explicit choice). A stored value that can no
-    longer be read counts as none. Raises ValueError."""
+    longer be read counts as none and is replaced, whenever it is found. Raises ValueError, also
+    when the row keeps changing under it."""
     if clean(key, value) != value:
         raise ValueError(f"Not a valid value for {key!r}.")
     prefs = for_request(request)
@@ -251,22 +252,25 @@ def save_if_absent(request, key, value):
     stored = UserPreference.objects.filter(user_id=user_id, key=key)
     with transaction.atomic():
         _writable()
-        row = stored.first()
-        if row is not None and clean(key, row.value) is None:
-            # Unreadable, so as good as none: replaced, unless it was replaced meanwhile.
-            stored.filter(pk=row.pk, value=row.value).update(value=value, updated_at=timezone.now())
+        locked = False
+        for _attempt in range(2 * ATTEMPTS):  # reading, locking, adding and repairing
             row = stored.first()
-        if row is None:
-            _hold_additions(user_id)
-            # Holding the lock: one added meanwhile is kept, as is one an earlier release added
-            # without it; one removed meanwhile is added again.
-            for _attempt in range(ATTEMPTS):
-                row = stored.first()
-                if row is not None or _add(user_id, key, value):
-                    row = row or stored.first()
-                    break
-    if row is not None and (kept := clean(key, row.value)) is not None:
-        prefs[key] = kept
+            if row is not None:
+                if (kept := clean(key, row.value)) is not None:
+                    break  # a readable one, from another tab or an explicit choice, stays
+                # Unreadable: replaced, unless it was replaced meanwhile (then read it again).
+                stored.filter(pk=row.pk, value=row.value).update(
+                    value=value, updated_at=timezone.now()
+                )
+            elif not locked:
+                _hold_additions(user_id)  # then read again holding it
+                locked = True
+            elif _add(user_id, key, value):
+                kept = value
+                break
+        else:
+            raise ValueError("The preference changed while saving; try again.")
+    prefs[key] = kept
 
 
 @login_required

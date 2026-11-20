@@ -25,10 +25,10 @@ toolbar context. Never shows team, assignee, priority or clocks.
           {% sort_header label="Last update" asc="updated" desc="-updated" col="updated" %}
         </tr>
       </thead>
-      <tbody>
+      {% chosen_query_string as list_query %}<tbody>
         {% for item in page_obj %}
         <tr>
-          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}{% if request.GET %}?list={{ request.GET.urlencode|urlencode:"" }}{% endif %}">{{ item.number }}</a></th>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:request-detail' item.number %}{% if list_query %}?list={{ list_query|urlencode:"" }}{% endif %}">{{ item.number }}</a></th>
           <td>{{ item.subject }}</td>
           <td>{{ item.category.portal_label }}</td>
           <td>{{ item.site.name|default:"—" }}</td>

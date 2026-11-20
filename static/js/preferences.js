@@ -55,6 +55,10 @@
           if (response.ok && !response.redirected) {
             return;
           }
+          if (response.status >= 500) {
+            notSaved("unknown"); // the server may have saved it before failing
+            return;
+          }
           if (response.status !== 400 || response.redirected) {
             notSaved("refused");
             return;
@@ -87,7 +91,7 @@
       "Your display setting could not be saved and applies to this page only. Reload the page " +
       "and try again.",
     unknown:
-      "Your display setting may not have been saved: no answer came from the server. Reload the " +
+      "Your display setting may not have been saved: the server did not confirm it. Reload the " +
       "page to see what is saved.",
   };
 

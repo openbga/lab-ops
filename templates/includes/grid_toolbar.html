@@ -28,9 +28,10 @@ Parameters:
   clear_url    target of Clear all; default request.path
   grid         the table's data-vr-grid key: renders the Columns button; omit for entry grids
   sort         the current sort value
-  hidden       bound hidden fields to carry; without it the sort and rows per page the person
-               chose on this page are carried, not those added from their saved settings
-               (chosen_param, core/templatetags/ui.py)
+  hidden       bound hidden fields to carry, except those added from the person's saved settings
+               (saved_param_names); without it the sort and rows per page the person chose on
+               this page are carried, not those added from their saved settings (chosen_param,
+               core/templatetags/ui.py)
 The button's count and the summary of the active filters are derived from chips (or
 active_filters) and q. Documented page reads ({% grid_toolbar %}, core/templatetags/ui.py): q, placeholder, inline, more,
 more_open, active and sort when not passed, and filter_form and active_filters (for invalid and
@@ -59,7 +60,7 @@ Usage:
     {% for field in more %}{{ field.as_field_group }}{% endfor %}
   </div>
   {% endif %}
-  {% if hidden %}{% for field in hidden %}{{ field }}{% endfor %}{% else %}
+  {% if hidden %}{% saved_param_names as saved %}{% for field in hidden %}{% if field.name not in saved %}{{ field }}{% endif %}{% endfor %}{% else %}
   {% chosen_param "sort" as chosen_sort %}{% chosen_param "per_page" as chosen_per_page %}
   {% if chosen_sort %}<input type="hidden" name="sort" value="{{ chosen_sort }}">{% endif %}
   {% if chosen_per_page %}<input type="hidden" name="per_page" value="{{ chosen_per_page }}">{% endif %}

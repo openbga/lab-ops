@@ -38,7 +38,8 @@ TYPES = {
 IMPACTS = {"high": "High impact", "medium": "Medium impact", "low": "Low impact"}
 REQUIRED = ("date", "type", "impact", "title")
 OPTIONAL = ("area", "link", "pr", "highlight")
-FILE_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
+# The slug is at most 80 characters, as an entry id (ID) and a stored seen mark allow.
+FILE_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-(?=[a-z0-9-]{1,80}\.md$)[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 ID = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9-]{1,80}$")
 LINK = re.compile(r"^[a-z0-9_-]+(?::[a-z0-9_-]+)*$")  # a Django route name without arguments
 NOTES_HEADING = "## Technical notes"
@@ -293,20 +294,41 @@ def seen_marker(entries):
     return {"date": newest.isoformat(), "ids": ids}
 
 
-def combined_marker(stored, seen):
-    """What to remember after a visit that saw `seen` (seen_marker) when `stored` is the mark kept
-    already, from another tab or a process of another release whose entries differ: every entry
-    either marks as seen stays seen, within SEEN_IDS_MAX. The newer date; the ids of the mark with
-    that date first (this visit's on a tie), then the other's, each once, up to SEEN_IDS_MAX, in
-    seen_marker's order. No date is read from an id.
+def combined_marker(stored, seen, entries=()):
+    """What to remember after a visit that saw `seen` (seen_marker of `entries`) when `stored` is
+    the mark kept already, from another tab or a process of another release whose entries differ:
+    every entry either marks as seen stays seen, within SEEN_IDS_MAX. The newer date; the ids of
+    the mark with that date first (this visit's on a tie), then the other's, each once, without
+    those dated outside the window before the newer date, in seen_marker's order. An entry's date
+    is its published date when this visit's entries have it, else the date its file name starts
+    with (an entry only another release has); an id with neither is kept.
     """
     if not valid_marker(stored):
         return seen
     if not valid_marker(seen):
         return stored
     newer, older = (stored, seen) if stored["date"] > seen["date"] else (seen, stored)
-    ids = list(dict.fromkeys([*newer["ids"], *older["ids"]]))[:SEEN_IDS_MAX]
-    return {"date": newer["date"], "ids": sorted(ids, reverse=True)}  # ISO dates compare as text
+    published = {entry.id: entry.date for entry in entries}
+    since = datetime.date.fromisoformat(newer["date"]) - SEEN_WINDOW
+
+    def in_window(entry_id):
+        dated = published.get(entry_id) or _id_date(entry_id)
+        return dated is None or dated > since
+
+    ids = [
+        entry_id
+        for entry_id in dict.fromkeys([*newer["ids"], *older["ids"]])
+        if in_window(entry_id)
+    ]
+    return {"date": newer["date"], "ids": sorted(ids[:SEEN_IDS_MAX], reverse=True)}
+
+
+def _id_date(entry_id):
+    """The date an entry's file name starts with, or None."""
+    try:
+        return datetime.date.fromisoformat(entry_id[:10])
+    except ValueError:
+        return None
 
 
 def valid_marker(value):
