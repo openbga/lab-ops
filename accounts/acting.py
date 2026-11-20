@@ -21,7 +21,7 @@ Whatever takes access away waits for the change, and a change that starts after 
 state and is refused:
 
 - a save that deactivates the account or moves a portal account to another organization
-  (accounts.models.User.save locks the row FOR UPDATE first);
+  (accounts.models.User.save takes the gate below, then the row FOR NO KEY UPDATE);
 - removing a role, a capability or a team membership (a deletion, and teams.services locks the
   membership FOR UPDATE first);
 - changing portal access (clients.services locks the account FOR UPDATE first).

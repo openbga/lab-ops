@@ -811,8 +811,8 @@ def test_a_move_to_another_organization_waits_for_a_portal_ticket_under_way(
 ):
     """A portal account raises a ticket while a notice being sent holds the category; meanwhile
     it is moved to another organization (changed_by set, as clients.signals asks). The creation
-    holds the account until it commits (accounts.acting) and the move is a save, which locks the
-    account FOR UPDATE first, so the move waits behind it. The ticket is saved first, for the
+    holds the account until it commits (accounts.acting) and the move is a save, which takes the
+    account's access gate first, so the move waits behind it. The ticket is saved first, for the
     organization the account belonged to when it began, and the account is moved afterwards."""
     created = AuditEvent.objects.filter(action="request.created").count()
     state, move_state, behind_creation, session, move = (

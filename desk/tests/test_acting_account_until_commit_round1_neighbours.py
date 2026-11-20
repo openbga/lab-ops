@@ -14,7 +14,6 @@ from unittest.mock import patch
 import pytest
 from django import forms
 from django.contrib.auth.models import Group, Permission
-from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.test import Client
 from django.urls import reverse
@@ -550,23 +549,22 @@ def test_a_committed_import_and_an_organizations_group_change_never_deadlock(mak
     assert _linked() == 2
 
 
-def test_a_committed_import_naming_the_group_first_is_refused_not_a_server_error(make_user, lis):
-    """The same race with the file naming the group first. The import locks the group, then waits
-    for the member the organization change holds, and the change then needs the group: the
-    database ends the cycle by failing one of them.
+def test_a_committed_import_naming_the_group_first_waits_for_the_group_change(make_user, lis):
+    """The same race with the file naming the group first. The import used to lock the group,
+    then wait for the member the organization change held, while the change then needed the
+    group: the database ended the cycle by failing one of them, and the import refused the file.
 
-    Intended (dataimport.importing.LOCKS_REFUSED): the organization change goes through and the
-    commit raises ValidationError (the file is refused, "Nothing was imported"), never a
-    database error. Nothing is imported."""
+    Adapted in the follow-up on deadlocks with an organization's group: the change takes the
+    organizations' groups lock before the member, and the import takes it before its first
+    organization (clients.services.hold_groups). Intended: the commit waits for the change
+    before locking anything of the file, then goes on; no 40P01, no refusal; both are saved."""
     group, member, change, commit, state = _group_change_and_commit(make_user, member_first=False)
     outcomes = {"organization change": change.outcome, "commit": commit.outcome}
+    assert state == "waiting", state
     assert "40P01" not in outcomes.values(), f"server error: {outcomes} (commit was {state})"
-    assert change.outcome == "done", outcomes
+    assert outcomes == {"organization change": "done", "commit": "done"}, (outcomes, commit.error)
     assert Client_model.objects.get(pk=member.pk).parent_id == group.pk
-    assert isinstance(commit.error, ValidationError), (outcomes, repr(commit.error))
-    assert "different from the preview" not in " ".join(commit.error.messages)
-    assert "Nothing was imported" in " ".join(commit.error.messages)
-    assert _linked() == 0
+    assert _linked() == 2
 
 
 # A4. The reveal pages ---------------------------------------------------------------------

@@ -92,12 +92,19 @@ decides from what it read once the acting account is read again; while it waits 
 ticket it holds up only work about the same person. A new ticket naming an assignee locks that
 person's account, roles and membership of the ticket's team before anything else, its category
 and a request form's definition included; if the team changes in between, the ticket is refused
-and nothing is saved. Deactivating an account updates the account and then returns the
-person's open tickets to their queues ([desk/signals.py](../desk/signals.py)), and removing a
-member locks the membership and then those tickets. When an assignment and the end of the
-assignee's work meet, the second waits for the person's rows and then decides on what the first
-saved: the assignment is refused, or the deactivation or removal finds the new assignment and
-returns it to the queue. Neither fails with a deadlock. A nonconformance names people (its owner,
+and nothing is saved. Deactivating an account locks the account FOR NO KEY UPDATE, then the
+person's open tickets, and then updates the account and returns those tickets to their queues
+([desk/signals.py](../desk/signals.py)); removing a member locks the membership and then those
+tickets. When an assignment and the end of the assignee's work meet, the second waits for the
+person's rows and then decides on what the first saved: the assignment is refused, or the
+deactivation or removal finds the new assignment and returns it to the queue. Neither fails with
+a deadlock. A change that names an assignee without locking the account, such as a client's
+reply that records a notice to the assignee, is checked against that account only when it
+commits, with a key-share lock. The deactivation's no-key lock does not block that check, and
+the tickets are held before the account's update could change its username or email, so the
+reply commits while the deactivation waits for its ticket. A reply that comes second waits for
+the ticket and, as the release changed the ticket, is refused as changed; sent again, it finds
+the ticket unassigned. A nonconformance names people (its owner,
 an action's assignee) by locking the record and then the person, and never locks a ticket after
 the person it names.
 
@@ -120,7 +127,7 @@ change names, such as its author and its creator, only when it commits, and that
 so a reading taken after the locks would not be enough on its own. What takes access away takes
 the gate of each account it affects exclusively, before any row it locks: a save that
 deactivates the account or moves a portal account to another organization (which then locks the
-account FOR UPDATE), the account page before its check of the remaining owners, the role group
+account FOR NO KEY UPDATE), the account page before its check of the remaining owners, the role group
 page, a portal access change, and every removal of a role, a capability, a team membership or a
 portal site. It waits for that person's changes under way. The gate queues in order, as row
 share locks do not, so a change the person starts meanwhile waits behind it, then reads the new
@@ -139,10 +146,15 @@ A link change locks the ticket first, then the link's system, then the link; a l
 organization locks the organization in the ticket's place. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
 before its first row, so it and a link added at the same moment wait for each other one way.
-A change of an organization's group walks up from the organization to its new parent, so it and
-an import naming the parent before the organization can still meet in a deadlock, which the
-database ends by failing whichever began waiting first: the file is then refused with nothing
-imported, or the organization change fails.
+Whatever may lock several organizations in an order of its own first takes the organizations'
+groups lock, a transaction-level advisory lock
+([clients/services.py](../clients/services.py) `hold_groups`): every import, before the file's
+first organization, and a change that puts an organization under a parent or creates one under
+a parent, which locks the organization and then walks up the new parent's chain. They take
+their turns: the second waits for the first to commit and decides on what it saved, so a parent
+that would now close a loop is refused. Changing one organization's details, contacts, sites or
+links, or taking it out of its group, does not take that lock. Should the database still end an
+import's locks to break a deadlock, the file is refused with nothing imported.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

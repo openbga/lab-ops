@@ -92,7 +92,7 @@
         },
         {
           "label": "Active",
-          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused. A change the person is saving at that moment, such as a note, finishes first and your save waits for it; one they start after it is refused."
+          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused. A change the person is saving at that moment, such as a note, finishes first and your save waits for it; one they start after it is refused. A client's reply on one of their tickets that is being saved at that moment is kept, and the ticket is still returned to the queue."
         },
         {
           "label": "Staff status",

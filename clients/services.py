@@ -5,7 +5,7 @@ import json
 
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db import transaction
+from django.db import connection, transaction
 from django.forms.models import model_to_dict
 
 from accounts.roles import ROLES, has_role
@@ -65,9 +65,30 @@ def _check_account_owner(obj):
         )
 
 
+# The advisory lock of the organizations' groups (PostgreSQL's two-key form; the first key is
+# this lock's own, as accounts.acting.ACCESS_GATE is the access gates').
+GROUPS_LOCK = (19554, 0)
+
+
+def hold_groups():
+    """Take the organizations' groups lock until the transaction ends, before the change locks
+    any organization. Taken by whatever may lock several organizations in an order of its own:
+    a change that puts an organization under a parent (its own row, then the parent chain
+    upwards, _check_parent) and an import (the organizations its file names, in the file's
+    order). One of them at a time: the second waits for the first to commit and then locks the
+    organizations it needs, so neither ends in a deadlock. Changes that lock one organization
+    (its details without a new parent, its contacts or sites, a link) do not take it. Taking it
+    again in the same transaction does not wait."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("The groups lock is held for a transaction; open one first.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(GROUPS_LOCK))
+
+
 def _check_parent(obj):
     """Refuse a parent that is the organization itself or one of its descendants. The chain is
-    walked upwards under row locks, so two concurrent changes cannot close a loop between them."""
+    walked upwards under row locks, so two concurrent changes cannot close a loop between them;
+    the caller holds the groups lock (hold_groups), so they wait for each other one way."""
     if obj.parent_id is None:
         return
     seen = set()
@@ -104,6 +125,8 @@ def create_client(*, actor, reason="", **data):
     _strip(obj, ("name", "account_number", "phone", "city", "postal_code"))
     obj.full_clean()
     _check_account_owner(obj)
+    if obj.parent_id is not None:
+        hold_groups()  # before the parent chain's locks
     _check_parent(obj)
     obj.save()
     record_event(
@@ -116,6 +139,8 @@ def create_client(*, actor, reason="", **data):
 def update_client(*, actor, client_id, expected_revision, reason, **data):
     require_client_manager(actor)
     reason = _reason(reason)
+    if data.get("parent") is not None:
+        hold_groups()  # before the organization's lock: a new parent's chain is locked after it
     obj = Client.objects.select_for_update().get(pk=client_id)
     if obj.revision != expected_revision:
         raise ValidationError(

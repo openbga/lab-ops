@@ -49,8 +49,8 @@ ships, move it to Built in the same change.
 
 | Area | What is in place |
 | --- | --- |
-| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview |
-| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; each change holds the acting account until it commits, so ending a person's access (deactivation, a role, a capability, a team or a portal site) waits for what they are saving and refuses what they start afterwards; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
+| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview; an import and a change of an organization's group at the same moment take turns instead of failing |
+| Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment or a client's reply and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; each change holds the acting account until it commits, so ending a person's access (deactivation, a role, a capability, a team or a portal site) waits for what they are saving and refuses what they start afterwards; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
 | Ticket forms | Forms per category with client, shared and staff-only fields and an optional patient field behind a capability; corrections with a reason; a service menu in the portal and "Request again"; supply orders from the laboratory's catalog and one-time pickups |
 | Links | Typed references to orders, samples, reports and other records in the laboratory's systems, and optional, masked person-level links |
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
@@ -88,22 +88,6 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
-
-### Review follow-up: deadlocks with a ticket's assignee and with an organization's group
-
-- **Delivers:** two pairs of changes that can meet in a database deadlock today wait for each
-  other one way instead. First, a change to a ticket that sends its assignee a notice, such as a
-  client's reply, and the deactivation of that assignee: the change locks the ticket and records
-  a notice naming the assignee, whose account the database checks only when the change commits,
-  while the deactivation locks the account and then waits for that person's tickets. Whichever
-  began waiting first fails: the administrator or the client sees an error page. The change holds
-  its own account until it commits, but not the accounts its notices name. Second, an import of
-  external identifiers that names a group before one of its member organizations, and putting
-  that organization into the group on its page: the organization change locks the organization
-  and then its new parent, the import the other way round. Whichever began waiting first fails:
-  the file is refused, or the organization page shows an error.
-- **Depends on:** nothing unbuilt.
-- **Leaves out:** nothing.
 
 ### Automatic sign-out and session control
 

@@ -856,9 +856,10 @@ def hold_external_ids(rows):
     wait for each other one way.
 
     The organizations are locked in the order the file first names them, as the rows would lock
-    them, and not by id: a change of an organization's group locks the organization and then
-    walks up to its new parent (clients.services._check_parent), and an order by id would meet
-    that walk the other way round whenever the group has the lower id."""
+    them. A change of an organization's group locks the organization and then walks up to its
+    new parent (clients.services._check_parent), the other way round from a file that names the
+    group first; the import holds the organizations' groups lock from its start (_hold_importer)
+    and that change takes it before its first lock, so the two take their turns."""
     from links.models import ExternalSystem
 
     adding = [
@@ -1201,7 +1202,8 @@ def _apply(record_type, actor, preview, reason):
     try:
         with transaction.atomic():
             record_type.hold(preview.rows)
-    except DatabaseError:  # a deadlock with a change saved at the same moment: refused, not a 500
+    except DatabaseError:  # the database ended a deadlock with another change: refused, not a 500
+        # (no change of the application locks these records in another order; kept for safety)
         preview.file_errors.append(LOCKS_REFUSED)
         return
     for row in preview.rows:
@@ -1232,11 +1234,15 @@ def _apply(record_type, actor, preview, reason):
 
 def _hold_importer(actor):
     """The importing account held until the file's transaction ends, before anything else it
-    locks (accounts.acting), and its role checked again on that reading."""
+    locks (accounts.acting), and its role checked again on that reading. Then the organizations'
+    groups lock (clients.services.hold_groups), before the file's first organization is locked:
+    a file may name organizations in any order, so it and a change that puts an organization
+    under a parent, or another import, take their turns instead of meeting in a deadlock."""
     current = hold_actor(actor)
     if current is None:
         raise PermissionDenied("Your account no longer has a staff role.")
     require_client_manager(current)
+    services.hold_groups()
 
 
 def preview_file(record_type, *, actor, data, filename):

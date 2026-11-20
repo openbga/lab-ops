@@ -70,7 +70,7 @@
         },
         {
           "label": "Parent organization",
-          "description": "Optional. The health system, utility or sponsor this organization belongs to; choose No parent organization for none. You pick from existing organizations by typing part of a name. An organization cannot be its own parent, and cannot be placed under one of its own member organizations at any depth: saving is refused with a message that the parent would make the organization part of its own group. When editing, the organization itself is not offered. The parent is checked when it is set or changed."
+          "description": "Optional. The health system, utility or sponsor this organization belongs to; choose No parent organization for none. You pick from existing organizations by typing part of a name. An organization cannot be its own parent, and cannot be placed under one of its own member organizations at any depth: saving is refused with a message that the parent would make the organization part of its own group. When editing, the organization itself is not offered. The parent is checked when it is set or changed. Saving a parent waits for an import or another change of a group being saved at that moment, and checks the parent against what that change saved."
         },
         {
           "label": "Account owner",
