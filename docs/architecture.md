@@ -304,10 +304,17 @@ behavior across pages. List filtering, sorting and pagination run on the authori
 DataTables manages column presentation. Table layout and other presentation preferences belong
 to individual accounts: stored in the database ([core/preferences.py](../core/preferences.py)),
 read once for each request and never copied into the session, because two tabs of one sign-in
-can answer at the same moment and each saves its whole session as it ends. A person keeps at
-most 300; an addition counts and inserts holding that person's additions lock, a
-transaction-level advisory lock, so two at the same moment cannot both take the last place, while
-changing or removing a stored one takes no lock. [UI standards](ui-standards.md)
+can answer at the same moment and each saves its whole session as it ends. Every save compares
+with what is stored, not with what the request read: a list's page size and sort, and the What's
+new mark, are combined with the stored value holding its row, and a list saves only the values
+it showed (not a sort it does not offer, nothing for a lookup). A person keeps at most 300; an
+addition counts and inserts holding that person's additions lock, a transaction-level advisory
+lock keyed like the access gate, so two at the same moment cannot both take the last place,
+while changing or removing a stored one takes no lock. The count needs READ COMMITTED, Django's
+default; an addition in a transaction with an older snapshot is refused. Processes of an earlier
+release take no such lock and keep a copy in the session, so while a deploy replaces processes
+one by one the limit and the next-page guarantee hold only between processes of this release.
+[UI standards](ui-standards.md)
 
 Page help is versioned content selected by the authorized page's route and variant. Downloads
 and POST actions are explained on the pages that invoke them. Staff What's new and the generated

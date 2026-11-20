@@ -106,3 +106,35 @@ def test_sidebar_collapses_to_an_icon_rail_and_remembers_it(page: Page, demo):
     expect(nav.get_by_role("button", name="Collapse menu")).to_have_attribute(
         "aria-expanded", "true"
     )
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_a_layout_refused_at_the_limit_says_it_applies_to_this_page_only(page: Page, demo, theme):
+    """At the limit of saved preferences the server refuses a new column layout: the layout still
+    applies to the page, and a dismissible notice says it was not saved (static/js/preferences.js,
+    the shared request-error notice of app.js). Desktop only: on a phone neither the Columns
+    control nor the sidebar rail, the two settings saved in the background, is offered."""
+    page.set_viewport_size(DESKTOP)
+    page.emulate_media(color_scheme=theme)
+    from core.models import UserPreference
+    from core.preferences import MAX_PREFERENCES
+
+    make_clients(3)
+    user = make_user("pref_full", PASSWORD, "technical")
+    UserPreference.objects.bulk_create(
+        UserPreference(user=user, key=f"page:list{n}", value={"per_page": 25})
+        for n in range(MAX_PREFERENCES)
+    )
+    sign_in(page, "pref_full", PASSWORD)
+    page.goto("/clients/")
+    page.get_by_role("button", name="Columns", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Columns")
+    dialog.get_by_role("checkbox", name="City", exact=True).uncheck()
+    page.keyboard.press("Escape")
+    notice = page.locator("[data-vr-request-error]")
+    expect(notice).to_be_visible()
+    expect(notice).to_contain_text("applies to this page only")
+    assert "City" not in column_headers(page)
+    assert not UserPreference.objects.filter(user=user, key__startswith="grid:").exists()
+    notice.get_by_role("button", name=re.compile("Dismiss|Close")).click()
+    expect(notice).to_have_count(0)

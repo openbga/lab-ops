@@ -50,11 +50,35 @@
         keepalive: true, // completes even if the user leaves the page right after the change
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
         body: JSON.stringify({ key: key, value: value }),
-      }).catch(function () {
-        // Offline or refused: the setting applies to this page only.
-      });
+      }).then(
+        function (response) {
+          if (!response.ok || response.redirected) {
+            notSaved(response.status === 400 && !response.redirected);
+          }
+        },
+        function () {
+          notSaved(false);
+        }
+      );
     },
   };
+
+  // Refused or not sent: the setting applies to this page only. Say so where Django messages
+  // appear, as for any failed background request (app.js, docs/ui-standards.md section 8).
+  function notSaved(refused) {
+    document.dispatchEvent(
+      new CustomEvent("vr:request-error", {
+        detail: {
+          message: refused
+            ? "Your display setting applies to this page only: your account already keeps as " +
+              "many saved list settings and layouts as it can. Reset a list's columns to make " +
+              "room."
+            : "Your display setting applies to this page only: it could not be saved. Reload " +
+              "the page and try again.",
+        },
+      })
+    );
+  }
 
   // Earlier versions kept grid layouts in this browser; remove them, so nobody inherits another
   // person's layout on a shared workstation.

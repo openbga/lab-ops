@@ -652,6 +652,13 @@
     showRequestError(message);
   });
 
+  // A background request made without HTMX (static/js/preferences.js) reports its failure here.
+  document.addEventListener("vr:request-error", function (event) {
+    if (event.detail && event.detail.message) {
+      showRequestError(event.detail.message);
+    }
+  });
+
   document.addEventListener("htmx:sendError", function (event) {
     if (event.detail.target && event.detail.target.closest("#vr-form-dialog")) {
       return;

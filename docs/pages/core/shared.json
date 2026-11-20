@@ -102,7 +102,7 @@
         },
         {
           "label": "Sort and pages",
-          "description": "Linked column headings change server-side ordering. Pagination moves through the filtered result set; the count describes that set. Choose Rows per page, then select Show to apply that page size and return to page 1 while keeping the other filters. Changing the selection alone does not reload the page. Your sort and rows per page are saved for your account on each list: opening the list again, in any tab or on any workstation, uses them until you choose others. Clear all removes filters only. An account keeps up to 300 saved list settings and layouts; past that, a new one applies to the page you are on but is not saved."
+          "description": "Linked column headings change server-side ordering. Pagination moves through the filtered result set; the count describes that set. Choose Rows per page, then select Show to apply that page size and return to page 1 while keeping the other filters. Changing the selection alone does not reload the page. Your sort and rows per page are saved for your account on each list: opening the list again, in any tab or on any workstation, uses them until you choose others. A sort the list no longer offers, from an old link, is not saved. Clear all removes filters only. An account keeps up to 300 saved list settings and layouts; past that, a new one applies to the page you are on but is not saved, and a new column layout or sidebar choice says so in a notice."
         },
         {
           "label": "Columns",

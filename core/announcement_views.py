@@ -17,7 +17,7 @@ from accounts.roles import require_role
 from . import announcements as service
 from .announcement_forms import AnnouncementFilterForm, AnnouncementForm
 from .concurrency import protect_form
-from .grids import GridRequest, active_filters
+from .grids import GridRequest, active_filters, shown
 from .models import Announcement, AuditEvent
 
 COLUMNS = {
@@ -45,6 +45,7 @@ def announcement_list(request):
         grid = GridRequest.parse(request.GET, COLUMNS, DEFAULT_SORT)
     except ValueError:  # bad per_page: the bound form reports it and the table stays empty
         grid = GridRequest.parse({}, COLUMNS, DEFAULT_SORT)
+    shown(request, grid)
     data = request.GET.copy()
     data["sort"] = grid.sort
     form = AnnouncementFilterForm(data)

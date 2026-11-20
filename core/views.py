@@ -239,9 +239,15 @@ def whats_new(request):
     marker = preferences.for_request(request).get(preferences.WHATS_NEW_KEY)
     new_ids = {entry.id for entry in changelog.unread(entries, marker)} if marker else set()
     seen = changelog.seen_marker(entries)
-    if seen is not None and seen != marker:
+    if seen is not None:
         try:
-            preferences.save(request, preferences.WHATS_NEW_KEY, seen)
+            # Combined with the mark as stored when saving, not as read: a visit in another tab,
+            # or on a process of another release whose entries differ, keeps what it marked.
+            preferences.save_combined(
+                request,
+                preferences.WHATS_NEW_KEY,
+                lambda stored: changelog.combined_marker(stored, seen),
+            )
         except ValueError:
             pass  # too many saved preferences: the indicator stays, the list still shows
     visible = visible_staff_items(request.user, request=request)

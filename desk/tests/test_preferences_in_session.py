@@ -179,12 +179,33 @@ def test_two_tabs_saving_different_preferences_at_the_same_moment_keep_both(clie
 
     # The first tab saves its page size (the list middleware) while the other tab collapses the
     # sidebar; each request ends after the other's change committed.
-    with paused(preferences, "save", collapse_in_the_other_tab, before=False):
+    with paused(preferences, "save_combined", collapse_in_the_other_tab, before=False):
         assert client.get(url, {"per_page": 50}).status_code == 200
     assert saved == [204]
     for browser in (client, tab):
         assert page_prefs(browser, url) == {"nav.collapsed": True}
         assert browser.get(url).context["page_obj"].paginator.per_page == 50
+
+
+def test_a_sort_saved_in_another_tab_is_kept_when_this_tab_saves_its_page_size(client, agent):
+    """The list middleware saves the fields its address gives into the list's stored value as it
+    stands when it saves, not as the request read it: another tab's sort saved meanwhile stays."""
+    UserPreference.objects.create(
+        user=agent, key="page:clients:client-list", value={"sort": "name"}
+    )
+    client.force_login(agent)
+    tab = same_session(client)
+    url = reverse("clients:client-list")
+    sorted_elsewhere = []
+
+    def sort_in_the_other_tab():
+        sorted_elsewhere.append(committed(lambda: tab.get(url, {"sort": "-name"}).status_code))
+
+    with paused(preferences, "for_request", sort_in_the_other_tab, before=False):
+        assert client.get(url, {"per_page": 50}).status_code == 200
+    assert sorted_elsewhere == [200]
+    stored = UserPreference.objects.get(user=agent, key="page:clients:client-list").value
+    assert stored == {"per_page": 50, "sort": "-name"}
 
 
 def test_a_change_in_another_browser_shows_from_the_next_page_without_signing_in_again(
@@ -390,11 +411,14 @@ def test_another_persons_addition_does_not_wait(client, agent, make_user):
     client.force_login(agent)
     elsewhere = Browser()
     elsewhere.force_login(colleague)
+    first = []
     state, _blocked, other = waits_for(
-        lambda: post(client, "nav.collapsed", True).status_code,
+        lambda: first.append(post(client, "nav.collapsed", True).status_code),
         lambda: post(elsewhere, "nav.collapsed", True).status_code,
     )
-    assert state == "ended" and other.result == 204
+    assert first == [204] and state == "ended" and other.result == 204
+    for person in (agent, colleague):
+        assert UserPreference.objects.get(user=person, key="nav.collapsed").value is True
 
 
 def test_at_the_limit_changes_and_removals_still_save_and_a_removal_frees_a_place(client, agent):

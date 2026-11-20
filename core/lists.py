@@ -4,7 +4,7 @@ from django.db.models import Q
 from django.http import HttpResponseBadRequest, QueryDict
 from django.shortcuts import render
 
-from core.grids import GridRequest, active_filters
+from core.grids import GridRequest, active_filters, shown
 
 
 def return_list_params(request, form_class):
@@ -49,7 +49,7 @@ def list_response(
     (prefix, path) pairs for `<prefix>_from` / `<prefix>_to`; `refine(queryset, cleaned_data)`
     applies any filter that is not a plain match. An invalid filter shows no rows, never all."""
     try:
-        grid = GridRequest.parse(request.GET, columns, default_sort)
+        grid = shown(request, GridRequest.parse(request.GET, columns, default_sort))
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     data = request.GET.copy()

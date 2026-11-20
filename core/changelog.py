@@ -285,6 +285,34 @@ def seen_marker(entries):
     return {"date": newest.isoformat(), "ids": ids[:SEEN_IDS_MAX]}
 
 
+def combined_marker(stored, seen):
+    """What to remember after a visit that saw `seen` (seen_marker) when `stored` is the mark kept
+    already, from another tab or a process of another release whose entries differ: every entry
+    either marks as seen stays seen. The newer date, and the ids of both in the window before it.
+    """
+    if not valid_marker(stored):
+        return seen
+    if not valid_marker(seen):
+        return stored
+    newest = max(
+        datetime.date.fromisoformat(stored["date"]), datetime.date.fromisoformat(seen["date"])
+    )
+    ids = {
+        entry_id
+        for entry_id in (*stored["ids"], *seen["ids"])
+        if (dated := _id_date(entry_id)) is not None and dated > newest - SEEN_WINDOW
+    }
+    return {"date": newest.isoformat(), "ids": sorted(ids, reverse=True)[:SEEN_IDS_MAX]}
+
+
+def _id_date(entry_id):
+    """The date an entry id starts with (its file name's), or None."""
+    try:
+        return datetime.date.fromisoformat(entry_id[:10])
+    except ValueError:
+        return None
+
+
 def valid_marker(value):
     if not isinstance(value, dict) or set(value) != {"date", "ids"}:
         return False

@@ -42,6 +42,13 @@ class GridRequest:
         return Paginator(ordered, self.per_page).get_page(self.page_number)
 
 
+def shown(request, grid):
+    """Note on `request` the page size and sort its list shows: the list middleware
+    (core.preferences.GridPreferenceMiddleware) saves those the address gave, and only those."""
+    request.vr_grid = grid
+    return grid
+
+
 def active_filters(request, form):
     """Build removable links from validated, named filters without a query DSL."""
     chips = []

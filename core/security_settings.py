@@ -541,9 +541,10 @@ def _sessions(facts):
                 "Session length",
                 duration_text(settings.SESSION_COOKIE_AGE),
                 "configuration",
-                "A session ends this long after it was last saved: at sign-in, and again at a "
-                "few account steps such as a password change. Opening pages and changing a "
-                "display preference do not extend it.",
+                "A session ends this long after it was last saved: at sign-in, at some account "
+                "steps such as confirming or changing the password or setting up a second "
+                "factor, and when messages too long for their cookie are kept in it. Opening "
+                "pages and changing a display preference do not otherwise save it.",
             ),
         ),
         _fact(
