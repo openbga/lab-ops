@@ -21,6 +21,9 @@ rules:
   Authentication email addresses are read only here.
 """
 
+import hashlib
+import json
+
 from allauth.account.models import EmailAddress
 from allauth.mfa.models import Authenticator
 from django import forms
@@ -28,6 +31,7 @@ from django.contrib import admin
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import (
+    AdminPasswordChangeForm,
     AdminUserCreationForm,
     ReadOnlyPasswordHashWidget,
     UserChangeForm,
@@ -36,6 +40,7 @@ from django.contrib.auth.models import Group, Permission
 from django.db import connection, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
+from django.forms.models import model_to_dict
 
 from core.audit import record_event
 
@@ -93,6 +98,103 @@ class AccountTypeFilter(admin.SimpleListFilter):
         return queryset
 
 
+CHANGED_SINCE_DRAWN = (
+    "Someone else saved this account after you opened this page, so nothing was saved. Open the "
+    "account again to see its current details, then make your change."
+)
+
+
+# What the account page shows and saves: names, email, organization, flags, roles and
+# capabilities (not the password, the sign-in time or the date joined, which it does not edit).
+PAGE_FIELDS = (
+    "username",
+    "first_name",
+    "last_name",
+    "email",
+    "client",
+    "groups",
+    "is_active",
+    "is_staff",
+    "is_superuser",
+    "user_permissions",
+)
+RELATIONS = ("groups", "user_permissions")
+COLUMNS = tuple(name for name in PAGE_FIELDS if name not in RELATIONS)
+
+
+def _plain(value):
+    if hasattr(value, "pk"):
+        return value.pk
+    if isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], str):
+        return value[0]  # a role's (id, name) of an account_reading: the membership is its id
+    if isinstance(value, (list, tuple, set, frozenset)) or hasattr(value, "values_list"):
+        return sorted(_plain(item) for item in value)
+    return value
+
+
+def _digest(values):
+    state = {name: _plain(values.get(name)) for name in PAGE_FIELDS}
+    return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def account_reading(user):
+    """The page's fields of `user` as stored: its columns from this instance, its roles as
+    (id, name) pairs and its capability grants as ids, each read once, sorted. The fingerprint
+    takes the roles' ids: a role renamed on its own page changes no account."""
+    reading = model_to_dict(user, fields=COLUMNS)
+    reading["groups"] = sorted(user.groups.values_list("pk", "name"))
+    reading["user_permissions"] = sorted(user.user_permissions.values_list("pk", flat=True))
+    return reading
+
+
+def _group_ids(reading):
+    return {pk for pk, _name in reading["groups"]}
+
+
+def drawn_state(user):
+    """A fingerprint of the page's fields of `user` as stored (account_reading)."""
+    return _digest(account_reading(user))
+
+
+def _snapshot(reading, group_names, permission_labels):
+    """account_snapshot's shape (the audit's) of an account_reading whose roles are ids, with
+    the names and labels given, so that before and after name a role the same way."""
+    return {
+        "username": reading["username"],
+        "email": reading["email"],
+        "first_name": reading["first_name"],
+        "last_name": reading["last_name"],
+        "is_active": reading["is_active"],
+        "is_staff": reading["is_staff"],
+        "is_superuser": reading["is_superuser"],
+        "client": reading["client"],
+        "groups": sorted(group_names[pk] for pk in reading["groups"]),
+        "permissions": sorted(permission_labels[pk] for pk in reading["user_permissions"]),
+    }
+
+
+def _labels(permission_ids):
+    permissions = Permission.objects.filter(pk__in=permission_ids)
+    return {
+        pk: f"{app}.{code}"
+        for pk, app, code in permissions.values_list("pk", "content_type__app_label", "codename")
+    }
+
+
+def _owns_administration(user):
+    return user.is_superuser and user.is_active and user.is_staff
+
+
+class DrawnStateField(forms.CharField):
+    """The account as the page was drawn (drawn_state), sent back with the form. Never a change
+    of its own."""
+
+    widget = forms.HiddenInput
+
+    def has_changed(self, initial, data):
+        return False
+
+
 class AccessRules:
     """Shared validation for the add and change forms."""
 
@@ -138,9 +240,10 @@ class AccessRules:
             from .acting import close_access
 
             close_access([self.instance.pk])
-        owner = self.instance.is_superuser and self.instance.is_active and self.instance.is_staff
+        # An owner opens account administration: active, superuser and staff.
+        owner = _owns_administration(self.instance)
+        last_owner = False
         if self.instance.pk and owner:
-            # An owner opens account administration: active, superuser and staff.
             leaving = not all(
                 data.get(flag, True) for flag in ("is_superuser", "is_active", "is_staff")
             )
@@ -153,12 +256,44 @@ class AccessRules:
                 # while this one waits for that ticket.
                 list(owners.select_for_update(no_key=True).order_by("pk"))
             others = owners.exclude(pk__in=[self.instance.pk, system_account_id()])
-            if leaving and not others.exists():
-                raise forms.ValidationError(
-                    "Keep at least one active superuser with staff status, so someone can still "
-                    "open account administration."
-                )
+            last_owner = leaving and not others.exists()
+        if self.instance.pk and "drawn" in self.fields:
+            self._check_drawn(data, owner)
+        if last_owner:
+            raise forms.ValidationError(
+                "Keep at least one active superuser with staff status, so someone can still "
+                "open account administration."
+            )
         return data
+
+    def _check_drawn(self, data, owner):
+        """Refuse the save when the account is no longer as the page was drawn. The account's row
+        is locked FOR NO KEY UPDATE first, as its save will lock it (after the owners' rows
+        above, the order two owners stepping down take them in), so any other change to it, an
+        email corrected on its own included, has committed and is read here, or waits for this
+        save. Every field the page posts is the value it was drawn with unless the person
+        changed it, so saving over a newer value would put the old one back. The decision on
+        the owners above, taken from the account read before the locks, must also rest on this
+        reading."""
+        rows = User.objects.filter(pk=self.instance.pk)
+        if connection.in_atomic_block:
+            rows = rows.select_for_update(no_key=True)
+        current = rows.first()
+        reading = account_reading(current) if current is not None else None
+        if (
+            reading is None
+            or data.get("drawn") != _digest(reading)
+            or _owns_administration(current) != owner
+        ):
+            raise forms.ValidationError(CHANGED_SINCE_DRAWN)
+        # What the save starts from: the audit's before values, and the roles and grants it
+        # changes by difference (AccountAdmin.save_related); and, read once now, the names of
+        # the roles it holds and is given, so the audit names each the same way before and after.
+        self.held_reading = reading
+        posted = {group.pk for group in data.get("groups") or ()}
+        self.role_names = dict(
+            Group.objects.filter(pk__in=_group_ids(reading) | posted).values_list("pk", "name")
+        )
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
@@ -175,10 +310,18 @@ class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
 
 
 class AccountChangeForm(AccessRules, UserChangeForm):
+    # The account as drawn: a save is refused when it has changed since (AccessRules).
+    drawn = DrawnStateField(required=False)
+
     def __init__(self, *args, **kwargs):
         from jobs.actor import is_system_account
 
         super().__init__(*args, **kwargs)
+        if self.instance.pk and not self.is_bound:
+            # The values this form draws, not a second reading of the account: a role added
+            # between the two would otherwise be in the fingerprint and missing from the page.
+            drawn = {name: self.initial[name] for name in PAGE_FIELDS if name in self.initial}
+            self.initial["drawn"] = _digest({**account_reading(self.instance), **drawn})
         password = self.fields.get("password")
         if password is not None and self.instance.pk and is_system_account(self.instance):
             # Its page is read only and its password form refuses it: offer neither. (A read-only
@@ -191,10 +334,23 @@ class AccountCreationForm(AccessRules, AdminUserCreationForm):
     pass
 
 
+class AccountPasswordForm(AdminPasswordChangeForm):
+    """The account's password page. It saves the password only: the account was read when the
+    request began, and a full save would put back what changed since, such as a deactivation
+    committed while the new password was being checked and hashed."""
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        if commit:
+            user.save(update_fields=["password"])
+        return user
+
+
 @admin.register(User)
 class AccountAdmin(SuperuserOnly, UserAdmin):
     form = AccountChangeForm
     add_form = AccountCreationForm
+    change_password_form = AccountPasswordForm
 
     def has_change_permission(self, request, obj=None):
         # The scheduled jobs' account is shown, never changed (its password page included).
@@ -252,8 +408,10 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         return ", ".join(capability_names(user)) or "—"
 
     actions = None
+    # Recorded by the application: shown, never edited (a save would put back the time drawn).
+    readonly_fields = ("last_login", "date_joined")
     fieldsets = (
-        (None, {"fields": ("username", "password")}),
+        (None, {"fields": ("username", "password", "drawn")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
         (
             "Client access",
@@ -299,16 +457,66 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        obj._audit_before = account_snapshot(User.objects.get(pk=obj.pk)) if change else {}
+        # The audit's before values are the reading the form's check held under the account's row
+        # lock (AccessRules._check_drawn): the account as the page was drawn (save_related).
+        obj._audit_before = {}
         obj.changed_by = request.user  # a change of organization resets portal access (clients)
-        super().save_model(request, obj, form, change)
+        if not change:
+            super().save_model(request, obj, form, change)
+            return
+        # Only the columns the page edits. The others (the password, the last sign-in) keep what
+        # is stored now: this copy of the account was read before the save waited for its locks,
+        # and a password the person changed meanwhile would otherwise be put back.
+        edited = [
+            field.name
+            for field in User._meta.concrete_fields
+            if field.name in form.fields and not form.fields[field.name].disabled
+        ]
+        obj.save(update_fields=edited)
 
     def save_related(self, request, form, formsets, change):
-        super().save_related(request, form, formsets, change)
         obj = form.instance
-        after = account_snapshot(obj)
+        if not change:
+            super().save_related(request, form, formsets, change)
+            after = account_snapshot(obj)
+            changed = after != obj._audit_before
+        else:
+            # Roles and capability grants by difference from the reading the check held. A role
+            # added by other means after that reading (nothing locks an addition) stays, and the
+            # audit records what this save itself added or removed: not that addition, nor one
+            # this page asked for that the other change had made already.
+            held = dict(form.held_reading, groups=_group_ids(form.held_reading))
+            before = dict(held)
+            after = dict(held)
+            for name in RELATIONS:
+                if name not in form.cleaned_data:
+                    continue
+                kept = set(held[name])
+                posted = {item.pk for item in form.cleaned_data[name]}
+                manager = getattr(obj, name)
+                present = set(manager.values_list("pk", flat=True))
+                removed, added = (kept - posted) & present, (posted - kept) - present
+                if removed:
+                    manager.remove(*removed)
+                if added:
+                    manager.add(*added)
+                after[name] = (kept - removed) | added
+            for formset in formsets:
+                self.save_formset(request, form, formset, change=change)
+            after.update(model_to_dict(obj, fields=COLUMNS))
+            # One reading of the names for both (taken with the check), so a role renamed meanwhile
+            # on the role group page (recorded there) does not show as a change of this account.
+            names = dict(form.role_names)
+            unnamed = set(after["groups"]) - set(names)
+            names.update(Group.objects.filter(pk__in=unnamed).values_list("pk", "name"))
+            labels = _labels(set(before["user_permissions"]) | set(after["user_permissions"]))
+            # Whether anything changed is decided on the values themselves (role ids), not on
+            # their names: two roles renamed meanwhile could otherwise hide a change.
+            changed = _digest(before) != _digest(after)
+            obj._audit_before = _snapshot(before, names, labels)
+            after = _snapshot(after, names, labels)
         before = obj._audit_before
-        if after != before:
+        if changed:
             record_event(
                 actor=request.user,
                 action="account.updated" if change else "account.created",

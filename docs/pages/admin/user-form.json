@@ -39,7 +39,7 @@
     "Staff status and Superuser status grant no laboratory role and no capability.",
     "Clear the client link before giving an account staff flags, groups or permissions.",
     "You cannot deactivate the last active staff superuser or remove their Staff or Superuser status. The Scheduled jobs account cannot be changed.",
-    "There is no protection against another administrator's save: a later save replaces earlier values.",
+    "If someone else saved the account after you opened it, your save is refused and nothing changes. Open the account again and redo your change.",
     "Account and role changes are recorded in the audit history, without password values."
   ],
   "sections": [
@@ -47,7 +47,7 @@
       "title": "Access and page variants",
       "paragraphs": [
         "The administration site requires an active account with Staff status. User and group pages additionally require Superuser status; a laboratory admin role alone or individual model permissions do not open them. These technical flags do not themselves confer operational roles or capabilities.",
-        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, and Important dates."
+        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, and Important dates (read only)."
       ]
     },
     {
@@ -108,18 +108,18 @@
         },
         {
           "label": "Last login",
-          "description": "Change only; optional date and time, editable, with standard date/time widgets. It is not a complete login history."
+          "description": "Change only; read only. The date and time the person last finished signing in, recorded by the application. It is not a complete login history."
         },
         {
           "label": "Date joined",
-          "description": "Change only; required date and time, defaults to account creation, editable."
+          "description": "Change only; read only. The date and time the account was created."
         }
       ]
     },
     {
       "title": "Integrity and history",
       "paragraphs": [
-        "Client isolation, last-active-superuser preservation and immutable historical actors are checked by this administration implementation. Existing built-in groups cannot be renamed in group editing. Capabilities such as viewing patient information are held only through an explicit permission. Account/role changes are audited with before/after snapshots; secret values are omitted. This form has no optimistic original-version token: a valid later save can replace another editor’s values."
+        "Client isolation, last-active-superuser preservation and immutable historical actors are checked by this administration implementation. Existing built-in groups cannot be renamed in group editing. Capabilities such as viewing patient information are held only through an explicit permission. Account/role changes are audited with before/after snapshots; secret values are omitted. The change form carries the account as it was drawn. Saving waits for another change of the account being saved at that moment, then compares: if anything the page shows has changed since it was drawn, the save is refused and nothing is recorded, so a page opened earlier cannot put back an older email, name, role or status. The comparison is with the values the page was drawn with; roles count by which ones the account holds, so renaming a role on the role group page changes no account and does not refuse it. Roles and permissions are saved as the difference between those values and your choices, so a role given by other means after the comparison is kept. The audit's before values are the account as read under that wait, and its after values are what this save made."
       ]
     },
     {
@@ -127,7 +127,7 @@
       "items": [
         {
           "label": "Save",
-          "description": "On Add user, saves and normally opens the new change form so you can edit remaining options. On Change user, saves and returns to the user list. Popup creation returns the selection to its opener."
+          "description": "On Add user, saves and normally opens the new change form so you can edit remaining options. On Change user, saves and returns to the user list. Popup creation returns the selection to its opener. On Change user, the save is refused with the message that someone else saved this account when any value the page shows (username, names, email, client, groups, permissions, Active, Staff status or Superuser status) changed after you opened it, by another administrator, the person or the application; nothing is saved. Open the account again to see the current values. A change of the password or the sign-in time meanwhile does not refuse the save and is kept: a save writes only the fields this page edits."
         },
         {
           "label": "Save and continue editing",
@@ -163,6 +163,7 @@
     "config/settings.py",
     "uv.lock",
     "accounts/tests/test_admin.py",
-    "templates/admin/base_site.html"
+    "templates/admin/base_site.html",
+    "desk/tests/test_decisions_read_before_a_wait.py"
   ]
 }

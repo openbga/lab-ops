@@ -27,16 +27,18 @@ state and is refused:
 - changing portal access (clients.services locks the account FOR UPDATE first).
 
 Additions made on their own wait for nothing: a capability added to a role, a role added to an
-account in code, or a member added to a team only widens what the reading allows. The account
-page and the portal access form take the gate on every save, widening included, so any save
-there waits for the person's change under way. Paths that bypass save() (queryset.update, raw
-SQL) are not covered.
+account in code, or a member added to a team only widens what the reading allows. (setup_lab,
+giving an existing account a role it lacks, takes the gate as the account page does, so that the
+two record their own additions.) The account page and the portal access form take the gate on
+every save, widening included, so any save there waits for the person's change under way. Paths
+that bypass save() (queryset.update, raw SQL) are not covered.
 
 FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-in's time, the
 email notice preference, an assignment's FOR NO KEY UPDATE of its assignee), so two people
 assigning tickets to each other, or one person's two changes at once, never wait for each other
-here. A full save of the account (its page in the administration, a password change) takes the
-gate and waits for the person's change under way.
+here. The account's page in the administration takes the gate on every save and waits for the
+person's change under way; a password change saves the password only and waits for no gate (an
+update of the row still waits a moment for a change holding it, such as an assignment).
 
 Row locks alone would let a change started while an access change waits overtake it: PostgreSQL
 grants a share lock on a row at once when the row carries only share locks, whoever waits for a
@@ -94,6 +96,25 @@ def close_access(user_ids):
     if not connection.in_atomic_block:
         raise RuntimeError("An access gate is held for a transaction; open one first.")
     _gate(user_ids, shared=False)
+
+
+def try_hold_access(user_ids):
+    """For work that must never wait, such as a scheduled job deciding whom to tell: take these
+    accounts' access gates shared, in key order, without waiting, until the transaction ends.
+    Returns False, at once, when an access change holds one of them or waits for it (the caller
+    lets go and tries again later); True when all are held. Whatever takes access away from them
+    (close_access) then waits for this transaction, so a decision taken from their accounts,
+    roles, capabilities and team memberships read afterwards stays true until it commits. Other
+    changes to the accounts, and assignments to them, do not wait for the gates."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("An access gate is held for a transaction; open one first.")
+    keys = sorted({pk % INT4 for pk in user_ids if pk is not None})
+    with connection.cursor() as cursor:
+        for key in keys:
+            cursor.execute("SELECT pg_try_advisory_xact_lock_shared(%s, %s)", [ACCESS_GATE, key])
+            if not cursor.fetchone()[0]:
+                return False
+    return True
 
 
 def _rows(sql, params):

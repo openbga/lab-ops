@@ -307,7 +307,8 @@ def test_demoting_a_superuser_is_allowed_while_another_active_staff_superuser_ex
     first = User.objects.create_superuser("verify_first", "first@example.invalid", "test")
     User.objects.create_superuser("verify_second", "second@example.invalid", "test")
     assert cases.account_form(first, is_superuser=False).is_valid()
-    assert cases.account_form(first, is_staff=False).is_valid()
+    # A fresh reading, as each page is drawn: validating the first form set its copy's flags.
+    assert cases.account_form(User.objects.get(pk=first.pk), is_staff=False).is_valid()
 
 
 def test_the_only_active_staff_superuser_cannot_lose_staff_status():

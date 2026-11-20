@@ -38,7 +38,7 @@
         },
         {
           "label": "Save",
-          "description": "Saves the setting for your own account. The Email is off notice appears when outgoing email is disabled, even if you turn ticket notices on."
+          "description": "Saves the setting for your own account. The Email is off notice appears when outgoing email is disabled, even if you turn ticket notices on. A change saved while the scheduled jobs are deciding whom to tell about a passed target waits a moment for them, so that decision uses either your old or your new setting, never a mix."
         }
       ]
     },

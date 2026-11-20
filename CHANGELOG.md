@@ -50,6 +50,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### Medium impact
 
+- **Fixed:** Saves check what changed while they waited (2026-11-20)
+
+  Saves now decide from records as they stand: an account page opened earlier cannot undo a newer change, and a portal reply refused on a closed ticket is shown again.
+
+  <details><summary>Technical notes</summary>
+
+  No migration or setting. On the account administration page, Last login and Date joined are now read only, and a save writes only the fields the page edits. A password change, by the person or on the account's password page, saves only the password.
+
+  </details>
+
 - **Fixed:** Clarify account recovery and email availability (2026-11-18)
 
   Account pages explain email availability, verification and recovery codes. Keyboard users can read and dismiss phone Help without losing their place.

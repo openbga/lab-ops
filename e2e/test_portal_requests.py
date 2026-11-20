@@ -146,3 +146,50 @@ def journey(page, demo, width, phone):
     assert response.status == 404
     # Staff pages stay closed.
     assert page.goto("/clients/").status == 403
+
+
+def staff_status(number, status, **details):
+    from accounts.models import User
+    from desk.models import ServiceRequest
+    from desk.services import change_status
+
+    request = ServiceRequest.objects.get(number=number)
+    change_status(
+        actor=User.objects.get(username="demo_client_services"),
+        request=request,
+        expected_revision=request.revision,
+        status=status,
+        **details,
+    )
+
+
+def test_a_reply_to_a_ticket_closed_meanwhile_comes_back_unsent(page: Page, demo, view: View):
+    """The laboratory closes the ticket while the client writes: nothing is sent, and the text
+    comes back read only beside the way to send it, a follow-up ticket."""
+    setup_categories()
+    ticket = staff_request("NORTH", "Seal on the north bottle kit")
+    staff_reply(ticket.number, "Replaced; closing once you confirm.")
+    staff_status(ticket.number, "resolved", summary="Seal replaced.")
+    width = view.viewport["width"]
+
+    sign_in(page, "demo_client_water", demo.password)
+    page.goto(f"/portal/requests/{ticket.number}/")
+    text = "Confirmed, and please also send two spare seals."
+    field(page, "Your reply").fill(text)
+    staff_status(ticket.number, "closed")
+    page.get_by_role("button", name="Send reply").click()
+
+    panel = page.locator("section", has=page.get_by_role("heading", name="Reply not sent"))
+    expect(panel).to_be_visible()
+    expect(panel.get_by_text("so this reply was not sent")).to_be_visible()
+    unsent = field(panel, "Your reply, not sent")
+    expect(unsent).to_have_value(text)
+    expect(unsent).to_have_attribute("readonly", "")
+    expect(page.get_by_role("button", name="Send reply")).to_have_count(0)
+    follow_up = panel.get_by_role("link", name="New follow-up ticket")
+    expect(follow_up).to_be_visible()
+    if view.phone:
+        assert follow_up.bounding_box()["height"] >= 44
+    no_sideways_scroll(page, width)
+    follow_up.click()
+    expect(page.get_by_role("heading", level=1, name="New follow-up ticket")).to_be_visible()

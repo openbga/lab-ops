@@ -17,7 +17,7 @@ from django.forms import modelform_factory
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.admin import AccountChangeForm
+from accounts.admin import AccountChangeForm, drawn_state
 from accounts.models import User
 from clients.models import PortalAccess
 from desk import jobs as close_job
@@ -310,6 +310,7 @@ def account_form(user, **changes):
         "is_active": user.is_active,
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
+        "drawn": drawn_state(user),  # the account as the page drew it
         **changes,
     }
     return form_class(data, instance=user)

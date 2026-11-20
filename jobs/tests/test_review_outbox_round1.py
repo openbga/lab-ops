@@ -712,7 +712,7 @@ def test_breach_job_uses_clock_and_ticket_after_candidate_discovery(
                 expected_revision=ticket.revision,
             )
 
-    def before_lock():
+    def before_lock(**_options):  # as system_account (the job asks for it without waiting)
         independent(change_ticket)
         return robot
 

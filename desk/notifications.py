@@ -37,7 +37,7 @@ import os
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -139,6 +139,41 @@ def client_recipients(request):
         for user in linked.distinct().order_by("pk")
         if portal_requests(user).filter(pk=request.pk).exists()
     ]
+
+
+# The advisory lock of a person's email notice setting (PostgreSQL's two-key form; the first key is
+# this lock's own, as accounts.acting.ACCESS_GATE is the access gates'): the page that changes the
+# setting takes it exclusively, and the breach job, which decides whom to tell from it, shared.
+NOTICE_SETTING = 19556
+
+
+def lock_notice_setting(user_id):
+    """Before changing `user_id`'s email notice setting: take its lock exclusively until the
+    transaction ends. It waits for a breach job deciding from the setting and nothing else (not
+    the person's own changes under way, as the access gate would)."""
+    from accounts.acting import INT4
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("The notice setting lock is held for a transaction; open one first.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", [NOTICE_SETTING, user_id % INT4])
+
+
+def try_hold_notice_settings(user_ids):
+    """For the breach job: hold these people's notice setting locks shared, in key order, without
+    waiting, until the transaction ends. False at once when a change of one is under way (the job
+    tries again at its next run); then a change started afterwards waits for the job."""
+    from accounts.acting import INT4
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("The notice setting locks are held for a transaction; open one first.")
+    keys = sorted({pk % INT4 for pk in user_ids if pk is not None})
+    with connection.cursor() as cursor:
+        for key in keys:
+            cursor.execute("SELECT pg_try_advisory_xact_lock_shared(%s, %s)", [NOTICE_SETTING, key])
+            if not cursor.fetchone()[0]:
+                return False
+    return True
 
 
 def wants_notices(user):
@@ -416,7 +451,7 @@ def prepare_request_notice(notice):
 # Service target breaches ---------------------------------------------------------------------
 
 
-def _breach_roles(request):
+def breach_roles(request):
     """[(user id, role)] responsible for `request` now: the assignee and the team's leads, or
     every member of the team when it has neither. Accounts only; checked by the callers."""
     from teams.models import TeamMembership
@@ -439,7 +474,7 @@ def breach_recipients(request):
     jobs' account)."""
     from accounts.models import User
 
-    chosen = _breach_roles(request)
+    chosen = breach_roles(request)
     users = User.objects.in_bulk([pk for pk, _role in chosen])
     return [
         (users[pk], role)
@@ -491,7 +526,7 @@ def prepare_breach_notice(notice):
         return None
     if not (
         user.email
-        and user.pk in {pk for pk, _role in _breach_roles(request)}
+        and user.pk in {pk for pk, _role in breach_roles(request)}
         and wants_notices(user)
         and _staff_can_read(user, request, roles)
     ):

@@ -136,6 +136,29 @@ register(
 )
 
 
+def role_holders():
+    """Active laboratory accounts with a laboratory role: who may own an organization's account
+    (clients.services._held_owner decides again under its locks)."""
+    from accounts.roles import ROLES
+
+    return (
+        get_user_model()
+        .objects.filter(is_active=True, client__isnull=True, groups__name__in=ROLES)
+        .distinct()
+    )
+
+
+register(
+    Lookup(
+        "role-holders",
+        staff(lambda request: role_holders()),
+        ("username", "first_name", "last_name", "email"),
+        ("first_name", "last_name", "username"),
+        label=staff_label,
+    )
+)
+
+
 def search(queryset, fields, text):
     for term in text.split():
         queryset = queryset.filter(reduce(or_, (Q(**{f"{f}__icontains": term}) for f in fields)))

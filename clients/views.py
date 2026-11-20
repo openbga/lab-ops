@@ -30,6 +30,7 @@ from .forms import (
 from .models import Client, ClientContact, ClientSite, PortalAccess
 from .permissions import require_client_manager
 from .services import (
+    CHANGED,
     add_contact,
     create_client,
     create_site,
@@ -103,7 +104,8 @@ def client_list(request):
 @login_required
 def client_create(request):
     require_client_manager(request.user)
-    form = ClientForm(request.POST or None)
+    # Bound for every POST, an empty one included, so it says what is missing.
+    form = ClientForm(request.POST if request.method == "POST" else None)
     list_url = reverse("clients:client-list")
     if request.method == "POST" and form.is_valid():
         try:
@@ -133,7 +135,9 @@ def client_edit(request, pk):
     name = client.name  # a failed ModelForm validation copies the input onto the instance
     record_url = reverse("clients:client-detail", kwargs={"pk": client.pk})
     form = ClientEditForm(
-        request.POST or None, instance=client, initial={"expected_revision": client.revision}
+        request.POST if request.method == "POST" else None,
+        instance=client,
+        initial={"expected_revision": client.revision},
     )
     if request.method == "POST" and form.is_valid():
         try:
@@ -143,6 +147,14 @@ def client_edit(request, pk):
         else:
             messages.success(request, "Changes recorded with their reason.")
             return redirect(record_url)
+    elif form.is_bound and _posted_revision(form) not in (
+        None,
+        Client.objects.filter(pk=client.pk).values_list("revision", flat=True).first(),
+    ):
+        # Refused by the form itself (a choice no longer offered, such as an owner replaced and
+        # deactivated meanwhile), on a page drawn before another change (read now, after the
+        # form's checks): say so first.
+        form.add_error(None, CHANGED)
     return render(
         request,
         "core/record_form.html",
@@ -160,6 +172,18 @@ def client_edit(request, pk):
             "cancel_url": record_url,
         },
     )
+
+
+def _posted_revision(form):
+    """The revision a posted form was drawn with, read as the form's own field reads it; None
+    when it is missing or unreadable (then nothing says another person changed the record)."""
+    field = form.fields["expected_revision"]
+    try:
+        return field.clean(
+            field.widget.value_from_datadict(form.data, form.files, "expected_revision")
+        )
+    except ValidationError:
+        return None
 
 
 def _portal_accounts(client):

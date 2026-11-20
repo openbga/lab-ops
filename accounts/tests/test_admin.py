@@ -99,10 +99,16 @@ def test_users_cannot_be_deleted_and_last_superuser_cannot_be_removed(owner, cli
     url = reverse("admin:accounts_user_delete", args=[owner.pk])
     assert client.post(url, {"post": "yes"}).status_code == 403
     assert User.objects.filter(pk=owner.pk).exists()
-    from accounts.admin import AccountChangeForm
+    from accounts.admin import AccountChangeForm, drawn_state
 
     form = AccountChangeForm(
-        {"username": "owner", "email": owner.email, "is_active": "", "is_superuser": "on"},
+        {
+            "username": "owner",
+            "email": owner.email,
+            "is_active": "",
+            "is_superuser": "on",
+            "drawn": drawn_state(owner),
+        },
         instance=owner,
     )
     form.is_valid()

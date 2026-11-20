@@ -89,6 +89,45 @@ def _new_user(username, email, password, first_name, last_name):
     return user
 
 
+def _hold_for_roles(username, roles):
+    """Before setup reads anything else: when it is to give an existing account a role it lacks,
+    take the account's access gate, as the account page takes it on every save, so that a save
+    of the page under way comes first and is read by setup, and one started afterwards waits;
+    each records only its own change. Taken before the lab's row, so waiting for the person's own
+    change under way holds up no one's lab profile. Returns whether it was taken; a role removed
+    while setup then waits for the lab is held for later (_roles_to_add)."""
+    if not (username and roles):
+        return False
+    pk = User.objects.filter(username=username).values_list("pk", flat=True).first()
+    if pk is None:
+        return False
+    held = set(Group.objects.filter(user__pk=pk).values_list("name", flat=True))
+    if not set(roles) - held:
+        return False
+    from .acting import close_access
+
+    close_access([pk])
+    return True
+
+
+def _roles_to_add(actor, roles, gated):
+    """The account's roles read once ({id: name}) and the requested ones it lacks, read with its
+    access gate held whenever one is lacking: taken now if setup did not take it at the start
+    (a role removed while setup waited for the lab), and the account read again under it."""
+    held = dict(actor.groups.values_list("pk", "name"))
+    wanted = dict(Group.objects.filter(name__in=roles).values_list("pk", "name"))
+    if gated or set(wanted) <= set(held):
+        return held, {pk: name for pk, name in wanted.items() if pk not in held}
+    from .acting import close_access
+
+    close_access([actor.pk])
+    actor.refresh_from_db()
+    if not actor.is_active or actor.client_id is not None:
+        _fail("That account is inactive.")
+    held = dict(actor.groups.values_list("pk", "name"))
+    return held, {pk: name for pk, name in wanted.items() if pk not in held}
+
+
 @transaction.atomic
 def setup_lab(
     *,
@@ -108,6 +147,7 @@ def setup_lab(
     unknown = [role for role in roles if role not in ROLES]
     if unknown:
         _fail(f"Unknown role: {', '.join(unknown)}. Choose from {', '.join(ROLES)}.")
+    gated = _hold_for_roles(username, roles)
 
     lab = Lab.objects.select_for_update().filter(pk=1).first()
     needs_lab = lab is None
@@ -168,15 +208,23 @@ def setup_lab(
         result.did(f"Created administrator '{actor.username}' (staff and superuser).")
     elif actor is not None:
         result.messages.append(f"Account '{actor.username}' exists; password and flags unchanged.")
-    before = account_snapshot(actor) if actor is not None else {}
-    if roles:
+    if roles and not user_created:
+        # The roles it holds, read once (the gate taken above, when a role was missing, makes a
+        # change on the account page come first): only the missing ones are added, and the
+        # event names each role from this one reading, so a role renamed meanwhile on its own
+        # page, or given meanwhile on the account page, is not recorded as setup's.
+        held, added = _roles_to_add(actor, roles, gated)
+        if added:
+            actor.groups.add(*added)
+            before = {**account_snapshot(actor), "groups": sorted(held.values())}
+            after = {**before, "groups": sorted([*held.values(), *added.values()])}
+            names = [role for role in roles if role in added.values()]
+            result.did(f"Added roles to '{actor.username}': {', '.join(names)}.")
+            events.append(("setup.account_roles_added", actor, before, after))
+    elif roles:
         actor.groups.add(*Group.objects.filter(name__in=roles))
-        if not user_created and before["groups"] != account_snapshot(actor)["groups"]:
-            result.did(f"Added roles to '{actor.username}': {', '.join(roles)}.")
     if user_created:
         events.insert(0, ("setup.account_created", actor, {}, account_snapshot(actor)))
-    elif roles and before["groups"] != account_snapshot(actor)["groups"]:
-        events.append(("setup.account_roles_added", actor, before, account_snapshot(actor)))
 
     for action, obj, before_state, after_state in events:
         record_event(

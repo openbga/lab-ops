@@ -39,6 +39,9 @@ RELEASED = "released_assignments"  # how many requests the save returned to thei
 
 
 def remember_deactivation(sender, instance, raw=False, update_fields=None, **kwargs):
+    # A mark left by an earlier save of this instance whose update failed (its post_save never
+    # ran) is never carried into this save, which decides again.
+    instance.__dict__.pop(DEACTIVATING, None)
     if raw or instance.pk is None or instance.is_active:
         return
     if update_fields is not None and "is_active" not in update_fields:

@@ -49,17 +49,17 @@ ships, move it to Built in the same change.
 
 | Area | What is in place |
 | --- | --- |
-| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview; an import takes turns with new organizations, with changes of an organization's name or code or of the group it is placed in, and with changes of a site's code, instead of failing |
+| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview; an import takes turns with new organizations, with changes of an organization's name or code or of the group it is placed in, and with changes of a site's code, instead of failing; an organization's account owner is checked as the person stands when the save or import is made |
 | Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment or a client's reply and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; each change holds the acting account until it commits, so ending a person's access (deactivation, a role, a capability, a team or a portal site) waits for what they are saving and refuses what they start afterwards; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
 | Ticket forms | Forms per category with client, shared and staff-only fields and an optional patient field behind a capability; corrections with a reason; a service menu in the portal and "Request again"; supply orders from the laboratory's catalog and one-time pickups |
 | Links | Typed references to orders, samples, reports and other records in the laboratory's systems, and optional, masked person-level links |
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
-| Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites |
+| Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites; a reply refused because the laboratory closed the ticket meanwhile is shown again to copy into a follow-up |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
-| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
+| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
-| Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The public demonstration has no scheduler and keeps email off |
+| Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible, as they stand when it decides, when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The public demonstration has no scheduler and keeps email off |
 | Release checks | On every pull request and weekly: static analysis of the application code and its workflows, an audit of the locked and vendored dependencies for known vulnerabilities, a scan of the history for committed secrets and a scan of the container image; a software bill of materials of the image for each run and each published release; the security policy says what is checked and what is not. Penetration testing, a bug bounty and scanning of anyone's deployment are left out |
 
 ## Why this order
@@ -89,20 +89,15 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
-### Review follow-up: decisions read before a wait
+### Review follow-up: the jobs' account's first use and a page drawn across a change
 
-- **Delivers:** five changes that decide from what they read before waiting for another change,
-  and then save, decide from what they hold instead. The account page saves every field of the
-  form as it was drawn, so deactivating a person from a page opened before a colleague corrected
-  their email puts the old address back, and the account's history can miss the reversal. An
-  organization's account owner is checked before the save waits, so a person deactivated
-  meanwhile can become the owner; holding the owner has to come before the organization's lock
-  and fit an import that sets owners on several rows. The breach notice job chooses its
-  recipients and then locks them, so a lead deactivated in between is recorded as a recipient,
-  though sending then drops the notice. A client's reply refused because a colleague closed the
-  ticket meanwhile loses the typed text, as a closed ticket shows no reply form. Finishing a
-  sign-in can fail with the portal move message when the account was moved to another
-  organization at that moment.
+- **Delivers:** three small changes that the independent review of "decisions read before a wait"
+  found predating it. The first run of the scheduled jobs can wait for a person's account being
+  created at that moment with the jobs' account's preferred username or address. Two such
+  accounts created at the same moment can end up with names or addresses that differ only in
+  letter case. A portal ticket page drawn while a staff reply commits can show that reply with a
+  reply form one revision older: the client's reply is then refused, and they open the ticket
+  again. Acceptance cases: the review's tests for D5, D6 and D11.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** nothing.
 

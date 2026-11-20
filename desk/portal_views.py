@@ -36,9 +36,11 @@ from .portal_forms import (
     PortalRequestFilter,
     RaiseRequestForm,
     ReplyForm,
+    UnsentReplyForm,
     client_status,
 )
 from .portal_scope import portal_requests
+from .services import STALE
 from .visibility import client_visible
 
 SIGNATURE_LIMIT = 3  # follow-up chain shown on the page
@@ -175,6 +177,8 @@ def _portal_request(user, number):
 @client_required
 def request_detail(request, number, reply_form=None):
     service_request = _portal_request(request.user, number)
+    # Also drawn by a refused reply: the help is this page's (core.page_docs).
+    request.documentation_page = ("portal:request-detail", {"number": number})
     follow_up_of = service_request.follow_up_of
     if (
         follow_up_of is not None
@@ -183,6 +187,15 @@ def request_detail(request, number, reply_form=None):
         follow_up_of = None  # never name a request the account cannot see
     list_params = return_list_params(request, PortalRequestFilter)
     can_reply = service_request.status in REPLYABLE
+    unsent_reply = None
+    if reply_form is not None and not can_reply:
+        # A reply refused because the ticket is closed now, read after the refusal: the notice
+        # says so and the text comes back, read only, instead of a reply form the ticket no
+        # longer takes (a reply of files only gets the notice).
+        body = reply_form.data.get("body", "")
+        unsent_reply = UnsentReplyForm(initial={"body": body})
+        unsent_reply.has_text = bool(body.strip())
+        reply_form = None
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})
     return render(
@@ -201,6 +214,7 @@ def request_detail(request, number, reply_form=None):
             "signature": _signature(service_request),
             "can_reply": can_reply,
             "reply_form": reply_form,
+            "unsent_reply": unsent_reply,
             "list_url": reverse("portal:request-list", query=list_params),
             "reply_url": reverse(
                 "portal:request-reply",
@@ -224,8 +238,8 @@ def request_reply(request, number):
     )
     form = ReplyForm(request.POST, request.FILES)
     if service_request.status not in REPLYABLE:
-        messages.error(request, "This ticket is closed. Open a follow-up ticket instead.")
-        return redirect(detail_url)
+        # Closed after the page was drawn: the page again, with the text typed (never sent).
+        return request_detail(request, number, reply_form=form)
     if form.is_valid():
         try:
             add_entry_with_files(
@@ -239,11 +253,22 @@ def request_reply(request, number):
         except ServiceRequest.DoesNotExist:
             raise Http404("No such ticket.") from None
         except ValidationError as exc:
-            _form_errors(form, exc)
+            if STALE in exc.messages:
+                # The shared message says to reload, which here would send the form again.
+                form.add_error(None, STALE_REPLY)
+            else:
+                _form_errors(form, exc)
         else:
             messages.success(request, "Reply sent to the laboratory.")
             return redirect(f"{detail_url}#conversation")
     return request_detail(request, number, reply_form=form)
+
+
+STALE_REPLY = (
+    "This ticket changed after you opened it, so your reply was not sent. Copy your text, open "
+    "the ticket again from Tickets and read the conversation. If your reply is already there, it "
+    "was sent: do not send it again. Otherwise paste it and send it."
+)
 
 
 def _form_errors(form, exc):

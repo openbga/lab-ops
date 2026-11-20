@@ -6,7 +6,9 @@ service_request (always within desk.portal_scope.portal_requests), status ((labe
 client's words), conversation (dicts built from desk.visibility.client_visible replies and
 status-change events only: kind "reply" with at, body, from_client, author; kind "status" with
 at, status), links (attachments staff chose to show, never person-level), follow_up_of and
-follow_ups (only requests this account can see), can_reply, reply_form, is_closed; lab from the
+follow_ups (only requests this account can see), can_reply, reply_form, unsent_reply (a reply
+refused because the ticket is closed now, shown read only; desk.portal_forms.UnsentReplyForm),
+is_closed; lab from the
 workspace context. Staff replies are signed with the team's and the laboratory's names, never a
 person's. Nothing here shows notes, logged contacts, assignee, priority, clocks or complaints.
 Form details ({% request_form_details %}, request_forms): the values of fields shown to clients
@@ -76,6 +78,16 @@ when the request was raised with a request form, and "Request again" while the f
       {{ reply_form.expected_revision }}
     </fieldset>
   {% endform_page %}
+{% endpanel %}
+{% elif unsent_reply %}
+{% panel title="Reply not sent" heading_id="reply-heading" class="mb-3" %}
+  {% if unsent_reply.has_text %}
+  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket, so this reply was not sent. If it already shows in the Conversation above, it was sent earlier: do not send it again. Otherwise your text is below: open a follow-up ticket to send it.{% endnotice %}
+  {{ unsent_reply.body.as_field_group }}
+  {% else %}
+  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket, so this reply was not sent, files included. If it already shows in the Conversation above, it was sent earlier: do not send it again. Otherwise open a follow-up ticket to send it.{% endnotice %}
+  {% endif %}
+  <a class="btn btn-primary" href="{% url 'portal:request-create' %}?follow_up={{ service_request.number|urlencode }}">New follow-up ticket</a>
 {% endpanel %}
 {% endif %}
 {% endrecord_layout %}

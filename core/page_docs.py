@@ -167,5 +167,11 @@ def documentation_for_route(route, kwargs=None):
 
 
 def documentation_for_request(request):
+    """The help of the page the response draws. A view that answers a POST by drawing another
+    page (a refused form drawn again on the record's page) names that page's route and URL
+    arguments in `request.documentation_page`; otherwise the route that answered."""
+    named = getattr(request, "documentation_page", None)
+    if named is not None:
+        return documentation_for_route(*named)
     match = getattr(request, "resolver_match", None)
     return documentation_for_route(match.view_name if match else "", match.kwargs if match else {})

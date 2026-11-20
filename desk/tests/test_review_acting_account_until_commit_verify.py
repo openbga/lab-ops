@@ -250,16 +250,14 @@ def test_an_update_that_takes_no_access_away_does_not_wait_for_the_persons_chang
     update, make_user, join, agent, sample_category, accessioning
 ):
     """A technician's note is under way (it has held their account and reached its ticket). In
-    another tab the technician changes their password (allauth saves the account in full) or turns
-    their email notices off; or an owner gives the technician role the patient-information
-    capability on the role group page.
+    another tab the technician changes their password or turns their email notices off; or an
+    owner gives the technician role the patient-information capability on the role group page.
 
-    Intended (docs/architecture.md "Updates that take no access away, such as a sign-in or the
-    email notice preference, do not wait; a full save of the account (its page, a password
-    change) takes the gate and waits for the person's change under way"; accounts/acting.py
-    "Additions wait for nothing"): the notice preference and the capability added to the role do
-    not wait for the note; the password change, a full save, waits for it and then goes
-    through."""
+    Intended (docs/architecture.md "Updates that take no access away, such as a sign-in, the email
+    notice preference or a capability added to a role, do not wait for the gate"; "A password
+    change ... saves the password only"; accounts/acting.py "Additions made on their own wait for
+    nothing"): none of the three waits for the note. (Adapted by "decisions read before a wait":
+    the password change used to save the account in full and wait.)"""
     from allauth.account.adapter import get_adapter
     from django.contrib.auth.models import Group, Permission
 
@@ -305,10 +303,9 @@ def test_an_update_that_takes_no_access_away_does_not_wait_for_the_persons_chang
         session.join()
     assert first.outcome == "done", repr(first.error)
     assert session.outcome == "done", repr(session.error)
-    if update == "password change":  # a full save: waits for the note, then goes through
-        assert (state, behind_note) == ("waiting", True), state
-    else:
-        assert state == "ended", (state, "behind the note" if behind_note else "")
+    # Adapted (decisions read before a wait): a password change saves the password only, so it
+    # takes no access away and, like the others, does not wait for the note.
+    assert state == "ended", (state, "behind the note" if behind_note else "")
 
 
 # V5. A capability removed from a role, and a member it has not reached yet -----------------------
