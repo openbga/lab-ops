@@ -147,8 +147,9 @@ def client_edit(request, pk):
         else:
             messages.success(request, "Changes recorded with their reason.")
             return redirect(record_url)
-    elif form.is_bound and _posted_revision(request) != (
-        Client.objects.filter(pk=client.pk).values_list("revision", flat=True).first()
+    elif form.is_bound and _posted_revision(form) not in (
+        None,
+        Client.objects.filter(pk=client.pk).values_list("revision", flat=True).first(),
     ):
         # Refused by the form itself (a choice no longer offered, such as an owner replaced and
         # deactivated meanwhile), on a page drawn before another change (read now, after the
@@ -173,11 +174,15 @@ def client_edit(request, pk):
     )
 
 
-def _posted_revision(request):
-    """The revision a posted form was drawn with, as a number (None when it is not one)."""
+def _posted_revision(form):
+    """The revision a posted form was drawn with, read as the form's own field reads it; None
+    when it is missing or unreadable (then nothing says another person changed the record)."""
+    field = form.fields["expected_revision"]
     try:
-        return int(request.POST.get("expected_revision", ""))
-    except ValueError:
+        return field.clean(
+            field.widget.value_from_datadict(form.data, form.files, "expected_revision")
+        )
+    except ValidationError:
         return None
 
 

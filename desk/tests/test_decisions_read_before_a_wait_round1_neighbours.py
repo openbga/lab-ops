@@ -421,6 +421,6 @@ def test_a_refused_reply_on_a_closed_ticket_says_why_with_text_or_without(
     for body, shown in (("Order ORD-TEST-000860 too.", True), ("", False)):
         response = client.post(url, {"body": body, "expected_revision": ticket.revision})
         assert response.status_code == 200
-        assert b"so nothing was sent" in response.content
+        assert b"so this reply was not sent" in response.content
         assert (b'id="id_body"' in response.content) is shown
         assert response.context["page_documentation"]["id"] == "portal-request-detail"

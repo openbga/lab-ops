@@ -149,7 +149,8 @@ that person's deactivation or removal from a team wait for each other one way, n
 Updates that take no access away, such as a sign-in, the email notice preference or a capability
 added to a role, do not wait for the gate (an update of the account's row still waits a moment for
 a change that holds that row, such as an assignment of a ticket to the person or a notice being
-sent to them); a save on the account's page and every save of a portal account's
+sent to them; `setup_lab`, giving an existing account a role it lacks, takes the gate as the account
+page does, so each records only its own additions); a save on the account's page and every save of a portal account's
 access take the gate and wait for the person's change under way. A password change, by the
 person or on the account's password page, saves the password only: a full save of the account
 as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored

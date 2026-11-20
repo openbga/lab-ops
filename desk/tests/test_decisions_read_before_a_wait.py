@@ -836,7 +836,7 @@ def test_a_reply_to_a_ticket_closed_before_it_was_sent_shows_the_text_again(
     assert response.status_code == 200
     assert not RequestEntry.objects.filter(request=portal_ticket, body=body).exists()
     page = response.content.decode()
-    assert "Reply not sent" in page and "so nothing was sent" in page
+    assert "Reply not sent" in page and "so this reply was not sent" in page
     assert body in page
     assert response.context["reply_form"] is None
     unsent = response.context["unsent_reply"]
@@ -860,11 +860,11 @@ def test_a_reply_of_no_text_to_a_closed_ticket_gets_the_notice_alone(
     refused = client.post(url, data)
     assert refused.status_code == 200
     assert refused.context["unsent_reply"] is not None
-    assert b"nothing was sent, files included" in refused.content
+    assert b"this reply was not sent, files included" in refused.content
     assert b'id="id_body"' not in refused.content  # no text to show back
     page = client.get(reverse("portal:request-detail", args=[portal_ticket.number]))
     assert page.context["unsent_reply"] is None
-    assert b"so nothing was sent" not in page.content  # the panel's notice (help aside)
+    assert b"so this reply was not sent" not in page.content  # the panel's notice (help aside)
 
 
 def test_a_reply_refused_on_a_ticket_still_open_keeps_its_form(

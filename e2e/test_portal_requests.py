@@ -181,7 +181,7 @@ def test_a_reply_to_a_ticket_closed_meanwhile_comes_back_unsent(page: Page, demo
 
     panel = page.locator("section", has=page.get_by_role("heading", name="Reply not sent"))
     expect(panel).to_be_visible()
-    expect(panel.get_by_text("so nothing was sent")).to_be_visible()
+    expect(panel.get_by_text("so this reply was not sent")).to_be_visible()
     unsent = field(panel, "Your reply, not sent")
     expect(unsent).to_have_value(text)
     expect(unsent).to_have_attribute("readonly", "")

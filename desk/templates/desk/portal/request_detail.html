@@ -82,10 +82,10 @@ when the request was raised with a request form, and "Request again" while the f
 {% elif unsent_reply %}
 {% panel title="Reply not sent" heading_id="reply-heading" class="mb-3" %}
   {% if unsent_reply.has_text %}
-  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket before your reply reached it, so nothing was sent. Your text is below. Open a follow-up ticket to send it.{% endnotice %}
+  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket, so this reply was not sent. If it already shows in the Conversation above, it was sent earlier: do not send it again. Otherwise your text is below: open a follow-up ticket to send it.{% endnotice %}
   {{ unsent_reply.body.as_field_group }}
   {% else %}
-  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket before your reply reached it, so nothing was sent, files included. Open a follow-up ticket to send it.{% endnotice %}
+  {% notice tone="warning" label="Not sent" %}The laboratory closed this ticket, so this reply was not sent, files included. If it already shows in the Conversation above, it was sent earlier: do not send it again. Otherwise open a follow-up ticket to send it.{% endnotice %}
   {% endif %}
   <a class="btn btn-primary" href="{% url 'portal:request-create' %}?follow_up={{ service_request.number|urlencode }}">New follow-up ticket</a>
 {% endpanel %}

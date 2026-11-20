@@ -160,7 +160,7 @@
       "title": "Reply",
       "paragraphs": [
         "The Reply panel is shown while the ticket is With the laboratory, Waiting for you, With a third party or Resolved. It is not shown on a closed ticket.",
-        "Reply not sent takes its place when the laboratory closed the ticket after you opened the page, before your reply reached it (also while it was being saved): nothing is sent, files included, and the text you wrote is shown read only, under Your reply, not sent, with a New follow-up ticket button. A reply of files only gets the notice alone. Copy the text into the follow-up ticket and choose the files again there."
+        "Reply not sent takes its place when the laboratory closed the ticket after you opened the page, before your reply reached it (also while it was being saved): nothing is sent, files included, and the text you wrote is shown read only, under Your reply, not sent, with a New follow-up ticket button. A reply of files only gets the notice alone. Copy the text into the follow-up ticket and choose the files again there. If the reply already shows in the Conversation, it was sent earlier (a page sent again after a lost connection, for example): do not send it again."
       ],
       "items": [
         {
