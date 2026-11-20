@@ -5,7 +5,8 @@ Remove a link from a request or organization, with a reason (L2). Context: form 
 free text for an ordinary link; for a person-level link a reason from a fixed list and an optional
 note seen only with the capability),
 attachment, what (the link's label, or "Patient link" for a person-level one), crumbs,
-cancel_url, removed (already removed: nothing to do). The attachment row stays, marked removed.
+cancel_url, removed (already removed: nothing to do), ticket_revision (on a ticket, the ticket's
+revision the page belongs to, sent back with the form). The attachment row stays, marked removed.
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
 {% block content %}
@@ -14,8 +15,10 @@ cancel_url, removed (already removed: nothing to do). The attachment row stays, 
 {% else %}
 {% form_page form=form cancel_url=cancel_url submit_label="Remove link" destructive=True %}
   <fieldset class="vr-form-section">
-    <p>{{ what }} · {{ attachment.link.get_record_type_display }} · {{ attachment.get_role_display }}</p>
+    <p>{{ what }} · {{ attachment.link.get_record_type_display }} · {{ attachment.get_role_display }}{% if attachment.request_id and not attachment.is_person %} · {% if attachment.shown_to_client %}Shown to the client{% else %}Not shown to the client{% endif %}{% endif %}</p>
     {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+    {% if ticket_revision is not None %}<input type="hidden" name="expected_revision" value="{{ ticket_revision }}">{% endif %}
   </fieldset>
 {% endform_page %}
 {% endif %}

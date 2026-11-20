@@ -828,3 +828,53 @@ def test_a_person_saving_the_drawn_name_itself_is_waited_for_once(monkeypatch):
     assert creation.result.username == f"{job_actor.USERNAME}-bbccddee"
     assert User.objects.get(username=drawn).is_active
     assert AuditEvent.objects.filter(action="jobs.system_account_created").count() == 1
+
+
+def test_add_link_page_drawn_before_a_ticket_change_is_refused_and_keeps_input(
+    client, linked_ticket, agent
+):
+    """Confirmation C1/C8's neighbour: the Add link page sends the ticket's revision; a page
+    opened before a change is refused with what was typed kept, and a page opened now saves."""
+    ticket, lims, _attachment = linked_ticket
+    url = reverse("link_records:request-link-add", args=[ticket.pk])
+    page = client.get(url)
+    sent = re.search(r'name="expected_revision" value="(\d+)"', page.content.decode()).group(1)
+    assert int(sent) == _revision(ticket)
+    _confirm_two_staff_update(agent, ticket, "The courier is on the way.")
+    fields = {
+        "system": lims.pk,
+        "record_type": "order",
+        "identifier": "ORD-TEST-000930",
+        "role": "related",
+        "expected_revision": sent,
+    }
+    refused = client.post(url, fields)
+    assert refused.status_code == 200 and b"This ticket changed" in refused.content
+    assert b'value="ORD-TEST-000930"' in refused.content
+    assert not ticket.link_attachments.filter(link__identifier="ORD-TEST-000930").exists()
+    fresh = client.get(url)
+    fields["expected_revision"] = re.search(
+        r'name="expected_revision" value="(\d+)"', fresh.content.decode()
+    ).group(1)
+    assert client.post(url, fields).status_code == 302
+    assert ticket.link_attachments.filter(link__identifier="ORD-TEST-000930").count() == 1
+
+
+def test_an_organizations_link_pages_carry_no_ticket_revision(client, staff_ticket, clinic, agent):
+    lims = ExternalSystem.objects.create(key="lims", name="Example LIMS", kind="lims")
+    url = reverse("link_records:client-link-add", args=[clinic.pk])
+    page = client.get(url)
+    assert b'name="expected_revision"' not in page.content
+    posted = client.post(
+        url,
+        {
+            "system": lims.pk,
+            "record_type": "project",
+            "identifier": "ORD-TEST-000931",
+            "role": "related",
+        },
+    )
+    assert posted.status_code == 302
+    attachment = clinic.link_attachments.get(link__identifier="ORD-TEST-000931")
+    removal = client.get(reverse("link_records:attachment-remove", args=[attachment.pk]))
+    assert b'name="expected_revision"' not in removal.content

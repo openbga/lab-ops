@@ -216,7 +216,7 @@
       "title": "Links",
       "paragraphs": [
         "The count shows how many current external records are linked to the ticket. When the count is zero, you can still add the first link or search by patient key if you have access.",
-        "Adding, removing, showing or hiding a link changes the ticket, like a note or a status change: a reply, note, status or assignment change, a complaint record or a bulk change sent from a page opened before it, in this tab or another, is refused as stale, and so is a client's reply. Add link and Edit form details check only what they change."
+        "Adding, removing, showing or hiding a link changes the ticket, like a note or a status change: a change sent from a page opened before it, in this tab or another, is refused as stale (this page's forms, Show to client / Hide from client, and the Add link and Remove link pages), and so is a client's reply. Edit form details checks the fields it changes."
       ],
       "items": [
         {

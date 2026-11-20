@@ -18,7 +18,6 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import require_staff
 from clients.models import Client
-from core.concurrency import protect_form
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -173,7 +172,16 @@ def system_edit(request, pk):
 # Adding and removing links (L2, L3, L4) ----------------------------------------------------
 
 
-def _add_page(request, form, *, title, crumbs, cancel_url):
+def _drawn_revision(request, service_request):
+    """The ticket's revision a link page belongs to: read now when the page is drawn; on a POST,
+    the one the page sent, kept when it is drawn again (0 when it sent none, which no ticket has,
+    so a page drawn before it carried one is refused as stale)."""
+    if request.method == "POST":
+        return whole_number(request.POST.get("expected_revision", "")) or 0
+    return service_request.revision
+
+
+def _add_page(request, form, *, title, crumbs, cancel_url, ticket_revision=None):
     return render(
         request,
         "links/link_form.html",
@@ -182,6 +190,7 @@ def _add_page(request, form, *, title, crumbs, cancel_url):
             "form": form,
             "crumbs": crumbs,
             "cancel_url": cancel_url,
+            "ticket_revision": ticket_revision,
         },
     )
 
@@ -199,10 +208,14 @@ def request_link_add(request, pk):
     if request.GET.get("from") == "reference" and service_request.client_reference:
         initial = {"identifier": service_request.client_reference}
     form = LinkForm(request.POST or None, initial=initial, allow_person=allow_person)
+    revision = _drawn_revision(request, service_request)
     if request.method == "POST" and form.is_valid():
         try:
             attachment, created = add_link(
-                actor=request.user, request_id=service_request.pk, **form.cleaned_data
+                actor=request.user,
+                request_id=service_request.pk,
+                expected_revision=revision,
+                **form.cleaned_data,
             )
         except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
             raise Http404 from error
@@ -223,6 +236,7 @@ def request_link_add(request, pk):
         title="Add link",
         crumbs=[("Tickets", None), (service_request.number, back), ("Add link", None)],
         cancel_url=back,
+        ticket_revision=revision,
     )
     return _no_store(response) if allow_person else response
 
@@ -286,23 +300,28 @@ def attachment_remove(request, pk):
         messages.info(request, CLOSED_MESSAGE)
         return redirect(back)
     form = RemoveLinkForm(request.POST or None, person=attachment.is_person)
-    # The link as this form shows it: shown to the client or not, current or removed. A removal
-    # sent after someone else changed it is refused (links.services.remove_link).
-    protect_form(form, attachment)
+    # On a ticket, the page belongs to the ticket's revision it was drawn with: a removal sent
+    # after the ticket changed (this link shown or hidden, a note) is refused as stale.
+    revision = (
+        _drawn_revision(request, attachment.request) if attachment.request_id is not None else None
+    )
     if request.method == "POST" and form.is_valid():
-        data = dict(form.cleaned_data)
-        expected_state = data.pop("original_state")
         try:
             remove_link(
                 actor=request.user,
                 attachment_id=attachment.pk,
-                expected_state=expected_state,
-                **data,
+                expected_revision=revision,
+                **form.cleaned_data,
             )
         except ObjectDoesNotExist as error:  # left the actor's scope while the change waited
             raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
+            # Drawn again as the link and its ticket are now, not as they were read before.
+            attachment = _attachment_for(request.user, pk)
+            if attachment.request_id is not None and attachment.request.status == "closed":
+                messages.info(request, CLOSED_MESSAGE)
+                return redirect(back)
         else:
             messages.success(request, "Link removed. Its history stays.")
             return redirect(back)
@@ -322,6 +341,7 @@ def attachment_remove(request, pk):
             "crumbs": [(target, back), ("Remove link", None)],
             "cancel_url": back,
             "removed": attachment.removed_at is not None,
+            "ticket_revision": revision,
         },
     )
     return _no_store(response)

@@ -103,11 +103,11 @@
         },
         {
           "label": "History",
-          "description": "Adding a link is audited with the person and time, and an event appears on the ticket's timeline. For a person-level link the event holds only the record type, never the label or key. Adding a link to a ticket changes the ticket: a reply, note, status or assignment change sent from a page of it opened before is refused as stale. Adding checks only for the same link in the same role, so it still works after other changes to the ticket."
+          "description": "Adding a link is audited with the person and time, and an event appears on the ticket's timeline. For a person-level link the event holds only the record type, never the label or key. Adding a link to a ticket changes the ticket: a reply, note, status, assignment or link change sent from a page of it opened before is refused as stale."
         },
         {
           "label": "Refusals",
-          "description": "An unreadable identifier, a wrong or non-https address, an inactive system, a label that breaks a rule, the same link in the same role, or a second person-level link is refused on the form, and what you typed stays."
+          "description": "An unreadable identifier, a wrong or non-https address, an inactive system, a label that breaks a rule, the same link in the same role, or a second person-level link is refused on the form, and what you typed stays. On a ticket, the form is also refused as stale when the ticket changed after it was opened (a note, a status change, a link added, removed, shown or hidden): open it again from the ticket."
         }
       ]
     },

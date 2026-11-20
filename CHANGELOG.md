@@ -100,7 +100,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 - **Changed:** Link changes count as ticket changes (2026-11-20, Tickets)
 
-  Adding, removing, showing or hiding a ticket's link now refuses a reply or note sent from a page opened before it. Removing a link is refused when someone changed it after you opened the form.
+  Adding, removing, showing or hiding a ticket's link now counts as a change to the ticket: a reply, note or link change sent from a page opened before it is refused.
 
 - **Fixed:** Ticket pages agree with the replies they show (2026-11-20)
 

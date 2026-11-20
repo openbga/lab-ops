@@ -1,5 +1,6 @@
 """Verification of the first ticket-page and jobs-account review, on synthetic records."""
 
+import re
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -114,7 +115,13 @@ def shown_url(attachment):
 
 def form_hidden(page):
     form = page.context["form"]
-    return {field.name: field.value() or "" for field in form.hidden_fields()}
+    fields = {field.name: field.value() or "" for field in form.hidden_fields()}
+    # Adapted (confirmation C1): a ticket's link pages also send the ticket's revision, which is
+    # not a form field; send it as the browser does.
+    sent = re.search(r'name="expected_revision" value="(\d+)"', page.content.decode())
+    if sent and "expected_revision" not in fields:
+        fields["expected_revision"] = sent.group(1)
+    return fields
 
 
 def messages_for(response):
@@ -147,22 +154,30 @@ def test_open_forms_after_a_link_is_added(
         data["reason"] = "Delivery complete"
     else:
         data.update({"field-route": "West", "reason": "Delivery moved"})
+    if form_name != "correct":  # the ticket's revision the link page sends (not a form field)
+        data["expected_revision"] = re.search(
+            r'name="expected_revision" value="(\d+)"', page.content.decode()
+        ).group(1)
     committed(lambda: add(agent, ticket, system, "ORD-TEST-000943"))
     before = revision(ticket)
     reply = client.post(url, data)
     assert reply.status_code < 500
     existing.refresh_from_db()
-    # Adapted (verification, finding V1): these pages check what they change, not the whole
-    # ticket (docs/pages/links/request-link-add.json "History", attachment-remove.json "Remove
-    # link", request_forms request-details-edit.json): after an unrelated link is added, adding
-    # another, removing the unchanged one and correcting a field each save, as one change.
-    assert reply.status_code == 302, reply.content[:2000]
-    saved = {
-        "add": LinkAttachment.objects.filter(link__identifier="ORD-TEST-000942").exists(),
-        "remove": existing.removed_at is not None,
-        "correct": current(ticket)["route"].value == "West",
-    }
-    assert saved[form_name] and revision(ticket) == before + 1, saved
+    # Adapted (verification V1 and its confirmation): the Add link and Remove link pages of a
+    # ticket send its revision and are refused after any change to it, as this test asked; Edit
+    # form details checks the fields it changes
+    # (docs/pages/request_forms/request-details-edit.json), so after an unrelated link change it
+    # saves.
+    if form_name == "correct":
+        assert reply.status_code == 302 and current(ticket)["route"].value == "West"
+        assert revision(ticket) == before + 1
+        return
+    assert (
+        revision(ticket),
+        existing.removed_at is None,
+        LinkAttachment.objects.filter(link__identifier="ORD-TEST-000942").exists(),
+        current(ticket)["route"].value,
+    ) == (before, True, False, "North"), "the open form saved after the ticket's references changed"
 
 
 @pytest.mark.parametrize("change", ["ordinary", "removed", "closed"])

@@ -244,9 +244,10 @@ def test_organization_links(agent, lis, client_org, client):
         },
     )
     assert response.status_code == 302
-    url = reverse("link_records:attachment-remove", args=[attachment.pk])
-    drawn = client.get(url).context["form"]["original_state"].value()  # the link as shown
-    response = client.post(url, {"reason": "Closed project", "original_state": drawn})
+    response = client.post(
+        reverse("link_records:attachment-remove", args=[attachment.pk]),
+        {"reason": "Closed project"},
+    )
     assert response.status_code == 302
     assert LinkAttachment.objects.filter(client=client_org, removed_at__isnull=True).count() == 1
 
@@ -278,6 +279,8 @@ def test_client_reference_prefills_and_stays(agent, lis, make_request, client):
     url = reverse("link_records:request-link-add", args=[service_request.pk])
     form_page = client.get(url + "?from=reference").content.decode()
     assert 'value="COC-TEST-000021"' in form_page
+    service_request.refresh_from_db()
+    assert f'name="expected_revision" value="{service_request.revision}"' in form_page
     client.post(
         url,
         {
@@ -285,6 +288,7 @@ def test_client_reference_prefills_and_stays(agent, lis, make_request, client):
             "record_type": "custody_form",
             "identifier": "COC-TEST-000021",
             "role": "primary",
+            "expected_revision": service_request.revision,  # the page's (a link page carries it)
         },
     )
     service_request.refresh_from_db()

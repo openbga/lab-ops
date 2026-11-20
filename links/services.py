@@ -17,7 +17,6 @@ from accounts.acting import acting_change
 from accounts.roles import has_capability, require_capability, require_role, require_staff
 from clients.models import Client
 from core.audit import record_event, snapshot
-from core.concurrency import check_original_state
 from desk.selectors import locked_in_scope, staff_requests
 from desk.services import STALE
 
@@ -266,9 +265,13 @@ def add_link(
     url="",
     role=LinkRole.RELATED,
     shown_to_client=False,
+    expected_revision=None,
 ):
     """Attach a link to a request or a client organization, reusing an existing link with the
-    same system, record type, scheme and identifier. Returns (attachment, link_created)."""
+    same system, record type, scheme and identifier. Returns (attachment, link_created).
+
+    `expected_revision` is the ticket's revision on the page the request came from: a ticket
+    changed since in any way is refused as stale (direct callers may omit it)."""
     require_staff(actor)
     if (request_id is None) == (client_id is None):
         raise ValueError("Attach a link to exactly one ticket or organization.")
@@ -279,9 +282,12 @@ def add_link(
         raise ValidationError({"role": "Choose a role."})
     request = locked_request(actor, request_id) if request_id is not None else None
     if request is not None:
-        # Who asks is answered before anything about the ticket (closed, its links), and again
-        # after the last lock below.
+        # Who asks is answered before anything about the ticket (changed, closed, its links), and
+        # again after the last lock below.
         actor = _reread(actor, request)
+        if person:
+            require_capability(actor, CAPABILITY)
+        _check_revision(request, expected_revision)
         require_open(request)
     client = Client.objects.select_for_update().get(pk=client_id) if client_id is not None else None
     if client is not None and person:
@@ -388,16 +394,16 @@ def add_link(
     return attachment, created
 
 
-def _locked_attachment(actor, attachment_id, expected_revision=None, expected_state=None):
+def _locked_attachment(actor, attachment_id, expected_revision=None):
     """(attachment, current, request): the attachment's ticket locked first, as add_link locks it
     before the link, then the attachment and its link; then the acting account read again after
     those locks, and the capability for a person-level link checked on that reading. `request` is
     the locked ticket, or None for an organization's link.
 
-    `expected_revision` (the ticket's revision on the page the request came from) and
-    `expected_state` (core.concurrency.record_token of the attachment as its form showed it) are
-    checked right after who asks, before anything else about the ticket, as the desk's services
-    check the revision: a ticket closed or a link removed since the page is refused as stale."""
+    `expected_revision` (the ticket's revision on the page the request came from) is checked right
+    after who asks, before anything else about the ticket, as the desk's services check it: a
+    ticket changed since in any way (a link shown, hidden or removed, the ticket closed, a note)
+    is refused as stale."""
     request_id = (
         LinkAttachment.objects.filter(pk=attachment_id).values_list("request_id", flat=True).get()
     )  # read without a lock: an attachment never moves to another ticket
@@ -406,29 +412,35 @@ def _locked_attachment(actor, attachment_id, expected_revision=None, expected_st
         LinkAttachment.objects.select_for_update().select_related("link").get(pk=attachment_id)
     )
     actor = _reread(actor, request)  # after the last lock, before anything about the ticket
-    if request is not None and expected_revision is not None:
-        if request.revision != expected_revision:
-            raise ValidationError(STALE)
-    check_original_state(attachment, expected_state)
-    if request is not None:
-        require_open(request)
     if attachment.is_person:
         require_capability(actor, CAPABILITY)
+    if request is not None:
+        _check_revision(request, expected_revision)
+        require_open(request)
     return attachment, actor, request
 
 
+def _check_revision(request, expected_revision):
+    """Refuse as stale a change sent from a page of `request` drawn before its latest change."""
+    if expected_revision is not None and request.revision != expected_revision:
+        raise ValidationError(STALE)
+
+
 @acting_change
-def remove_link(*, actor, attachment_id, reason="", reason_code="", note="", expected_state=None):
+def remove_link(
+    *, actor, attachment_id, reason="", reason_code="", note="", expected_revision=None
+):
     """Detach a link with a reason. The attachment row stays, marked removed.
 
     A non-person link takes a free-text reason. A person-level link takes `reason_code` from
     PersonRemovalReason and an optional `note`, kept on the attachment and shown only to holders
-    of the capability; the audit event and the timeline carry the code only. `expected_state` is
-    the link as the removal form showed it (core.concurrency.record_token): a link shown, hidden
-    or removed since is refused (direct callers may omit it)."""
+    of the capability; the audit event and the timeline carry the code only. On a ticket,
+    `expected_revision` is its revision on the removal page: a ticket changed since in any way
+    (this link shown or hidden, another link added, a note) is refused as stale (direct callers
+    may omit it)."""
     require_staff(actor)
     attachment, actor, request = _locked_attachment(
-        actor, attachment_id, expected_state=expected_state
+        actor, attachment_id, expected_revision=expected_revision
     )
     if attachment.is_person:
         code = _person_reason(reason_code)

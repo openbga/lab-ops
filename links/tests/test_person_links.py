@@ -324,6 +324,7 @@ def test_key_absent_from_audit_timeline_urls_and_logs(holder, lis, service_reque
     caplog.set_level(logging.DEBUG)
     client.login(username=holder.username, password=PASSWORD)
     add_url = reverse("link_records:request-link-add", args=[service_request.pk])
+    service_request.refresh_from_db()
     response = client.post(
         add_url,
         {
@@ -331,6 +332,7 @@ def test_key_absent_from_audit_timeline_urls_and_logs(holder, lis, service_reque
             "record_type": "patient",
             "identifier": PATIENT_KEY,
             "role": "primary",
+            "expected_revision": service_request.revision,  # the page's (a link page carries it)
         },
     )
     assert response.status_code == 302

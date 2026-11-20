@@ -34,7 +34,7 @@
       "items": [
         {
           "label": "Link summary",
-          "description": "The link's label, its record type and its role. For a person-level link it reads the record type followed by link, never the label or key."
+          "description": "The link's label, its record type and its role. For a person-level link it reads the record type followed by link, never the label or key. On a ticket it also says whether the client sees the link."
         },
         {
           "label": "Reason for removal",
@@ -42,7 +42,7 @@
         },
         {
           "label": "Remove link",
-          "description": "Marks the link removed, with who, when and why, and returns to the ticket's or organization's Links section. The attachment row is never deleted. On a ticket, a removal event is added to the timeline with the record type and no label or key. Removing a ticket's link changes the ticket: a reply, note, status or assignment change sent from a page of it opened before is refused as stale. The removal itself is refused when someone showed, hid or removed the link after this form was opened: open it again and check before removing."
+          "description": "Marks the link removed, with who, when and why, and returns to the ticket's or organization's Links section. The attachment row is never deleted. On a ticket, a removal event is added to the timeline with the record type and no label or key. Removing a ticket's link changes the ticket: a reply, note, status, assignment or link change sent from a page of it opened before is refused as stale. On a ticket, the removal itself is refused the same way when the ticket changed after this form was opened (the link shown or hidden, another link added or removed, a note, a status change): open the ticket again and check before removing. A correction of the link's label is the link's own change and does not refuse it. An organization's link has no such check."
         },
         {
           "label": "Cancel",
