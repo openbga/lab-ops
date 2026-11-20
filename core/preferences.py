@@ -259,9 +259,11 @@ def save_if_absent(request, key, value):
                 if (kept := clean(key, row.value)) is not None:
                     break  # a readable one, from another tab or an explicit choice, stays
                 # Unreadable: replaced, unless it was replaced meanwhile (then read it again).
-                stored.filter(pk=row.pk, value=row.value).update(
+                if stored.filter(pk=row.pk, value=row.value).update(
                     value=value, updated_at=timezone.now()
-                )
+                ):
+                    kept = value  # held by this update until the transaction ends
+                    break
             elif not locked:
                 _hold_additions(user_id)  # then read again holding it
                 locked = True

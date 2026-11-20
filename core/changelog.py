@@ -92,6 +92,10 @@ def parse_entry(path):
     name = path.name
     if not FILE_NAME.match(name):
         raise ChangelogError(f"{name}: the file name must be YYYY-MM-DD-short-slug.md")
+    try:
+        datetime.date.fromisoformat(name[:10])
+    except ValueError:
+        raise ChangelogError(f"{name}: the file name must start with a real date") from None
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
@@ -299,9 +303,9 @@ def combined_marker(stored, seen, entries=()):
     the mark kept already, from another tab or a process of another release whose entries differ:
     every entry either marks as seen stays seen, within SEEN_IDS_MAX. The newer date; the ids of
     the mark with that date first (this visit's on a tie), then the other's, each once, without
-    those dated outside the window before the newer date, in seen_marker's order. An entry's date
-    is its published date when this visit's entries have it, else the date its file name starts
-    with (an entry only another release has); an id with neither is kept.
+    those this visit's entries date outside the window before the newer date, in seen_marker's
+    order. An id this visit does not know (another release's entry) is kept: its published date is
+    unknown here, and a file name's date can differ from it.
     """
     if not valid_marker(stored):
         return seen
@@ -312,7 +316,7 @@ def combined_marker(stored, seen, entries=()):
     since = datetime.date.fromisoformat(newer["date"]) - SEEN_WINDOW
 
     def in_window(entry_id):
-        dated = published.get(entry_id) or _id_date(entry_id)
+        dated = published.get(entry_id)
         return dated is None or dated > since
 
     ids = [
@@ -321,14 +325,6 @@ def combined_marker(stored, seen, entries=()):
         if in_window(entry_id)
     ]
     return {"date": newer["date"], "ids": sorted(ids[:SEEN_IDS_MAX], reverse=True)}
-
-
-def _id_date(entry_id):
-    """The date an entry's file name starts with, or None."""
-    try:
-        return datetime.date.fromisoformat(entry_id[:10])
-    except ValueError:
-        return None
 
 
 def valid_marker(value):

@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import connection
+from django.db import IntegrityError, connection
 from django.db.models import Count, Min
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -250,6 +250,10 @@ def whats_new(request):
             )
         except ValueError:
             pass  # too many saved preferences: the indicator stays, the list still shows
+        except IntegrityError as error:
+            if getattr(error.__cause__, "sqlstate", None) != "23503":
+                raise
+            # The account was removed while the page was drawn: nobody to record it for.
     visible = visible_staff_items(request.user, request=request)
     return render(
         request,

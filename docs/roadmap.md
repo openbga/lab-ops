@@ -89,6 +89,19 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
+### Review follow-up: a ticket's way back to the queue
+
+- **Delivers:** a small change that the independent review of "preferences kept in the session"
+  found predating it. A staff ticket opened from the queue carries the queue's address, with the
+  sort and page size the queue added from the person's saved settings, because Previous, Next and
+  Save view need that order. Its breadcrumb back to the queue sends them as if chosen, so it can
+  save again an older sort or page size than another tab saved since. The breadcrumb should send
+  only what the person chose while Previous, Next and Save view keep the order shown. Acceptance
+  cases: the staff ticket case of the review's record round-trip test (second confirmation), with
+  its queue-navigation and Save view tests (third confirmation) still passing.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** nothing.
+
 ### Automatic sign-out and session control
 
 - **Delivers:** sign-out after a period without activity and a maximum session length, both set by

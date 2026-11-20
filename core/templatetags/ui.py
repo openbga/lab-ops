@@ -408,7 +408,7 @@ def grid_query(context, **changes):
     for name, value in changes.items():
         if value is None:
             query.pop(name, None)
-        elif isinstance(value, (list, tuple)):
+        elif not isinstance(value, str) and hasattr(value, "__iter__"):
             query.setlist(name, [str(item) for item in value])
         else:
             query[name] = value

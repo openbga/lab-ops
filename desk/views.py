@@ -200,7 +200,7 @@ def request_list(request):
             "selected_rows": selected_rows,
             "clear_url": clear_url,
             "refined": refined,
-            "list_query": chosen_query(request).urlencode(),
+            "list_query": request.GET.urlencode(),  # its sort orders Previous and Next
         },
     )
 
