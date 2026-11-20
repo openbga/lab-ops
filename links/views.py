@@ -36,6 +36,7 @@ from .identifiers import url_on_system_host
 from .models import ExternalRecordLink, ExternalSystem, LinkAttachment
 from .services import (
     CLOSED_MESSAGE,
+    STALE,
     add_link,
     can_see_person_links,
     create_system,
@@ -54,10 +55,19 @@ SYSTEM_COLUMNS = {"name": "name", "kind": "kind", "base_url": "base_url", "is_ac
 NO_STORE = "no-store, max-age=0"
 
 
+# The desk's stale message says to reload, which on a page answering a POST would send it again.
+LINK_PAGE_STALE = (
+    "This ticket changed after you opened this page, so nothing was saved. Go back to the ticket, "
+    "check it as it is now, and reopen this page."
+)
+
+
 def _errors(form, exc):
     if hasattr(exc, "message_dict"):
         for name, errors in exc.message_dict.items():
             form.add_error(name if name in form.fields else None, errors)
+    elif STALE in exc.messages:
+        form.add_error(None, LINK_PAGE_STALE)
     else:
         form.add_error(None, exc)
 
@@ -174,10 +184,12 @@ def system_edit(request, pk):
 
 def _drawn_revision(request, service_request):
     """The ticket's revision a link page belongs to: read now when the page is drawn; on a POST,
-    the one the page sent, kept when it is drawn again (0 when it sent none, which no ticket has,
-    so a page drawn before it carried one is refused as stale)."""
+    the one the page sent, kept when it is drawn again. A value the ticket has not reached, or
+    none (a page drawn before it carried one), counts as 0, which no ticket has: refused as stale,
+    and never put back in the page."""
     if request.method == "POST":
-        return whole_number(request.POST.get("expected_revision", "")) or 0
+        sent = whole_number(request.POST.get("expected_revision", "")) or 0
+        return sent if sent <= service_request.revision else 0
     return service_request.revision
 
 
@@ -229,6 +241,12 @@ def request_link_add(request, pk):
                 else "Link added. The same record was already linked "
                 "elsewhere, so the existing link was reused.",
             )
+            return redirect(back)
+    if request.method == "POST":
+        # Drawn again as the ticket is now: one closed meanwhile takes no link.
+        service_request = _readable_request(request.user, pk)
+        if service_request.status == "closed":
+            messages.info(request, CLOSED_MESSAGE)
             return redirect(back)
     response = _add_page(
         request,
@@ -317,13 +335,15 @@ def attachment_remove(request, pk):
             raise Http404 from error
         except ValidationError as exc:
             _errors(form, exc)
-            # Drawn again as the link and its ticket are now, not as they were read before.
-            attachment = _attachment_for(request.user, pk)
-            if attachment.request_id is not None and attachment.request.status == "closed":
-                messages.info(request, CLOSED_MESSAGE)
-                return redirect(back)
         else:
             messages.success(request, "Link removed. Its history stays.")
+            return redirect(back)
+    if request.method == "POST":
+        # Drawn again (refused, or a field to correct) as the link and its ticket are now, not as
+        # they were read before: removed meanwhile, shown or hidden, or the ticket closed.
+        attachment = _attachment_for(request.user, pk)
+        if attachment.request_id is not None and attachment.request.status == "closed":
+            messages.info(request, CLOSED_MESSAGE)
             return redirect(back)
     target = attachment.request.number if attachment.request_id else attachment.client.name
     response = render(

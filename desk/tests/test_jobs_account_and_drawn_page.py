@@ -878,3 +878,16 @@ def test_an_organizations_link_pages_carry_no_ticket_revision(client, staff_tick
     attachment = clinic.link_attachments.get(link__identifier="ORD-TEST-000931")
     removal = client.get(reverse("link_records:attachment-remove", args=[attachment.pk]))
     assert b'name="expected_revision"' not in removal.content
+
+
+def test_every_revision_on_the_ticket_page_is_sent_as_a_plain_number(
+    client, linked_ticket, settings
+):
+    """Second confirmation E1's neighbours: with thousands separators on, the composer, Take and
+    Show/Hide forms send the revision the server compares, not "1,000"."""
+    settings.USE_THOUSAND_SEPARATOR = True
+    ticket, _lims, _attachment = linked_ticket
+    ServiceRequest.objects.filter(pk=ticket.pk).update(revision=1000, assignee=None)
+    page = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    sent = re.findall(r'name="expected_revision" value="([^"]*)"', page.content.decode())
+    assert len(sent) >= 2 and set(sent) == {"1000"}, sent

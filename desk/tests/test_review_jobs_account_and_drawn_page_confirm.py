@@ -33,9 +33,13 @@ REASON = "Collection completed"
 NOTE = "Green delivery basket"
 LABEL = "Morning collection"
 IDENTIFIER = "ORD-TEST-000961"
-# Adapted (confirmation, C1-C3, C7): a ticket's link pages now send its revision instead of an
-# original-state token, so a change since is refused with the desk's stale message.
-CONFLICT = "This ticket changed. Reload it and review the latest entries."
+# Adapted (confirmation, C1-C3, C7, and E6 of the second): a ticket's link pages now send its
+# revision instead of an original-state token, so a change since is refused with the link pages'
+# stale message.
+CONFLICT = (
+    "This ticket changed after you opened this page, so nothing was saved. Go back to the ticket, "
+    "check it as it is now, and reopen this page."
+)
 CHOOSE = "Choose Show to client or Hide from client."
 
 
@@ -478,8 +482,8 @@ def test_person_link_forms_require_the_current_capability(client, capable, ticke
 
 
 def test_desk_help_summary_of_an_earlier_ticket_page_on_the_add_form(client, agent, ticket, system):
-    """The ticket help summary promises refusal after a change. Its detailed Links section
-    and Add form deliberately permit this independent edit."""
+    """The ticket help summary promises refusal after a change; the Add link page now keeps it
+    (adapted: it permitted this independent edit when the confirmation was written)."""
     client.force_login(agent)
     url = reverse("link_records:request-link-add", args=[ticket.pk])
     assert url.encode() in client.get(reverse("desk:request-detail", args=[ticket.pk])).content
@@ -508,9 +512,10 @@ def test_desk_help_summary_of_an_earlier_ticket_page_on_the_add_form(client, age
     assert response.status_code == 200 and ticket.link_attachments.count() == 0
     assert CONFLICT in " ".join(FormMarkup(response).words)
     help_page = documentation_for_route("desk:request-detail")
-    tip = (
-        "If someone changed the ticket after you opened it, your change is refused as stale. "
-        "Reload, read the latest entries and try again."
+    tip = (  # adapted to the tip's wording with its exception (second confirmation, E7)
+        "If someone changed the ticket after you opened it, a change from this page or its link "
+        "pages is refused as stale. Reload and try again. Edit form details checks only its own "
+        "fields."
     )
     assert tip in help_page["good_to_know"]
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui %}
+{% load ui l10n %}
 {% comment %}
 Save the request list's current filters as a view, or rename, share or delete a saved view.
 Context: form (desk.forms.SavedViewForm), view (when editing), list_query and filters (the
@@ -11,7 +11,7 @@ filters a new view stores, as label and value pairs), submit_label, cancel_url, 
 {% if filters %}<p>This view keeps these filters: {% for label, value in filters %}<strong>{{ label }}</strong>: {{ value }}{% if not forloop.last %} · {% endif %}{% endfor %}.</p>{% else %}<p>This list has no filters; the view shows every ticket you may read.</p>{% endif %}
 {% endif %}
 {% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
-  {% if view %}<input type="hidden" name="expected_revision" value="{{ view.revision }}">{% else %}<input type="hidden" name="list" value="{{ list_query }}">{% endif %}
+  {% if view %}<input type="hidden" name="expected_revision" value="{{ view.revision|unlocalize }}">{% else %}<input type="hidden" name="list" value="{{ list_query }}">{% endif %}
   <fieldset class="vr-form-section">{% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}</fieldset>
 {% endform_page %}
 {% if view %}

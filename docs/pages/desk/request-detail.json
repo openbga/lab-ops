@@ -49,7 +49,7 @@
   "good_to_know": [
     "Only a reply that has not been withdrawn is visible to the client. Notes, logged contacts and events never are. Entries cannot be edited or deleted.",
     "If a notice says Nobody in the portal sees this ticket, a reply is recorded but reaches nobody. Call the client and log the contact instead.",
-    "If someone changed the ticket after you opened it, your change is refused as stale. Reload, read the latest entries and try again.",
+    "If someone changed the ticket after you opened it, a change from this page or its link pages is refused as stale. Reload and try again. Edit form details checks only its own fields.",
     "A complaint closes only after a supervisor who did not record the decision, and was never assigned the ticket, has reviewed it.",
     "A closed ticket cannot be reopened or reassigned; only internal notes can be added. Raise a new ticket for anything more."
   ],

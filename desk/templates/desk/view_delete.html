@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load ui %}
+{% load ui l10n %}
 {% block content %}
 {% url 'desk:view-delete' view.pk as delete_url %}
 {% form_page action=delete_url no_required_note=True cancel_url=cancel_url submit_label="Delete view" destructive=True %}
-  <input type="hidden" name="expected_revision" value="{{ view.revision }}">
+  <input type="hidden" name="expected_revision" value="{{ view.revision|unlocalize }}">
   <p>Deleting “{{ view.name }}” removes this view for everyone it is shared with. The tickets stay in their queues.</p>
 {% endform_page %}
 {% endblock %}
