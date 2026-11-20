@@ -52,9 +52,22 @@
         body: JSON.stringify({ key: key, value: value }),
       }).then(
         function (response) {
-          if (!response.ok || response.redirected) {
-            notSaved(response.status === 400 && !response.redirected);
+          if (response.ok && !response.redirected) {
+            return;
           }
+          if (response.status !== 400 || response.redirected) {
+            notSaved(false);
+            return;
+          }
+          // core/preferences.py answers a refusal at the limit with exactly this text.
+          return response.text().then(
+            function (reason) {
+              notSaved(reason.trim() === "Too many saved preferences.");
+            },
+            function () {
+              notSaved(false);
+            }
+          );
         },
         function () {
           notSaved(false);
@@ -65,14 +78,13 @@
 
   // Refused or not sent: the setting applies to this page only. Say so where Django messages
   // appear, as for any failed background request (app.js, docs/ui-standards.md section 8).
-  function notSaved(refused) {
+  function notSaved(full) {
     document.dispatchEvent(
       new CustomEvent("vr:request-error", {
         detail: {
-          message: refused
+          message: full
             ? "Your display setting applies to this page only: your account already keeps as " +
-              "many saved list settings and layouts as it can. Reset a list's columns to make " +
-              "room."
+              "many saved list settings and layouts as it can."
             : "Your display setting applies to this page only: it could not be saved. Reload " +
               "the page and try again.",
         },

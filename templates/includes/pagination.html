@@ -1,8 +1,11 @@
 {% comment %}
 Table footer: result count, rows per page and pager. Shown even on a single page; omit it in empty
 states. Parameters: page_obj (Django Page), noun (plural, e.g. "organizations"), filtered (truthy when
-filters apply), page_parameter (GET page key; defaults to "page", for independent related tables).
-Keeps every other query parameter; changing rows per page returns to page 1.
+filters apply), page_parameter (GET page key; defaults to "page", for independent related tables),
+fixed_size (truthy for a table whose page size is fixed: no rows-per-page form).
+Keeps every other query parameter; changing rows per page returns to page 1. The rows-per-page form
+leaves out a sort or page size added from the person's saved settings (request.vr_saved_params,
+core.preferences), so it saves only what this person chooses and keeps a sort saved elsewhere.
 Post mode, for a picker inside a larger POST form (a record picker inside a form): post_name
 (e.g. "ppage") renders the pager as submit buttons name=post_name value=<page> with formnovalidate,
 so the surrounding form keeps its entries; no rows-per-page form (the picker has its own).
@@ -15,9 +18,9 @@ Rows per page is core.grids.PageSizeForm's field ({% page_size_field %}, core/te
     of <strong>{{ paginator.count|floatformat:"0g" }}</strong> {{ noun|default:"records" }}{% if filtered %} matching filters{% endif %}
   </p>
   <div class="d-flex flex-wrap align-items-center gap-3">
-    {% if not post_name %}
+    {% if not post_name and not fixed_size %}
     <form class="d-flex align-items-center gap-2" method="get" action="{{ request.path }}">
-      {% for key, values in request.GET.lists %}{% if key != page_parameter and key != "per_page" %}{% for value in values %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}{% endif %}{% endfor %}
+      {% page_size_params page_parameter as carried %}{% for key, value in carried %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
       <label class="vr-count text-nowrap" for="per-page-{{ noun|default:'records'|slugify }}">Rows per page</label>
       {% page_size_field paginator.per_page noun as page_size %}{{ page_size }}
       <button class="btn btn-sm btn-outline-secondary" type="submit">Show</button>

@@ -484,3 +484,27 @@ def test_pages_and_preferences_do_not_extend_a_session_and_a_password_change_doe
     assert changed.status_code == 302
     current = StoredSession.objects.get(session_key=client.session.session_key)
     assert current.expire_date > earlier + timedelta(days=12)
+
+
+def test_rows_per_page_form_keeps_a_sort_the_address_gave_and_leaves_out_a_saved_one(
+    client, agent, clinic
+):
+    """V9's neighbour: the form re-sends what the person chose on this page (a sort in the
+    address) but not a sort added from their saved settings, which another tab may change."""
+    UserPreference.objects.create(
+        user=agent, key="page:clients:client-list", value={"sort": "name"}
+    )
+    client.force_login(agent)
+    url = reverse("clients:client-list")
+
+    def page_size_form(response):
+        html = response.content.decode()
+        start = html.index('<form class="d-flex align-items-center gap-2" method="get"')
+        return html[start : html.index("</form>", start)]
+
+    saved = page_size_form(client.get(url, {"q": "Example"}))
+    given = page_size_form(client.get(url, {"q": "Example", "sort": "-name"}))
+    assert 'name="sort"' not in saved
+    assert '<input type="hidden" name="sort" value="-name">' in given
+    for form in (saved, given):  # the person's filters always go with it
+        assert '<input type="hidden" name="q" value="Example">' in form

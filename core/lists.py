@@ -49,7 +49,7 @@ def list_response(
     (prefix, path) pairs for `<prefix>_from` / `<prefix>_to`; `refine(queryset, cleaned_data)`
     applies any filter that is not a plain match. An invalid filter shows no rows, never all."""
     try:
-        grid = shown(request, GridRequest.parse(request.GET, columns, default_sort))
+        grid = GridRequest.parse(request.GET, columns, default_sort)
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     data = request.GET.copy()
@@ -73,6 +73,7 @@ def list_response(
                     queryset = queryset.filter(**{f"{field}__date__{lookup}": value})
         if refine:
             queryset = refine(queryset, cleaned)
+        shown(request, grid)  # the rows follow this page size and sort: they may be saved
     else:
         queryset = queryset.none()
     chips = active_filters(request, form)

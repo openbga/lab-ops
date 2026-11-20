@@ -325,7 +325,8 @@ COMPONENTS = {
         reads=("sort",),
     ),
     "pagination": Component(
-        I + "pagination.html", ("page_obj", "noun", "filtered", "post_name", "page_parameter"),
+        I + "pagination.html",
+        ("page_obj", "noun", "filtered", "post_name", "page_parameter", "fixed_size"),
         reads=("page_obj",),
     ),
     "select_all": Component(I + "select_all.html", ("name", "label", "ready_label")),
@@ -367,6 +368,21 @@ def page_size_field(per_page, noun):
         }
     )
     return form["per_page"]
+
+
+@register.simple_tag(takes_context=True)
+def page_size_params(context, page_parameter="page"):
+    """The query parameters the rows-per-page form of includes/pagination.html carries: all but
+    the page, the page size and those added from the person's saved settings
+    (request.vr_saved_params, core.preferences), so it saves only what they choose."""
+    request = context["request"]
+    left_out = {page_parameter or "page", "per_page", *getattr(request, "vr_saved_params", ())}
+    return [
+        (key, value)
+        for key, values in request.GET.lists()
+        if key not in left_out
+        for value in values
+    ]
 
 
 @register.simple_tag(takes_context=True)

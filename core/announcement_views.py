@@ -45,7 +45,6 @@ def announcement_list(request):
         grid = GridRequest.parse(request.GET, COLUMNS, DEFAULT_SORT)
     except ValueError:  # bad per_page: the bound form reports it and the table stays empty
         grid = GridRequest.parse({}, COLUMNS, DEFAULT_SORT)
-    shown(request, grid)
     data = request.GET.copy()
     data["sort"] = grid.sort
     form = AnnouncementFilterForm(data)
@@ -61,6 +60,7 @@ def announcement_list(request):
         if filters["audience"]:
             queryset = queryset.filter(**{service.AUDIENCES[filters["audience"]][0]: True})
         chips = active_filters(request, form)
+        shown(request, grid)  # the rows follow this page size and sort: they may be saved
     else:
         queryset = queryset.none()  # never silently widen an invalid filter
         chips = []
