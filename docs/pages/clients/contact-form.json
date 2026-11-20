@@ -59,7 +59,7 @@
         },
         {
           "label": "Email",
-          "description": "Must be a valid email address when given. Give an email address or a phone number."
+          "description": "Must be a valid email address when given. Give an email address or a phone number. Contact imports find contacts by email, and those without one by name, so adding a contact or changing an email or a name waits for an import being saved at that moment, and an import waits for it."
         },
         {
           "label": "Phone",
@@ -71,7 +71,7 @@
         },
         {
           "label": "Sites served",
-          "description": "The sites of this organization the contact serves. Leave all clear when the contact serves the whole organization. Only this organization's active sites are offered, plus any inactive site the contact already serves; the field is absent while the organization has no sites. Shown in the Sites served column of the Contacts panel."
+          "description": "The sites of this organization the contact serves. Leave all clear when the contact serves the whole organization. Only this organization's active sites are offered, plus any inactive site the contact already serves; the field is absent while the organization has no sites. Shown in the Sites served column of the Contacts panel. The sites are checked again when you save: a newly chosen site deactivated since the form opened is refused, and a change to a chosen site waits until your save is done."
         },
         {
           "label": "Active",

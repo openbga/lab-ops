@@ -10,9 +10,22 @@ code, an integration) is not refused: refusing would leave the person active, wh
 than an unattributed release. Its timeline and audit events then name the deactivated account
 itself as the actor, with a reason that says no actor was recorded.
 
-The account's row is updated before its requests are locked, the order an assignment takes
-them in (desk.services._hold_assignment): an assignment to the account either comes first and
-its request is released here, or waits and is refused.
+The account's row is locked before its requests, the order an assignment takes them in
+(desk.services._hold_assignment): an assignment to the account either comes first and its
+request is released here, or waits and is refused. User.save locks the row FOR NO KEY UPDATE
+after the account's access gate, and the requests are locked here, before the row is updated.
+Another person's change to one of those requests that names the account without locking it, such
+as a client's reply recording a notice to the assignee, is checked against the account only when
+it commits, with a key-share lock. The no-key lock does not block that check; the account's
+update does, until the deactivation commits: a full save names the username and email, and with
+an update trigger on the table (clients migration 0006) PostgreSQL then locks the row as FOR
+UPDATE does, whatever the values. So the requests are locked before the update. A reply holding
+one of them commits first, and the deactivation then releases its request. A reply that comes
+second waits for the request, and is refused as changed if it was drawn before the release (the
+release advances the request's revision); sent again, it finds the request unassigned and
+records no notice to the deactivated account. A change that names the account while holding
+none of its open requests may wait at its COMMIT for the deactivation, which waits for nothing
+it holds.
 
 Paths that bypass save() (queryset.update, raw SQL) are not seen here; an account they
 deactivate still cannot sign in or be chosen as an assignee.
@@ -32,12 +45,17 @@ def remember_deactivation(sender, instance, raw=False, update_fields=None, **kwa
         return
     from .services import open_assignments
 
+    # The person's open requests, locked before the row is updated (see above), in the order
+    # release_assignments locks them.
+    held = list(
+        open_assignments(instance)
+        .select_for_update(of=("self",))
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
     # Deactivating now, or saving an inactive account that still holds work (a deactivation
     # whose release did not complete, made by a path that bypassed save()): release either way.
-    if (
-        sender.objects.filter(pk=instance.pk, is_active=True).exists()
-        or open_assignments(instance).exists()
-    ):
+    if held or sender.objects.filter(pk=instance.pk, is_active=True).exists():
         setattr(instance, DEACTIVATING, True)
 
 

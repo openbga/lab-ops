@@ -36,14 +36,22 @@ class User(AbstractUser):
         # succeed or fail together on every path, inside or outside a caller's transaction.
         with transaction.atomic():
             if self.pk is not None and _may_change_access(kwargs.get("update_fields")):
-                # The access gate, then FOR UPDATE, before the save: a change under way holds
-                # this account until it commits (accounts.acting), and the save waits for it.
+                # The access gate, before the save: a change the person has under way holds it
+                # until that change commits (accounts.acting), and the save waits for it. Then
+                # the row FOR NO KEY UPDATE, which an assignment to this account also takes
+                # (desk.services._held_assignee), so the two wait for each other. Not FOR
+                # UPDATE: the database checks the account named by another person's change (a
+                # notice to a ticket's assignee) at that change's COMMIT with a key-share lock,
+                # which FOR UPDATE would make wait while a deactivation waits for that ticket.
+                # A full save's update then locks the row as FOR UPDATE does (it names the
+                # unique columns and the table has an update trigger), so a deactivation locks
+                # the person's tickets before it (desk.signals).
                 from .acting import close_access
 
                 close_access([self.pk])
                 list(
                     type(self)
-                    .objects.select_for_update()
+                    .objects.select_for_update(no_key=True)
                     .filter(pk=self.pk)
                     .values_list("pk", flat=True)
                 )

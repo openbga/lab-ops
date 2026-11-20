@@ -163,8 +163,17 @@ class ContactForm(StyledForm, forms.ModelForm):
         self.fields["sites"].limit_to(client, chosen)
         if self.instance.pk and not self.is_bound:
             self.initial["sites"] = chosen
-        if not self.fields["sites"].queryset.exists():
+        # A choice posted from a form drawn while a site was still offered stays, so that it is
+        # refused as no longer valid rather than dropped (which would mean the whole organization).
+        if not self.fields["sites"].queryset.exists() and not self._posted("sites"):
             del self.fields["sites"]
+
+    def _posted(self, name):
+        if not self.is_bound:
+            return False
+        key = self.add_prefix(name)
+        values = self.data.getlist(key) if hasattr(self.data, "getlist") else self.data.get(key)
+        return bool(values)
 
 
 class ContactEditForm(ContactForm):

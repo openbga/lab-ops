@@ -4,7 +4,7 @@
 
 Changes to OpenBGA Lab Ops, grouped by month and impact.
 
-## November 2026 (2026-11-18 to 2026-11-19)
+## November 2026 (2026-11-18 to 2026-11-20)
 
 ### High impact
 
@@ -83,6 +83,10 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   The dashboard shows each queue's count and oldest ticket in a compact row, with recent organizations alongside on wider screens.
 
 ### Low impact
+
+- **Fixed:** Deactivations and organization changes wait their turn (2026-11-20)
+
+  Deactivating a ticket's assignee while a client replies, and changing organizations or site codes during an import, now wait for each other instead of one failing.
 
 - **Fixed:** Assigning while someone's access ends (2026-11-19, Tickets)
 

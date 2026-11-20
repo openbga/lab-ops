@@ -76,19 +76,25 @@ class Command(BaseCommand):
                 "Never set it where a laboratory keeps its records."
             )
         self._require_this_release()
+        # A first decision outside the transaction, so a database that is not a demonstration is
+        # refused before anything is locked and before anyone is asked.
+        self._require_demo_laboratory()
+        if options["interactive"]:
+            # Asked outside the transaction: nothing is held while a person reads the prompt.
+            name = connection.settings_dict["NAME"]
+            answer = input(
+                f"This erases every record in database {name!r}, including accounts and audit "
+                "history, then seeds the demonstration again.\n"
+                "Type 'reset' to continue: "
+            )
+            if answer != "reset":
+                raise CommandError("Reset cancelled. Nothing was changed.")
         with transaction.atomic():
-            self._require_demo_laboratory()
-            if options["interactive"]:
-                name = connection.settings_dict["NAME"]
-                answer = input(
-                    f"This erases every record in database {name!r}, including accounts and audit "
-                    "history, then seeds the demonstration again.\n"
-                    "Type 'reset' to continue: "
-                )
-                if answer != "reset":
-                    raise CommandError("Reset cancelled. Nothing was changed.")
-            # Decide again with every other writer shut out (not while a person reads the
-            # prompt), so nothing written after the decision is erased with it.
+            # One seed or reset at a time, before anything else this transaction reads or locks
+            # (as seed_demo, called below): a second waits here holding nothing. Then decide
+            # with every other writer shut out, so nothing written after the decision is erased
+            # with it.
+            demo.hold_seed_lock()
             demo.lock_application_tables()
             self._require_demo_laboratory()
             tables = self._erase()

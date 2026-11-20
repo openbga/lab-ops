@@ -82,14 +82,35 @@ def business_tables():
     ]
 
 
+# The advisory lock (PostgreSQL's two-key form; accounts.acting and clients.services use other
+# first keys) that one seed or reset holds at a time.
+SEED_LOCK = (19555, 0)
+
+
+def hold_seed_lock():
+    """One demonstration seed or reset at a time, taken before anything else either locks: a
+    second waits here, holding nothing, and then sees what the first committed."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("hold_seed_lock() needs a transaction.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(SEED_LOCK))
+
+
 def lock_application_tables():
     """Keep every other connection from writing any application table until this transaction
     ends, waiting for writers already under way. Taken before a scan whose answer must still hold
     when the transaction commits: SHARE ROW EXCLUSIVE conflicts with every row write (and with
     itself, so two seeds take turns) but not with reads, and never with this transaction's own
-    writes. In READ COMMITTED each later statement sees everything committed before the lock."""
+    writes. In READ COMMITTED each later statement sees everything committed before the lock.
+
+    The organization directory lock comes first (clients.services.hold_directory): an import
+    takes it before it writes, and the seed creates organizations, which takes it too, so the
+    seed waits for an import under way before it holds the tables the import writes to."""
     if not connection.in_atomic_block:
         raise RuntimeError("lock_application_tables() needs a transaction.")
+    from clients.services import hold_directory
+
+    hold_directory()
     quote = connection.ops.quote_name
     tables = connection.introspection.django_table_names(only_existing=True)
     with connection.cursor() as cursor:

@@ -225,7 +225,7 @@ def test_an_account_change_waits_for_a_creation_whose_commit_waits_for_the_organ
 def test_a_creation_that_starts_while_its_account_loses_access_is_refused(
     case, clerk, two_site_portal, clinic, category
 ):
-    """The account change is under way (a deactivation's save holds the account FOR UPDATE; a
+    """The account change is under way (a deactivation's save holds the account's access gate; a
     removal of the role or of the site's grant has deleted its row) and not yet committed. A
     creation started meanwhile waits for it before its first lock, reads the account as the
     change left it, and is refused: no ticket and no creation event."""
@@ -396,14 +396,14 @@ def test_deactivating_a_person_and_their_own_change_to_their_ticket_never_deadlo
 ):
     """A technician of Accessioning holds a ticket and hands it to a colleague (an assignment),
     or adds a note to it, while an owner deactivates the technician in account administration.
-    The change has locked the ticket when the deactivation starts. The deactivation updates the
-    account row with a full save (every column, the unique username and email among them, which
-    PostgreSQL treats as a key update, taking the row as FOR UPDATE does), then returns the
-    technician's open tickets to their queues and waits for this one (desk.signals,
-    release_assignments). The change then commits; its deferred foreign key checks (the timeline
-    entry's author, the audit event's actor) take FOR KEY SHARE on the technician's account,
-    which the deactivation holds. Neither may fail with a deadlock (40P01): "When an assignment
-    and the end of that person's work meet ... Neither fails with a deadlock"
+    The change has locked the ticket when the deactivation starts. The deactivation locked the
+    account row FOR UPDATE (User.save, when this case was found), then returned the technician's
+    open tickets to their queues and waited for this one (desk.signals, release_assignments). The
+    change then committed; its deferred foreign key checks (the timeline entry's author, the
+    audit event's actor) take FOR KEY SHARE on the technician's account, which the deactivation
+    held. The deactivation now waits at the account's access gate for the person's change.
+    Neither may fail with a deadlock (40P01): "When an assignment and the end of that person's
+    work meet ... Neither fails with a deadlock"
     (docs/architecture.md); desk.signals "the order an assignment takes them in". The change and
     the deactivation both go through, in some order, and the account ends inactive."""
     owner = make_user("verify3_owner", "admin")

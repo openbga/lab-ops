@@ -92,13 +92,22 @@ decides from what it read once the acting account is read again; while it waits 
 ticket it holds up only work about the same person. A new ticket naming an assignee locks that
 person's account, roles and membership of the ticket's team before anything else, its category
 and a request form's definition included; if the team changes in between, the ticket is refused
-and nothing is saved. Deactivating an account updates the account and then returns the
-person's open tickets to their queues ([desk/signals.py](../desk/signals.py)), and removing a
-member locks the membership and then those tickets. When an assignment and the end of the
-assignee's work meet, the second waits for the person's rows and then decides on what the first
-saved: the assignment is refused, or the deactivation or removal finds the new assignment and
-returns it to the queue. Neither fails with a deadlock. A nonconformance names people (its owner,
-an action's assignee) by locking the record and then the person, and never locks a ticket after
+and nothing is saved. Deactivating an account locks the account FOR NO KEY UPDATE, then the
+person's open tickets, and then updates the account and returns those tickets to their queues
+([desk/signals.py](../desk/signals.py)); removing a member locks the membership and then those
+tickets. When an assignment and the end of the assignee's work meet, the second waits for the
+person's rows and then decides on what the first saved: the assignment is refused, or the
+deactivation or removal finds the new assignment and returns it to the queue. Neither fails with
+a deadlock. A change that names an assignee without locking the account, such as a client's
+reply that records a notice to the assignee, is checked against that account only when it
+commits, with a key-share lock. The deactivation's no-key lock does not block that check. Its
+update of the account does, until it commits: a full save names the unique username and email,
+and with an update trigger on the table PostgreSQL then locks the row as FOR UPDATE does. The
+tickets are locked before that update, so a reply holding one commits while the deactivation
+waits for it. A reply that comes second waits for the ticket and, as the release changed the
+ticket, is refused as changed; sent again, it finds the ticket unassigned. A nonconformance
+names people (its owner, an action's assignee) by locking the record and then the person, and
+never locks a ticket after
 the person it names.
 
 A ticket is locked by its id and the reader's scope is read again after the lock
@@ -120,7 +129,7 @@ change names, such as its author and its creator, only when it commits, and that
 so a reading taken after the locks would not be enough on its own. What takes access away takes
 the gate of each account it affects exclusively, before any row it locks: a save that
 deactivates the account or moves a portal account to another organization (which then locks the
-account FOR UPDATE), the account page before its check of the remaining owners, the role group
+account FOR NO KEY UPDATE), the account page before its check of the remaining owners, the role group
 page, a portal access change, and every removal of a role, a capability, a team membership or a
 portal site. It waits for that person's changes under way. The gate queues in order, as row
 share locks do not, so a change the person starts meanwhile waits behind it, then reads the new
@@ -132,17 +141,36 @@ Updates that take no access away, such as a sign-in, the email notice preference
 added to a role, do not wait; a full save of the account (its page, a password change) and
 every save of a portal account's access take the gate and wait for the person's change under
 way. Setup changes (teams, categories,
-forms, calendars and the like) do not hold their actor. The services that reveal patient
+forms, calendars and the like) do not hold their actor, except creating or changing a client
+organization, a site or a contact, which can wait for the directory lock or an organization an
+import holds, and hold their actor as an import does. An import holds its actor for the whole of its work
+(`accounts.acting.holding`), and the demonstration seed the accounts it acts as that exist when
+it begins (`accounts.acting.scope`); the services they call get that reading and lock nothing
+again. The services that reveal patient
 information read the account again after the hold.
 
 A link change locks the ticket first, then the link's system, then the link; a link on an
 organization locks the organization in the ticket's place. An import of external identifiers
 locks all of the file's organizations, in the order the file names them, then their systems,
 before its first row, so it and a link added at the same moment wait for each other one way.
-A change of an organization's group walks up from the organization to its new parent, so it and
-an import naming the parent before the organization can still meet in a deadlock, which the
-database ends by failing whichever began waiting first: the file is then refused with nothing
-imported, or the organization change fails.
+Whatever changes how an import finds or checks records, or may lock several organizations in an
+order of its own, first takes the organization directory lock, a transaction-level advisory lock
+([clients/services.py](../clients/services.py) `hold_directory`), after holding its actor:
+every import, before it reads the file; creating an organization; changing an organization's
+name, account code or parent (which locks the organization and then walks up the new parent's
+chain); changing a site's code; adding a contact or changing a contact's email or name; and the
+demonstration seed, which first takes a lock of its own (one seed or reset at a time) and holds
+the accounts it acts as. They take their turns: the second waits for the first to commit and
+decides on what it saved, so a parent that would now close a loop is refused, a code taken
+meanwhile is refused as a duplicate, and an import reads names, codes and emails as the change
+before it left them. An organization change decides whether it needs the lock from a reading before its
+locks; the revision check makes that reading the saved state for every change made through the
+services. Changing an organization's other details, taking it out of its group, a site's or a
+contact's other details and links do not take that lock. A sites or contacts file locks its
+organizations FOR NO KEY UPDATE in file order before its first row, and a contact's served sites are held and
+checked as read under that hold, so a file and a contact saved at the same moment wait for each
+other one way. Should the database still end an import's locks to break a
+deadlock, the file is refused with nothing imported.
 
 Clock hooks update a ticket's first-response and resolution times inside that transaction.
 A clock copies the applicable target, and business time uses the deployment zone and calendar.

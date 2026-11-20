@@ -21,7 +21,7 @@ Whatever takes access away waits for the change, and a change that starts after 
 state and is refused:
 
 - a save that deactivates the account or moves a portal account to another organization
-  (accounts.models.User.save locks the row FOR UPDATE first);
+  (accounts.models.User.save takes the gate below, then the row FOR NO KEY UPDATE);
 - removing a role, a capability or a team membership (a deletion, and teams.services locks the
   membership FOR UPDATE first);
 - changing portal access (clients.services locks the account FOR UPDATE first).
@@ -55,6 +55,7 @@ person's own change holds the same rows and then locks a ticket. The two never w
 other in a cycle: whichever comes second waits for the person's rows.
 """
 
+import contextlib
 import functools
 
 from django.db import connection, transaction
@@ -186,18 +187,28 @@ def _hold_portal_rows(pk):
     )
 
 
+# On the thread's own connection: account pk -> the reading of a hold in force for a block
+# (holding), innermost last.
+_SCOPED = "_acting_scoped"
+
+
 def hold_actor(actor):
     """Hold the acting account's rows until the transaction ends (see the module docstring) and
     return the account as read under its lock, or None for an account that does not exist.
 
-    Call it before anything else the change locks. Calling it again in the same transaction
-    holds nothing new and does not wait. It decides nothing: the change's own checks, made
+    Call it before anything else the change locks. Inside a `holding` block for the same
+    account, it returns that block's reading and locks nothing. Otherwise a second call in the
+    same transaction takes the locks again: it waits for nothing it holds already, but holds,
+    and may wait for, a membership added since. It decides nothing: the change's own checks, made
     after its locks (desk.services.settle and the like), read the account as it is held."""
     if not connection.in_atomic_block:
         raise RuntimeError("The acting account is held for a transaction; open one first.")
     pk = getattr(actor, "pk", None)
     if pk is None:
         return None
+    scoped = getattr(transaction.get_connection(), _SCOPED, {})
+    if pk in scoped:
+        return scoped[pk]
     _gate([pk], shared=True)  # behind an access change already waiting, if any
     current = _locked_account(pk)
     if current is None:
@@ -207,6 +218,43 @@ def hold_actor(actor):
     else:
         _hold_portal_rows(pk)
     return current
+
+
+def hold_actors(users):
+    """Hold several accounts (hold_actor), in the order of their gates' keys, the order
+    close_access takes them in, so the two never take the same gates the other way round.
+    Returns the readings of those that exist."""
+    readings = [hold_actor(user) for user in sorted(users, key=lambda user: user.pk % INT4)]
+    return [current for current in readings if current is not None]
+
+
+@contextlib.contextmanager
+def scope(readings):
+    """For a block of work: hold_actor of an account in `readings` (accounts this transaction
+    holds already, taken before the block) returns that reading and locks nothing again. Every
+    savepoint the block opens comes after those holds, so none can release them. The readings
+    must come from the transaction open now."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("A scope of held accounts lasts for a transaction; open one first.")
+    conn = transaction.get_connection()
+    scoped = getattr(conn, _SCOPED, {})
+    setattr(conn, _SCOPED, {**{current.pk: current for current in readings}, **scoped})
+    try:
+        yield
+    finally:
+        setattr(conn, _SCOPED, scoped)
+
+
+@contextlib.contextmanager
+def holding(actor):
+    """Hold the acting account (hold_actor) for a block of work inside a transaction, such as an
+    import whose rows go through services that hold their actor themselves: within the block they
+    get this reading and lock nothing again (scope). The hold is taken before anything inside the
+    block and lasts until the transaction ends. Yields the reading (None for an account that does
+    not exist)."""
+    current = hold_actor(actor)
+    with scope([current] if current is not None else []):
+        yield current
 
 
 def acting_change(service):

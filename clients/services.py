@@ -3,11 +3,12 @@ revision, and records an attributed audit event in the same transaction."""
 
 import json
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db import transaction
+from django.db import IntegrityError, connection, transaction
 from django.forms.models import model_to_dict
 
+from accounts.acting import hold_actor
 from accounts.roles import ROLES, has_role
 from core.audit import record_event, snapshot
 
@@ -65,9 +66,70 @@ def _check_account_owner(obj):
         )
 
 
+# The advisory lock of the organization directory (PostgreSQL's two-key form; the first key is
+# this lock's own, as accounts.acting.ACCESS_GATE is the access gates').
+DIRECTORY_LOCK = (19554, 0)
+CHANGED = "This client organization changed. Reload and review the current record."
+
+
+def hold_directory():
+    """Take the organization directory lock until the transaction ends, before the change locks
+    any organization. Taken, after holding the actor, by whatever changes how an import finds or
+    checks records, or may lock several organizations in an order of its own:
+
+    - an import, which finds organizations by account code, checks new ones' names, finds sites
+      by code and contacts by email, and locks organizations in the file's order
+      (dataimport.importing._importing);
+    - creating an organization;
+    - changing an organization's name, account code or parent (its own row, then the new
+      parent's chain upwards, _check_parent);
+    - changing a site's code;
+    - adding a contact, or changing a contact's email or name (a contact without an email is
+      found by name);
+    - the demonstration seed, after holding the accounts it acts as.
+
+    One of them at a time: the second waits for the first to commit, then reads and locks what it
+    needs, so neither ends in a deadlock and an import reads names, codes and emails as the change
+    before it left them. Changing an organization's other details, taking it out of its group, a
+    site's or a contact's other details and links do not take it. Taking it again in the same
+    transaction does not wait."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("The directory lock is held for a transaction; open one first.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(DIRECTORY_LOCK))
+
+
+def _held_manager(actor):
+    """The acting account held until the transaction ends (accounts.acting.hold_actor), before
+    anything else the change locks, and its role checked again on that reading: the change can
+    wait for the directory lock, and a role taken away meanwhile then refuses it."""
+    current = hold_actor(actor)
+    if current is None:
+        raise PermissionDenied("Your role does not permit this action.")
+    require_client_manager(current)
+    return current
+
+
+def _save_unique(obj):
+    """Save `obj`; a unique value taken by another change meanwhile (a write that did not wait
+    for the directory lock) is refused with the constraint's own message, as the form's
+    validation would refuse it, not as a database error, even if that change has let it go
+    again by then."""
+    try:
+        with transaction.atomic():
+            obj.save()
+    except IntegrityError as error:
+        name = getattr(getattr(error.__cause__, "diag", None), "constraint_name", None)
+        for constraint in type(obj)._meta.constraints:
+            if name is not None and constraint.name == name:
+                raise ValidationError(constraint.get_violation_error_message()) from error
+        raise
+
+
 def _check_parent(obj):
     """Refuse a parent that is the organization itself or one of its descendants. The chain is
-    walked upwards under row locks, so two concurrent changes cannot close a loop between them."""
+    walked upwards under row locks, so two concurrent changes cannot close a loop between them;
+    the caller holds the directory lock (hold_directory), so they wait for each other one way."""
     if obj.parent_id is None:
         return
     seen = set()
@@ -99,28 +161,59 @@ def _normalise_responsibilities(contact):
 
 @transaction.atomic
 def create_client(*, actor, reason="", **data):
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
+    actor = _held_manager(actor)
+    hold_directory()  # before the parent chain's locks and the account code's uniqueness check
     obj = Client(**{k: v for k, v in data.items() if k in CLIENT_FIELDS})
     _strip(obj, ("name", "account_number", "phone", "city", "postal_code"))
     obj.full_clean()
     _check_account_owner(obj)
     _check_parent(obj)
-    obj.save()
+    _save_unique(obj)
     record_event(
         actor=actor, action="client.created", obj=obj, after=snapshot(obj), reason=reason.strip()
     )
     return obj
 
 
+DIRECTORY_FIELDS = ("parent_id", "name", "account_number")
+
+
+def _directory_changes(found, data):
+    """Whether saving `data` changes how the organization `found` (its parent, name and account
+    code) is grouped, found or checked by an import: a new parent, or another name or account
+    code as the save stores them (stripped, so a stored value with spaces counts too)."""
+    parent = data.get("parent")
+    if parent is not None and parent.pk != found["parent_id"]:
+        return True
+    return any(
+        (data.get(name, found[name]) or "").strip() != (found[name] or "")
+        for name in ("name", "account_number")
+    )
+
+
 @transaction.atomic
 def update_client(*, actor, client_id, expected_revision, reason, **data):
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
+    actor = _held_manager(actor)
+    # Read without a lock to decide whether the directory lock is needed, which comes before the
+    # organization's lock. Every change made through these services advances the revision, so
+    # when the revision below is the one the form was drawn from, this reading was of that state.
+    found = Client.objects.filter(pk=client_id).values(*DIRECTORY_FIELDS).first()
+    directory = found is not None and _directory_changes(found, data)
+    if directory:
+        hold_directory()
     obj = Client.objects.select_for_update().get(pk=client_id)
     if obj.revision != expected_revision:
-        raise ValidationError(
-            "This client organization changed. Reload and review the current record."
-        )
+        raise ValidationError(CHANGED)
+    if not directory and _directory_changes(
+        {name: getattr(obj, name) for name in DIRECTORY_FIELDS}, data
+    ):
+        # Changed without a new revision (a write that bypassed these services) so that this
+        # save would now need the directory lock: refused rather than saved without it. Other
+        # such writes are not detected.
+        raise ValidationError(CHANGED)
     before = snapshot(obj)
     for name in (*CLIENT_FIELDS, "is_active"):
         if name in data:
@@ -134,7 +227,7 @@ def update_client(*, actor, client_id, expected_revision, reason, **data):
     if obj.account_owner_id != before["account_owner"]:
         _check_account_owner(obj)
     obj.revision += 1
-    obj.save()
+    _save_unique(obj)
     record_event(
         actor=actor,
         action="client.updated",
@@ -155,8 +248,16 @@ def _contact_state(contact, site_ids):
 
 def _served_sites(contact, sites):
     """Ids of `sites` after checking each belongs to the contact's organization. Inactive sites
-    the contact already serves may stay; new ones must be active."""
-    sites = list(sites or ())
+    the contact already serves may stay; new ones must be active. The sites are held FOR SHARE
+    until the transaction ends and checked as read under that lock, so a site deactivated or
+    moved while the change waited is seen, and one changed afterwards waits for it."""
+    from jobs.locks import share_lock
+
+    wanted = [site.pk for site in sites or ()]
+    share_lock(ClientSite, wanted)
+    sites = list(ClientSite.objects.filter(pk__in=wanted).order_by("pk"))
+    if len(sites) != len(set(wanted)):
+        raise ValidationError({"sites": "Choose sites of this contact's organization."})
     current = set(contact.sites.values_list("pk", flat=True)) if contact.pk else set()
     for site in sites:
         if site.client_id != contact.client_id:
@@ -168,7 +269,9 @@ def _served_sites(contact, sites):
 
 @transaction.atomic
 def add_contact(*, actor, client_id, sites=(), **data):
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
+    actor = _held_manager(actor)
+    hold_directory()  # an import finds contacts by email
     client = Client.objects.select_for_update().get(pk=client_id)
     contact = ClientContact(client=client, **{k: v for k, v in data.items() if k in CONTACT_FIELDS})
     _strip(contact, ("name", "role", "email", "phone"))
@@ -189,10 +292,22 @@ def add_contact(*, actor, client_id, sites=(), **data):
 @transaction.atomic
 def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, **data):
     """Change a contact. `sites` None leaves the served sites as they are."""
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
+    actor = _held_manager(actor)
+    # A new email or name takes the directory lock first (an import finds contacts by email,
+    # and one without an email by name); decided from a reading before the locks, as in
+    # update_client.
+    found = ClientContact.objects.filter(pk=contact_id).values("email", "name").first()
+    directory = found is not None and _contact_identity_changes(found, data)
+    if directory:
+        hold_directory()
     contact = ClientContact.objects.select_for_update().get(pk=contact_id)
     if contact.revision != expected_revision:
+        raise ValidationError("This contact changed. Reload and review the current record.")
+    if not directory and _contact_identity_changes(
+        {"email": contact.email, "name": contact.name}, data
+    ):
         raise ValidationError("This contact changed. Reload and review the current record.")
     current = set(contact.sites.values_list("pk", flat=True))
     before = _contact_state(contact, current)
@@ -225,24 +340,43 @@ def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, 
 def create_site(*, actor, client_id, **data):
     """Add a site to an organization. Its code, when given, is unique within the organization
     whatever its case (database constraint client_site_code)."""
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
+    actor = _held_manager(actor)
     client = Client.objects.select_for_update().get(pk=client_id)
     site = ClientSite(client=client, **{k: v for k, v in data.items() if k in SITE_FIELDS})
     _strip(site, ("code", "name", "phone", "city", "postal_code"))
     site.full_clean()
-    site.save()
+    _save_unique(site)
     record_event(actor=actor, action="site.created", obj=site, after=snapshot(site))
     return site
+
+
+def _contact_identity_changes(found, data):
+    return any(_value_changes(found[name], data, name) for name in ("email", "name"))
+
+
+def _value_changes(stored, data, name):
+    """Whether saving `data` stores another value of `name` than `stored` (stripped, as saved)."""
+    return (data.get(name, stored) or "").strip() != (stored or "")
 
 
 @transaction.atomic
 def update_site(*, actor, site_id, expected_revision, reason, **data):
     """Change or deactivate a site. Deactivating keeps its requests, contacts and history; it is
     only no longer offered for new requests and portal scopes."""
-    require_client_manager(actor)
+    require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
+    actor = _held_manager(actor)
+    # A new site code takes the directory lock first (an import finds sites by code); decided
+    # from a reading before the locks, as in update_client.
+    found = ClientSite.objects.filter(pk=site_id).values_list("code", flat=True).first()
+    directory = found is not None and _value_changes(found, data, "code")
+    if directory:
+        hold_directory()
     site = ClientSite.objects.select_for_update().get(pk=site_id)
     if site.revision != expected_revision:
+        raise ValidationError("This site changed. Reload and review the current record.")
+    if not directory and _value_changes(site.code, data, "code"):
         raise ValidationError("This site changed. Reload and review the current record.")
     before = snapshot(site)
     for name in SITE_FIELDS:
@@ -253,7 +387,7 @@ def update_site(*, actor, site_id, expected_revision, reason, **data):
     if snapshot(site) == before:
         raise ValidationError("Change at least one detail before saving.")
     site.revision += 1
-    site.save()
+    _save_unique(site)
     record_event(
         actor=actor,
         action="site.updated",

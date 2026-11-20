@@ -58,11 +58,11 @@
       "items": [
         {
           "label": "Organization name",
-          "description": "Required, up to 160 characters."
+          "description": "Required, up to 160 characters. Imports check a new organization's name against this one, so changing it waits for an import being saved at that moment, and an import waits for it."
         },
         {
           "label": "Account code",
-          "description": "Optional, up to 40 characters. The laboratory's short code for this organization. Another organization cannot use the same code."
+          "description": "Optional, up to 40 characters. The laboratory's short code for this organization. Another organization cannot use the same code; if another person gives it to an organization while you save, yours is refused with that message. Imports find organizations by this code, so a new organization or a changed code waits for an import being saved at that moment, and an import waits for it."
         },
         {
           "label": "Organization type",
@@ -70,7 +70,7 @@
         },
         {
           "label": "Parent organization",
-          "description": "Optional. The health system, utility or sponsor this organization belongs to; choose No parent organization for none. You pick from existing organizations by typing part of a name. An organization cannot be its own parent, and cannot be placed under one of its own member organizations at any depth: saving is refused with a message that the parent would make the organization part of its own group. When editing, the organization itself is not offered. The parent is checked when it is set or changed."
+          "description": "Optional. The health system, utility or sponsor this organization belongs to; choose No parent organization for none. You pick from existing organizations by typing part of a name. An organization cannot be its own parent, and cannot be placed under one of its own member organizations at any depth: saving is refused with a message that the parent would make the organization part of its own group. When editing, the organization itself is not offered. The parent is checked when it is set or changed, against what an import or another change of a group saved at that moment: saving waits for it."
         },
         {
           "label": "Account owner",
@@ -111,7 +111,7 @@
       "items": [
         {
           "label": "Create organization / Save changes",
-          "description": "Saves and opens the organization's page. Each creation and change is audited with the person, the time and, for changes, the values before and after, including the type, parent and account owner. A submission with no change is refused with Change at least one detail before saving."
+          "description": "Saves and opens the organization's page. Each creation and change is audited with the person, the time and, for changes, the values before and after, including the type, parent and account owner. A submission with no change is refused with Change at least one detail before saving. If your role to manage client organizations is taken away while you save, the save is refused."
         },
         {
           "label": "Cancel",
