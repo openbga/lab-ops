@@ -1,7 +1,7 @@
 """Review follow-up: deadlocks with a ticket's assignee and with an organization's group.
 
-Two pairs of changes met in a database deadlock (40P01), which PostgreSQL ends by failing whichever
-began waiting first:
+Two pairs of changes met in a database deadlock (40P01), which PostgreSQL ends by failing one of
+them:
 
 - a change that names a ticket's assignee without locking the account (a client's reply records a
   notice to the assignee, checked when it commits) and the deactivation of that assignee, which
@@ -10,9 +10,9 @@ began waiting first:
   group on its page, which locks the member and then walks up to the group (review A3 and V1).
 
 Now the deactivation holds the account FOR NO KEY UPDATE and locks the person's open tickets before
-it updates the account (accounts.models.User.save, desk.signals), and every import, every change
-that puts an organization under a parent and every creation under one take the organizations'
-groups lock first (clients.services.hold_groups). The cases below are the reviewers' (A6 as
+it updates the account (accounts.models.User.save, desk.signals), and every import, every
+creation and every change of an organization's parent or account code take the organization
+directory lock first (clients.services.hold_directory). The cases below are the reviewers' (A6 as
 written; V1 and V3 adapted where their setup was the deadlock's own interleaving, which can no
 longer happen) and their neighbours. Every party runs in its own PostgreSQL session with a bounded
 lock_timeout; a party is stopped at a named point until the others wait (pg_blocking_pids) or end.
@@ -294,15 +294,17 @@ def test_a_deactivation_under_way_and_a_client_reply_never_deadlock(
 # Neighbours of the assignee pair ------------------------------------------------------------------
 
 
-def test_a_staff_reply_and_the_deactivation_of_the_portal_account_it_tells_never_wait(
+def test_a_staff_reply_and_the_deactivation_of_the_portal_account_it_tells_never_deadlock(
     make_user, owner, agent, sample_category, accessioning, clinic, clinic_contact, clinic_portal
 ):
     """A laboratory reply records a notice to the clinic's portal account linked to the ticket's
     contact, and holds the ticket, when an owner deactivates that portal account. A portal
-    account is never an assignee, so its deactivation waits for no ticket; the reply's check of
-    the notice's recipient at COMMIT does not wait for the deactivation's lock on the account.
+    account is never an assignee, so its deactivation waits for no ticket and commits; the
+    reply's check of the notice's recipient at COMMIT can wait for the deactivation's update
+    until then, never the other way round (see the adopted review test R6, which holds the
+    deactivation open).
 
-    Intended: neither waits for the other; both are saved."""
+    Intended: the deactivation does not wait for the reply; both are saved."""
     PortalAccess.objects.create(
         user=clinic_portal, client=clinic, whole_organization=True, contact=clinic_contact
     )
@@ -500,7 +502,7 @@ def test_an_import_holding_the_group_and_a_group_change_take_their_turns(make_us
 
     Review V1, adapted to the intended outcome: the reviewer's test expected the file refused,
     as the documentation then said. Now the change waits for the import before its first lock
-    (the organizations' groups lock), so the two never meet in a deadlock.
+    (the organization directory lock), so the two never meet in a deadlock.
 
     Intended: the change waits behind the import; no 40P01; the import is saved (both
     identifiers) and then the organization change (the member is in the group)."""
@@ -639,15 +641,15 @@ IMPORT_FILES = {
 
 
 @pytest.mark.parametrize("slug", sorted(IMPORT_FILES))
-def test_every_import_takes_the_groups_lock_before_its_first_organization(make_user, lis, slug):
-    """Each record type's preview waits for the organizations' groups lock, held by another
+def test_every_import_takes_the_directory_lock_before_its_first_organization(make_user, lis, slug):
+    """Each record type's preview waits for the organization directory lock, held by another
     session, before it reads or locks an organization; once it is released the preview runs."""
     from dataimport import importing
 
     _group_and_member()
     importer = make_user("agd_type_importer", "account_manager")
     record_type = importing.BY_SLUG[slug]
-    holder = Held(client_services.hold_groups)
+    holder = Held(client_services.hold_directory)
     preview = Session(
         lambda: importing.preview_file(
             record_type, actor=importer, data=IMPORT_FILES[slug].encode(), filename="f.csv"
@@ -665,11 +667,11 @@ def test_every_import_takes_the_groups_lock_before_its_first_organization(make_u
 
 
 @pytest.mark.parametrize("change", ["details", "leaving the group"])
-def test_an_organization_change_without_a_new_parent_does_not_wait_for_the_groups_lock(
+def test_an_organization_change_without_a_new_parent_does_not_wait_for_the_directory_lock(
     make_user, change
 ):
     """Changing an organization's details, or taking it out of its group, locks that one
-    organization and walks no chain: it does not take the groups lock, and does not wait for an
+    organization and walks no chain: it does not take the directory lock, and does not wait for an
     import or a group change elsewhere."""
     group, member = _group_and_member()
     member.parent = group
@@ -679,7 +681,7 @@ def test_an_organization_change_without_a_new_parent_does_not_wait_for_the_group
         data = {"phone": "555-0177"}
     else:
         data = {"parent": None}
-    holder = Held(client_services.hold_groups)
+    holder = Held(client_services.hold_directory)
     session = Session(
         lambda: client_services.update_client(
             actor=manager,
@@ -698,19 +700,20 @@ def test_an_organization_change_without_a_new_parent_does_not_wait_for_the_group
     assert session.outcome == "done", session.error
 
 
-def test_the_groups_lock_is_taken_inside_a_transaction_only():
+def test_the_directory_lock_is_taken_inside_a_transaction_only():
     with pytest.raises(RuntimeError):
-        client_services.hold_groups()
+        client_services.hold_directory()
     with transaction.atomic():
-        client_services.hold_groups()
-        client_services.hold_groups()  # again in the same transaction: no wait
+        client_services.hold_directory()
+        client_services.hold_directory()  # again in the same transaction: no wait
 
 
-def test_a_link_on_an_organization_does_not_take_the_groups_lock(make_user, lis):
-    """A link added on an organization's page locks that organization and the system only."""
+def test_a_link_on_an_organization_does_not_take_the_directory_lock(make_user, lis):
+    """A link added on an organization's page locks that organization and the system only, and
+    does not take the directory lock."""
     _group, member = _group_and_member()
     manager = make_user("agd_link_manager", "account_manager")
-    holder = Held(client_services.hold_groups)
+    holder = Held(client_services.hold_directory)
     session = Session(
         lambda: link_services.add_link(
             actor=manager,
@@ -727,3 +730,242 @@ def test_a_link_on_an_organization_does_not_take_the_groups_lock(make_user, lis)
     session.join()
     assert state == "ended", state
     assert session.outcome == "done", session.error
+
+
+# Neighbours of the review round 1 fixes ----------------------------------------------------------
+
+
+def test_a_renumbering_waits_for_an_import_under_way_and_the_import_keeps_the_old_code(
+    make_user, lis
+):
+    """An import holds the directory lock while it writes; an account manager changes the code
+    of an organization the file names. The renumbering waits for the import, which is saved for
+    the organization as its code was; then the renumbering is saved."""
+    from dataimport.importing import commit_file, preview_file
+
+    group, member = _group_and_member()
+    manager = make_user("agd_renumber_manager", "account_manager")
+    importer = make_user("agd_renumber_importer", "account_manager")
+    gates = {}
+    record_type = _paused_after_the_first_organization(gates)
+    token = preview_file(
+        record_type, actor=importer, data=GROUP_FIRST.encode(), filename="ids.csv"
+    ).state_token
+    commit = Session(
+        lambda: commit_file(
+            record_type,
+            actor=importer,
+            data=GROUP_FIRST.encode(),
+            filename="ids.csv",
+            reason="",
+            state_token=token,
+        )
+    )
+    gates[commit.thread] = Gate()
+    renumber = Session(
+        lambda: client_services.update_client(
+            actor=manager,
+            client_id=member.pk,
+            expected_revision=member.revision,
+            reason="New account code",
+            account_number="EXMEMBER2",
+        )
+    )
+    commit.start()
+    assert gates[commit.thread].arrived.wait(timeout=10), commit.error
+    renumber.start()
+    state = renumber.waiting_or_ended(seconds=3)
+    behind = _blocked_by(renumber.pid, commit.pid)
+    statement = _statement(renumber.pid)
+    gates[commit.thread].go.set()
+    commit.join()
+    renumber.join()
+    assert (state, behind) == ("waiting", True)
+    assert "pg_advisory_xact_lock" in statement, statement
+    assert (commit.outcome, renumber.outcome) == ("done", "done"), (commit.error, renumber.error)
+    links = ExternalRecordLink.objects.filter(identifier__startswith="ORD-TEST-00070")
+    assert links.count() == 2
+    assert Client.objects.get(pk=member.pk).account_number == "EXMEMBER2"
+
+
+def test_two_creations_with_the_same_code_and_no_parent_refuse_the_second_as_a_duplicate(
+    make_user,
+):
+    """Two account managers create an organization with the same account code at the same
+    moment. Every creation takes the directory lock, so the second checks the code after the
+    first has committed and is refused with the form's duplicate code message, not with a
+    database error."""
+    first_manager = make_user("agd_first_creator", "account_manager")
+    second_manager = make_user("agd_second_creator", "account_manager")
+    first = Session(
+        lambda: client_services.create_client(
+            actor=first_manager, name="Example East Clinic", account_number="EXEAST"
+        )
+    )
+    gates = {first.thread: Gate()}
+    second = Session(
+        lambda: client_services.create_client(
+            actor=second_manager, name="Example East Annex", account_number="EXEAST"
+        )
+    )
+    with gated(client_services, "_check_parent", gates):
+        first.start()
+        assert gates[first.thread].arrived.wait(timeout=10), first.error
+        second.start()
+        state = second.waiting_or_ended(seconds=3)
+        gates[first.thread].go.set()
+        first.join()
+        second.join()
+    assert state == "waiting", state
+    assert first.outcome == "done", first.error
+    assert second.outcome == "refused", (second.outcome, second.error)
+    assert "already uses this account code" in str(second.error)
+    assert list(Client.objects.filter(account_number="EXEAST").values_list("name", flat=True)) == [
+        "Example East Clinic"
+    ]
+
+
+def test_a_code_taken_by_a_write_that_skipped_the_directory_lock_is_refused_as_a_duplicate(
+    make_user,
+):
+    """A row inserted with the same code by a path that does not take the directory lock (here
+    the ORM directly, standing in for one) is not visible to the change's validation until it
+    commits; the save then meets the unique index. Intended: the change is refused with the
+    duplicate code message the form's validation gives, not with a database error."""
+    _group, member = _group_and_member()
+    manager = make_user("agd_code_manager", "account_manager")
+    holder = Held(
+        lambda: Client.objects.create(name="Example Taken Code", account_number="EXTAKEN")
+    )
+    change = Session(
+        lambda: client_services.update_client(
+            actor=manager,
+            client_id=member.pk,
+            expected_revision=member.revision,
+            reason="New account code",
+            account_number="EXTAKEN",
+        )
+    ).start()
+    try:
+        state = change.waiting_or_ended(seconds=3)
+    finally:
+        assert holder.release() == "done"
+    change.join()
+    assert state == "waiting", state
+    assert change.outcome == "refused", (change.outcome, change.error)
+    assert "already uses this account code" in str(change.error)
+    assert Client.objects.get(pk=member.pk).account_number == "EXMEMBER"
+
+
+def test_a_parent_changed_without_a_new_revision_after_the_first_reading_is_refused(make_user):
+    """update_client decides whether it needs the directory lock from a reading before its
+    locks, relying on every change of an organization advancing its revision. A change that
+    did not (a queryset update, standing in for one) between that reading and the lock is
+    refused as changed, never decided on without the lock."""
+    group, member = _group_and_member()
+    other = Client.objects.create(name="Example Other Group", account_number="EXOTHERG")
+    manager = make_user("agd_parent_manager", "account_manager")
+    change = Session(
+        lambda: client_services.update_client(
+            actor=manager,
+            client_id=member.pk,
+            expected_revision=member.revision,
+            reason="Phone number",
+            parent=None,
+            phone="555-0179",
+        )
+    )
+    gates = {change.thread: Gate()}
+    with gated(client_services, "_directory_changes", gates, before=False):
+        change.start()
+        assert gates[change.thread].arrived.wait(timeout=10), change.error
+        Client.objects.filter(pk=member.pk).update(parent=other)
+        gates[change.thread].go.set()
+        change.join()
+    # parent=None is not a directory change; the locked row's parent is other than the posted
+    # None, but leaving a group walks no chain, so the change is saved.
+    assert change.outcome == "done", change.error
+    member.refresh_from_db()
+    assert member.parent_id is None
+
+    renumbered = Session(
+        lambda: client_services.update_client(
+            actor=manager,
+            client_id=member.pk,
+            expected_revision=member.revision,
+            reason="Phone number again",
+            account_number="EXMEMBER",
+            phone="555-0180",
+        )
+    )
+    gates = {renumbered.thread: Gate()}
+    with gated(client_services, "_directory_changes", gates, before=False):
+        renumbered.start()
+        assert gates[renumbered.thread].arrived.wait(timeout=10), renumbered.error
+        Client.objects.filter(pk=member.pk).update(account_number="EXSKIPPED")
+        gates[renumbered.thread].go.set()
+        renumbered.join()
+    assert renumbered.outcome == "refused", (renumbered.outcome, renumbered.error)
+    assert client_services.CHANGED in renumbered.error.messages
+    assert Client.objects.get(pk=member.pk).phone == "555-0179"
+    assert group.pk  # unchanged
+
+
+def test_removing_a_managers_only_role_waits_for_their_organization_change(make_user, lis):
+    """A client manager's organization change waits for the directory lock behind an import;
+    meanwhile an administrator removes the manager's only manager role. The change holds its
+    actor (accounts.acting) from its start, so the removal waits for it and the change is saved;
+    a change the manager starts after the removal is refused."""
+    from django.contrib.auth.models import Group
+    from django.core.exceptions import PermissionDenied
+
+    from dataimport.importing import commit_file, preview_file
+
+    group, member = _group_and_member()
+    manager = make_user("agd_role_manager", "account_manager")
+    importer = make_user("agd_role_importer", "account_manager")
+    gates = {}
+    record_type = _paused_after_the_first_organization(gates)
+    token = preview_file(
+        record_type, actor=importer, data=GROUP_FIRST.encode(), filename="ids.csv"
+    ).state_token
+    commit = Session(
+        lambda: commit_file(
+            record_type,
+            actor=importer,
+            data=GROUP_FIRST.encode(),
+            filename="ids.csv",
+            reason="",
+            state_token=token,
+        )
+    )
+    gates[commit.thread] = Gate()
+    change = Session(_join_group(manager, member, group))
+    removal = Session(
+        lambda: User.objects.get(pk=manager.pk).groups.remove(
+            Group.objects.get(name="account_manager")
+        )
+    )
+    commit.start()
+    assert gates[commit.thread].arrived.wait(timeout=10), commit.error
+    change.start()
+    change_state = change.waiting_or_ended(seconds=3)
+    removal.start()
+    removal_state = removal.waiting_or_ended(seconds=3)
+    behind_change = _blocked_by(removal.pid, change.pid)
+    gates[commit.thread].go.set()
+    commit.join()
+    change.join()
+    removal.join()
+    assert change_state == "waiting", change_state
+    assert (removal_state, behind_change) == ("waiting", True)
+    assert (commit.outcome, change.outcome, removal.outcome) == ("done", "done", "done")
+    assert Client.objects.get(pk=member.pk).parent_id == group.pk
+    with pytest.raises(PermissionDenied):
+        client_services.update_client(
+            actor=User.objects.get(pk=manager.pk),
+            client_id=member.pk,
+            expected_revision=Client.objects.get(pk=member.pk).revision,
+            reason="After the role was removed",
+            phone="555-0181",
+        )

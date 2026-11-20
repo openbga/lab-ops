@@ -87,9 +87,16 @@ def lock_application_tables():
     ends, waiting for writers already under way. Taken before a scan whose answer must still hold
     when the transaction commits: SHARE ROW EXCLUSIVE conflicts with every row write (and with
     itself, so two seeds take turns) but not with reads, and never with this transaction's own
-    writes. In READ COMMITTED each later statement sees everything committed before the lock."""
+    writes. In READ COMMITTED each later statement sees everything committed before the lock.
+
+    The organization directory lock comes first (clients.services.hold_directory): an import
+    takes it before it writes, and the seed creates organizations, which takes it too, so the
+    seed waits for an import under way before it holds the tables the import writes to."""
     if not connection.in_atomic_block:
         raise RuntimeError("lock_application_tables() needs a transaction.")
+    from clients.services import hold_directory
+
+    hold_directory()
     quote = connection.ops.quote_name
     tables = connection.introspection.django_table_names(only_existing=True)
     with connection.cursor() as cursor:

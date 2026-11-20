@@ -49,7 +49,7 @@ ships, move it to Built in the same change.
 
 | Area | What is in place |
 | --- | --- |
-| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview; an import and a change of an organization's group at the same moment take turns instead of failing |
+| Client organizations | Organizations with sites and contacts, their identifiers in other systems, a per-client timeline, and import from CSV files with a preview; imports, new organizations and changes of an organization's code or group take turns instead of failing |
 | Client-services desk | Tickets logged from a call, email, fax or visit, or raised in the portal; teams and assignment; client-visible replies, internal notes and logged contacts, with files; statuses, priorities and assignment of several tickets at once, where an assignment or a client's reply and the assignee's deactivation or removal from the team at the same moment wait for each other instead of failing; each change holds the acting account until it commits, so ending a person's access (deactivation, a role, a capability, a team or a portal site) waits for what they are saving and refuses what they start afterwards; saved views and Find; restricted categories; complaints with a recorded decision and an independent supervisor's review |
 | Ticket forms | Forms per category with client, shared and staff-only fields and an optional patient field behind a capability; corrections with a reason; a service menu in the portal and "Request again"; supply orders from the laboratory's catalog and one-time pickups |
 | Links | Typed references to orders, samples, reports and other records in the laboratory's systems, and optional, masked person-level links |
@@ -88,6 +88,23 @@ order their dependencies allow. Integration, single sign-on and the fuller suppl
 matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
+
+### Review follow-up: decisions read before a wait
+
+- **Delivers:** five changes that decide from what they read before waiting for another change,
+  and then save, decide from what they hold instead. The account page saves every field of the
+  form as it was drawn, so deactivating a person from a page opened before a colleague corrected
+  their email puts the old address back, and the account's history can miss the reversal. An
+  organization's account owner is checked before the save waits, so a person deactivated
+  meanwhile can become the owner; holding the owner has to come before the organization's lock
+  and fit an import that sets owners on several rows. The breach notice job chooses its
+  recipients and then locks them, so a lead deactivated in between is recorded as a recipient,
+  though sending then drops the notice. A client's reply refused because a colleague closed the
+  ticket meanwhile loses the typed text, as a closed ticket shows no reply form. Finishing a
+  sign-in can fail with the portal move message when the account was moved to another
+  organization at that moment.
+- **Depends on:** nothing unbuilt.
+- **Leaves out:** nothing.
 
 ### Automatic sign-out and session control
 

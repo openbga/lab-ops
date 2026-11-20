@@ -42,8 +42,10 @@ class User(AbstractUser):
                 # (desk.services._held_assignee), so the two wait for each other. Not FOR
                 # UPDATE: the database checks the account named by another person's change (a
                 # notice to a ticket's assignee) at that change's COMMIT with a key-share lock,
-                # which FOR UPDATE would make wait while a deactivation waits for that ticket
-                # (desk.signals).
+                # which FOR UPDATE would make wait while a deactivation waits for that ticket.
+                # A full save's update then locks the row as FOR UPDATE does (it names the
+                # unique columns and the table has an update trigger), so a deactivation locks
+                # the person's tickets before it (desk.signals).
                 from .acting import close_access
 
                 close_access([self.pk])

@@ -84,9 +84,9 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### Low impact
 
-- **Fixed:** Deactivations and group changes wait their turn (2026-11-20)
+- **Fixed:** Deactivations and organization changes wait their turn (2026-11-20)
 
-  Deactivating a ticket's assignee while a client replies on it, and putting an organization into a group during an import, now wait for each other instead of one failing with an error page.
+  Deactivating a ticket's assignee while a client replies, and creating an organization or changing its group or code during an import, now wait for each other instead of one failing.
 
 - **Fixed:** Assigning while someone's access ends (2026-11-19, Tickets)
 

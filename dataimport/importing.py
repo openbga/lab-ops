@@ -858,8 +858,9 @@ def hold_external_ids(rows):
     The organizations are locked in the order the file first names them, as the rows would lock
     them. A change of an organization's group locks the organization and then walks up to its
     new parent (clients.services._check_parent), the other way round from a file that names the
-    group first; the import holds the organizations' groups lock from its start (_hold_importer)
-    and that change takes it before its first lock, so the two take their turns."""
+    group first; the import holds the organization directory lock from its start
+    (_hold_importer) and that change takes it before its first lock, so the two take their
+    turns."""
     from links.models import ExternalSystem
 
     adding = [
@@ -1234,15 +1235,16 @@ def _apply(record_type, actor, preview, reason):
 
 def _hold_importer(actor):
     """The importing account held until the file's transaction ends, before anything else it
-    locks (accounts.acting), and its role checked again on that reading. Then the organizations'
-    groups lock (clients.services.hold_groups), before the file's first organization is locked:
-    a file may name organizations in any order, so it and a change that puts an organization
-    under a parent, or another import, take their turns instead of meeting in a deadlock."""
+    locks (accounts.acting), and its role checked again on that reading. Then the organization
+    directory lock (clients.services.hold_directory), before the file is read: a file names
+    organizations by account code and in any order, so it and a change of an organization's
+    code or group, a creation or another import take their turns, and the file is read after
+    the one before it has committed."""
     current = hold_actor(actor)
     if current is None:
         raise PermissionDenied("Your account no longer has a staff role.")
     require_client_manager(current)
-    services.hold_groups()
+    services.hold_directory()
 
 
 def preview_file(record_type, *, actor, data, filename):

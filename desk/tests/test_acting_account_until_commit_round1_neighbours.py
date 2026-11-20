@@ -555,8 +555,8 @@ def test_a_committed_import_naming_the_group_first_waits_for_the_group_change(ma
     group: the database ended the cycle by failing one of them, and the import refused the file.
 
     Adapted in the follow-up on deadlocks with an organization's group: the change takes the
-    organizations' groups lock before the member, and the import takes it before its first
-    organization (clients.services.hold_groups). Intended: the commit waits for the change
+    organization directory lock before the member, and the import takes it before it reads the
+    file (clients.services.hold_directory). Intended: the commit waits for the change
     before locking anything of the file, then goes on; no 40P01, no refusal; both are saved."""
     group, member, change, commit, state = _group_change_and_commit(make_user, member_first=False)
     outcomes = {"organization change": change.outcome, "commit": commit.outcome}

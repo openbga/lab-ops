@@ -161,7 +161,7 @@ def test_an_import_refused_at_its_lock_step_says_why_on_the_import_page(
     import, not the other change, is ended, and the file is refused with nothing imported.
 
     Adapted in the follow-up on deadlocks with an organization's group: putting an organization
-    into a group no longer meets an import in a deadlock (both take the organizations' groups
+    into a group no longer meets an import in a deadlock (both take the organization directory
     lock before their first organization), and no change of the application locks two of a
     file's organizations the other way round. A test session stands in for one. It holds the
     member; the import locks the group and stops; the stand-in asks for the group and waits past

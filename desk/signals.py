@@ -16,12 +16,16 @@ request is released here, or waits and is refused. User.save locks the row FOR N
 after the account's access gate, and the requests are locked here, before the row is updated.
 Another person's change to one of those requests that names the account without locking it, such
 as a client's reply recording a notice to the assignee, is checked against the account only when
-it commits, with a key-share lock. Neither the no-key lock nor an update of columns other than
-the username and email blocks that check, and the requests are held before the update could
-change either of those, so the reply commits and the deactivation, waiting for its request, then
-releases it. A reply that comes second waits for the request, and is refused as changed if it
-was drawn before the release (the release advances the request's revision); sent again, it finds
-the request unassigned and records no notice to the deactivated account.
+it commits, with a key-share lock. The no-key lock does not block that check; the account's
+update does, until the deactivation commits: a full save names the username and email, and with
+an update trigger on the table (clients migration 0006) PostgreSQL then locks the row as FOR
+UPDATE does, whatever the values. So the requests are locked before the update. A reply holding
+one of them commits first, and the deactivation then releases its request. A reply that comes
+second waits for the request, and is refused as changed if it was drawn before the release (the
+release advances the request's revision); sent again, it finds the request unassigned and
+records no notice to the deactivated account. A change that names the account while holding
+none of its open requests may wait at its COMMIT for the deactivation, which waits for nothing
+it holds.
 
 Paths that bypass save() (queryset.update, raw SQL) are not seen here; an account they
 deactivate still cannot sign in or be chosen as an assignee.
