@@ -10,9 +10,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   application:
-    # The unit suite takes about twenty minutes on a hosted runner (2026-11-18: 19.5 minutes at
-    # 3,003 tests). The limit stops a hung run without failing a suite that has grown.
-    timeout-minutes: 35
+    # The unit suite takes about half an hour on a hosted runner (2026-11-20: 31.7 minutes at
+    # about 4,800 tests, most of the growth in two-session concurrency tests). The limit stops a
+    # hung run without failing a suite that has grown.
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     services:
       postgres:
