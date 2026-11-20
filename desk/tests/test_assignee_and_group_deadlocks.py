@@ -21,6 +21,7 @@ All records are synthetic.
 
 import dataclasses
 import threading
+import time
 
 import pytest
 from django.db import connection, transaction
@@ -115,6 +116,15 @@ def _deactivate_renaming(user, owner, email):
 
 def _notices_to(user):
     return Notice.objects.filter(recipient=user).count()
+
+
+def _eventually(check, seconds=3):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(0.02)
+    return check()
 
 
 # A6. A client's reply under way, then the assignee's deactivation ------------------------------
@@ -214,12 +224,15 @@ def test_a_client_reply_under_way_and_the_assignees_deactivation_never_deadlock(
         deactivation_state = deactivation.waiting_or_ended(seconds=3)
         behind_reply = _blocked_by(deactivation.pid, change.pid)
         gates[change.thread].go.set()
-        reply_state = change.waiting_or_ended(seconds=3)
+        # Its COMMIT does not wait for the account: the entry is visible to another session
+        # while the deactivation goes on. (The reply's session may then wait a moment in its
+        # notice's first attempt, after the commit, for the ticket the deactivation now holds.)
+        committed = _eventually(lambda: RequestEntry.objects.filter(body=body).exists())
         change.join()
         deactivation.join()
     outcomes = {"client reply": change.outcome, "deactivation": deactivation.outcome}
     assert (deactivation_state, behind_reply) == ("waiting", True)  # for the ticket
-    assert reply_state == "ended", reply_state  # its COMMIT did not wait for the account
+    assert committed  # its COMMIT did not wait for the deactivation
     assert "40P01" not in outcomes.values(), f"deadlock: {outcomes}"
     assert outcomes == {"client reply": "done", "deactivation": "done"}, (
         outcomes,
@@ -971,3 +984,44 @@ def test_removing_a_managers_only_role_waits_for_their_organization_change(make_
             reason="After the role was removed",
             phone="555-0181",
         )
+
+
+# The import's scoped hold (accounts.acting.holding) --------------------------------------------
+
+
+def test_inside_holding_a_second_hold_returns_the_reading_and_locks_nothing(make_user):
+    """Within a `holding` block the services' own holds get the block's reading and run no
+    statement; outside it, a hold takes its locks again. A nested block for the same account
+    changes nothing, and the scope ends with the block."""
+    from django.db import connection, transaction
+    from django.test.utils import CaptureQueriesContext
+
+    from accounts.acting import hold_actor, holding
+
+    person = make_user("agd_scope_manager", "account_manager")
+    with transaction.atomic():
+        with holding(person) as current:
+            assert current.pk == person.pk
+            with CaptureQueriesContext(connection) as queries:
+                again = hold_actor(person)
+                with transaction.atomic():  # a row's savepoint
+                    inner = hold_actor(person)
+                with holding(person) as nested:
+                    assert nested is current
+            assert again is current and inner is current
+            statements = [q["sql"] for q in queries.captured_queries]
+            assert all("SAVEPOINT" in sql for sql in statements), statements  # the row's own
+        with CaptureQueriesContext(connection) as queries:
+            assert hold_actor(person).pk == person.pk
+        assert any("FOR KEY SHARE" in q["sql"] for q in queries.captured_queries)
+
+
+def test_holding_an_account_that_does_not_exist_scopes_nothing():
+    from django.db import transaction
+
+    from accounts.acting import _SCOPED, holding
+
+    with transaction.atomic():
+        with holding(User(pk=987654)) as current:
+            assert current is None
+            assert 987654 not in getattr(transaction.get_connection(), _SCOPED, {})

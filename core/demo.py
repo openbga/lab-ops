@@ -82,6 +82,20 @@ def business_tables():
     ]
 
 
+# The advisory lock (PostgreSQL's two-key form; accounts.acting and clients.services use other
+# first keys) that one seed or reset holds at a time.
+SEED_LOCK = (19555, 0)
+
+
+def hold_seed_lock():
+    """One demonstration seed or reset at a time, taken before anything else either locks: a
+    second waits here, holding nothing, and then sees what the first committed."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("hold_seed_lock() needs a transaction.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(SEED_LOCK))
+
+
 def lock_application_tables():
     """Keep every other connection from writing any application table until this transaction
     ends, waiting for writers already under way. Taken before a scan whose answer must still hold

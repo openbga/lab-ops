@@ -78,17 +78,19 @@ def hold_directory():
     checks records, or may lock several organizations in an order of its own:
 
     - an import, which finds organizations by account code, checks new ones' names, finds sites
-      by code, and locks organizations in the file's order (dataimport.importing._hold_importer);
+      by code and contacts by email, and locks organizations in the file's order
+      (dataimport.importing._importing);
     - creating an organization;
     - changing an organization's name, account code or parent (its own row, then the new
       parent's chain upwards, _check_parent);
     - changing a site's code;
-    - the demonstration seed, before its organizations, their links and its table locks.
+    - adding a contact, or changing a contact's email;
+    - the demonstration seed, after holding the accounts it acts as.
 
     One of them at a time: the second waits for the first to commit, then reads and locks what it
-    needs, so neither ends in a deadlock and an import reads names and codes as the change before
-    it left them. Changing an organization's other details, taking it out of its group, its
-    contacts, a site's other details and links do not take it. Taking it again in the same
+    needs, so neither ends in a deadlock and an import reads names, codes and emails as the change
+    before it left them. Changing an organization's other details, taking it out of its group, a
+    site's or a contact's other details and links do not take it. Taking it again in the same
     transaction does not wait."""
     if not connection.in_atomic_block:
         raise RuntimeError("The directory lock is held for a transaction; open one first.")
@@ -268,6 +270,7 @@ def _served_sites(contact, sites):
 def add_contact(*, actor, client_id, sites=(), **data):
     require_client_manager(actor)  # who asks, before anything is locked
     actor = _held_manager(actor)
+    hold_directory()  # an import finds contacts by email
     client = Client.objects.select_for_update().get(pk=client_id)
     contact = ClientContact(client=client, **{k: v for k, v in data.items() if k in CONTACT_FIELDS})
     _strip(contact, ("name", "role", "email", "phone"))
@@ -291,8 +294,16 @@ def update_contact(*, actor, contact_id, expected_revision, reason, sites=None, 
     require_client_manager(actor)  # who asks, before anything is locked
     reason = _reason(reason)
     actor = _held_manager(actor)
+    # A new email takes the directory lock first (an import finds contacts by email); decided
+    # from a reading before the locks, as in update_client.
+    found = ClientContact.objects.filter(pk=contact_id).values_list("email", flat=True).first()
+    directory = found is not None and _value_changes(found, data, "email")
+    if directory:
+        hold_directory()
     contact = ClientContact.objects.select_for_update().get(pk=contact_id)
     if contact.revision != expected_revision:
+        raise ValidationError("This contact changed. Reload and review the current record.")
+    if not directory and _value_changes(contact.email, data, "email"):
         raise ValidationError("This contact changed. Reload and review the current record.")
     current = set(contact.sites.values_list("pk", flat=True))
     before = _contact_state(contact, current)
@@ -336,8 +347,9 @@ def create_site(*, actor, client_id, **data):
     return site
 
 
-def _site_code_changes(stored, data):
-    return (data.get("code", stored) or "").strip() != (stored or "")
+def _value_changes(stored, data, name):
+    """Whether saving `data` stores another value of `name` than `stored` (stripped, as saved)."""
+    return (data.get(name, stored) or "").strip() != (stored or "")
 
 
 @transaction.atomic
@@ -350,13 +362,13 @@ def update_site(*, actor, site_id, expected_revision, reason, **data):
     # A new site code takes the directory lock first (an import finds sites by code); decided
     # from a reading before the locks, as in update_client.
     found = ClientSite.objects.filter(pk=site_id).values_list("code", flat=True).first()
-    directory = found is not None and _site_code_changes(found, data)
+    directory = found is not None and _value_changes(found, data, "code")
     if directory:
         hold_directory()
     site = ClientSite.objects.select_for_update().get(pk=site_id)
     if site.revision != expected_revision:
         raise ValidationError("This site changed. Reload and review the current record.")
-    if not directory and _site_code_changes(site.code, data):
+    if not directory and _value_changes(site.code, data, "code"):
         raise ValidationError("This site changed. Reload and review the current record.")
     before = snapshot(site)
     for name in SITE_FIELDS:

@@ -59,7 +59,7 @@
         },
         {
           "label": "Email",
-          "description": "Must be a valid email address when given. Give an email address or a phone number."
+          "description": "Must be a valid email address when given. Give an email address or a phone number. Contact imports find contacts by email, so adding a contact or changing an email waits for an import being saved at that moment, and an import waits for it."
         },
         {
           "label": "Phone",

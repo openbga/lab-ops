@@ -22,6 +22,7 @@ record from one organization to another.
 
 import base64
 import binascii
+import contextlib
 import csv
 import hashlib
 import io
@@ -35,7 +36,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
 from django.db import DatabaseError, transaction
 
-from accounts.acting import hold_actor
+from accounts.acting import holding
 from accounts.roles import ROLES, has_role
 from clients import services
 from clients.models import Client, ClientContact, ClientSite, OrganizationType, Responsibility
@@ -580,10 +581,17 @@ def hold_organizations(rows):
     and then, for a contact, the sites it serves (clients.services._served_sites), while a
     sites file updates a site before a later row needs its organization: taken all at first, the
     file and a contact saved at the same moment wait for each other one way. The import holds the
-    directory lock already (_hold_importer), so no other change locks several of them meanwhile."""
+    directory lock already (_importing), so no other change locks several of them meanwhile."""
     for organization_id in dict.fromkeys(_row_organization(row) for row in _changing(rows)):
         if organization_id is not None:
-            list(Client.objects.select_for_update().filter(pk=organization_id).values_list("pk"))
+            # FOR NO KEY UPDATE: a contact's creation (FOR UPDATE) still waits, while another
+            # change that only names the organization, checked at its COMMIT with a key-share
+            # lock (a request form offered to it), does not.
+            list(
+                Client.objects.select_for_update(no_key=True)
+                .filter(pk=organization_id)
+                .values_list("pk")
+            )
 
 
 SITES = RecordType(
@@ -884,7 +892,7 @@ def hold_external_ids(rows):
     them. A change of an organization's group locks the organization and then walks up to its
     new parent (clients.services._check_parent), the other way round from a file that names the
     group first; the import holds the organization directory lock from its start
-    (_hold_importer) and that change takes it before its first lock, so the two take their
+    (_importing) and that change takes it before its first lock, so the two take their
     turns."""
     from links.models import ExternalSystem
 
@@ -1258,25 +1266,27 @@ def _apply(record_type, actor, preview, reason):
             )
 
 
-def _hold_importer(actor):
-    """The importing account held until the file's transaction ends, before anything else it
-    locks (accounts.acting), and its role checked again on that reading. Then the organization
-    directory lock (clients.services.hold_directory), before the file is read: a file names
-    organizations by account code and in any order, so it and a change of an organization's
-    code or group, a creation or another import take their turns, and the file is read after
-    the one before it has committed."""
-    current = hold_actor(actor)
-    if current is None:
-        raise PermissionDenied("Your account no longer has a staff role.")
-    require_client_manager(current)
-    services.hold_directory()
+@contextlib.contextmanager
+def _importing(actor):
+    """The importing account held for the file's work (accounts.acting.holding), before anything
+    else it locks, and its role checked again on that reading; the rows' services get that
+    reading and lock nothing again. Then the organization directory lock
+    (clients.services.hold_directory), before the file is read: a file names records by account
+    code, site code and email and organizations in any order, so it and a change of how they are
+    found, a creation or another import take their turns, and the file is read after the one
+    before it has committed."""
+    with holding(actor) as current:
+        if current is None:
+            raise PermissionDenied("Your account no longer has a staff role.")
+        require_client_manager(current)
+        services.hold_directory()
+        yield current
 
 
 def preview_file(record_type, *, actor, data, filename):
     """What importing the file would do, row by row. Always rolled back: stores nothing."""
     require_client_manager(actor)
-    with transaction.atomic():
-        _hold_importer(actor)
+    with transaction.atomic(), _importing(actor):
         preview = parse(record_type, data, filename)
         if not preview.file_errors:
             _apply(record_type, actor, preview, "")
@@ -1292,8 +1302,7 @@ def commit_file(record_type, *, actor, data, filename, reason, state_token):
     """
     require_client_manager(actor)
     reason = (reason or "").strip()
-    with transaction.atomic():
-        _hold_importer(actor)
+    with transaction.atomic(), _importing(actor):
         preview = parse(record_type, data, filename)
         if not preview.ok:
             raise ValidationError(

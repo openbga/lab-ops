@@ -2,7 +2,9 @@
 PostgreSQL transactions. Adopted from the reviewer's confirmation round; findings C1 to C8 were
 resolved in the next commit (assignee-group-deadlocks-round-1-confirmation-resolution.md in the
 review history). Adapted: C8's "leave group" case asserts the corrected help (leaving a group
-does not wait for an import)."""
+does not wait for an import of another organization). Left in the original: the cases of the
+per-transaction memo of hold_actor (C3), which the second confirmation's S1 led to replace with
+a hold scoped to a block (accounts.acting.holding)."""
 
 from threading import Event
 
@@ -235,34 +237,6 @@ def _change_display_name(account, value):
     assert session.join() == "done", session.error
 
 
-@pytest.mark.parametrize(
-    "scope", ["outer", "open savepoint", "released savepoint", "savepoint=False"]
-)
-def test_repeat_actor_hold_keeps_the_first_reading_while_the_gate_remains_held(agent, scope):
-    from contextlib import nullcontext
-
-    from accounts.acting import hold_actor
-
-    with transaction.atomic():
-        # In the open-savepoint case both calls are inside the same savepoint. In the
-        # released cases the first call is inside the nested block and the second outside.
-        with transaction.atomic() if scope == "open savepoint" else nullcontext():
-            if scope in ("released savepoint", "savepoint=False"):
-                with transaction.atomic(savepoint=scope == "released savepoint"):
-                    first = hold_actor(agent)
-            else:
-                first = hold_actor(agent)
-            assert not _actor_gate_is_free(agent)
-            _change_display_name(agent, "Second reading")
-            second = hold_actor(agent)
-            assert second.first_name == first.first_name, (
-                scope,
-                first.first_name,
-                second.first_name,
-            )
-    assert _actor_gate_is_free(agent)
-
-
 @pytest.mark.parametrize("api", ["atomic", "explicit savepoint", "rollback enclosing savepoint"])
 def test_actor_hold_is_reacquired_after_savepoint_rollback(agent, api):
     from accounts.acting import hold_actor
@@ -309,58 +283,6 @@ def test_actor_hold_expires_with_its_outer_transaction_on_the_same_connection(ag
         second = hold_actor(agent)
         assert second.first_name == "Next transaction" and second.first_name != first.first_name
         assert not _actor_gate_is_free(agent)
-
-
-def test_repeated_ticket_service_does_not_relock_a_later_team_grant(
-    make_user, agent, quality, sample_category
-):
-    """A request and its next note share an outer transaction and the actor's original hold."""
-    from desk import services
-    from desk.models import EntryKind, RequestEntry
-    from teams import services as team_services
-
-    from .test_contract import new_request
-
-    supervisor = make_user("confirmation_team_supervisor", "supervisor")
-    created = Gate()
-    note = "Example follow-up entered in the same transaction"
-
-    def record():
-        with transaction.atomic():
-            ticket = new_request(agent, sample_category)
-            created.stop()
-            services.add_entry(
-                actor=agent,
-                request=ticket,
-                expected_revision=ticket.revision,
-                kind=EntryKind.NOTE,
-                body=note,
-            )
-            return ticket.pk
-
-    writer = Session(record).start()
-    try:
-        assert created.arrived.wait(timeout=5), writer.error
-        assert not _actor_gate_is_free(agent)
-        member = team_services.add_member(actor=supervisor, team=quality, user=agent)
-        edit = Held(
-            lambda: team_services.set_lead(actor=supervisor, membership=member, is_lead=True)
-        )
-        try:
-            created.go.set()
-            state = writer.waiting_or_ended(seconds=5)
-            query = ""
-            if state == "waiting":
-                assert _blocked_by(writer.pid, edit.session.pid)
-                query = _statement(writer.pid)
-        finally:
-            assert edit.release() == "done", edit.session.error
-    finally:
-        created.go.set()
-        writer.join()
-    assert writer.outcome == "done", writer.error
-    assert RequestEntry.objects.filter(request_id=writer.result, body=note).count() == 1
-    assert state == "ended", query
 
 
 def test_demo_seed_repair_leaves_the_external_system_available_to_an_earlier_import(

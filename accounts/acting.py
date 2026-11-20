@@ -55,6 +55,7 @@ person's own change holds the same rows and then locks a ticket. The two never w
 other in a cycle: whichever comes second waits for the person's rows.
 """
 
+import contextlib
 import functools
 
 from django.db import connection, transaction
@@ -186,54 +187,28 @@ def _hold_portal_rows(pk):
     )
 
 
-# On the thread's own connection: account pk -> (PostgreSQL transaction id, the reading).
-_HELD = "_acting_held"
-
-
-def _transaction_id():
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT pg_current_xact_id()::text")
-        return cursor.fetchone()[0]
-
-
-def _still_held(pk, xid):
-    """The reading of an earlier hold of `pk` in this transaction, or None. The same top-level
-    transaction (its id is never reused), and this session still holds the account's gate
-    shared: PostgreSQL releases it, with the rows held after it, when a savepoint taken before
-    the hold rolls back (through atomic() or Django's savepoint API), and keeps both when one
-    is released."""
-    conn = transaction.get_connection()
-    found = getattr(conn, _HELD, {}).get(pk)
-    if found is None or found[0] != xid:
-        return None
-    with conn.cursor() as cursor:
-        cursor.execute(
-            "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
-            "AND pid = pg_backend_pid() AND granted AND mode = 'ShareLock' "
-            "AND classid::bigint = %s AND objid::bigint = %s AND objsubid = 2)",
-            [ACCESS_GATE, pk % INT4],
-        )
-        return found[1] if cursor.fetchone()[0] else None
+# On the thread's own connection: account pk -> the reading of a hold in force for a block
+# (holding), innermost last.
+_SCOPED = "_acting_scoped"
 
 
 def hold_actor(actor):
     """Hold the acting account's rows until the transaction ends (see the module docstring) and
     return the account as read under its lock, or None for an account that does not exist.
 
-    Call it before anything else the change locks. Called again in the same transaction while
-    the first hold is in force (an organization change inside an import), it returns the first
-    reading and locks nothing: a membership added since is not held, and nothing waits for it.
-    It decides nothing: the change's own checks, made after its locks (desk.services.settle and
-    the like), read the account as it is held."""
+    Call it before anything else the change locks. Inside a `holding` block for the same
+    account, it returns that block's reading and locks nothing. Otherwise a second call in the
+    same transaction takes the locks again: it waits for nothing it holds already, but holds,
+    and may wait for, a membership added since. It decides nothing: the change's own checks, made
+    after its locks (desk.services.settle and the like), read the account as it is held."""
     if not connection.in_atomic_block:
         raise RuntimeError("The acting account is held for a transaction; open one first.")
     pk = getattr(actor, "pk", None)
     if pk is None:
         return None
-    xid = _transaction_id()
-    earlier = _still_held(pk, xid)
-    if earlier is not None:
-        return earlier
+    scoped = getattr(transaction.get_connection(), _SCOPED, {})
+    if pk in scoped:
+        return scoped[pk]
     _gate([pk], shared=True)  # behind an access change already waiting, if any
     current = _locked_account(pk)
     if current is None:
@@ -242,11 +217,35 @@ def hold_actor(actor):
         _hold_staff_rows(pk)
     else:
         _hold_portal_rows(pk)
-    conn = transaction.get_connection()
-    held = {key: value for key, value in getattr(conn, _HELD, {}).items() if value[0] == xid}
-    held[pk] = (xid, current)
-    setattr(conn, _HELD, held)
     return current
+
+
+def hold_actors(users):
+    """Hold several accounts (hold_actor), in the order of their gates' keys, the order
+    close_access takes them in, so the two never take the same gates the other way round."""
+    for user in sorted(users, key=lambda user: user.pk % INT4):
+        hold_actor(user)
+
+
+@contextlib.contextmanager
+def holding(actor):
+    """Hold the acting account (hold_actor) for a block of work inside a transaction, such as an
+    import whose rows go through services that hold their actor themselves: within the block they
+    get this reading and lock nothing again. The hold is taken before anything inside the block,
+    so no savepoint the block opens can release it, and it lasts until the transaction ends.
+    Yields the reading (None for an account that does not exist)."""
+    current = hold_actor(actor)
+    conn = transaction.get_connection()
+    scoped = getattr(conn, _SCOPED, {})
+    pk = getattr(current, "pk", None)
+    if current is None or pk in scoped:
+        yield current
+        return
+    setattr(conn, _SCOPED, {**scoped, pk: current})
+    try:
+        yield current
+    finally:
+        setattr(conn, _SCOPED, scoped)
 
 
 def acting_change(service):

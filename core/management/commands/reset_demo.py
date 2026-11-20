@@ -88,7 +88,9 @@ class Command(BaseCommand):
                 if answer != "reset":
                     raise CommandError("Reset cancelled. Nothing was changed.")
             # Decide again with every other writer shut out (not while a person reads the
-            # prompt), so nothing written after the decision is erased with it.
+            # prompt), so nothing written after the decision is erased with it. One seed or
+            # reset at a time first, before anything else this locks, as seed_demo (called below).
+            demo.hold_seed_lock()
             demo.lock_application_tables()
             self._require_demo_laboratory()
             tables = self._erase()
