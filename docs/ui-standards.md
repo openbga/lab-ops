@@ -131,7 +131,8 @@ hides and reorders columns. One list is one `section.card.vr-table-card`.
    data. Only entry grids and genuinely wide data tables (the laboratory's certificate list)
    scroll sideways, with a visible scrollbar and the frozen-column edge shadow.
    Column layout, rows per page and sort are saved per user on the server (`core/preferences.py`:
-   lab workstations are shared, so nothing is kept in the browser); a list opened without
+   lab workstations are shared, so nothing is kept in the browser, and each page reads them,
+   so a change shows from the next page in every tab); a list opened without
    `per_page` or `sort` uses the user's saved values, and `Clear all` removes filters only.
    Rows are at most two lines; identifiers, dates, figures and statuses never wrap inside
    themselves, and a truncated value carries its full text in a tooltip and for screen readers. Identifier first

@@ -102,6 +102,20 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   Adding, removing, showing or hiding a ticket's link now counts as a change to the ticket: a reply, note or link change sent from a page opened before it is refused.
 
+- **Fixed:** Saved layouts and What's new visits show in every tab (2026-11-20)
+
+  A column layout, page size, sidebar choice or What's new visit made in one tab or workstation shows on the next page in the others.
+
+  <details><summary>Technical notes</summary>
+
+  No migration. Each request reads the person's preferences from the database once; nothing is copied into the session any more, so two tabs answering at the same moment can no longer put back an older value, such as a What's new mark. Sessions signed in earlier keep an unused copy until they end.
+
+  Adding a preference counts the person's preferences and inserts holding a transaction-level advisory lock (keys 19557 and the account's id), so the limit of 300 holds when two are added at once. A list page opened at the limit with a page size or sort in its address now follows it without saving it, instead of failing with a server error.
+
+  Opening pages and changing a display preference no longer save the session, so they no longer extend its length (Security settings, Session length).
+
+  </details>
+
 - **Fixed:** Ticket pages agree with the replies they show (2026-11-20)
 
   A ticket opened while someone replies shows that reply only with forms that accept your answer to it, on the desk and in the portal.

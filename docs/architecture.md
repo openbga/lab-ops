@@ -302,7 +302,12 @@ The import does not provision accounts. [Importer](../dataimport/importing.py)
 Django forms and template components provide the same labels, error feedback and keyboard
 behavior across pages. List filtering, sorting and pagination run on the authorized queryset.
 DataTables manages column presentation. Table layout and other presentation preferences belong
-to individual accounts. [UI standards](ui-standards.md)
+to individual accounts: stored in the database ([core/preferences.py](../core/preferences.py)),
+read once for each request and never copied into the session, because two tabs of one sign-in
+can answer at the same moment and each saves its whole session as it ends. A person keeps at
+most 300; an addition counts and inserts holding that person's additions lock, a
+transaction-level advisory lock, so two at the same moment cannot both take the last place, while
+changing or removing a stored one takes no lock. [UI standards](ui-standards.md)
 
 Page help is versioned content selected by the authorized page's route and variant. Downloads
 and POST actions are explained on the pages that invoke them. Staff What's new and the generated

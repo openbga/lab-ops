@@ -12,13 +12,19 @@ Keys and the values they accept:
 Every value is checked when written and again when read: a value that no longer fits (an old
 format, a column that was removed) is ignored and the page falls back to its defaults.
 Presentation only: a preference never widens what a user may see.
+
+Each request reads the stored values once (for_request); nothing is kept in the session, so a
+change made in another tab, browser or workstation shows from the next page. A person has at
+most MAX_PREFERENCES; adding one counts and inserts holding a lock of that person's additions.
 """
 
 import json
 import re
 
 from django.contrib.auth.decorators import login_required
+from django.db import connection, transaction
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.changelog import valid_marker
@@ -67,59 +73,86 @@ def clean(key, value):
     return None
 
 
-SESSION_KEY = "vr_preferences"
+# The advisory lock of one person's additions to their preferences (PostgreSQL's two-key form; the
+# first key is this lock's own, as accounts.acting.ACCESS_GATE is the access gates'). An addition
+# counts the person's preferences and inserts its row holding it, so two additions at the same
+# moment cannot both take the last place under MAX_PREFERENCES. Changing or removing a stored
+# value adds no row and does not take it. The email notice opt-out (desk.notification_views) is
+# written outside the limit and does not take it either.
+PREFERENCE_ADDITIONS = 19557
 
 
 def for_request(request):
-    """All valid preferences of the signed-in user.
+    """All valid preferences of the signed-in user, read from the database once per request.
 
-    Read from the database once per sign-in and kept in the session, which every request loads
-    anyway, so pages make no extra query. save() updates both. Another session of the same user
-    sees a change made elsewhere from its next sign-in.
+    Not kept in the session: two tabs of one sign-in can answer at the same moment, and each
+    saves its whole session as it ends, so a copy kept there could put back what the other had
+    just changed (an older What's new mark, a column order). Because they are read for each
+    request, a change made in another tab, browser or workstation shows from the next page.
     """
-    if hasattr(request, "_vr_preferences"):
-        return request._vr_preferences
-    prefs = {}
     user = getattr(request, "user", None)
-    session = getattr(request, "session", None)
-    if user is not None and user.is_authenticated:
-        cached = session.get(SESSION_KEY) if session is not None else None
-        if isinstance(cached, dict) and cached.get("user") == user.pk:
-            stored = cached.get("prefs", {}).items()
-        else:
-            stored = UserPreference.objects.filter(user=user).values_list("key", "value")
-        for key, value in stored:
+    pk = user.pk if user is not None and user.is_authenticated else None
+    cached = getattr(request, "_vr_preferences", None)
+    if cached is not None and cached[0] == pk:
+        return cached[1]
+    prefs = {}
+    if pk is not None:
+        for key, value in UserPreference.objects.filter(user_id=pk).values_list("key", "value"):
             if (valid := clean(key, value)) is not None:
                 prefs[key] = valid
-        if session is not None and cached != {"user": user.pk, "prefs": prefs}:
-            session[SESSION_KEY] = {"user": user.pk, "prefs": prefs}
-    request._vr_preferences = prefs
+    request._vr_preferences = (pk, prefs)
     return prefs
 
 
-def _remember(request, prefs):
-    if getattr(request, "session", None) is not None:
-        request.session[SESSION_KEY] = {"user": request.user.pk, "prefs": dict(prefs)}
+def _hold_additions(user_id):
+    """Take `user_id`'s additions lock until the transaction ends (see PREFERENCE_ADDITIONS)."""
+    from accounts.acting import INT4
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("The preference additions lock is held for a transaction; open one.")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(%s, %s)", [PREFERENCE_ADDITIONS, user_id % INT4]
+        )
+
+
+def _replace(user_id, key, value):
+    """Whether `user_id` has `key` stored; if so its value is now `value`."""
+    return bool(
+        UserPreference.objects.filter(user_id=user_id, key=key).update(
+            value=value, updated_at=timezone.now()
+        )
+    )
+
+
+def _add(user_id, key, value):
+    """A new row for `key`, unless `user_id` has MAX_PREFERENCES already. The caller holds the
+    additions lock and has found no row for `key` holding it. Raises ValueError."""
+    if UserPreference.objects.filter(user_id=user_id).count() >= MAX_PREFERENCES:
+        raise ValueError("Too many saved preferences.")
+    return UserPreference.objects.create(user_id=user_id, key=key, value=value)
 
 
 def save(request, key, value):
     """Store (or, for None, remove) one preference of the signed-in user. Raises ValueError."""
     prefs = for_request(request)
+    user_id = request.user.pk
     if value is None:
-        UserPreference.objects.filter(user=request.user, key=key).delete()
+        UserPreference.objects.filter(user_id=user_id, key=key).delete()
         prefs.pop(key, None)
-        _remember(request, prefs)
         return
     if clean(key, value) != value:
         raise ValueError(f"Not a valid value for {key!r}.")
     if prefs.get(key) == value:
         return
-    exists = UserPreference.objects.filter(user=request.user, key=key).exists()
-    if not exists and UserPreference.objects.filter(user=request.user).count() >= MAX_PREFERENCES:
-        raise ValueError("Too many saved preferences.")
-    UserPreference.objects.update_or_create(user=request.user, key=key, defaults={"value": value})
+    with transaction.atomic():
+        if not _replace(user_id, key, value):
+            _hold_additions(user_id)
+            # Again holding the lock: a row for this key added meanwhile (another tab) is
+            # replaced, not added a second time.
+            if not _replace(user_id, key, value):
+                _add(user_id, key, value)
     prefs[key] = value
-    _remember(request, prefs)
 
 
 def save_if_absent(request, key, value):
@@ -130,20 +163,20 @@ def save_if_absent(request, key, value):
     prefs = for_request(request)
     if key in prefs:
         return
-    stored = UserPreference.objects.filter(user=request.user, key=key).first()
-    if stored is None:
-        if UserPreference.objects.filter(user=request.user).count() >= MAX_PREFERENCES:
-            raise ValueError("Too many saved preferences.")
-        stored, _created = UserPreference.objects.get_or_create(
-            user=request.user, key=key, defaults={"value": value}
-        )
-    elif clean(key, stored.value) is None:
-        # Unreadable, so as good as none: replaced, unless it was replaced meanwhile.
-        UserPreference.objects.filter(pk=stored.pk, value=stored.value).update(value=value)
-        stored.refresh_from_db()
-    if (kept := clean(key, stored.value)) is not None:
+    user_id = request.user.pk
+    stored = UserPreference.objects.filter(user_id=user_id, key=key)
+    with transaction.atomic():
+        row = stored.first()
+        if row is None:
+            _hold_additions(user_id)
+            # Again holding the lock: one added meanwhile is kept.
+            row = stored.first() or _add(user_id, key, value)
+        if clean(key, row.value) is None:
+            # Unreadable, so as good as none: replaced, unless it was replaced meanwhile.
+            stored.filter(pk=row.pk, value=row.value).update(value=value, updated_at=timezone.now())
+            row = stored.first()
+    if row is not None and (kept := clean(key, row.value)) is not None:
         prefs[key] = kept
-        _remember(request, prefs)
 
 
 @login_required
@@ -195,7 +228,10 @@ class GridPreferenceMiddleware:
         if SORT.match(request.GET.get("sort", "")):
             given["sort"] = request.GET["sort"]
         if given and {**stored, **given} != stored:
-            save(request, key, {**stored, **given})
+            try:
+                save(request, key, {**stored, **given})
+            except ValueError:
+                pass  # too many saved preferences: this page still follows its address
         missing = {
             name: stored[name] for name in self.PARAMS if name in stored and name not in request.GET
         }

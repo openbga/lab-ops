@@ -10,7 +10,6 @@ from django.shortcuts import redirect, render
 
 from accounts.models import User
 from accounts.roles import require_staff
-from core import preferences
 from core.forms import StyledForm
 from core.models import UserPreference
 
@@ -47,8 +46,8 @@ def email_notices(request):
             # UPDATE, so the person's own changes under way, which hold the account FOR KEY
             # SHARE (accounts.acting), do not hold it up: it takes no access away.
             User.objects.select_for_update(no_key=True).filter(pk=request.user.pk).first()
-            # Written straight to the stored preference: not compared with this session's copy
-            # (another session may have changed it), and never refused by the limit on saved
+            # Written straight to the stored preference: not compared with what this request
+            # read (another tab may have changed it), and never refused by the limit on saved
             # page layouts, so turning mail off always works.
             stored = UserPreference.objects.filter(user=request.user, key=OPT_OUT_KEY)
             if enabled:
@@ -57,7 +56,6 @@ def email_notices(request):
                 UserPreference.objects.update_or_create(
                     user=request.user, key=OPT_OUT_KEY, defaults={"value": False}
                 )
-            request.session.pop(preferences.SESSION_KEY, None)  # re-read at the next request
         messages.success(request, "Email notice preference saved.")
         return redirect("email-notices")
     return render(
