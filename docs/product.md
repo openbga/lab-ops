@@ -249,8 +249,8 @@ for staff and for client portal accounts: after how long without activity a sess
 and 12 hours. Each change needs a reason and is kept in the page's history with the values before
 and after. The laboratory chooses the periods; the application does not.
 
-Every page warns 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes
-before the longest session ends. Opening a page, saving, searching or Stay signed in counts as
+Pages warn 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before
+the longest session ends; the admin console does not warn. Opening a page, saving, searching or Stay signed in counts as
 activity; reading or typing on a page does not, so typing that is not saved before the sign-out
 is lost. Signing in again returns to the page. Deactivating an account ends its sessions at once,
 and a new password ends the account's other sessions. Pages shown to a signed-in person are

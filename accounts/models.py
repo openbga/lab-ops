@@ -62,19 +62,25 @@ class User(AbstractUser):
             # The stored password, when this save writes the column: whatever changes the
             # stored value (a new password, an unusable one, a hash upgraded at sign-in) changes
             # what Django's sessions are checked against, so the sessions end with it.
-            stored = None
+            new_password = False
             if not self._state.adding and (update_fields is None or "password" in update_fields):
                 stored = (
                     type(self).objects.filter(pk=self.pk).values_list("password", flat=True).first()
                 )
+                new_password = stored is not None and stored != self.password
+            # Before the account's row is updated: ending a session waits for a change of the
+            # person's under way that holds it (accounts.sessions.hold_acting_session), and that
+            # change may still take the account's row (an assignment to the person) after it.
+            self._end_sessions(update_fields, new_password=new_password)
             super().save(*args, **kwargs)
-            self._end_sessions(update_fields, new_password=stored not in (None, self.password))
 
     def _end_sessions(self, update_fields, *, new_password):
         """A deactivation ends every session of the account at once, and a new password every
         session but the one that set it, when the account set its own (accounts.sessions). Their
         browsers are signed out at their next request, and an ended session never comes back,
         even if the account is made active again."""
+        if self._state.adding:
+            return
         from .sessions import Ending, end_sessions, kept_on_password_change
 
         if not self.is_active and (update_fields is None or "is_active" in update_fields):

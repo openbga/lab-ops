@@ -282,6 +282,8 @@ def test_the_switch_is_read_once_per_page(client, owned, agent, django_assert_ma
 
 
 def test_every_ticket_page_is_private(client, plain_ticket, agent):
+    """Adapted by the automatic sign-out change: every answer to a signed-in session is now also
+    marked no-store (accounts.sessions); until then the ticket page was private only."""
     client.force_login(agent)
     response = client.get(reverse("desk:request-detail", args=[plain_ticket.pk]))
-    assert "private" in response["Cache-Control"] and "no-store" not in response["Cache-Control"]
+    assert "private" in response["Cache-Control"] and "no-store" in response["Cache-Control"]

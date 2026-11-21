@@ -149,6 +149,10 @@ class SessionLimitsForm(GroupedForm, forms.Form):
         max_value=60,
         help_text="Minutes, from 5 to 60. Opening a page, saving or Stay signed in counts as "
         "activity; reading or typing on a page does not.",
+        error_messages={
+            "min_value": "Choose from 5 to 60 minutes.",
+            "max_value": "Choose from 5 to 60 minutes.",
+        },
         widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
     )
     maximum_hours = forms.IntegerField(
@@ -156,6 +160,10 @@ class SessionLimitsForm(GroupedForm, forms.Form):
         min_value=1,
         max_value=24,
         help_text="Hours, from 1 to 24, counted from sign-in whatever the activity.",
+        error_messages={
+            "min_value": "Choose from 1 to 24 hours.",
+            "max_value": "Choose from 1 to 24 hours.",
+        },
         widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
     )
     reason = forms.CharField(

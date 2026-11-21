@@ -9,6 +9,7 @@ in the browser. Opening a page is activity, so the row is moved after the page h
 
 import re
 from datetime import timedelta
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from django.db.models.functions import Now
@@ -236,6 +237,14 @@ def test_the_warning_fits_the_screen_and_the_thumb(page: Page, demo, view):
         assert stay["width"] > viewport["width"] * 0.7, stay
 
 
+def returns_to(page: Page) -> str:
+    """The page the sign-in page will return to (its `next`), however it was encoded: by the
+    server's answer or by the page's own warning script, whichever navigated first."""
+    query = parse_qs(urlsplit(page.url).query)
+    assert urlsplit(page.url).path == reverse("account_login"), page.url
+    return query["next"][0]
+
+
 def test_a_dialog_opened_or_saved_after_the_session_ended_goes_to_sign_in(page: Page, demo):
     """The server decides, whatever the page believes: a form dialog opened, or a dialog's form
     saved, after the session passed its limit lands on the sign-in page with the notice, set to
@@ -249,7 +258,7 @@ def test_a_dialog_opened_or_saved_after_the_session_ended_goes_to_sign_in(page: 
     page.get_by_role("link", name="New organization", exact=True).first.click()
     page.wait_for_url(re.compile(r"/accounts/login/"))
     expect(page.get_by_text(NOTICE)).to_be_visible()
-    assert page.url.endswith("/accounts/login/?next=/clients/")
+    assert returns_to(page) == "/clients/"
 
     sign_in(page, STAFF, demo.password)
     page.goto(clients)
@@ -261,5 +270,5 @@ def test_a_dialog_opened_or_saved_after_the_session_ended_goes_to_sign_in(page: 
     dialog.get_by_role("button", name="Create organization").click()
     page.wait_for_url(re.compile(r"/accounts/login/"))
     expect(page.get_by_text(NOTICE)).to_be_visible()
-    assert page.url.endswith("/accounts/login/?next=/clients/")
+    assert returns_to(page) == "/clients/"
     assert not Client.objects.filter(name="Example Late Clinic").exists()

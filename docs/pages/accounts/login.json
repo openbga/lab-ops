@@ -33,7 +33,8 @@
     "Accounts are issued by the laboratory. There is no public sign-up.",
     "Notices beside the form come from the laboratory and are the same for everyone who opens this page.",
     "Failed attempts are rate limited. Signing in never adds roles or access to another client's records.",
-    "The administration site has no separate sign-in: it uses this page and the same second factor."
+    "The administration site has no separate sign-in: it uses this page and the same second factor.",
+    "After an automatic sign-out the page says why, and signing in again returns you to the page you were on."
   ],
   "sections": [
     {
@@ -57,7 +58,7 @@
         },
         {
           "label": "Remember me",
-          "description": "Optional, initially unchecked. Checked requests the normal persistent session lifetime; unchecked expires the session cookie when the browser session ends. The committed session lifetime is Django’s default two weeks."
+          "description": "Optional, initially unchecked. Checked keeps the session cookie after the browser closes, for up to 24 hours after the session was last saved; unchecked ends the cookie when the browser session ends. Either way your laboratory's session limits sign you out after a period without activity and after the longest session, counted from sign-in."
         },
         {
           "label": "Sign in",
@@ -106,6 +107,7 @@
     "static/css/app.css",
     "accounts/signin_log.py",
     "accounts/tests/test_signin_log.py",
-    "accounts/apps.py"
+    "accounts/apps.py",
+    "accounts/sessions.py"
   ]
 }

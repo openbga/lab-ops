@@ -8,6 +8,9 @@
   "use strict";
 
   var RECHECK_MS = 15000; // while a warning is open, so Stay signed in in another tab closes it here
+  // While no warning is open and the page is in view: a limit an administrator shortened, or
+  // activity this page's own scripts sent, is learned within a minute.
+  var IDLE_RECHECK_MS = 60000;
   var LAST_SECOND_MS = 1000; // at zero while the server still counts the last (whole) second
   var FAILED_RETRY_MS = 2000; // a status request at zero that got no answer
   var GIVE_UP_MS = 5000; // past zero with no answer: the server has ended the session by now
@@ -83,11 +86,12 @@
       return Math.min(times.inactivityEnd, times.maximumEnd);
     }
 
-    // The warning due now, or null. When both are due, the one that ends first. The inactivity
-    // warning does not matter once the longest session ends before it.
+    // The warning due now, or null. When both are due, the one that ends first; when both end at
+    // the same moment, the longest session's, as the server decides (activity cannot extend it).
+    // The inactivity warning does not matter once the longest session ends no later than it.
     function wanted(now) {
       var maximumDue = !dismissed && now >= times.maximumEnd - times.longestWarning;
-      if (times.inactivityEnd <= times.maximumEnd && now >= times.inactivityEnd - times.warning) {
+      if (times.inactivityEnd < times.maximumEnd && now >= times.inactivityEnd - times.warning) {
         return "inactivity";
       }
       return maximumDue ? "maximum" : null;
@@ -425,6 +429,18 @@
         recheck();
       }
     });
+    // A dialog, a partial update or a save sent from this page is activity under the limits as
+    // they stand: ask again, so the page plans from the server's numbers, not its own.
+    document.addEventListener("htmx:afterRequest", function () {
+      if (!leaving) {
+        recheck();
+      }
+    });
+    setInterval(function () {
+      if (!leaving && !variant && document.visibilityState === "visible") {
+        recheck();
+      }
+    }, IDLE_RECHECK_MS);
 
     var page = {
       inactivity_seconds: settings.inactivitySeconds,

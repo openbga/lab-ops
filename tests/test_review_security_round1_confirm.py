@@ -187,9 +187,14 @@ def test_one_page_gives_one_answer_about_the_release_files():
             return {row.key: row.value == security.CHANGED for group in security.in_force()
                     if group.key != "patient-information" for row in group.facts}
 
-        # Only the database counts are replaced. Each fact checks the real release files.
+        # Only the database readings are replaced (adapted: the session limits are one since the
+        # automatic sign-out change). Each fact checks the real release files.
+        from core.models import SessionLimit
+        limits = [SessionLimit(audience=audience, inactivity_minutes=30, maximum_hours=12)
+                  for audience in ("staff", "portal")]
         with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
-                            patient_capability_holders=lambda: 0, _patient_fields=lambda: 0):
+                            patient_capability_holders=lambda: 0, _patient_fields=lambda: 0,
+                            _session_limits=lambda: limits):
             with patch.object(SourceFileLoader, "get_data", try_read):
                 first = config_states()
             print(json.dumps([first, config_states()]))

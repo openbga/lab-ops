@@ -402,6 +402,14 @@ def test_departed_list_account_does_not_fail_the_write_or_the_outer_commit(
         return original(*args, **kwargs)
 
     monkeypatch.setattr(preferences, method, remove_then_save)
+    if stage == "outer-commit":
+        # Adapted for the automatic sign-out change: the session's activity statement runs in
+        # its own transaction before the view in production (accounts.sessions); inside this
+        # test's outer transaction it would hold the session row the deletion removes with the
+        # account, and the deletion would wait for this thread.
+        from accounts import sessions
+
+        monkeypatch.setattr(sessions, "_touch", lambda state: True)
     status, failure = None, None
     try:
         with transaction.atomic() if stage == "outer-commit" else nullcontext():

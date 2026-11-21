@@ -54,7 +54,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "1ddbf9c150f75aa6a03c73e7445e63b63dedd0df64fca02a361032feb600ff85"
+RELEASE_SETTINGS_SHA256 = "172883d47b6ed87d4c63c416137fef59a53c7ac4d2315b7e109bdb12ca4d9bb9"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -98,6 +98,7 @@ RELEASE = {
     "MIDDLEWARE": (
         lambda: list(settings.MIDDLEWARE),
         [
+            "accounts.sessions.NoStoreMiddleware",
             "core.security_headers.SecurityHeadersMiddleware",
             "core.request_logging.RequestLogMiddleware",
             "core.request_limits.RequestBodyLimitMiddleware",
@@ -536,12 +537,17 @@ def _sign_in(facts):
     ]
 
 
+def _session_limits():
+    """The staff and the client portal session limits, as they stand now (a database reading)."""
+    from .session_limits import limits
+
+    return limits()
+
+
 def _limits_text(field_name):
     """`30 minutes for staff and client portal accounts`, or each audience's value when they
     differ: the limits as they stand now (core.session_limits)."""
-    from .session_limits import limits
-
-    staff, portal = limits()
+    staff, portal = _session_limits()
     unit = 60 if field_name == "inactivity_minutes" else 3600
     staff_value = duration_text(getattr(staff, field_name) * unit)
     portal_value = duration_text(getattr(portal, field_name) * unit)
@@ -585,7 +591,11 @@ def _sessions(facts):
                 "session-limits",
                 "Counted from sign-in, whatever the activity. Pages warn 5 minutes before, so "
                 "that work can be saved; nothing extends it. Set from 1 to 24 hours. The "
-                "browser's session cookie expires 24 hours after sign-in at the latest.",
+                "browser's session cookie expires 24 hours after the session was last saved: at "
+                "sign-in, at some account steps such as confirming or changing the password or "
+                "setting up a second factor, and when messages too long for their cookie are "
+                "kept in it. Opening pages and changing a display preference do not otherwise "
+                "save it. The cookie does not extend the session.",
             ),
         ),
         _fact(
