@@ -65,6 +65,8 @@ NON_PAGE_ROUTES = {
     "preference",
     "account-session",
     "account-session-continue",
+    "account-session-sign-out",
+    "account-sessions-sign-out-others",
     "ready",
     "mfa_download_recovery_codes",
     # Desk

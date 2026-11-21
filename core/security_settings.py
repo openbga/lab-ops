@@ -556,6 +556,26 @@ def _limits_text(field_name):
     return f"{staff_value} for staff, {portal_value} for client portal accounts"
 
 
+def _session_address():
+    """Where the address a session records comes from, by the deployment's proxy settings (the
+    ones the sign-in limits use)."""
+    if settings.ALLAUTH_TRUSTED_CLIENT_IP_HEADER:
+        return (
+            f"the address is read from the {settings.ALLAUTH_TRUSTED_CLIENT_IP_HEADER} header "
+            "(ALLAUTH_TRUSTED_CLIENT_IP_HEADER)."
+        )
+    if settings.ALLAUTH_TRUSTED_PROXY_COUNT > 0:
+        return (
+            f"the address is read from X-Forwarded-For behind "
+            f"{_count(settings.ALLAUTH_TRUSTED_PROXY_COUNT, 'trusted proxy', 'trusted proxies')} "
+            "(ALLAUTH_TRUSTED_PROXY_COUNT)."
+        )
+    return (
+        "the address is the connecting one, so behind a proxy every session shows the proxy's "
+        "address until ALLAUTH_TRUSTED_PROXY_COUNT or ALLAUTH_TRUSTED_CLIENT_IP_HEADER is set."
+    )
+
+
 def _sessions(facts):
     facts += [
         _fact(
@@ -644,6 +664,35 @@ def _sessions(facts):
                 "Whoever changes their own password, on the account pages or in the admin "
                 "console, stays signed in where they changed it. A password a superuser sets for "
                 "another account, or a reset by email, ends every session of that account.",
+            ),
+        ),
+        _fact(
+            "own-sessions",
+            "Where you are signed in",
+            ["MIDDLEWARE"],
+            lambda: Fact(
+                "own-sessions",
+                "Where you are signed in",
+                "Each person sees their own open sessions and signs out the others",
+                "person",
+                "Opened from the account menu by staff and client portal accounts. Each session "
+                "shows the browser and the address it reported at sign-in; "
+                + _session_address()
+                + " A shared demonstration account sees only its own session.",
+            ),
+        ),
+        _fact(
+            "end-sessions",
+            "Ending a person's sessions",
+            ["MIDDLEWARE"],
+            lambda: Fact(
+                "end-sessions",
+                "Ending a person's sessions",
+                "A superuser, from the account's page in the admin console, with a reason",
+                "accounts",
+                "Every open session of the account ends and its browsers go to the sign-in page "
+                "at their next request. The account can sign in again unless it is also "
+                "deactivated or given a new password. Each ending is kept in the audit history.",
             ),
         ),
         _fact(

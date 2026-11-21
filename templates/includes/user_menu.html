@@ -1,9 +1,10 @@
-{% load ui %}{% comment %}Signed-in user dropdown for the top bar. Account links resolve with the non-raising url-as form, so an unmounted route just hides. Sign-out is a POST (allauth default). A shared demonstration account (user.credentials_locked) gets a note instead of the password and two-factor links; accounts.middleware refuses those pages.{% endcomment %}
+{% load ui %}{% comment %}Signed-in user dropdown for the top bar. Account links resolve with the non-raising url-as form, so an unmounted route just hides. Sign-out is a POST (allauth default). A shared demonstration account (user.credentials_locked) gets a note instead of the password and two-factor links; accounts.middleware refuses those pages. Where you are signed in is for every account (a shared one sees only its own browser there).{% endcomment %}
 {% url 'account_logout' as logout_url %}
 {% url 'account_change_password' as password_url %}
 {% url 'mfa_index' as mfa_url %}
 {% url 'account_email' as email_url %}
 {% url 'email-notices' as notices_url %}
+{% url 'account-sessions' as sessions_url %}
 <div class="dropdown">
   <button class="btn btn-sm vr-topbar-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
     {% icon name="person-circle" %}<span class="d-none d-md-inline">{{ user.get_full_name|default:user.get_username }}</span><span class="visually-hidden d-md-none">Account</span>{% icon name="chevron-down" class="vr-caret" %}
@@ -21,6 +22,7 @@
     {% if email_url %}<a class="dropdown-item" href="{{ email_url }}">{% icon name="envelope" %}Email addresses</a>{% endif %}
     {% if mfa_url %}<a class="dropdown-item" href="{{ mfa_url }}">{% icon name="lock" %}Two-factor authentication</a>{% endif %}
     {% endif %}
+    {% if sessions_url %}<a class="dropdown-item" href="{{ sessions_url }}">{% icon name="shield-lock" %}Where you are signed in</a>{% endif %}
     {% if notices_url and not user.client_id %}<a class="dropdown-item" href="{{ notices_url }}">{% icon name="envelope" %}Email notices</a>{% endif %}
     {% if logout_url %}
     <form method="post" action="{{ logout_url }}">

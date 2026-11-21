@@ -51,6 +51,7 @@ laboratory's logo, which is not a page).
 import contextlib
 import contextvars
 import dataclasses
+import ipaddress
 import logging
 import uuid
 from dataclasses import dataclass
@@ -62,9 +63,8 @@ from django.contrib import messages
 from django.contrib.auth import HASH_SESSION_KEY, get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.signals import user_logged_in, user_logged_out
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db import connection, transaction
-from django.db.models import DateTimeField, F, Func
-from django.db.models.functions import Greatest
 from django.dispatch import receiver
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
@@ -91,15 +91,6 @@ CONTINUE_ROUTE = "account-session-continue"
 Ending = AccountSession.Ending
 
 
-class ClockTimestamp(Func):
-    """PostgreSQL's clock_timestamp(): the time when it is evaluated, not when the statement or
-    the transaction began."""
-
-    function = "clock_timestamp"
-    template = "%(function)s()"
-    output_field = DateTimeField()
-
-
 ENDED_MESSAGES = {
     Ending.INACTIVITY: "You were signed out after {inactivity} without activity. Sign in again "
     "to continue.",
@@ -107,6 +98,18 @@ ENDED_MESSAGES = {
     "continue.",
 }
 ENDED_MESSAGE = "You were signed out. Sign in again to continue."
+# Endings by a person, named in the notice whatever limits are in force.
+ENDED_BY_MESSAGES = {
+    Ending.SIGNED_OUT_ELSEWHERE: "You were signed out from another session of your account. Sign "
+    "in again to continue.",
+    Ending.ADMINISTRATOR: "An administrator ended your session. Sign in again to continue.",
+}
+# Endings the sign-in log records once the change that ended them commits (_log_after_commit).
+LOGGED_ENDINGS = frozenset(
+    {Ending.DEACTIVATED, Ending.NEW_PASSWORD, Ending.SIGNED_OUT_ELSEWHERE, Ending.ADMINISTRATOR}
+)
+# What a session row keeps of the browser's own description of itself (the User-Agent header).
+USER_AGENT_LENGTH = AccountSession._meta.get_field("user_agent").max_length
 
 
 class SessionEnded(Exception):  # noqa: N818 - named for what happened
@@ -427,19 +430,36 @@ def end_sessions(user, ending, *, keep=None, session_id=None):
     browsers are signed out at their next request. Rows already past a limit end first, as
     expired (close_expired), so they are not counted as ended by this. A change under way that
     holds one of the rows (hold_acting_session) is waited for. Returns how many ended."""
-    if session_id is None:
+    return len(end_session_ids(user, ending, keep=keep, session_id=session_id))
+
+
+def end_session_ids(user, ending, *, keep=None, session_id=None, close=None):
+    """end_sessions, returning the ids of the rows this ended, sorted. `close` says whether rows
+    past a limit end first as expired (close_expired); by default, only when every session of the
+    account is ending."""
+    if session_id is None if close is None else close:
         close_expired(user)
-    query = AccountSession.objects.filter(user_id=user.pk, ended_at__isnull=True)
+    sessions, _ = _tables()
+    conditions, params = ["user_id = %s", "ended_at IS NULL"], [user.pk]
     if session_id is not None:
-        query = query.filter(pk=session_id)
+        conditions.append("id = %s::uuid")
+        params.append(str(session_id))
     if keep is not None:
-        query = query.exclude(pk=keep)
-    # The database's clock when each row is updated (after any wait for it), and never before
-    # the row's last activity: an activity that committed while this waited stays before its end.
-    ended = query.update(ended_at=Greatest(F("last_active_at"), ClockTimestamp()), ending=ending)
-    if ended and ending in (Ending.DEACTIVATED, Ending.NEW_PASSWORD):
-        _log_after_commit(ending, user, ended)
-    return ended
+        conditions.append("id <> %s::uuid")
+        params.append(str(keep))
+    with connection.cursor() as cursor:
+        # One statement. The database's clock when each row is updated (after any wait for it),
+        # and never before the row's last activity: an activity that committed while this waited
+        # stays before its end.
+        cursor.execute(
+            f"UPDATE {sessions} SET ended_at = GREATEST(last_active_at, clock_timestamp()), "
+            f"ending = %s WHERE {' AND '.join(conditions)} RETURNING id",
+            [ending, *params],
+        )
+        ids = sorted(str(row[0]) for row in cursor.fetchall())
+    if ids and ending in LOGGED_ENDINGS:
+        _log_after_commit(ending, user, len(ids))
+    return ids
 
 
 def hold_acting_session(user):  # the account or its id
@@ -529,11 +549,36 @@ def _settle_kept_session(request):
             end_sessions(user, Ending.NEW_PASSWORD, session_id=session_id)
 
 
+def reported_by(request):
+    """(browser, address) as the request reports them, for its session row: the browser's
+    User-Agent header, printable characters only, cut to USER_AGENT_LENGTH ("" without one), and
+    the client address by the deployment's trusted proxy settings (ALLAUTH_TRUSTED_PROXY_COUNT or
+    ALLAUTH_TRUSTED_CLIENT_IP_HEADER, as the sign-in limits read it), or None when there is none
+    or it is not an address. Both are what the browser and the proxies say, not proof of where
+    the person is."""
+    from allauth.account.adapter import get_adapter
+
+    agent = "".join(
+        character
+        for character in str(request.META.get("HTTP_USER_AGENT", ""))
+        if character.isprintable()
+    ).strip()[:USER_AGENT_LENGTH]
+    try:
+        address = ipaddress.ip_address(get_adapter(request).get_client_ip(request))
+    except PermissionDenied, ImproperlyConfigured, TypeError, ValueError:
+        return agent, None
+    if getattr(address, "scope_id", None):
+        # An IPv6 zone ("%eth0") names the server's own interface, and the column refuses it.
+        address = ipaddress.ip_address(str(address).split("%", 1)[0])
+    return agent, address.compressed
+
+
 @receiver(user_logged_in, dispatch_uid="lab_ops_account_session_start")
 def start_session(sender, request, user, **kwargs):
     session = getattr(request, "session", None)
     if session is None:
         return
+    agent, address = reported_by(request)
     with transaction.atomic():
         previous = _valid_id(session.get(SESSION_KEY))
         if previous is not None:
@@ -541,7 +586,7 @@ def start_session(sender, request, user, **kwargs):
             # session's data when the account is the same one).
             end_sessions(user, Ending.SIGNED_IN_AGAIN, session_id=previous)
         close_expired(user)  # sessions abandoned since, past a limit
-        record = AccountSession.objects.create(user=user)
+        record = AccountSession.objects.create(user=user, user_agent=agent, address=address)
     session[SESSION_KEY] = str(record.pk)
 
 
@@ -606,7 +651,9 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     request.user = AnonymousUser()
     request.account_session = None
     _current.set(None)
-    if ending in ENDED_MESSAGES and limits is not None:
+    if ending in ENDED_BY_MESSAGES:
+        text = ENDED_BY_MESSAGES[ending]
+    elif ending in ENDED_MESSAGES and limits is not None:
         if ended:
             logger.info(
                 "signout.%s user=%s sessions=%s",

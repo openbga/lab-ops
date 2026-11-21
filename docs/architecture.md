@@ -117,6 +117,21 @@ pass a limit; they are closed as expired, and logged, when the account next sign
 sessions are ended. The rows are kept after they end. The limits are rows of `core.SessionLimit`,
 one per audience, absent until first saved.
 
+A row records the browser's `User-Agent` (printable, cut to 300 characters) and the client address
+at sign-in, by the trusted proxy settings the sign-in limits use; a release still running while the
+migration applies goes on inserting rows through the column's database default. Where you are
+signed in (`accounts.session_list`) lists the account's rows that are open and inside both limits
+by the database's clock, and the person ends one other row or every other row; a superuser ends
+every row of an account from the account administration, with a reason. Each ending takes, before
+anything else, a session-ending advisory lock for the account whose rows it ends and for the
+acting account, in key order, then holds the acting account (`hold_actor`, which holds the acting
+session `FOR SHARE`). Two sessions ending each other therefore take turns, and the second is
+refused because its own row has ended, instead of each holding its own row and waiting for the
+other's. Rows past a limit end first as expired. The ending is one `UPDATE … RETURNING`, which
+waits for a change under way that holds a row, and one `account.sessions_ended` audit event names
+the rows ended, never their browser or address. Every other row open when the change is saved
+ends, including rows that signed in after the page was drawn; the confirmation counts those.
+
 ## Optional modules
 
 An optional module's switch lives in `core.modules`. Its pages and reads start from selectors

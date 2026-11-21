@@ -19,6 +19,9 @@ rules:
   codes are never shown or filterable; a superuser may only remove a lost authenticator, which
   is audited.
   Authentication email addresses are read only here.
+- An account's page shows how many of its sessions are open, and End sessions ends them all with
+  a reason (accounts.session_list.end_account_sessions), audited. Their browsers and addresses
+  are shown only to the account itself, on Where you are signed in.
 """
 
 import hashlib
@@ -38,10 +41,15 @@ from django.contrib.auth.forms import (
     UserChangeForm,
 )
 from django.contrib.auth.models import Group, Permission
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
 from django.forms.models import model_to_dict
+from django.http import Http404, HttpResponseRedirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
+from django.utils.html import format_html
 
 from core.audit import record_event
 
@@ -335,6 +343,15 @@ class AccountCreationForm(AccessRules, AdminUserCreationForm):
     pass
 
 
+class EndSessionsForm(forms.Form):
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "cols": 60}),
+        max_length=1000,
+        help_text="Recorded in the audit history with the sessions ended, for example the person "
+        "has left or a device was lost. Do not include patient information.",
+    )
+
+
 class AccountPasswordForm(AdminPasswordChangeForm):
     """The account's password page. It saves the password only: the account was read when the
     request began, and a full save would put back what changed since, such as a deactivation
@@ -443,7 +460,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 
     actions = None
     # Recorded by the application: shown, never edited (a save would put back the time drawn).
-    readonly_fields = ("last_login", "date_joined")
+    readonly_fields = ("last_login", "date_joined", "open_sessions")
     fieldsets = (
         (None, {"fields": ("username", "password", "drawn")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
@@ -476,6 +493,15 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             },
         ),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
+        (
+            "Sessions",
+            {
+                "fields": ("open_sessions",),
+                "description": "Sessions open now, counted when this page opened. End sessions "
+                "signs every browser of the account out at its next request, with a reason. "
+                "Deactivating the account or setting a new password also ends them.",
+            },
+        ),
     )
     add_fieldsets = (
         (
@@ -567,6 +593,97 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 request,
                 f"{released} ticket{'s' if released != 1 else ''} returned to their team queues.",
             )
+
+    @admin.display(description="Open sessions")
+    def open_sessions(self, user):
+        from jobs.actor import is_system_account
+
+        from .session_list import open_count
+
+        if user.pk is None:
+            return "—"
+        count = open_count(user)
+        text = f"{count} open session{'s' if count != 1 else ''}"
+        if is_system_account(user):
+            return text
+        url = reverse("admin:accounts_user_sessions", args=[user.pk])
+        return format_html('{} <a href="{}">End sessions</a>', text, url)
+
+    def get_urls(self):
+        return [
+            path(
+                "<id>/sessions/",
+                self.admin_site.admin_view(self.end_sessions_view),
+                name="accounts_user_sessions",
+            ),
+            *super().get_urls(),
+        ]
+
+    def end_sessions_view(self, request, id):
+        """End every open session of the account, with a reason (on one's own account, every one
+        but the session making the change). Decided and recorded by the service, from the
+        sessions as they stand when it is saved."""
+        from .session_list import can_end_sessions, end_account_sessions, open_sessions
+
+        user = self.get_object(request, unquote(id))
+        if user is None:
+            raise Http404("No such account.")
+        if not self.has_change_permission(request, user) or not can_end_sessions(request.user):
+            raise PermissionDenied
+        own = user.pk == request.user.pk
+        state = getattr(request, "account_session", None)
+        form = EndSessionsForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                with transaction.atomic():
+                    ended = end_account_sessions(
+                        actor=request.user,
+                        account_id=user.pk,
+                        reason=form.cleaned_data["reason"],
+                        current=state.id if state is not None else None,
+                    )
+                    if ended:
+                        self.log_change(
+                            request,
+                            user,
+                            f"Ended {len(ended)} session{'s' if len(ended) != 1 else ''}.",
+                        )
+            except ValidationError as error:
+                form.add_error("reason", error.messages[0])
+            except User.DoesNotExist:
+                raise Http404("No such account.") from None
+            else:
+                name = user.get_username()
+                if not ended:
+                    text = f"No session of {name} was open, so nothing changed."
+                elif own:
+                    text = (
+                        f"Ended {len(ended)} of your other session{'s' if len(ended) != 1 else ''}"
+                        ". This one stays signed in."
+                    )
+                else:
+                    text = (
+                        f"Ended {len(ended)} session{'s' if len(ended) != 1 else ''} of {name}. "
+                        "Each browser goes to the sign-in page at its next request."
+                    )
+                self.message_user(request, text)
+                return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
+        rows = open_sessions(user)
+        if own and state is not None:
+            rows = [row for row in rows if row.id != state.id]
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"End sessions: {user.get_username()}",
+            "subtitle": None,
+            "opts": self.opts,
+            "original": user,
+            "form": form,
+            "own_account": own,
+            "open_count": len(rows),
+            "last_activity": max((row.last_active_at for row in rows), default=None),
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(request, "admin/accounts/user/end_sessions.html", context)
 
     def user_change_password(self, request, id, form_url=""):
         with transaction.atomic():

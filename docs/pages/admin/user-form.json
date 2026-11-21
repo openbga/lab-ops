@@ -33,6 +33,12 @@
       "steps": [
         "Clear [[Active]] and save. Accounts are never deleted."
       ]
+    },
+    {
+      "title": "Sign someone out everywhere",
+      "steps": [
+        "Under Sessions, select [[End sessions]], give a reason and confirm. The person can sign in again unless you also clear [[Active]]."
+      ]
     }
   ],
   "good_to_know": [
@@ -47,7 +53,7 @@
       "title": "Access and page variants",
       "paragraphs": [
         "The administration site requires an active account with Staff status. User and group pages additionally require Superuser status; a laboratory admin role alone or individual model permissions do not open them. These technical flags do not themselves confer operational roles or capabilities.",
-        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, and Important dates (read only)."
+        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Important dates (read only) and Sessions (read only)."
       ]
     },
     {
@@ -113,6 +119,10 @@
         {
           "label": "Date joined",
           "description": "Change only; read only. The date and time the account was created."
+        },
+        {
+          "label": "Open sessions",
+          "description": "Change only; read only, under Sessions. How many sessions of the account are open and inside the session limits when the page opens, never their browsers or addresses, with the End sessions link, which opens a page to end them all with a reason. The Scheduled jobs account shows the count without the link."
         }
       ]
     },
@@ -164,6 +174,7 @@
     "uv.lock",
     "accounts/tests/test_admin.py",
     "templates/admin/base_site.html",
-    "desk/tests/test_decisions_read_before_a_wait.py"
+    "desk/tests/test_decisions_read_before_a_wait.py",
+    "accounts/session_list.py"
   ]
 }

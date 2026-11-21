@@ -1,0 +1,64 @@
+{
+  "id": "admin-user-sessions",
+  "routes": ["admin:accounts_user_sessions"],
+  "title": "End sessions",
+  "purpose": "End every open session of one account, with a reason, so that each of its browsers has to sign in again.",
+  "summary": "End every session of the selected account that is open when you save, with a reason. Each of its browsers goes to the sign-in page at its next request.",
+  "tasks": [
+    {
+      "title": "Sign a person out everywhere",
+      "steps": [
+        "Type why in [[Reason]], for example the person has left or reported a lost laptop.",
+        "Select [[End sessions]]. You return to the account's page with how many sessions ended."
+      ]
+    },
+    {
+      "title": "Stop the person signing in again",
+      "steps": [
+        "On the account's page, clear [[Active]] and save, or set a new password. Ending sessions alone does not stop a new sign-in."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "This ends the sessions of the account named on the page, not necessarily yours. On your own account, the session you are using stays signed in.",
+    "Sessions that sign in after the page opened, up to your save, are ended too.",
+    "The page shows how many sessions are open, never their browsers or addresses: the person sees those on Where you are signed in.",
+    "Each ending is recorded in the audit history with your reason and the sessions ended. Do not put patient information in the reason."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "The administration site requires an active account with Staff status. This page additionally requires an active Superuser with Staff status, checked again when you save; a laboratory admin role alone does not open it. The Scheduled jobs account, which nobody signs in as, has no End sessions page."
+      ]
+    },
+    {
+      "title": "What the page shows",
+      "items": [
+        {"label": "Open now", "description": "How many sessions of the account are open and inside the session limits when the page opens, and when the most recent of them was last active. On your own account, the count leaves out the session you are using."},
+        {"label": "Reason", "description": "Required, at most 1,000 characters; spaces alone are refused. Recorded with the ending in the audit history."}
+      ]
+    },
+    {
+      "title": "Actions",
+      "items": [
+        {"label": "End sessions", "description": "Ends every session of the account open when you save, including any that signed in after the page opened. Each browser goes to the sign-in page at its next request, with a notice that an administrator ended its session, and anything typed there and not saved is lost. Sessions already past a session limit are recorded as ended by that limit. Returns to the account's page with how many sessions ended. When none was open, nothing changes and nothing is recorded."},
+        {"label": "Breadcrumbs", "description": "Return to the administration home, the Accounts section, the user list or the account's page without ending anything."}
+      ]
+    },
+    {
+      "title": "Rules and records",
+      "paragraphs": [
+        "Ending sessions takes no access away: the account keeps its roles and capabilities and can sign in again unless it is deactivated or its password is changed. A change the person is saving at that moment finishes first; one they start afterwards from an ended session is refused and their browser is signed out.",
+        "Each ending is recorded as an audit event on the account, with your reason, how many sessions ended and their identifiers, never their browsers or addresses; the administration history of the account also lists it. The sign-in log records it once it is saved."
+      ]
+    }
+  ],
+  "sources": [
+    "accounts/admin.py",
+    "accounts/session_list.py",
+    "accounts/sessions.py",
+    "templates/admin/accounts/user/end_sessions.html",
+    "tests/test_session_list.py"
+  ]
+}
