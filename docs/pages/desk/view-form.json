@@ -46,7 +46,7 @@
     {
       "title": "Save view (new)",
       "paragraphs": [
-        "Opens from the Tickets list. It shows a sentence listing the filters the view will keep, for example Status: Open or waiting, or says the list has no filters so the view shows every ticket you may read. Search text and sort are kept too. If the list's filters are invalid the view is refused until they are corrected."
+        "Opens from the Tickets list. It shows a sentence listing the filters the view will keep, for example Status: Open or waiting, or says the list has no filters so the view shows every ticket you may read. Search text and the order the list showed are kept too, even the default order or one that came from your saved sort, so the view reopens in that order. If the list's filters are invalid the view is refused until they are corrected."
       ],
       "items": [
         {
@@ -67,7 +67,7 @@
         },
         {
           "label": "Cancel",
-          "description": "Returns to the list you came from."
+          "description": "Returns to the list you came from, with its view, filters and search, and the sort or rows per page only if you chose them there; your saved sort and page size apply as they stand."
         }
       ]
     },
@@ -104,7 +104,7 @@
         },
         {
           "label": "What a view stores",
-          "description": "The queue, filters, search text and sort are saved. Your column choices and page size are separate list preferences."
+          "description": "The queue, filters, search text and the order the list showed are saved. Your column choices and page size are separate list preferences."
         }
       ]
     }

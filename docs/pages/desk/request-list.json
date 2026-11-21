@@ -113,7 +113,7 @@
         },
         {
           "label": "Save view",
-          "description": "Opens a form that stores this list's current filters, search text and sort under a name. Shown to every staff role; sharing needs the supervisor role."
+          "description": "Opens a form that stores this list's current filters, search text and the order it shows under a name, even the default order or one that came from your saved sort. Shown to every staff role; sharing needs the supervisor role."
         },
         {
           "label": "New ticket",
@@ -190,7 +190,7 @@
       "items": [
         {
           "label": "Number",
-          "description": "The ticket number, such as REQ-000123. It opens the ticket, which remembers this list so Previous in list and Next in list can step through it. Sortable."
+          "description": "The ticket number, such as REQ-000123. It opens the ticket, which remembers this list and the order it shows, so Previous in list and Next in list can step through it and the ticket's Tickets breadcrumb returns here. Sortable."
         },
         {
           "label": "Subject",
@@ -247,7 +247,7 @@
         },
         {
           "label": "Apply to selected",
-          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event."
+          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then."
         }
       ]
     },

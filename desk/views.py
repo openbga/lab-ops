@@ -28,10 +28,11 @@ from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.models import Client
 from core.concurrency import one_reading, reading_account
-from core.grids import chosen_query
+from core.grids import GridRequest, chosen_query
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
+from core.preferences import apply_saved_grid
 from links.search import request_ids_for_identifier
 from service_levels.templatetags.clocks import clock_parts
 from taxonomy import terms
@@ -108,6 +109,45 @@ def _back(request):
     return (request.GET.get("list") or request.POST.get("list") or "")[:2000]
 
 
+# In a request page's `list` value, the sort the queue showed (_queue_list); the queue itself
+# takes no parameter of that name.
+SHOWN_ORDER = "order"
+
+
+def _queue_list(request, sort):
+    """The `list` value the queue gives its request pages and Save view: what the person chose on
+    its address, without the values added from their saved settings (core.grids.chosen_query),
+    and the order it showed. The way back to the queue sends only the choices, so it never saves
+    again a sort or page size another tab has changed since; previous, next and a saved view keep
+    the order shown, which a queue opened with nothing chosen also has."""
+    query = chosen_query(request)
+    query[SHOWN_ORDER] = sort
+    return query.urlencode()
+
+
+def _queue_address(list_query):
+    """The queue's address as the person chose it: the `list` value without the order shown."""
+    query = QueryDict(list_query, mutable=True)
+    query.pop(SHOWN_ORDER, None)
+    return query
+
+
+def _queue_in_order(list_query):
+    """The queue's query in the order it showed: for previous, next and a saved view. A value
+    from before the order was carried (a page opened earlier) is the queue's full address."""
+    query = QueryDict(list_query, mutable=True)
+    order = query.pop(SHOWN_ORDER, None)
+    if order:
+        query["sort"] = order[-1]
+    return query
+
+
+def _queue_url(list_query):
+    """The way back from a request page to the queue it was opened from."""
+    query = _queue_address(list_query).urlencode()
+    return f"{reverse('desk:request-list')}?{query}" if query else reverse("desk:request-list")
+
+
 # ------------------------------------------------------------------------------ the list
 
 
@@ -146,6 +186,10 @@ def _saved_url(view):
 def request_list(request):
     user = request.user
     require_staff(user)
+    if request.method == "POST":
+        # Changes to several tickets post to the list's address as the person chose it (its
+        # `chosen_query`): the saved page size and sort apply as for a GET of that address.
+        apply_saved_grid(request)
     current_view = request.GET.get("view") or DEFAULT_VIEW
     if current_view not in SYSTEM_VIEWS:
         # An unknown view (an old bookmark) opens the default one rather than an empty list.
@@ -170,12 +214,19 @@ def request_list(request):
     if request.method == "POST":
         _apply_bulk(request, bulk_form)
         if not bulk_form.errors:
-            return redirect(request.get_full_path())
+            # The address the form posted to: what the person chose, which the list's saved page
+            # size and sort complete on arrival as they stand then.
+            chosen = chosen_query(request).urlencode()
+            return redirect(f"{request.path}?{chosen}" if chosen else request.path)
         # Row values include the displayed revision. A changed ticket is never silently
         # selected at its new revision. The refreshed list still enforces visibility.
         selected_rows = set(request.POST.getlist("requests"))
         for error in bulk_form.non_field_errors():
             messages.error(request, error)
+    try:
+        shown_sort = GridRequest.parse(request.GET, COLUMNS, DEFAULT_SORT).sort
+    except ValueError:
+        shown_sort = DEFAULT_SORT  # list_response refuses the page size and draws no rows
     return list_response(
         request,
         queryset=base_queryset(user),
@@ -200,7 +251,8 @@ def request_list(request):
             "selected_rows": selected_rows,
             "clear_url": clear_url,
             "refined": refined,
-            "list_query": request.GET.urlencode(),  # its sort orders Previous and Next
+            "list_query": _queue_list(request, shown_sort),
+            "chosen_query": chosen_query(request).urlencode(),  # the bulk form's address
         },
     )
 
@@ -499,7 +551,7 @@ def _neighbours(user, request_obj, list_query):
     if not list_query:
         return None, None
     ids = list(
-        ordered_requests(user, QueryDict(list_query)).values_list("pk", flat=True)[
+        ordered_requests(user, _queue_in_order(list_query)).values_list("pk", flat=True)[
             :NEIGHBOUR_WINDOW
         ]
     )
@@ -564,9 +616,7 @@ def _detail_context(request, request_obj, composer=None):
         "is_closed": closed,
         "composer_title": "Add an internal note" if closed else "Reply or add a note",
         "list_query": list_query,
-        "list_url": f"{reverse('desk:request-list')}?{list_query}"
-        if list_query
-        else reverse("desk:request-list"),
+        "list_url": _queue_url(list_query),
         "previous_url": _record_url(ServiceRequest(pk=previous), list_query) if previous else "",
         "next_url": _record_url(ServiceRequest(pk=following), list_query) if following else "",
         "follow_ups": staff_requests(user).filter(follow_up_of=request_obj).order_by("pk"),
@@ -1136,13 +1186,14 @@ def _filter_summary(params):
 @login_required
 def view_create(request):
     require_staff(request.user)
-    params = QueryDict(
+    list_query = (
         request.GET.get("list", "") if request.method == "GET" else request.POST.get("list", "")
     )
+    params = _queue_in_order(list_query)  # the view keeps the order the queue showed
     form = SavedViewForm(request.POST or None)
     if not is_supervisor(request.user):
         form.fields["shared_with"].choices = [("private", "Only me")]
-    list_url = f"{reverse('desk:request-list')}?{params.urlencode()}"
+    list_url = _queue_url(list_query)
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
@@ -1167,7 +1218,7 @@ def view_create(request):
         {
             "page_title": "Save view",
             "form": form,
-            "list_query": params.urlencode(),
+            "list_query": list_query,
             "filters": _filter_summary(params),
             "cancel_url": list_url,
             "submit_label": "Save view",
