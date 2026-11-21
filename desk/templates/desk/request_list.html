@@ -6,7 +6,10 @@ The request list (docs/ui-standards.md section 5). Context (core.lists.list_resp
 (desk.lists.RequestFilter), q, sort, per_page, active_filters and the toolbar context; views (the
 system views with counts), saved_views, current_view, view_description, bulk_form (each selected
 row posts "<id>:<revision>", so a request changed since the list was opened is refused), list_query
-(this list's query string, carried to each request page for previous and next).
+(desk.views._queue_list: what the person chose and the order shown, carried to each request page
+and to Save view), chosen_query (the bulk form's address: what the person chose, without the
+values added from their saved settings, which desk.views.request_list adds again to the post),
+restorable (a saved view's filters or order changed on the page: Clear all restores them).
 {% endcomment %}
 {% block page_intro %}<p class="vr-page-intro">{{ view_description }}</p>{% endblock %}
 {% block page_actions %}
@@ -27,11 +30,12 @@ row posts "<id>:<revision>", so a request changed since the list was opened is r
 <p class="vr-form-note"><a href="{% url 'desk:view-edit' view.view.pk %}">Rename, share or delete “{{ view.label }}”</a></p>
 {% endif %}{% endfor %}
 {% url 'desk:request-create' as create_url %}
+{% if bulk_form.errors and not page_obj.paginator.count %}{% notice tone="danger" label="Not changed" blocking=True %}Nothing was changed{% if selected_rows %}, and the selected tickets are no longer on this page{% endif %}.{% for field in bulk_form %}{% for error in field.errors %} {{ field.label }}: {{ error }}{% endfor %}{% endfor %}{% endnotice %}{% endif %}
 {% panel title=page_title table=True hidden_title=True %}
-  {% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields clear_url=clear_url %}
+  {% firstof active restorable as toolbar_active %}{% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields clear_url=clear_url active=toolbar_active %}
   {% list_results items=page_obj noun="tickets" filtered=refined invalid=filter_form.errors clear_url=clear_url error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match" no_results_body="Nothing in this view matches these filters." empty_title="No tickets here" empty_body="Tickets appear here as they are logged in the desk or raised in the client portal." action_url=create_url action_label="New ticket" %}
 {# form: bulk-selection #}
-  <form method="post" action="{{ request.path }}{% if list_query %}?{{ list_query }}{% endif %}" id="bulk-form"{% if bulk_form.errors %} data-vr-bulk-errors{% endif %}>
+  <form method="post" action="{{ request.path }}{% if chosen_query %}?{{ chosen_query }}{% endif %}" id="bulk-form"{% if bulk_form.errors %} data-vr-bulk-errors{% endif %}>
     {% csrf_token %}
     <label class="vr-bulk-master">{% select_all name="requests" label="Select all tickets on this page" %} Select this page</label>
     <button type="button" class="btn btn-outline-secondary vr-bulk-trigger" data-bs-toggle="offcanvas" data-bs-target="#ticket-bulk-actions" aria-controls="ticket-bulk-actions" aria-expanded="false">Change selected tickets <span data-vr-select-count="requests" aria-live="polite"></span></button>

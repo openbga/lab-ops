@@ -3,9 +3,10 @@
 {% comment %}
 The audit trail of one request (supervisors): every audit event of the request, its entries, its
 complaint record and its link attachments, oldest first. Payloads carry ids, codes and field
-names, never entry text or person-level keys. Context: req, events (AuditEvent), record_url.
+names, never entry text or person-level keys. Context: req, events (AuditEvent), record_url,
+list_url (the way back to the queue the request page was opened from).
 {% endcomment %}
-{% block breadcrumbs %}{% url 'desk:request-list' as list_url %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
 {% block content %}
 <p><a href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
 {% history_panel events=events title="Audit history" empty_title="No audit events" %}{% for event in events %}

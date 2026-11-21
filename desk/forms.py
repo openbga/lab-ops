@@ -38,10 +38,13 @@ def assign_choices(empty_label=None):
     from accounts.roles import ROLES
     from jobs.actor import system_account_id
 
+    # The teams first, then their members: a team switched on or off between the two readings is
+    # either listed with its members or not at all, never alone.
+    teams = list(Team.objects.filter(is_active=True))
     members = {}
     for membership in (
         TeamMembership.objects.filter(
-            team__is_active=True,
+            team_id__in=[team.pk for team in teams],
             user__is_active=True,
             user__client__isnull=True,
             # Only staff who can open the team's tickets: a member without a role cannot.
@@ -53,7 +56,7 @@ def assign_choices(empty_label=None):
     ):
         members.setdefault(membership.team_id, []).append(membership.user)
     choices = [("", empty_label)] if empty_label else []
-    for team in Team.objects.filter(is_active=True):
+    for team in teams:
         people = sorted(members.get(team.pk, []), key=lambda u: person_name(u).lower())
         group = [(f"{team.pk}:", f"{team.name} (nobody yet)")]
         # The team in the label too: a person in two teams must be told apart once chosen.
@@ -406,12 +409,30 @@ class ComplaintReviewForm(RevisionForm):
 BULK_ACTIONS = [("assign", "Assign"), ("status", "Set status"), ("close", "Close")]
 
 
+def _choice_values(choices):
+    """The values of grouped or flat choices."""
+    values = set()
+    for value, label in choices:
+        if isinstance(label, (list, tuple)):
+            values.update(inner for inner, _label in label)
+        else:
+            values.add(value)
+    return values
+
+
+# A refused value is not repeated back: it is whatever was posted.
+NOT_OFFERED = {"invalid_choice": "Choose one of the options offered."}
+
+
 class BulkForm(StyledForm, forms.Form):
-    action = forms.ChoiceField(choices=BULK_ACTIONS, label="With the selected")
-    assign_to = forms.ChoiceField(required=False, label="Assign to")
+    action = forms.ChoiceField(
+        choices=BULK_ACTIONS, label="With the selected", error_messages=NOT_OFFERED
+    )
+    assign_to = forms.ChoiceField(required=False, label="Assign to", error_messages=NOT_OFFERED)
     status = forms.ChoiceField(
         required=False,
         label="Status",
+        error_messages=NOT_OFFERED,
         choices=[
             ("", "Choose"),
             (Status.OPEN, Status.OPEN.label),
@@ -423,6 +444,34 @@ class BulkForm(StyledForm, forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["assign_to"].choices = assign_choices("Choose")
+
+    def refresh_choices(self):
+        """Read the teams and their members now: a refused form drawn again offers them as they
+        stand after the change it posted. Only the posted choice is judged again: kept when it
+        is still offered (said so when it was refused as not offered and is offered again), and
+        cleared, with the reason, when it is no longer offered; the other errors stay."""
+        field = self.fields["assign_to"]
+        field.choices = assign_choices("Choose")
+        chosen = self.data.get("assign_to", "") if self.is_bound else ""
+        if not chosen:
+            return
+        offered = chosen in _choice_values(field.choices)
+        refused = [error.code for error in self.errors.as_data().get("assign_to", [])]
+        if offered and "invalid_choice" in refused:
+            self.errors["assign_to"] = self.error_class(
+                [
+                    "The teams changed while you were choosing, and this choice is offered again. "
+                    "Check it and apply again."
+                ]
+            )
+        elif not offered:
+            self.data = self.data.copy()
+            self.data["assign_to"] = ""
+            if "invalid_choice" not in refused:
+                self.errors.setdefault("assign_to", self.error_class()).append(
+                    "The teams changed while you were choosing, and this choice is no longer "
+                    "offered. Choose a team or a person again."
+                )
 
     def clean(self):
         data = super().clean()

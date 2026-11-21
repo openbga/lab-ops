@@ -7,7 +7,17 @@ Every query starts from desk.selectors.staff_requests(user); filters only narrow
 from datetime import timedelta
 
 from django import forms
-from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
+from django.db.models import (
+    BigIntegerField,
+    Case,
+    Exists,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Value,
+    When,
+)
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 from django.utils import timezone
@@ -22,6 +32,7 @@ from taxonomy.models import RequestCategory
 from teams.models import Team
 
 from .models import EntryKind, RequestEntry, ServiceRequest, Status
+from .permissions import is_supervisor
 from .selectors import staff_requests
 
 ACTIVE = (Status.OPEN, Status.WAITING_CLIENT, Status.WAITING_THIRD_PARTY)
@@ -70,7 +81,9 @@ def needs_review():
     the complaint_review_independent constraint)."""
     reviewer_assigned = (
         _assignment_events()
-        .annotate(assignee_ref=Cast(KeyTextTransform("assignee_id", "event_data"), IntegerField()))
+        .annotate(
+            assignee_ref=Cast(KeyTextTransform("assignee_id", "event_data"), BigIntegerField())
+        )
         .filter(assignee_ref=OuterRef("complaint_review__reviewed_by"))
     )
     reviewer_decided = RequestEntry.objects.filter(
@@ -88,9 +101,11 @@ def needs_review():
 
 
 def awaiting_review_by(user):
-    """Complaints whose decision is recorded and whose review this user may give: they never
-    recorded or revised the decision and have never been its assignee
-    (desk.services.review_refusal, in SQL)."""
+    """Complaints whose decision is recorded and whose review this user may give: they are a
+    supervisor, never recorded or revised the decision and have never been its assignee
+    (desk.services.review_refusal, in SQL). Nothing for anyone else."""
+    if not is_supervisor(user):
+        return Q(pk__in=[])
     was_assignee = _assignment_events().filter(event_data__assignee_id=user.pk)
     decided = RequestEntry.objects.filter(
         request=OuterRef("pk"),

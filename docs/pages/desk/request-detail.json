@@ -57,7 +57,7 @@
     {
       "title": "Access",
       "paragraphs": [
-        "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list or Find, the page keeps the list's filters so Previous in list and Next in list can step through it.",
+        "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list, the page keeps the list's filters and the order it showed, so Previous in list and Next in list can step through it and the Tickets breadcrumb returns to it. Opened any other way, such as from Find or the dashboard, it shows no Previous or Next, and the breadcrumb opens the Tickets list with your saved sort and page size.",
         "The page is read at one moment: its details, conversation, links and the ticket revision its forms send agree with each other, and your roles are checked in the same reading. A change saved from it is refused as stale only if the ticket changed after the page opened. When an entry is refused, the page is shown again read the same way, and the entry form keeps what you typed and the revision it was opened with.",
         "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again."
       ]
@@ -91,7 +91,11 @@
         },
         {
           "label": "Previous in list / Next in list",
-          "description": "Shown at the end of the page when you opened the ticket from a list. They step through the list as it was filtered and sorted, among its first 2,000 tickets, and skip tickets you may not read. Neither appears if the ticket is not in that scan."
+          "description": "Shown at the end of the page when you opened the ticket from the Tickets list, whether or not you chose any filter or sort there. They step through the list as it was filtered and in the order it showed, your saved sort included, among its first 2,000 tickets, and skip tickets you may not read. Neither appears if the ticket is not in that scan. A list address longer than 4,000 characters, such as a very long search, is not carried, so the ticket then has no Previous or Next."
+        },
+        {
+          "label": "Tickets (breadcrumb)",
+          "description": "Returns to the list you opened the ticket from, with the view, filters, search and page, and the sort or rows per page only if you chose them there; the ticket's action pages and its audit history do the same. Your saved sort and page size then apply as they stand, including a change made in another tab; in a saved view, its own order applies. If a change you save moves the ticket out of what you can see, you return to that list."
         },
         {
           "label": "Closed notice",

@@ -3,9 +3,8 @@ session", using synthetic accounts, tickets and catalogs.
 
 Adopted from the reviewer's file (archived in the review history as the round-1 confirm4
 original) with these changes, each explained at the test: F4, F5 and F7 assert the documented
-bounds (docs/architecture.md and the What's new help); F1, F2 and F3, which predate this item, are
-expected to fail (strict) until the roadmap item "Review follow-up: a ticket's way back to the
-queue" is built, which then removes the marks.
+bounds (docs/architecture.md and the What's new help). F1, F2 and F3, which predate this item, were
+expected to fail until the follow-up "a ticket's way back to the queue" was built, and now pass.
 """
 
 import json
@@ -26,13 +25,6 @@ from .test_preferences_in_session import committed, edition
 pytestmark = pytest.mark.django_db(transaction=True)
 
 ROOT = Path(__file__).resolve().parents[2]
-
-# F1-F3 predate this item (they fail on be87eb8 as well): the staff queue's address, recorded as
-# the roadmap item "Review follow-up: a ticket's way back to the queue".
-QUEUE_FOLLOW_UP = pytest.mark.xfail(
-    strict=True,
-    reason="Predates this item: roadmap 'Review follow-up: a ticket's way back to the queue'",
-)
 
 
 def _catalog(monkeypatch):
@@ -230,9 +222,7 @@ def _queue_controls(response):
     return _list_controls(response.content.decode())
 
 
-@pytest.mark.parametrize(
-    "filtered", [pytest.param(False, marks=QUEUE_FOLLOW_UP), True], ids=["bare", "chosen-filter"]
-)
+@pytest.mark.parametrize("filtered", [False, True], ids=["bare", "chosen-filter"])
 def test_first_time_staff_can_step_through_the_default_queue(client, agent, category, filtered):
     from urllib.parse import urlsplit
 
@@ -258,11 +248,7 @@ def test_first_time_staff_can_step_through_the_default_queue(client, agent, cate
     ]
 
 
-@pytest.mark.parametrize(
-    "explicit_sort",
-    [pytest.param(False, marks=QUEUE_FOLLOW_UP), True],
-    ids=["default-sort", "chosen-sort"],
-)
+@pytest.mark.parametrize("explicit_sort", [False, True], ids=["default-sort", "chosen-sort"])
 def test_named_view_reopens_in_the_order_shown_when_saved(client, agent, explicit_sort):
     from urllib.parse import urlsplit
 
@@ -294,8 +280,8 @@ def test_named_view_reopens_in_the_order_shown_when_saved(client, agent, explici
 @pytest.mark.parametrize(
     "chosen",
     [
-        pytest.param({}, marks=QUEUE_FOLLOW_UP),
-        pytest.param({"sort": "subject"}, marks=QUEUE_FOLLOW_UP),
+        {},
+        {"sort": "subject"},
         {"sort": "subject", "per_page": 50},
     ],
     ids=["inherited", "mixed", "chosen"],
@@ -366,10 +352,8 @@ def test_queue_actions_only_resend_the_persons_choices(client, agent, category, 
     "source", ["settings", "filter-only", "filter-and-settings", "explicit-settings"]
 )
 def test_record_breadcrumb_keeps_only_grid_settings_chosen_on_the_address(
-    request, client, agent, category, clinic, clinic_portal, route, source
+    client, agent, category, clinic, clinic_portal, route, source
 ):
-    if route == "desk:request-list" and source in ("settings", "filter-and-settings"):
-        request.applymarker(QUEUE_FOLLOW_UP)  # the staff breadcrumb named in the roadmap item
     from django.test import Client
 
     from clients.models import PortalAccess

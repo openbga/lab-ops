@@ -47,7 +47,7 @@
   "good_to_know": [
     "Filters narrow the view you are in. Under My open, Assigned to set to Nobody finds nothing. Choose All tickets for the widest list.",
     "You only see tickets you may read. A ticket in a restricted category is listed only for its team's members and for supervisors.",
-    "A saved view keeps the filters, search text and sort, but starts from All tickets. To mimic My open, save it with Assigned to Me and Status Open or waiting.",
+    "A saved view keeps the view you chose, such as My open, with the filters, search text and order. Saved from a list where no view was chosen, it starts from All tickets.",
     "Closing is all or nothing: one ticket that is not resolved, or a complaint not yet reviewed, stops the whole bulk close and nothing is closed.",
     "The Overdue view and the Service clock filter depend on service targets. Where none is configured a ticket has no clock."
   ],
@@ -61,7 +61,7 @@
       "items": [
         {
           "label": "Views",
-          "description": "Opens the list of views with the number of tickets each holds, then your saved views and the ones shared with you. The current view is highlighted. A view's count ignores the filters you have set on this page."
+          "description": "Opens the list of views with the number of tickets each holds, then your saved views and the ones shared with you. The current view is highlighted. A view's count ignores the filters you have set on this page, and is counted as the page is drawn: a ticket changed at that moment can be in the count or the table only, until the next page."
         },
         {
           "label": "My open",
@@ -105,7 +105,7 @@
         },
         {
           "label": "Saved views",
-          "description": "Your own views and those a supervisor shared with everyone or with a team you belong to, each with who it is shared with. A saved view opens with its filters and sort on top of All tickets. A shared view shows each reader only what that reader may read."
+          "description": "Your own views and those a supervisor shared with everyone or with a team you belong to, each with who it is shared with. A saved view opens with its view (All tickets when none was chosen), filters and order. Its order does not change your own saved sort; a sort you choose while in it does. A shared view shows each reader only what that reader may read."
         },
         {
           "label": "Rename, share or delete",
@@ -113,7 +113,7 @@
         },
         {
           "label": "Save view",
-          "description": "Opens a form that stores this list's current filters, search text and sort under a name. Shown to every staff role; sharing needs the supervisor role."
+          "description": "Opens a form that stores this list's current filters, search text and the order it shows under a name, even the default order or one that came from your saved sort. Shown to every staff role; sharing needs the supervisor role."
         },
         {
           "label": "New ticket",
@@ -162,7 +162,7 @@
         },
         {
           "label": "Complaints",
-          "description": "More filters: Any, Complaints, Not complaints, or Awaiting review. Awaiting review keeps the complaints that have a decision, that you did not record the decision for, that you are not assigned to and have never been assigned to, and that are not yet reviewed: the ones you may review as independent reviewer."
+          "description": "More filters: Any, Complaints, Not complaints, or Awaiting review. Awaiting review keeps the complaints that have a decision, that you did not record the decision for, that you are not assigned to and have never been assigned to, and that are not yet reviewed: the ones you may review as independent reviewer. Only supervisors review complaints, so for anyone else it shows none."
         },
         {
           "label": "Service clock",
@@ -174,7 +174,7 @@
         },
         {
           "label": "Apply, Clear all and filter chips",
-          "description": "Apply combines the search and filters and returns to page 1. Clear all returns to the current queue. In a saved view it restores the saved filters and sort. Removing a chip clears one criterion."
+          "description": "Apply combines the search and filters and returns to page 1. Clear all returns to the current queue. In a saved view it restores the saved filters and sort, and it shows whenever you changed either. Removing a chip clears one criterion."
         },
         {
           "label": "Filter and sort (phones)",
@@ -190,7 +190,7 @@
       "items": [
         {
           "label": "Number",
-          "description": "The ticket number, such as REQ-000123. It opens the ticket, which remembers this list so Previous in list and Next in list can step through it. Sortable."
+          "description": "The ticket number, such as REQ-000123. It opens the ticket, which remembers this list and the order it shows, so Previous in list and Next in list can step through it and the ticket's Tickets breadcrumb returns here. Sortable."
         },
         {
           "label": "Subject",
@@ -235,7 +235,7 @@
         },
         {
           "label": "Assign to",
-          "description": "For Assign: choose a team, or a person from a team's list. Tickets already with that team and person are skipped, and closed tickets are refused. A person is offered only with the team they belong to. If the person is being deactivated or removed from the team at the same moment, the change saved second waits for the first: the assignment is refused, or their change returns the tickets to the queue. No reason is asked in bulk."
+          "description": "For Assign: choose a team, or a person from a team's list. Tickets already with that team and person are skipped, and closed tickets are refused. A person is offered only with the team they belong to. If the person is being deactivated or removed from the team at the same moment, the change saved second waits for the first: the assignment is refused, or their change returns the tickets to the queue. No reason is asked in bulk. A refused change draws the form with the teams as they are then: a choice still offered is kept, and one no longer offered is cleared with the reason. The refusal itself reflects the moment of the change, so a person who rejoined the team since can be chosen again."
         },
         {
           "label": "Status",
@@ -247,7 +247,7 @@
         },
         {
           "label": "Apply to selected",
-          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event."
+          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then, or a saved view's own order. If a refused change leaves the list drawn again with no tickets, a Not changed notice above it says nothing was changed and gives each field's reason; a reason about the selected tickets themselves, such as one changed meanwhile, is in the message above it."
         }
       ]
     },
@@ -260,7 +260,7 @@
         },
         {
           "label": "Rows per page and pagination",
-          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total."
+          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total. Without a sort or rows per page chosen on the page, your saved ones apply, also after searching or filtering; in a saved view, its own order comes before your saved sort."
         },
         {
           "label": "Empty states",

@@ -138,3 +138,31 @@ def test_a_layout_refused_at_the_limit_says_it_applies_to_this_page_only(page: P
     assert not UserPreference.objects.filter(user=user, key__startswith="grid:").exists()
     notice.get_by_role("button", name=re.compile("Dismiss|Close")).click()
     expect(notice).to_have_count(0)
+
+
+def test_cancelling_save_view_in_its_dialog_leaves_the_list_as_drawn(page: Page, demo):
+    """Save view opens in a dialog over the ticket list. Cancel closes it and leaves the list as it
+    was drawn; a reload follows the saved sort that another tab changed meanwhile (the Save view
+    help's Cancel). Desktop: the dialog is the same on a phone."""
+    page.set_viewport_size(DESKTOP)
+    from core.models import UserPreference
+
+    user = make_user("pref_queue", PASSWORD, "client_services")
+    stored = UserPreference.objects.filter(user=user, key="page:desk:request-list")
+    UserPreference.objects.create(user=user, key="page:desk:request-list", value={"sort": "number"})
+    sign_in(page, "pref_queue", PASSWORD)
+    page.goto("/requests/?view=all")
+    rows = page.locator('table[data-vr-grid="desk.requests"] tbody .vr-row-link')
+    drawn = rows.all_inner_texts()
+    assert len(drawn) > 2 and drawn == sorted(drawn)
+    page.get_by_role("link", name="Save view", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Save view")
+    expect(dialog).to_be_visible()
+    stored.update(value={"sort": "-number"})  # what another tab of this person saves meanwhile
+    dialog.get_by_role("link", name="Cancel", exact=True).click()
+    expect(dialog).to_be_hidden()
+    assert rows.all_inner_texts() == drawn
+    page.reload()
+    reloaded = rows.all_inner_texts()
+    assert reloaded == sorted(reloaded, reverse=True) and reloaded[0] > drawn[0]
+    assert stored.get().value == {"sort": "-number"}
