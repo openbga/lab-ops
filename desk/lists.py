@@ -22,6 +22,7 @@ from taxonomy.models import RequestCategory
 from teams.models import Team
 
 from .models import EntryKind, RequestEntry, ServiceRequest, Status
+from .permissions import is_supervisor
 from .selectors import staff_requests
 
 ACTIVE = (Status.OPEN, Status.WAITING_CLIENT, Status.WAITING_THIRD_PARTY)
@@ -88,9 +89,11 @@ def needs_review():
 
 
 def awaiting_review_by(user):
-    """Complaints whose decision is recorded and whose review this user may give: they never
-    recorded or revised the decision and have never been its assignee
-    (desk.services.review_refusal, in SQL)."""
+    """Complaints whose decision is recorded and whose review this user may give: they are a
+    supervisor, never recorded or revised the decision and have never been its assignee
+    (desk.services.review_refusal, in SQL). Nothing for anyone else."""
+    if not is_supervisor(user):
+        return Q(pk__in=[])
     was_assignee = _assignment_events().filter(event_data__assignee_id=user.pk)
     decided = RequestEntry.objects.filter(
         request=OuterRef("pk"),

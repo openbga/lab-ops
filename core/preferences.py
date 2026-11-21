@@ -326,17 +326,24 @@ def preference(request):
 
 def _add_saved(request, stored):
     """Add to request.GET the page size and sort in `stored` that its address leaves out, and note
-    their names: links may leave them out (core.grids.chosen_query)."""
+    their names: links may leave them out (core.grids.chosen_query). An empty value, which a
+    list's filter form sends for a setting the person did not choose, is left out first."""
+    params = request.GET.copy()
+    blank = [
+        name for name in GridPreferenceMiddleware.PARAMS if name in params and not params[name]
+    ]
+    for name in blank:
+        del params[name]
     missing = {
         name: stored[name]
         for name in GridPreferenceMiddleware.PARAMS
-        if name in stored and name not in request.GET
+        if name in stored and name not in params
     }
-    if missing:
-        params = request.GET.copy()
-        for name, value in missing.items():
-            params[name] = str(value)
+    for name, value in missing.items():
+        params[name] = str(value)
+    if blank or missing:
         request.GET = params
+    if missing:
         request.vr_saved_params = set(missing)
 
 

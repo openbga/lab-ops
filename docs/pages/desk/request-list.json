@@ -47,7 +47,7 @@
   "good_to_know": [
     "Filters narrow the view you are in. Under My open, Assigned to set to Nobody finds nothing. Choose All tickets for the widest list.",
     "You only see tickets you may read. A ticket in a restricted category is listed only for its team's members and for supervisors.",
-    "A saved view keeps the filters, search text and sort, but starts from All tickets. To mimic My open, save it with Assigned to Me and Status Open or waiting.",
+    "A saved view keeps the view you chose, such as My open, with the filters, search text and order. Saved from a list where no view was chosen, it starts from All tickets.",
     "Closing is all or nothing: one ticket that is not resolved, or a complaint not yet reviewed, stops the whole bulk close and nothing is closed.",
     "The Overdue view and the Service clock filter depend on service targets. Where none is configured a ticket has no clock."
   ],
@@ -105,7 +105,7 @@
         },
         {
           "label": "Saved views",
-          "description": "Your own views and those a supervisor shared with everyone or with a team you belong to, each with who it is shared with. A saved view opens with its filters and sort on top of All tickets. A shared view shows each reader only what that reader may read."
+          "description": "Your own views and those a supervisor shared with everyone or with a team you belong to, each with who it is shared with. A saved view opens with its view (All tickets when none was chosen), filters and order. Its order does not change your own saved sort; a sort you choose while in it does. A shared view shows each reader only what that reader may read."
         },
         {
           "label": "Rename, share or delete",
@@ -162,7 +162,7 @@
         },
         {
           "label": "Complaints",
-          "description": "More filters: Any, Complaints, Not complaints, or Awaiting review. Awaiting review keeps the complaints that have a decision, that you did not record the decision for, that you are not assigned to and have never been assigned to, and that are not yet reviewed: the ones you may review as independent reviewer."
+          "description": "More filters: Any, Complaints, Not complaints, or Awaiting review. Awaiting review keeps the complaints that have a decision, that you did not record the decision for, that you are not assigned to and have never been assigned to, and that are not yet reviewed: the ones you may review as independent reviewer. Only supervisors review complaints, so for anyone else it shows none."
         },
         {
           "label": "Service clock",
@@ -260,7 +260,7 @@
         },
         {
           "label": "Rows per page and pagination",
-          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total."
+          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total. Without a sort or rows per page chosen on the page, your saved ones apply, also after searching or filtering."
         },
         {
           "label": "Empty states",

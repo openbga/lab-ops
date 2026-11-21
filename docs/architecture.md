@@ -310,11 +310,16 @@ new mark, are combined with the stored value holding its row, and a list saves o
 size and sort it applied with valid filters, once the response is ready (not a sort it does not
 offer, not with refused filters, nothing for a lookup or an error). A list's links and forms
 re-send only what the person chose on that page, not values added from their saved settings,
-so they never put back a value another tab changed. The staff queue's ticket links and its Save
-view add the order the queue showed (`order` in their `list` value), which Previous, Next and the
-stored view use, while the ticket's way back drops it; changes to several tickets post to the
-queue's address as chosen and add the saved page size and sort to that post, saving nothing. A
-person keeps at most 300; an
+so they put back no value the person did not choose there; an empty page size or sort (a filter
+form's unset field) counts as not chosen. The staff queue's ticket links and its Save view add
+the order the queue showed (`order` in their `list` value), which Previous, Next and the stored
+view use, while every way back from the ticket drops it; a sort the queue offers takes
+precedence over `order`, so an older address with a typed `order` keeps its sort unless it had
+none. A `list` value over 4,000 characters is not carried, and one may hold one parameter more
+than a request (the order). Changes to several tickets post to the queue's address as chosen and
+add the saved page size and sort to that post, saving nothing. A saved view's order is applied
+by the queue, not sent as a sort, so opening the view saves no sort for the person. A person
+keeps at most 300; an
 addition counts and inserts holding that person's additions lock, a transaction-level advisory
 lock keyed like the access gate, so two at the same moment cannot both take the last place,
 while changing or removing a stored one takes no lock. The count needs READ COMMITTED, Django's

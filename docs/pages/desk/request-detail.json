@@ -91,11 +91,11 @@
         },
         {
           "label": "Previous in list / Next in list",
-          "description": "Shown at the end of the page when you opened the ticket from the Tickets list, whether or not you chose any filter or sort there. They step through the list as it was filtered and in the order it showed, your saved sort included, among its first 2,000 tickets, and skip tickets you may not read. Neither appears if the ticket is not in that scan."
+          "description": "Shown at the end of the page when you opened the ticket from the Tickets list, whether or not you chose any filter or sort there. They step through the list as it was filtered and in the order it showed, your saved sort included, among its first 2,000 tickets, and skip tickets you may not read. Neither appears if the ticket is not in that scan. A list address longer than 4,000 characters, such as a very long search, is not carried, so the ticket then has no Previous or Next."
         },
         {
           "label": "Tickets (breadcrumb)",
-          "description": "Returns to the list you opened the ticket from, with the view, filters, search and page, and the sort or rows per page only if you chose them there. Your saved sort and page size then apply as they stand, including a change made in another tab."
+          "description": "Returns to the list you opened the ticket from, with the view, filters, search and page, and the sort or rows per page only if you chose them there; the ticket's action pages and its audit history do the same. Your saved sort and page size then apply as they stand, including a change made in another tab. If a change you save moves the ticket out of what you can see, you return to that list."
         },
         {
           "label": "Closed notice",

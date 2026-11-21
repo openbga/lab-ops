@@ -260,3 +260,212 @@ def test_a_bulk_change_returns_to_the_chosen_page_and_sort(client, agent, ticket
     assert _query(done.url) == {k: [v] for k, v in chosen.items()}
     back = client.get(done.url)
     assert (back.context["sort"], back.context["per_page"]) == ("-subject", 50)
+
+
+# Neighbours of the round-1 review's fixes (desk/tests/test_review_queue_way_back.py).
+
+
+def _saved_view(owner, sort="number"):
+    return SavedView.objects.create(
+        owner=owner, name="By number", filters={"view": "all", "q": "Collection"}, sort=sort
+    )
+
+
+def _picker_link(page, view):
+    return next(
+        a["href"]
+        for a in _list_controls(page.content.decode()).links
+        if _query(a["href"]).get("saved") == [str(view.pk)]
+    )
+
+
+def test_a_saved_views_order_applies_without_saving_it_for_the_person(client, agent, tickets):
+    row = UserPreference.objects.create(user=agent, key=QUEUE_KEY, value=SAVED)
+    view = _saved_view(agent)
+    client.force_login(agent)
+    queue, _ = _queue(client)
+    link = _picker_link(queue, view)
+    assert "sort" not in _query(link)
+    opened = client.get(link)
+    assert (opened.context["sort"], opened.context["per_page"]) == ("number", 50)
+    assert [t.pk for t in opened.context["page_obj"]] == [t.pk for t in tickets]
+    row.refresh_from_db()
+    assert row.value == SAVED
+    controls = _list_controls(opened.content.decode())
+    carried = _carried(_link_to(controls, _detail(tickets[1])))
+    assert carried["order"] == ["number"] and "sort" not in carried
+    page = client.get(_link_to(controls, _detail(tickets[1])))
+    assert urlsplit(page.context["previous_url"]).path == _detail(tickets[0])
+    back = client.get(page.context["list_url"])
+    assert back.context["sort"] == "number" and back.context["active_filters"]
+    row.refresh_from_db()
+    assert row.value == SAVED
+
+
+def test_a_sort_chosen_inside_a_saved_view_is_the_persons_until_the_view_is_opened_again(
+    client, agent, tickets
+):
+    view = _saved_view(agent)
+    client.force_login(agent)
+    link = _picker_link(_queue(client)[0], view)
+    chosen = client.get(link + "&sort=-subject")
+    assert chosen.context["sort"] == "-subject"
+    assert UserPreference.objects.get(user=agent, key=QUEUE_KEY).value == {"sort": "-subject"}
+    assert client.get(link).context["sort"] == "number"
+    assert client.get(reverse("desk:request-list")).context["sort"] == "-subject"
+
+
+def test_a_saved_view_without_an_order_follows_the_persons_saved_sort(client, agent, tickets):
+    UserPreference.objects.create(user=agent, key=QUEUE_KEY, value=SAVED)
+    view = _saved_view(agent, sort="")
+    client.force_login(agent)
+    opened = client.get(_picker_link(_queue(client)[0], view))
+    assert opened.context["sort"] == "subject"
+
+
+def test_an_older_saved_view_address_with_its_sort_is_a_choice(client, agent, tickets):
+    view = _saved_view(agent)
+    client.force_login(agent)
+    old = f"{reverse('desk:request-list')}?view=all&q=Collection&saved={view.pk}&sort=number"
+    assert client.get(old).context["sort"] == "number"
+    assert UserPreference.objects.get(user=agent, key=QUEUE_KEY).value == {"sort": "number"}
+
+
+@pytest.mark.parametrize(
+    "route,sort", [("clients:client-list", "-name"), ("portal:request-list", "-subject")]
+)
+def test_an_empty_sort_or_page_size_on_any_list_is_not_a_choice(
+    client, agent, clinic, clinic_portal, route, sort
+):
+    from clients.models import PortalAccess
+
+    PortalAccess.objects.create(user=clinic_portal, client=clinic, whole_organization=True)
+    person = clinic_portal if route.startswith("portal:") else agent
+    saved = {"sort": sort, "per_page": 50}
+    row = UserPreference.objects.create(user=person, key=f"page:{route}", value=saved)
+    client.force_login(person)
+    page = client.get(reverse(route), {"q": "Example", "sort": "", "per_page": ""})
+    assert page.status_code == 200
+    assert (page.context["sort"], page.context["per_page"]) == (sort, 50)
+    assert page.wsgi_request.GET.getlist("sort") == [sort]  # the blank one is not kept
+    row.refresh_from_db()
+    assert row.value == saved
+
+
+def test_an_empty_value_without_saved_settings_shows_the_defaults(client, agent, tickets):
+    client.force_login(agent)
+    page, controls = _queue(client, {"q": "Collection", "sort": "", "per_page": ""})
+    assert (page.context["sort"], page.context["per_page"]) == (DEFAULT_SORT, 25)
+    assert _carried(_link_to(controls, _detail(tickets[1]))) == {
+        "q": ["Collection"],
+        "order": [DEFAULT_SORT],
+    }
+
+
+def test_a_refused_bulk_change_from_an_empty_settings_address_uses_the_saved_ones(
+    client, agent, tickets
+):
+    UserPreference.objects.create(user=agent, key=QUEUE_KEY, value=SAVED)
+    client.force_login(agent)
+    redraw = client.post(
+        f"{reverse('desk:request-list')}?q=Collection&sort=&per_page=",
+        {"requests": f"{tickets[0].pk}:{tickets[0].revision}"},
+    )
+    assert redraw.status_code == 200 and redraw.context["bulk_form"].errors
+    assert (redraw.context["sort"], redraw.context["per_page"]) == ("subject", 50)
+
+
+@pytest.mark.parametrize("name", ["desk:request-status", "desk:request-history"])
+def test_an_action_page_opened_without_the_queue_goes_back_to_the_plain_queue(
+    client, make_user, agent, tickets, name
+):
+    supervisor = make_user("history_reader", "supervisor")
+    client.force_login(supervisor)
+    page = client.get(reverse(name, args=[tickets[1].pk]))
+    assert page.status_code == 200
+    from html.parser import HTMLParser
+
+    class Crumbs(HTMLParser):
+        inside, links = False, []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "nav":
+                self.inside = attrs.get("aria-label") == "Breadcrumb"
+            elif self.inside and tag == "a":
+                self.links.append(attrs["href"])
+
+    crumbs = Crumbs()
+    crumbs.links = []
+    crumbs.feed(page.content.decode())
+    assert crumbs.links[0] == reverse("desk:request-list")
+
+
+def test_a_ticket_leaving_scope_without_the_queue_returns_to_the_plain_queue(
+    client, agent, category, privacy_category
+):
+    ticket = new_request(agent, category, subject="Collection schedule")
+    client.force_login(agent)
+    url = reverse("desk:request-properties", args=[ticket.pk])
+    moved = client.post(
+        url,
+        {
+            "expected_revision": ticket.revision,
+            "category": privacy_category.pk,
+            "priority": "normal",
+        },
+    )
+    assert moved.status_code == 302 and moved.url == reverse("desk:request-list")
+
+
+@pytest.mark.parametrize("extra,carried", [(0, True), (1, False)])
+def test_a_list_value_is_carried_whole_up_to_its_limit_and_not_at_all_beyond(
+    client, agent, tickets, extra, carried
+):
+    from desk.views import LIST_LIMIT
+
+    client.force_login(agent)
+    value = "view=all&q=Collection&order=subject&x="
+    value += "y" * (LIST_LIMIT - len(value) + extra)
+    page = client.get(_detail(tickets[1]), {"list": value})
+    neighbours = [page.context["previous_url"], page.context["next_url"]]
+    if carried:
+        assert [urlsplit(u).path for u in neighbours] == [_detail(tickets[0]), _detail(tickets[2])]
+        assert _query(page.context["list_url"])["q"] == ["Collection"]
+    else:
+        assert neighbours == ["", ""]
+        assert page.context["list_url"] == reverse("desk:request-list")
+        assert page.context["list_query"] == ""  # its forms carry nothing either
+
+
+def test_a_list_value_with_two_fields_too_many_is_not_carried(client, agent, tickets, settings):
+    settings.DATA_UPLOAD_MAX_NUMBER_FIELDS = 4
+    client.force_login(agent)
+    within = "view=all&q=Collection&sort=subject&per_page=25&order=subject"  # five: the limit + 1
+    beyond = within + "&page=1"
+    page = client.get(_detail(tickets[1]), {"list": within})
+    assert urlsplit(page.context["next_url"]).path == _detail(tickets[2])
+    page = client.get(_detail(tickets[1]), {"list": beyond})
+    assert page.context["previous_url"] == page.context["next_url"] == ""
+    assert page.context["list_url"] == reverse("desk:request-list")
+    assert client.get(reverse("desk:view-create"), {"list": beyond}).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "earlier,order",
+    [
+        ("view=all&order=subject", "ABC"),  # documented: no offered sort, so `order` applies
+        ("view=all&sort=retired&order=subject", "ABC"),
+        ("view=all&sort=-subject&order=subject", "CBA"),  # an offered sort keeps its meaning
+    ],
+)
+def test_an_order_in_a_list_value_applies_only_where_no_offered_sort_is_given(
+    client, agent, tickets, earlier, order
+):
+    client.force_login(agent)
+    by_letter = {t.subject[-1]: t for t in tickets}
+    page = client.get(_detail(by_letter[order[1]]), {"list": earlier})
+    assert [urlsplit(page.context[k]).path for k in ("previous_url", "next_url")] == [
+        _detail(by_letter[order[0]]),
+        _detail(by_letter[order[2]]),
+    ]

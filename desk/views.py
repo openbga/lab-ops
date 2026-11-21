@@ -5,15 +5,16 @@ Every read starts from desk.selectors.staff_requests (or desk.lists, which does)
 the user may not read answers 404 on every route. Every change goes through desk.services.
 """
 
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode
 
 from django.apps import apps
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import OuterRef, Q, Subquery
-from django.http import Http404, QueryDict
+from django.http import Http404, HttpResponseBadRequest, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.cache import add_never_cache_headers, patch_cache_control
@@ -104,14 +105,40 @@ def _record_url(request_obj, list_query=""):
     return f"{url}?{urlencode({'list': list_query})}" if list_query else url
 
 
+# A request page carries the queue it was opened from up to this length (a long search typed in
+# another script); a longer value is not carried at all, because a cut one would name another list.
+LIST_LIMIT = 4000
+
+
 def _back(request):
     """The list query string the request page was opened from (kept through its forms)."""
-    return (request.GET.get("list") or request.POST.get("list") or "")[:2000]
+    value = request.GET.get("list") or request.POST.get("list") or ""
+    return value if len(value) <= LIST_LIMIT else ""
 
 
 # In a request page's `list` value, the sort the queue showed (_queue_list); the queue itself
 # takes no parameter of that name.
 SHOWN_ORDER = "order"
+
+
+def _list_params(list_query):
+    """The parameters of a `list` value, or None when it has more than a request may carry plus
+    the order shown (DATA_UPLOAD_MAX_NUMBER_FIELDS + 1): the queue's own address was accepted with
+    one field fewer, so its links open too."""
+    limit = settings.DATA_UPLOAD_MAX_NUMBER_FIELDS
+    query = QueryDict(mutable=True)
+    try:
+        pairs = parse_qsl(
+            list_query,
+            keep_blank_values=True,
+            encoding=query.encoding,
+            max_num_fields=None if limit is None else limit + 1,
+        )
+    except ValueError:
+        return None
+    for key, value in pairs:
+        query.appendlist(key, value)
+    return query
 
 
 def _queue_list(request, sort):
@@ -127,17 +154,22 @@ def _queue_list(request, sort):
 
 def _queue_address(list_query):
     """The queue's address as the person chose it: the `list` value without the order shown."""
-    query = QueryDict(list_query, mutable=True)
+    query = _list_params(list_query) or QueryDict(mutable=True)
     query.pop(SHOWN_ORDER, None)
     return query
 
 
 def _queue_in_order(list_query):
-    """The queue's query in the order it showed: for previous, next and a saved view. A value
-    from before the order was carried (a page opened earlier) is the queue's full address."""
-    query = QueryDict(list_query, mutable=True)
+    """The queue's query in the order it showed, or None for a value with too many parameters:
+    for previous, next and a saved view. A sort the queue offers is the one it showed, so it is
+    kept; otherwise the order shown replaces it. A value from before the order was carried (a page
+    opened earlier) is the queue's full address, which an `order` typed into that address changes
+    only where it carried no sort the queue offers."""
+    query = _list_params(list_query)
+    if query is None:
+        return None
     order = query.pop(SHOWN_ORDER, None)
-    if order:
+    if order and query.get("sort", "").removeprefix("-") not in COLUMNS:
         query["sort"] = order[-1]
     return query
 
@@ -176,9 +208,9 @@ def _view_picker(user, current_view, current_saved):
 
 
 def _saved_url(view):
-    params = {"view": "all", **view.filters, "saved": view.pk}  # stored view, else all
-    if view.sort:
-        params["sort"] = view.sort
+    """A saved view's address: its stored view (else all) and filters. Its order is applied by
+    the list (request_list), not sent as a sort, so opening it saves no sort for the person."""
+    params = {"view": "all", **view.filters, "saved": view.pk}
     return f"{reverse('desk:request-list')}?{urlencode(params)}"
 
 
@@ -199,6 +231,19 @@ def request_list(request):
     current_saved = request.GET.get("saved", "")
     views, saved = _view_picker(user, current_view, current_saved)
     active_view = next((item for item in saved if item["current"]), None)
+    inherited = getattr(request, "vr_saved_params", set())
+    if (
+        active_view
+        and active_view["view"].sort
+        and ("sort" not in request.GET or "sort" in inherited)
+    ):
+        # A saved view opens in its own order unless the person chose one on this page. That
+        # order is the view's, not the person's choice: it is neither saved for them (it is not
+        # on the address) nor re-sent by the list's links, which keep `saved`, so it applies again.
+        params = request.GET.copy()
+        params["sort"] = active_view["view"].sort
+        request.GET = params
+        request.vr_saved_params = {*inherited, "sort"}
     title = active_view["label"] if active_view else SYSTEM_VIEWS[current_view][0]
     clear_url = (
         active_view["url"] if active_view else f"{reverse('desk:request-list')}?view={current_view}"
@@ -548,13 +593,10 @@ def category_guidance(request):
 
 
 def _neighbours(user, request_obj, list_query):
-    if not list_query:
+    params = _queue_in_order(list_query) if list_query else None
+    if params is None:
         return None, None
-    ids = list(
-        ordered_requests(user, _queue_in_order(list_query)).values_list("pk", flat=True)[
-            :NEIGHBOUR_WINDOW
-        ]
-    )
+    ids = list(ordered_requests(user, params).values_list("pk", flat=True)[:NEIGHBOUR_WINDOW])
     if request_obj.pk not in ids:
         return None, None
     index = ids.index(request_obj.pk)
@@ -757,9 +799,9 @@ def _action_form(
         else:
             messages.success(request, message)
             if not staff_requests(request.user).filter(pk=request_obj.pk).exists():
-                # Moved to a restricted category or team the user is not in.
+                # Moved to a restricted category or team the user is not in: back to the queue.
                 messages.info(request, f"{request_obj.number} is now outside what you can see.")
-                return redirect("desk:request-list")
+                return redirect(_queue_url(_back(request)))
             return redirect(record_url)
     if request.method == "POST":
         # Scope again before the refused form shows anything about the request.
@@ -784,7 +826,7 @@ def _action_form(
             "cancel_url": record_url,
             "list_query": _back(request),
             "crumbs": [
-                ("Tickets", reverse("desk:request-list")),
+                ("Tickets", _queue_url(_back(request))),
                 (request_obj.number, record_url),
                 (title, None),
             ],
@@ -1157,6 +1199,7 @@ def request_history(request, pk):
             "req": request_obj,
             "events": audit_changes(events),
             "record_url": _record_url(request_obj, _back(request)),
+            "list_url": _queue_url(_back(request)),
         },
     )
 
@@ -1190,6 +1233,8 @@ def view_create(request):
         request.GET.get("list", "") if request.method == "GET" else request.POST.get("list", "")
     )
     params = _queue_in_order(list_query)  # the view keeps the order the queue showed
+    if params is None:
+        return HttpResponseBadRequest("The list's address has too many parameters to save.")
     form = SavedViewForm(request.POST or None)
     if not is_supervisor(request.user):
         form.fields["shared_with"].choices = [("private", "Only me")]

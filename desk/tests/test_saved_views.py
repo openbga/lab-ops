@@ -349,8 +349,12 @@ class TestPages:
         assert response.status_code == 302
         target = QueryDict(response["Location"].split("?", 1)[1])
         assert target["view"] == "my-open" and target["saved"] == str(view.pk)
-        assert target["status"] == "waiting_client" and target["sort"] == "-priority"
+        assert target["status"] == "waiting_client"
         assert "bogus" not in target and "page" not in target
+        # The view's order is applied by the list, not sent as a sort, so opening the view saves
+        # no sort for the person (review of the queue's way back, round 1, F1).
+        assert "sort" not in target
+        assert client.get(response["Location"]).context["sort"] == "-priority"
 
     def test_a_saved_view_reopens_on_its_system_view(self, client, agent, join, team, category):
         join(agent, team)

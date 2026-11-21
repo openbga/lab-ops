@@ -67,7 +67,7 @@
         },
         {
           "label": "Cancel",
-          "description": "Returns to the list you came from, with its view, filters and search, and the sort or rows per page only if you chose them there; your saved sort and page size apply as they stand."
+          "description": "Closes the form and leaves the list as it was drawn; reload it to see a change made in another tab. Where the form opens on a page of its own, Cancel returns to the list you came from, with its view, filters and search, and the sort or rows per page only if you chose them there; your saved sort and page size then apply as they stand."
         }
       ]
     },
@@ -104,7 +104,7 @@
         },
         {
           "label": "What a view stores",
-          "description": "The queue, filters, search text and the order the list showed are saved. Your column choices and page size are separate list preferences."
+          "description": "The queue, filters, search text and the order the list showed are saved. Opening the view shows that order without changing your own saved sort, unless you sort it another way. Your column choices and page size are separate list preferences."
         }
       ]
     }
