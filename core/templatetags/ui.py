@@ -404,7 +404,8 @@ def grid_query(context, **changes):
     """A list link's query string: what the person chose on this page, with `changes` applied
     (None removes a parameter). For sort headings: what Django's querystring tag does, applied to
     what the person chose, without the values added from saved settings (the steps are repeated
-    here so that any parameter name, `query_dict` included, can be changed)."""
+    here so that a parameter named `query_dict` can be changed too; only `context`, which every
+    context tag takes, Django's included, cannot)."""
     chosen = _chosen_query(context)
     query = chosen.copy()
     for name, value in changes.items():

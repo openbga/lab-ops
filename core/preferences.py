@@ -113,6 +113,11 @@ def for_request(request):
     return prefs
 
 
+def _same_json(stored, value):
+    """Whether `stored` and `value` are written as the same JSON (Python takes 50.0 == 50)."""
+    return json.dumps(stored, sort_keys=True) == json.dumps(value, sort_keys=True)
+
+
 def _writable_json(value):
     try:
         json.dumps(value, allow_nan=False)
@@ -253,7 +258,7 @@ def save_combined(request, key, combine):
             row = row or rows.first()  # again holding the lock: one added meanwhile is combined
             value = combined(row)
             if row is not None:  # held: nobody can change or remove it before this commits
-                if row.value != value:
+                if not _same_json(row.value, value):  # 50.0 is replaced by 50, not kept
                     rows.update(value=value, updated_at=timezone.now())
                 break
             if _add(user_id, key, value):

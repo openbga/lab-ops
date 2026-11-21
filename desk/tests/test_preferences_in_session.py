@@ -622,3 +622,33 @@ def test_grid_query_changes_a_parameter_of_any_name(rf, name):
     template = Template("{% load ui %}{% grid_query " + name + '="new" %}')
     rendered = template.render(Context({"request": request})).replace("&amp;", "&")
     assert rendered == f"?{name}=new&q=collection"
+
+
+# Sixth confirmation's neighbours -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("stored", "chosen", "rewritten"),
+    [
+        ({"per_page": 50.0}, {"per_page": 50}, True),  # H6: the same number, another JSON
+        ({"per_page": 50, "sort": "subject"}, {"sort": "subject", "per_page": 50}, False),
+        ({"per_page": 50}, {"per_page": 50}, False),
+        ({"per_page": 50}, {"per_page": 100}, True),
+    ],
+)
+def test_a_combined_save_writes_only_a_different_json_value(agent, stored, chosen, rewritten):
+    """H6's neighbours: a stored value is replaced when its JSON differs, also by type only, and
+    left alone (its time unchanged) when only the order of its keys differs."""
+    from django.test import RequestFactory
+
+    key = "page:desk:request-list"
+    row = UserPreference.objects.create(user=agent, key=key, value=stored)
+    before = row.updated_at
+    request = RequestFactory().get("/")
+    request.user = agent
+    preferences.save_combined(request, key, lambda _stored: dict(chosen))
+    row.refresh_from_db()
+    assert (row.updated_at != before) == rewritten
+    assert json.dumps(row.value, sort_keys=True) == json.dumps(
+        chosen if rewritten else stored, sort_keys=True
+    )
