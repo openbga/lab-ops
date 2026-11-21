@@ -345,7 +345,8 @@ class AccountCreationForm(AccessRules, AdminUserCreationForm):
 
 class EndSessionsForm(forms.Form):
     reason = forms.CharField(
-        widget=forms.Textarea(attrs={"rows": 3, "cols": 60}),
+        # The page's one field: focused when it opens, and again when a save is refused.
+        widget=forms.Textarea(attrs={"rows": 3, "cols": 60, "autofocus": True}),
         max_length=1000,
         help_text="Recorded in the audit history with the sessions ended, for example the person "
         "has left or a device was lost. Do not include patient information.",
@@ -654,7 +655,12 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 raise Http404("No such account.") from None
             else:
                 name = user.get_username()
-                if not ended:
+                if not ended and own:
+                    text = (
+                        "None of your other sessions was open, so nothing changed. The session "
+                        "you are using stays signed in."
+                    )
+                elif not ended:
                     text = f"No session of {name} was open, so nothing changed."
                 elif own:
                     text = (
@@ -680,7 +686,6 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             "form": form,
             "own_account": own,
             "open_count": len(rows),
-            "last_activity": max((row.last_active_at for row in rows), default=None),
         }
         request.current_app = self.admin_site.name
         return TemplateResponse(request, "admin/accounts/user/end_sessions.html", context)

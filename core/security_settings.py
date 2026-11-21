@@ -523,15 +523,18 @@ def _sign_in(facts):
                 "release",
                 "The application passes completed sign-ins, refused passwords, wrong codes "
                 "entered for an existing account, sign-outs made with Sign out and sessions "
-                "ended by the session limits, a deactivation or a new password to its sign-in "
-                "log (lab_ops.signin), with the username when the account is known. Some "
+                "ended by the session limits, a deactivation, a new password, the person from "
+                "another of their sessions or a superuser to its sign-in log (lab_ops.signin), "
+                "with the username when the account is known. Some "
                 "refusals are not passed: a code entered after its emailed sign-in attempt "
                 "expired, a code for an address with no account, and a request stopped by the "
                 "request limit before any check. Where that log goes and how long it is kept is "
                 "set by the logging configuration and the host. The database keeps each "
-                "account's last sign-in time and, for each session, when it started, when it "
-                "was last active and when and why it ended. Failed sign-ins are not stored, and "
-                "no page lists the sessions yet.",
+                "account's last sign-in time and, for each session, when it started, the "
+                "browser and address it reported at sign-in, when it was last active and when "
+                "and why it ended. Each person sees their own open sessions on Where you are "
+                "signed in; ended sessions stay in the database and no page lists them. Failed "
+                "sign-ins are not stored.",
             ),
         ),
     ]
@@ -557,18 +560,17 @@ def _limits_text(field_name):
 
 
 def _session_address():
-    """Where the address a session records comes from, by the deployment's proxy settings (the
-    ones the sign-in limits use)."""
-    if settings.ALLAUTH_TRUSTED_CLIENT_IP_HEADER:
-        return (
-            f"the address is read from the {settings.ALLAUTH_TRUSTED_CLIENT_IP_HEADER} header "
-            "(ALLAUTH_TRUSTED_CLIENT_IP_HEADER)."
-        )
-    if settings.ALLAUTH_TRUSTED_PROXY_COUNT > 0:
+    """Where the address a session records comes from, by the deployment's proxy settings as
+    allauth reads them (the ones the sign-in limits use, accounts.sessions.reported_by)."""
+    header = allauth_settings.TRUSTED_CLIENT_IP_HEADER
+    proxies = allauth_settings.TRUSTED_PROXY_COUNT
+    if header:
+        return f"the address is read from the {header} header (ALLAUTH_TRUSTED_CLIENT_IP_HEADER)."
+    if proxies > 0:
         return (
             f"the address is read from X-Forwarded-For behind "
-            f"{_count(settings.ALLAUTH_TRUSTED_PROXY_COUNT, 'trusted proxy', 'trusted proxies')} "
-            "(ALLAUTH_TRUSTED_PROXY_COUNT)."
+            f"{_count(proxies, 'trusted proxy', 'trusted proxies')} (ALLAUTH_TRUSTED_PROXY_COUNT), "
+            "or is the connecting one when a request carries no X-Forwarded-For."
         )
     return (
         "the address is the connecting one, so behind a proxy every session shows the proxy's "
@@ -669,7 +671,8 @@ def _sessions(facts):
         _fact(
             "own-sessions",
             "Where you are signed in",
-            ["MIDDLEWARE"],
+            # The address is the account adapter's (accounts.sessions.reported_by).
+            ["MIDDLEWARE", "ACCOUNT_ADAPTER"],
             lambda: Fact(
                 "own-sessions",
                 "Where you are signed in",
@@ -690,9 +693,10 @@ def _sessions(facts):
                 "Ending a person's sessions",
                 "A superuser, from the account's page in the admin console, with a reason",
                 "accounts",
-                "Every open session of the account ends and its browsers go to the sign-in page "
-                "at their next request. The account can sign in again unless it is also "
-                "deactivated or given a new password. Each ending is kept in the audit history.",
+                "Every open session of the account ends, except the one in use when superusers "
+                "end their own account's sessions, and its browsers go to the sign-in page at "
+                "their next request. The account can sign in again unless it is also "
+                "deactivated. Each ending is kept in the audit history.",
             ),
         ),
         _fact(

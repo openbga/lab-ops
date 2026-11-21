@@ -173,8 +173,12 @@ def test_expiry_notice_describes_the_ending_that_won(account, monkeypatch, inter
         assert row.ended_at == row.last_active_at + 20 * MIN
         assert notices == [sessions.ENDED_MESSAGES["inactivity"].format(inactivity="20 minutes")]
     else:
-        assert row.ending == "signed_out"
-        assert notices == [sessions.ENDED_MESSAGE]
+        # Adapted (session list, review round 1): an ending of a row that has already passed a
+        # limit records the limit, at the moment it passed (accounts.sessions.end_session_rows),
+        # and the notice describes that recorded ending.
+        assert row.ending == "inactivity"
+        assert row.ended_at == row.last_active_at + 30 * MIN
+        assert notices == [sessions.ENDED_MESSAGES["inactivity"].format(inactivity="30 minutes")]
 
 
 def test_successful_stay_returns_the_policy_used_to_record_activity(account, monkeypatch):

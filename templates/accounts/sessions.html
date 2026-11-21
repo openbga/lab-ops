@@ -7,16 +7,16 @@ inside both session limits (accounts.session_list.open_sessions), this browser's
 this_session (an OpenSession or None), other_sessions (OpenSession rows; empty for a shared
 demonstration account), other_count (how many other sessions are open, listed or not), listed_count (the rows shown), locked
 (a shared demonstration account: the other sessions are other visitors', so they are only
-counted and nothing is signed out here), shown (the listed other sessions' ids, comma-separated,
-sent with Sign out of all other sessions so that its confirmation names those signed in after the
-page was opened). Each Sign out asks for confirmation and posts; the server decides from the
+counted and nothing is signed out here), drawn_at (the database's clock when the sessions were
+read, sent with Sign out of all other sessions so that its confirmation counts those signed in
+after the page was opened). Each Sign out asks for confirmation and posts; the server decides from the
 sessions as they stand when it is saved.
 {% endcomment %}
 {% block page_intro %}<p class="vr-page-intro">The browsers where your account is signed in now. Sign out any you do not recognize or no longer use.</p>{% endblock %}
 {% block page_actions %}{% if other_sessions %}<button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#sign-out-others">Sign out of all other sessions</button>{% endif %}{% endblock %}
 {% block content %}
 {% if locked %}
-{% notice tone="info" label="Shared demonstration account" %}Other visitors use this account too. {% if other_count %}{{ other_count }} other session{{ other_count|pluralize }} {{ other_count|pluralize:"is,are" }} open now. They{% else %}Other sessions{% endif %} are not listed here and cannot be signed out from this page.{% endnotice %}
+{% notice tone="info" label="Shared demonstration account" %}Other visitors use this account too. {% if other_count %}{{ other_count }} other session{{ other_count|pluralize }} {{ other_count|pluralize:"is,are" }} open now.{% else %}No other session is open now.{% endif %} Other visitors' sessions are not listed here and cannot be signed out from this page.{% endnotice %}
 {% endif %}
 {% panel title="Open sessions" heading_id="sessions-heading" count=listed_count table=True flush=True class="mb-3" %}
   <div class="vr-table-wrap">
@@ -54,7 +54,7 @@ sessions as they stand when it is saved.
 {% endpanel %}
 {% if other_sessions %}
 {% url 'account-sessions-sign-out-others' as others_url %}
-{% confirm_dialog id="sign-out-others" label="Sign out of all other sessions" action=others_url body="Every other browser where your account is signed in goes to the sign-in page at its next request, including any signed in after you opened this page. Anything typed there and not saved is lost. This browser stays signed in." hidden_name="shown" hidden_value=shown %}
+{% confirm_dialog id="sign-out-others" label="Sign out of all other sessions" action=others_url body="Every other browser where your account is signed in goes to the sign-in page at its next request, including any signed in after you opened this page. Anything typed there and not saved is lost. This browser stays signed in." hidden_name="drawn_at" hidden_value=drawn_at %}
 {% for row in other_sessions %}
 {% url 'account-session-sign-out' row.id as sign_out_url %}
 {% with dialog_id="sign-out-"|add:row.id %}{% confirm_dialog id=dialog_id label="Sign out" object=row.browser title="Sign out this session?" action=sign_out_url body="That browser goes to the sign-in page at its next request. Anything typed there and not saved is lost." %}{% endwith %}

@@ -16,6 +16,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 
 from . import session_list
@@ -54,7 +56,7 @@ def _count(number, singular, plural=None):
 @require_GET
 def sessions_page(request):
     current = _current_id(request)
-    rows = session_list.open_sessions(request.user)
+    rows, now = session_list.reading(request.user)
     this = next((row for row in rows if row.id == current), None)
     others = [row for row in rows if row.id != current]
     locked = request.user.credentials_locked
@@ -69,9 +71,9 @@ def sessions_page(request):
             "other_count": len(others),
             "listed_count": (0 if this is None else 1) + (0 if locked else len(others)),
             "locked": locked,
-            # The others as the page shows them, so that the confirmation can say which were
-            # signed in after it was opened.
-            "shown": ",".join(row.id for row in others),
+            # The database's clock when the sessions were read, so that the confirmation of Sign
+            # out of all other sessions can say how many signed in after the page was opened.
+            "drawn_at": now.isoformat(),
         },
     )
 
@@ -107,16 +109,20 @@ def sign_out_session(request, session_id):
 @login_required
 @require_POST
 def sign_out_other_sessions(request):
-    shown = {value for value in request.POST.get("shown", "").split(",") if value}
+    drawn_at = parse_datetime(request.POST.get("drawn_at", "") or "")
+    if drawn_at is not None and timezone.is_naive(drawn_at):
+        drawn_at = None
     try:
-        ended = session_list.sign_out_others(actor=request.user, current=_current_id(request))
+        ended = session_list.sign_out_others(
+            actor=request.user, current=_current_id(request), drawn_at=drawn_at
+        )
     except PermissionDenied as error:
         return _refused(request, error)
-    if not ended:
+    if not ended.ids:
         messages.info(request, "No other session was open, so nothing changed.")
         return redirect(PAGE)
-    newer = len(set(ended) - shown)
-    text = f"Signed out of {_count(len(ended), 'other session')}."
+    newer = ended.later or 0
+    text = f"Signed out of {_count(len(ended.ids), 'other session')}."
     if newer:
         text += (
             f" {_count(newer, 'of them was', 'of them were')} signed in after you opened this page."

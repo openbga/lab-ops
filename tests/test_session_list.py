@@ -126,7 +126,9 @@ def test_sign_in_ignores_a_forwarded_address_when_no_proxy_is_trusted(agent, rf)
         {"REMOTE_ADDR": "10.0.0.2", "HTTP_X_FORWARDED_FOR": ""},
     ],
 )
-def test_sign_in_without_a_usable_address_records_none_and_still_signs_in(agent, rf, meta):
+def test_the_session_record_without_a_usable_address_holds_none(agent, rf, meta):
+    """What the sign-in receiver records; the password form itself refuses a request whose proxy
+    settings give no address before anyone is signed in (tests/test_review_session_list.py)."""
     request = rf.get("/")
     request.META.pop("REMOTE_ADDR", None)
     request.META.update(meta)
@@ -150,6 +152,7 @@ def test_an_address_is_recorded_as_the_column_takes_it(agent, rf, given, recorde
 
 
 def test_a_proxy_count_the_request_does_not_match_records_no_address(agent, rf, settings):
+    """The receiver alone: the password form refuses such a request first."""
     settings.ALLAUTH_TRUSTED_PROXY_COUNT = 3
     request = rf.get("/", REMOTE_ADDR="10.0.0.2", HTTP_X_FORWARDED_FOR="203.0.113.9")
     request.session = BrowserClient().session
@@ -393,7 +396,9 @@ def test_signing_out_all_others_keeps_this_one_and_names_those_opened_later(agen
     shown = signed_in(agent)
     drawn = me.get(PAGE)
     later = signed_in(agent)  # signed in after the page was drawn
-    response = me.post("/account/sessions/others/sign-out/", {"shown": drawn.context["shown"]})
+    response = me.post(
+        "/account/sessions/others/sign-out/", {"drawn_at": drawn.context["drawn_at"]}
+    )
     page = follow(me, response)
     assert messages_of(page) == [
         "Signed out of 2 other sessions. 1 of them was signed in after you opened this page."
@@ -408,25 +413,30 @@ def test_signing_out_all_others_keeps_this_one_and_names_those_opened_later(agen
 def test_signing_out_all_others_with_none_open_changes_nothing(agent, other_agent):
     me = signed_in(agent)
     foreign = signed_in(other_agent)
-    page = follow(me, me.post("/account/sessions/others/sign-out/", {"shown": ""}))
+    page = follow(me, me.post("/account/sessions/others/sign-out/", {"drawn_at": ""}))
     assert messages_of(page) == ["No other session was open, so nothing changed."]
     assert row_of(foreign).ended_at is None and row_of(me).ended_at is None
     assert not AuditEvent.objects.filter(action=session_list.ACTION).exists()
 
 
-def test_tampered_shown_ids_only_change_the_wording(agent, other_agent):
-    me = signed_in(agent)
-    other = signed_in(agent)
-    foreign = signed_in(other_agent)
-    page = follow(
-        me,
-        me.post(
-            "/account/sessions/others/sign-out/",
-            {"shown": f"{row_of(foreign).pk},{row_of(other).pk},junk"},
+@pytest.mark.parametrize(
+    ("drawn_at", "message"),
+    [
+        ("not-a-time", "Signed out of 1 other session."),
+        ("2026-01-01T00:00:00", "Signed out of 1 other session."),  # no time zone: ignored
+        (
+            "2000-01-01T00:00:00+00:00",
+            "Signed out of 1 other session. 1 of them was signed in after you opened this page.",
         ),
-    )
-    assert messages_of(page) == ["Signed out of 1 other session."]
-    assert row_of(foreign).ended_at is None
+    ],
+)
+def test_a_tampered_reading_time_only_changes_the_wording(agent, other_agent, drawn_at, message):
+    me = signed_in(agent)
+    signed_in(agent)
+    foreign = signed_in(other_agent)
+    page = follow(me, me.post("/account/sessions/others/sign-out/", {"drawn_at": drawn_at}))
+    assert messages_of(page) == [message]
+    assert row_of(foreign).ended_at is None and row_of(me).ended_at is None
 
 
 # Shared demonstration accounts
@@ -455,7 +465,7 @@ def test_a_shared_demonstration_account_cannot_sign_out_other_visitors(agent):
         f"/account/sessions/{row_of(other).pk}/sign-out/",
         "/account/sessions/others/sign-out/",
     ):
-        page = follow(me, me.post(url, {"shown": ""}))
+        page = follow(me, me.post(url, {"drawn_at": ""}))
         assert messages_of(page) == [session_list.LOCKED_REFUSAL]
     assert row_of(other).ended_at is None
     assert not AuditEvent.objects.filter(action=session_list.ACTION).exists()
@@ -466,7 +476,7 @@ def test_an_account_locked_after_the_page_opened_is_refused_as_held(agent):
     other = signed_in(agent)
     me.get(PAGE)
     User.objects.filter(pk=agent.pk).update(credentials_locked=True)
-    page = follow(me, me.post("/account/sessions/others/sign-out/", {"shown": ""}))
+    page = follow(me, me.post("/account/sessions/others/sign-out/", {"drawn_at": ""}))
     assert messages_of(page) == [session_list.LOCKED_REFUSAL]
     assert row_of(other).ended_at is None
 
@@ -702,3 +712,26 @@ def test_an_unknown_account_is_not_found(owner):
 def test_the_reason_is_required_by_the_service_too(owner, agent):
     with pytest.raises(ValidationError):
         session_list.end_account_sessions(actor=owner, account_id=agent.pk, reason=" ")
+
+
+# The Security settings facts
+
+
+@pytest.mark.parametrize(
+    ("proxies", "header", "says"),
+    [
+        (0, None, "the address is the connecting one"),
+        (2, None, "behind 2 trusted proxies"),
+        (0, "X-Real-IP", "from the X-Real-IP header"),
+    ],
+)
+def test_the_security_settings_fact_says_where_the_address_comes_from(
+    settings, proxies, header, says
+):
+    from core.security_settings import in_force
+
+    settings.ALLAUTH_TRUSTED_PROXY_COUNT = proxies
+    settings.ALLAUTH_TRUSTED_CLIENT_IP_HEADER = header
+    facts = {fact.key: fact for group in in_force() for fact in group.facts}
+    assert says in facts["own-sessions"].note
+    assert facts["end-sessions"].source == "accounts"

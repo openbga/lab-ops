@@ -15,14 +15,14 @@
     {
       "title": "Stop the person signing in again",
       "steps": [
-        "On the account's page, clear [[Active]] and save, or set a new password. Ending sessions alone does not stop a new sign-in."
+        "On the account's page, clear [[Active]] and save. Ending sessions does not stop a new sign-in, and neither does a new password where the laboratory sends sign-in codes by email."
       ]
     }
   ],
   "good_to_know": [
     "This ends the sessions of the account named on the page, not necessarily yours. On your own account, the session you are using stays signed in.",
     "Sessions that sign in after the page opened, up to your save, are ended too.",
-    "The page shows how many sessions are open, never their browsers or addresses: the person sees those on Where you are signed in.",
+    "The page shows how many sessions are open, never their times, browsers or addresses: the person sees those on Where you are signed in.",
     "Each ending is recorded in the audit history with your reason and the sessions ended. Do not put patient information in the reason."
   ],
   "sections": [
@@ -35,21 +35,21 @@
     {
       "title": "What the page shows",
       "items": [
-        {"label": "Open now", "description": "How many sessions of the account are open and inside the session limits when the page opens, and when the most recent of them was last active. On your own account, the count leaves out the session you are using."},
+        {"label": "Open now", "description": "How many sessions of the account are open and inside the session limits when the page opens, counted only. On your own account, the count leaves out the session you are using."},
         {"label": "Reason", "description": "Required, at most 1,000 characters; spaces alone are refused. Recorded with the ending in the audit history."}
       ]
     },
     {
       "title": "Actions",
       "items": [
-        {"label": "End sessions", "description": "Ends every session of the account open when you save, including any that signed in after the page opened. Each browser goes to the sign-in page at its next request, with a notice that an administrator ended its session, and anything typed there and not saved is lost. Sessions already past a session limit are recorded as ended by that limit. Returns to the account's page with how many sessions ended. When none was open, nothing changes and nothing is recorded."},
+        {"label": "End sessions", "description": "Ends every session of the account open when you save, including any that signed in after the page opened. Each browser goes to the sign-in page at its next request, with a notice that an administrator ended its session, and anything typed there and not saved is lost. A session that has passed a session limit when it is ended, including one that passes it while a change of the person's finishes, is recorded as ended by that limit and not counted. Returns to the account's page with how many sessions ended. When none was open, nothing changes and nothing is recorded; on your own account the message says your other sessions were not open."},
         {"label": "Breadcrumbs", "description": "Return to the administration home, the Accounts section, the user list or the account's page without ending anything."}
       ]
     },
     {
       "title": "Rules and records",
       "paragraphs": [
-        "Ending sessions takes no access away: the account keeps its roles and capabilities and can sign in again unless it is deactivated or its password is changed. A change the person is saving at that moment finishes first; one they start afterwards from an ended session is refused and their browser is signed out.",
+        "Ending sessions takes no access away: the account keeps its roles and capabilities and can sign in again, with its password or, where the laboratory sends email, a sign-in code sent to its address, unless it is deactivated. Setting a new password ends its sessions too but does not stop a sign-in with an emailed code. A change the person is saving at that moment finishes first; one they start afterwards from an ended session is refused and their browser is signed out.",
         "Each ending is recorded as an audit event on the account, with your reason, how many sessions ended and their identifiers, never their browsers or addresses; the administration history of the account also lists it. The sign-in log records it once it is saved."
       ]
     }

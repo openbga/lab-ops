@@ -303,15 +303,6 @@ def _touch(state):
     )
 
 
-# The limit passed first, and the moment it passed, from a row's values: the same rule for every
-# way a row is found expired (a request, an account's next sign-in, an account-wide ending).
-_PASSED = (
-    "ending = CASE WHEN started_at + {longest} <= last_active_at + {inactivity} "
-    "THEN %s ELSE %s END, "
-    "ended_at = LEAST(started_at + {longest}, last_active_at + {inactivity})"
-)
-
-
 class Settled(tuple):
     """What _settle_expiry found: unpacks to (outcome, detail); `limits` are (inactivity,
     longest) as read under the row's lock."""
@@ -393,52 +384,11 @@ def _end_expired(state, ending=None):
     return 1 if _settle_expiry(state)[0] == "expired" else 0
 
 
-def close_expired(user):
-    """End the account's open rows that have passed a limit, by their values and the limits as
-    they stand when the statement runs, with the limit passed first and the moment it passed. A
-    browser that closed or was abandoned leaves its row open until then. Each one ended is
-    recorded in the sign-in log once this commits. Returns how many ended."""
-    sessions, _ = _tables()
-    inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
-    passed = _PASSED.format(inactivity=inactivity, longest=longest)
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"UPDATE {sessions} SET {passed} "
-            f"WHERE user_id = %s AND ended_at IS NULL "
-            f"AND (started_at + {longest} <= clock_timestamp() "
-            f"OR last_active_at + {inactivity} <= clock_timestamp()) RETURNING ending",
-            [
-                *longest_params,
-                *inactivity_params,
-                Ending.MAXIMUM,
-                Ending.INACTIVITY,
-                *longest_params,
-                *inactivity_params,
-                user.pk,
-                *longest_params,
-                *inactivity_params,
-            ],
-        )
-        endings = [row[0] for row in cursor.fetchall()]
-    for ending in sorted(set(endings)):
-        _log_after_commit(ending, user, endings.count(ending))
-    return len(endings)
-
-
-def end_sessions(user, ending, *, keep=None, session_id=None):
-    """End the account's open sessions (or the one given) with this reason, except `keep`. Their
-    browsers are signed out at their next request. Rows already past a limit end first, as
-    expired (close_expired), so they are not counted as ended by this. A change under way that
-    holds one of the rows (hold_acting_session) is waited for. Returns how many ended."""
-    return len(end_session_ids(user, ending, keep=keep, session_id=session_id))
-
-
-def end_session_ids(user, ending, *, keep=None, session_id=None, close=None):
-    """end_sessions, returning the ids of the rows this ended, sorted. `close` says whether rows
-    past a limit end first as expired (close_expired); by default, only when every session of the
-    account is ending."""
-    if session_id is None if close is None else close:
-        close_expired(user)
+def _lock_open(user, *, session_id=None, keep=None, expired_only=False):
+    """Lock the account's open rows asked for (the one given, or all but `keep`; only those past
+    a limit by this reading when `expired_only`), in id order, FOR NO KEY UPDATE, waiting for a
+    change under way that holds one. Returns their ids. Every ending of several rows locks them in
+    this order, so two never wait for each other in a cycle."""
     sessions, _ = _tables()
     conditions, params = ["user_id = %s", "ended_at IS NULL"], [user.pk]
     if session_id is not None:
@@ -447,19 +397,100 @@ def end_session_ids(user, ending, *, keep=None, session_id=None, close=None):
     if keep is not None:
         conditions.append("id <> %s::uuid")
         params.append(str(keep))
-    with connection.cursor() as cursor:
-        # One statement. The database's clock when each row is updated (after any wait for it),
-        # and never before the row's last activity: an activity that committed while this waited
-        # stays before its end.
-        cursor.execute(
-            f"UPDATE {sessions} SET ended_at = GREATEST(last_active_at, clock_timestamp()), "
-            f"ending = %s WHERE {' AND '.join(conditions)} RETURNING id",
-            [ending, *params],
+    if expired_only:
+        inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
+        conditions.append(
+            f"(started_at + {longest} <= clock_timestamp() "
+            f"OR last_active_at + {inactivity} <= clock_timestamp())"
         )
-        ids = sorted(str(row[0]) for row in cursor.fetchall())
-    if ids and ending in LOGGED_ENDINGS:
-        _log_after_commit(ending, user, len(ids))
-    return ids
+        params += [*longest_params, *inactivity_params]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT id FROM {sessions} WHERE {' AND '.join(conditions)} "
+            f"ORDER BY id FOR NO KEY UPDATE",
+            params,
+        )
+        return [str(row[0]) for row in cursor.fetchall()]
+
+
+def _end_locked(user, ids, ending, *, expired_only=False):
+    """End rows this transaction holds (_lock_open), in a new statement, so that what committed
+    while it waited for them counts: each row still open that has passed a limit, by its values
+    and the limits as they stand, at the database's clock now, ends as expired, with the limit
+    passed first and the moment it passed; any other ends with `ending` (none when
+    `expired_only`), at that clock and never before its last activity. Returns (id, ending,
+    started_at) of each row ended."""
+    if not ids:
+        return []
+    sessions, _ = _tables()
+    inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
+    passed = "(s.started_at + lim.l <= lim.t OR s.last_active_at + lim.i <= lim.t)"
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"WITH lim AS (SELECT {inactivity} AS i, {longest} AS l, clock_timestamp() AS t) "
+            f"UPDATE {sessions} s SET "
+            f"ending = CASE WHEN {passed} THEN CASE WHEN s.started_at + lim.l <= "
+            f"s.last_active_at + lim.i THEN %s ELSE %s END ELSE %s END, "
+            f"ended_at = CASE WHEN {passed} "
+            f"THEN LEAST(s.started_at + lim.l, s.last_active_at + lim.i) "
+            f"ELSE GREATEST(s.last_active_at, lim.t) END "
+            f"FROM lim WHERE s.id = ANY(%s::uuid[]) AND s.ended_at IS NULL"
+            f"{f' AND {passed}' if expired_only else ''} "
+            f"RETURNING s.id, s.ending, s.started_at",
+            [
+                *inactivity_params,
+                *longest_params,
+                Ending.MAXIMUM,
+                Ending.INACTIVITY,
+                ending or Ending.INACTIVITY,
+                ids,
+            ],
+        )
+        return [(str(pk), recorded, started_at) for pk, recorded, started_at in cursor.fetchall()]
+
+
+def _log_expired(user, ended, manual=None):
+    """Rows ended as expired (not with `manual`), logged by their limit once this commits."""
+    endings = [recorded for _pk, recorded, _started in ended if recorded != manual]
+    for recorded in sorted(set(endings)):
+        _log_after_commit(recorded, user, endings.count(recorded))
+
+
+def close_expired(user):
+    """End the account's open rows that have passed a limit, with the limit passed first and the
+    moment it passed: the rows past a limit by a first reading are locked (waiting for a change
+    under way that holds one), then each is ended only if, read again with the limits as they
+    stand, it still has (_end_locked). A browser that closed or was abandoned leaves its row open
+    until then. Each one ended is recorded in the sign-in log once this commits. Returns how many
+    ended."""
+    ended = _end_locked(user, _lock_open(user, expired_only=True), "", expired_only=True)
+    _log_expired(user, ended)
+    return len(ended)
+
+
+def end_sessions(user, ending, *, keep=None, session_id=None):
+    """End the account's open sessions (or the one given) with this reason, except `keep`. Their
+    browsers are signed out at their next request. A row that has passed a limit when it is
+    ended, read after any wait for it, ends as expired instead and is not counted as ended by
+    this. A change under way that holds one of the rows (hold_acting_session) is waited for.
+    Returns how many ended."""
+    return len(end_session_rows(user, ending, keep=keep, session_id=session_id))
+
+
+def end_session_ids(user, ending, *, keep=None, session_id=None):
+    """end_sessions, returning the ids of the rows this ended with `ending`, sorted."""
+    return [pk for pk, _started in end_session_rows(user, ending, keep=keep, session_id=session_id)]
+
+
+def end_session_rows(user, ending, *, keep=None, session_id=None):
+    """end_sessions, returning (id, started_at) of each row this ended with `ending`, by id. The
+    rows are locked first, in id order, and decided after the wait (_end_locked)."""
+    ended = _end_locked(user, _lock_open(user, session_id=session_id, keep=keep), ending)
+    _log_expired(user, ended, manual=ending)
+    rows = sorted((pk, started) for pk, recorded, started in ended if recorded == ending)
+    if rows and ending in LOGGED_ENDINGS:
+        _log_after_commit(ending, user, len(rows))
+    return rows
 
 
 def hold_acting_session(user):  # the account or its id

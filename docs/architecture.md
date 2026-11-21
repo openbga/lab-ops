@@ -127,10 +127,14 @@ anything else, a session-ending advisory lock for the account whose rows it ends
 acting account, in key order, then holds the acting account (`hold_actor`, which holds the acting
 session `FOR SHARE`). Two sessions ending each other therefore take turns, and the second is
 refused because its own row has ended, instead of each holding its own row and waiting for the
-other's. Rows past a limit end first as expired. The ending is one `UPDATE … RETURNING`, which
-waits for a change under way that holds a row, and one `account.sessions_ended` audit event names
-the rows ended, never their browser or address. Every other row open when the change is saved
-ends, including rows that signed in after the page was drawn; the confirmation counts those.
+other's. Every ending of rows (these, a deactivation, a new password, the cleanup of expired rows)
+first locks them in id order, waiting for a change under way that holds one, then decides each in
+a new statement, so that what committed during the wait counts: a row that has passed a limit by
+the database's clock then ends as expired, at the moment its limit passed; any other ends as
+asked. One `account.sessions_ended` audit event names the rows ended as asked, never their
+browser or address. Every other row open when the change is saved ends, including rows that
+signed in after the page was drawn; the confirmation counts those by their sign-in time against
+the database's clock when the page read the rows.
 
 ## Optional modules
 

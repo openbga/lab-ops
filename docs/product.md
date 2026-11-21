@@ -264,7 +264,7 @@ its next request, with a notice that it was signed out from another session. A s
 account sees only its own session there, because the others belong to other visitors. A superuser
 ends every session of an account from its page in the admin console, with a reason, for example
 when someone leaves or loses a device; the person can sign in again unless the account is also
-deactivated or given a new password. Each ending is kept in the audit history with the sessions
+deactivated. Each ending is kept in the audit history with the sessions
 ended, without their browsers or addresses. The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
 laboratory and its host.

@@ -4,9 +4,9 @@
 End sessions (accounts.admin.AccountAdmin.end_sessions_view), superusers only: ends every session of
 the account that is open when it is saved, with a reason, recorded in the audit history. Context:
 original (the account), form (EndSessionsForm: reason), own_account (the account is the signed-in
-superuser's: their current session stays open and is not counted), open_count and last_activity
-(the other sessions open when the page was drawn, counted only; their browsers and addresses are
-not shown here).
+superuser's: their current session stays open and is not counted), open_count (the other sessions
+open when the page was drawn, counted only; their times, browsers and addresses are not shown
+here).
 {% endcomment %}
 {% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}{% endblock %}
 {% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
@@ -26,9 +26,9 @@ not shown here).
 {% if form.errors %}<p class="errornote">Please correct the error below.</p>{% endif %}
 <p>
 {% if own_account %}This is your own account. Your other sessions end; the one you are using now stays signed in.{% else %}Every session of <strong>{{ original.get_username }}</strong> that is open when you save ends.{% endif %}
-{% if open_count %}{{ open_count }} {% if own_account %}other {% endif %}session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now, last active {{ last_activity|date:"Y-m-d H:i" }}.{% else %}No {% if own_account %}other {% endif %}session is open now.{% endif %}
+{% if open_count %}{{ open_count }} {% if own_account %}other {% endif %}session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now.{% else %}No {% if own_account %}other {% endif %}session is open now.{% endif %}
 </p>
-<p>Each browser goes to the sign-in page at its next request, and anything typed there and not saved is lost. The account can sign in again: to stop that, also clear Active on the account's page or set a new password.</p>
+<p>Each browser goes to the sign-in page at its next request, and anything typed there and not saved is lost. The account can still sign in again, with its password or, where the laboratory sends email, a code sent to its address: to stop that, also clear Active on the account's page.</p>
 <fieldset class="module aligned">
 <div class="form-row field-reason">
   {{ form.reason.errors }}

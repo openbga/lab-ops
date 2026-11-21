@@ -37,7 +37,7 @@
     {
       "title": "Who can use this page",
       "paragraphs": [
-        "Every signed-in account, staff or client portal, opens it from the account menu (Where you are signed in). It shows only your own account's sessions; nobody else's sessions are listed, and a superuser in the admin console sees only how many of your sessions are open, not their browsers or addresses.",
+        "Every signed-in account, staff or client portal, opens it from the account menu (Where you are signed in). It shows only your own account's sessions; nobody else's sessions are listed, and a superuser in the admin console sees only how many of your sessions are open, not their times, browsers or addresses.",
         "A shared demonstration account, one whose password the deployment publishes on the sign-in page, sees only the session it is using, a notice with how many other sessions are open, and no Sign out buttons: the other sessions are other visitors', so they cannot be listed or signed out here."
       ]
     },
@@ -64,6 +64,7 @@
         "A session is listed while it is open and inside both session limits, measured by the server's clock. A browser that was closed without signing out stays listed until it passes a limit.",
         "Each sign-out from this page is recorded in the audit history with the sessions ended, without their browsers or addresses, and in the sign-in log. A change being saved from the session you sign out at that moment finishes first; one it starts afterwards is refused and that browser is signed out.",
         "If your own session ended while this page was open (it was signed out from another browser, or passed a limit), a sign-out sent from it is refused and you go to the sign-in page.",
+        "A session that passes a session limit while it is being signed out is recorded as ended by that limit.",
         "Signing out ends sessions only. It does not change your password, your second factor or your access."
       ]
     }
