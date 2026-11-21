@@ -105,6 +105,7 @@ class AccountSession(models.Model):
         DEACTIVATED = "deactivated", "Account deactivated"
         NEW_PASSWORD = "new_password", "New password"
         SIGNED_IN_AGAIN = "signed_in_again", "Signed in again in the same browser"
+        CHANGE_REFUSED = "change_refused", "A change found it past a limit"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never

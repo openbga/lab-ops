@@ -222,7 +222,13 @@ def test_successful_continue_refreshes_idle_time_while_another_tab_holds_a_chang
     reached_activity = Event()
 
     def observe(execute, sql, params, many, context):
-        if "set last_active_at" in sql.lower():
+        # Adapted after the second confirmation (finding 1): Stay signed in takes its row lock in
+        # a statement of its own before the statement that records the activity, so reaching
+        # either one counts as reaching the activity.
+        lowered = sql.lower()
+        if "set last_active_at" in lowered or (
+            "accounts_accountsession" in lowered and "for no key update" in lowered
+        ):
             reached_activity.set()
         return execute(sql, params, many, context)
 

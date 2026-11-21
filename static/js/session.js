@@ -397,6 +397,9 @@
         }
         if (!answer) {
           showError(REQUEST_FAILED);
+          // The press may have been recorded and only its answer lost: ask after the short
+          // retry delay (and again if unanswered), and close the warning if it was extended.
+          setTimeout(recheck, FAILED_RETRY_MS);
           return;
         }
         plan(true);

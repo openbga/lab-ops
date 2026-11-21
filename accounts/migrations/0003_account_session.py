@@ -43,6 +43,7 @@ class Migration(migrations.Migration):
                             ("deactivated", "Account deactivated"),
                             ("new_password", "New password"),
                             ("signed_in_again", "Signed in again in the same browser"),
+                            ("change_refused", "A change found it past a limit"),
                         ],
                         max_length=20,
                     ),

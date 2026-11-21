@@ -239,8 +239,16 @@ def _touch(state):
     in, whose only purpose is this activity, waits for the row instead."""
     sessions, _ = _tables()
     inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(state.user_id))
-    skip = "" if _view.get() == CONTINUE_ROUTE else " SKIP LOCKED"
-    with connection.cursor() as cursor:
+    waits = _view.get() == CONTINUE_ROUTE
+    skip = "" if waits else " SKIP LOCKED"
+    with transaction.atomic(), connection.cursor() as cursor:
+        if waits:
+            # The wait first, in its own statement; the statement below then reads the limits
+            # and the row as they stand once the row is held (what committed meanwhile counts).
+            cursor.execute(
+                f"SELECT id FROM {sessions} WHERE id = %s AND user_id = %s FOR NO KEY UPDATE",
+                [state.id, state.user_id],
+            )
         cursor.execute(
             f"WITH target AS (SELECT id FROM {sessions} WHERE id = %s AND user_id = %s), "
             f"locked AS (SELECT id FROM {sessions} WHERE id = %s AND user_id = %s "
@@ -298,6 +306,25 @@ class Settled(tuple):
         return settled
 
 
+def _recorded_limits(ended_at, started_at, last_active_at):
+    """(inactivity, longest) as a row's recorded end shows them: an expired row ended at the
+    moment its limit passed, so the limit is that moment less the activity or the sign-in."""
+    return ended_at - last_active_at, ended_at - started_at
+
+
+def _ended_as_recorded(session_id):
+    """(ending, limits) of an ended row as it records them, or (None, None)."""
+    row = (
+        AccountSession.objects.filter(pk=session_id, ended_at__isnull=False)
+        .values_list("ending", "ended_at", "started_at", "last_active_at")
+        .first()
+    )
+    if row is None:
+        return None, None
+    ending, ended_at, started_at, last_active_at = row
+    return ending, _recorded_limits(ended_at, started_at, last_active_at)
+
+
 def _settle_expiry(state):
     """For a row a request found expired: lock it (waiting for another request ending or
     extending it), then read it, the limits and the clock again in a new statement, so that what
@@ -328,12 +355,15 @@ def _settle_expiry(state):
         )
         limits = (inactivity_limit, longest_limit)
         if ended_at is not None:
-            return Settled("ended", recorded, limits)
+            # As the row records it: the limits that ended it, whatever they are now.
+            return Settled(
+                "ended", recorded, _recorded_limits(ended_at, started_at, last_active_at)
+            )
         at = max(state.now, now)
         longest_at = started_at + longest_limit
         inactivity_at = last_active_at + inactivity_limit
         if longest_at > at and inactivity_at > at:
-            fresh = SessionState(state.id, state.user_id, started_at, last_active_at, now, *limits)
+            fresh = SessionState(state.id, state.user_id, started_at, last_active_at, at, *limits)
             return Settled("open", fresh, limits)
         ending = Ending.MAXIMUM if longest_at <= inactivity_at else Ending.INACTIVITY
         AccountSession.objects.filter(pk=state.id).update(
@@ -600,8 +630,12 @@ def _decide(request):
     user = request.user
     session_id = _valid_id(request.session.get(SESSION_KEY))
     row = _read(session_id, user) if session_id else None
-    if row is None or row[0] != user.pk or row[3] is not None:
+    if row is None or row[0] != user.pk:
         _sign_out(request, None)
+        return None
+    if row[3] is not None:
+        # Ended already: the notice names the limit the row records, if a limit ended it.
+        _sign_out(request, *_ended_as_recorded(session_id))
         return None
     _, started_at, last_active_at, _ended, now, minutes, hours = row
     limits = (timedelta(minutes=minutes), timedelta(hours=hours))
@@ -782,7 +816,11 @@ class SessionLimitMiddleware:
         """A change refused because its session ended or passed a limit after the request began
         (SessionEnded): a row found past a limit is ended and recorded as a request would
         (_settle_expiry), and the browser signed out, with the sign-in page set to return to the
-        page on screen, as for a session found ended when the request arrived."""
+        page on screen (to the page itself for a page opened with GET), as for a session found
+        ended when the request arrived. If the row turns out to be live after all (a limit
+        lengthened since the change was refused), it is ended as the change found it
+        (CHANGE_REFUSED) and the browser signed out all the same, so the browser and the row
+        agree."""
         if not isinstance(exception, SessionEnded):
             return None
         user = getattr(request, "user", None)
@@ -792,9 +830,15 @@ class SessionLimitMiddleware:
             if state is not None:
                 settled = _settle_expiry(state)
                 (outcome, detail), limits = settled, settled.limits
-                if outcome != "open":
+                if outcome == "open":
+                    end_sessions(user, Ending.CHANGE_REFUSED, session_id=state.id)
+                else:
                     ending, ended = detail, 1 if outcome == "expired" else 0
             _sign_out(request, ending, limits, ended=ended)
+        if request.method in ("GET", "HEAD") and _is_navigation(request):
+            response = HttpResponseRedirect(sign_in_url(request.get_full_path()))
+            add_never_cache_headers(response)
+            return response
         return _refusal(request)
 
 
@@ -811,7 +855,9 @@ class NoStoreMiddleware:
         from whitenoise.middleware import WhiteNoiseFileResponse
 
         response = self.get_response(request)
-        if getattr(response, "vr_cacheable", False) or isinstance(response, WhiteNoiseFileResponse):
+        if getattr(response, "vr_cacheable", False) or (
+            isinstance(response, WhiteNoiseFileResponse) and response.status_code in (200, 206, 304)
+        ):
             return response
         decided = hasattr(request, "vr_signed_in")
         if (decided and request.vr_signed_in) or (not decided and _has_session_cookie(request)):
