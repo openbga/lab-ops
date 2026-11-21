@@ -244,7 +244,7 @@ def hold_actor(actor):
     # The session the request acts through, when it acts for this account: held like the account,
     # so ending it (Sign out, a new password, a deactivation) waits for this change, and a change
     # from a session that has ended or passed a limit is refused (accounts.sessions.SessionEnded,
-    # a PermissionDenied).
+    # which the session middleware answers by signing the browser out).
     from .sessions import SessionEnded, hold_acting_session
 
     if not hold_acting_session(pk):

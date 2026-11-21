@@ -106,7 +106,7 @@ request with a session cookie answered before that was known, `no-store`, except
 a response that opts out (`vr_cacheable`, the laboratory's logo).
 
 A change that holds its acting account (`accounts.acting.hold_actor`) also holds the request's
-session row `FOR SHARE` and is refused (`SessionEnded`, answered like a session found ended) once
+session row `FOR SHARE` and is refused (`SessionEnded`, not a permission refusal, answered like a session found ended) once
 the row has ended or passed a limit, so ending a session waits for such a change under way.
 Deactivating an account ends all its rows in the same transaction (`accounts.models.User.save`);
 any change of the stored password ends all of them except, when the account changes its own

@@ -61,7 +61,6 @@ from django.contrib import messages
 from django.contrib.auth import HASH_SESSION_KEY, get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.signals import user_logged_in, user_logged_out
-from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
 from django.db.models.functions import Now
 from django.dispatch import receiver
@@ -98,8 +97,11 @@ ENDED_MESSAGES = {
 ENDED_MESSAGE = "You were signed out. Sign in again to continue."
 
 
-class SessionEnded(PermissionDenied):
-    """A change refused because the session it was sent from ended after the request began."""
+class SessionEnded(Exception):  # noqa: N818 - named for what happened
+    """A change refused because the session it was sent from ended or passed a limit after the
+    request began. Not a PermissionDenied: a view that answers a refused permission itself must
+    not answer this one, which SessionLimitMiddleware.process_exception answers by signing the
+    browser out."""
 
     def __init__(self):
         super().__init__("Your session has ended. Sign in again to continue.")
@@ -228,7 +230,8 @@ def _touch(state):
     by the database's clock when the row is updated (clock_timestamp(), not when the statement
     began), and never move the last activity back.
 
-    Returns True when recorded and False when the row is missing or no longer qualifies (ended or
+    Returns the state as recorded (the new last activity, the limits and the clock the statement
+    used) when recorded, and False when the row is missing or no longer qualifies (ended or
     expired since the reading). Returns None when another transaction holds the row at this
     moment (another request of this session recording its own activity, a change under way
     holding it, or an ending about to commit): this request does not wait for it and goes on as
@@ -246,9 +249,11 @@ def _touch(state):
             f"SET last_active_at = GREATEST(s.last_active_at, clock_timestamp()) FROM locked "
             f"WHERE s.id = locked.id AND s.ended_at IS NULL "
             f"AND s.last_active_at > clock_timestamp() - {inactivity} "
-            f"AND s.started_at > clock_timestamp() - {longest} RETURNING s.id) "
+            f"AND s.started_at > clock_timestamp() - {longest} "
+            f"RETURNING s.started_at, s.last_active_at, {inactivity}, {longest}, "
+            f"clock_timestamp()) "
             f"SELECT (SELECT count(*) FROM target), (SELECT count(*) FROM locked), "
-            f"(SELECT count(*) FROM recorded)",
+            f"r.* FROM (SELECT 1) one LEFT JOIN recorded r ON true",
             [
                 state.id,
                 state.user_id,
@@ -256,14 +261,22 @@ def _touch(state):
                 state.user_id,
                 *inactivity_params,
                 *longest_params,
+                *inactivity_params,
+                *longest_params,
             ],
         )
-        found, locked, recorded = cursor.fetchone()
+        found, locked, started_at, last_active_at, inactivity_limit, longest_limit, now = (
+            cursor.fetchone()
+        )
     if not found:
         return False
     if not locked:
         return None
-    return recorded == 1
+    if started_at is None:
+        return False
+    return SessionState(
+        state.id, state.user_id, started_at, last_active_at, now, inactivity_limit, longest_limit
+    )
 
 
 # The limit passed first, and the moment it passed, from a row's values: the same rule for every
@@ -275,44 +288,58 @@ _PASSED = (
 )
 
 
+class Settled(tuple):
+    """What _settle_expiry found: unpacks to (outcome, detail); `limits` are (inactivity,
+    longest) as read under the row's lock."""
+
+    def __new__(cls, outcome, detail, limits):
+        settled = super().__new__(cls, (outcome, detail))
+        settled.limits = limits
+        return settled
+
+
 def _settle_expiry(state):
-    """For a row a request found expired: lock it, read it as it stands (waiting for another
-    request ending or extending it), and end it if, by its values now and the limits as they
-    stand, it was past a limit at the moment the request was read (state.now), with the limit
-    passed first and the moment it passed. Returns ("expired", ending) when this request ended
-    it; ("ended", None) when it had ended already or is missing; ("open", state) with the row as
-    it stands when it had not expired after all (extended, or a limit lengthened, since the
-    reading)."""
+    """For a row a request found expired: lock it (waiting for another request ending or
+    extending it), then read it, the limits and the clock again in a new statement, so that what
+    committed during the wait counts. End it if it has passed a limit, compared at the later of
+    the request's reading and now, with the limit passed first and the moment it passed.
+
+    Returns Settled("expired", ending) when this request ended it; Settled("ended", ending) when
+    it had ended already (the ending recorded, or None for a missing row); Settled("open", state)
+    with the row as it stands when it has not expired after all (extended, or a limit lengthened,
+    since the reading). Each carries the limits read under the lock (Settled.limits)."""
     sessions, _ = _tables()
     inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(state.user_id))
+    limits = (state.inactivity, state.maximum)
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT ended_at, started_at, last_active_at, {inactivity}, {longest}, now() "
-            f"FROM {sessions} WHERE id = %s AND user_id = %s FOR NO KEY UPDATE",
-            [*inactivity_params, *longest_params, state.id, state.user_id],
+            f"SELECT id FROM {sessions} WHERE id = %s AND user_id = %s FOR NO KEY UPDATE",
+            [state.id, state.user_id],
         )
-        row = cursor.fetchone()
-        if row is None or row[0] is not None:
-            return "ended", None
-        _ended, started_at, last_active_at, inactivity_limit, longest_limit, now = row
+        if cursor.fetchone() is None:
+            return Settled("ended", None, limits)
+        cursor.execute(
+            f"SELECT ended_at, ending, started_at, last_active_at, {inactivity}, {longest}, "
+            f"clock_timestamp() FROM {sessions} WHERE id = %s",
+            [*inactivity_params, *longest_params, state.id],
+        )
+        ended_at, recorded, started_at, last_active_at, inactivity_limit, longest_limit, now = (
+            cursor.fetchone()
+        )
+        limits = (inactivity_limit, longest_limit)
+        if ended_at is not None:
+            return Settled("ended", recorded, limits)
+        at = max(state.now, now)
         longest_at = started_at + longest_limit
         inactivity_at = last_active_at + inactivity_limit
-        if longest_at > state.now and inactivity_at > state.now:
-            fresh = SessionState(
-                state.id,
-                state.user_id,
-                started_at,
-                last_active_at,
-                now,
-                inactivity_limit,
-                longest_limit,
-            )
-            return "open", fresh
+        if longest_at > at and inactivity_at > at:
+            fresh = SessionState(state.id, state.user_id, started_at, last_active_at, now, *limits)
+            return Settled("open", fresh, limits)
         ending = Ending.MAXIMUM if longest_at <= inactivity_at else Ending.INACTIVITY
         AccountSession.objects.filter(pk=state.id).update(
             ended_at=min(longest_at, inactivity_at), ending=ending
         )
-    return "expired", ending
+    return Settled("expired", ending, limits)
 
 
 def _end_expired(state, ending=None):
@@ -385,12 +412,20 @@ def hold_acting_session(user):  # the account or its id
     sessions, _ = _tables()
     inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(user))
     with connection.cursor() as cursor:
+        # The hold first; then, in a new statement, the row, the limits and the clock as they
+        # stand once it is held (what committed while it waited included).
+        cursor.execute(
+            f"SELECT id FROM {sessions} WHERE id = %s AND user_id = %s FOR SHARE",
+            [current[1], user_pk],
+        )
+        if cursor.fetchone() is None:
+            return False
         cursor.execute(
             f"SELECT ended_at IS NULL "
             f"AND last_active_at > clock_timestamp() - {inactivity} "
             f"AND started_at > clock_timestamp() - {longest} "
-            f"FROM {sessions} WHERE id = %s AND user_id = %s FOR SHARE",
-            [*inactivity_params, *longest_params, current[1], user_pk],
+            f"FROM {sessions} WHERE id = %s",
+            [*inactivity_params, *longest_params, current[1]],
         )
         row = cursor.fetchone()
     return bool(row and row[0])
@@ -573,13 +608,13 @@ def _decide(request):
     state = SessionState(session_id, user.pk, started_at, last_active_at, now, *limits)
     if _expired(row) is None:
         return state
-    outcome, detail = _settle_expiry(state)
+    settled = _settle_expiry(state)
+    (outcome, detail), limits = settled, settled.limits
     if outcome == "open":
         return detail
-    if outcome == "expired":
-        _sign_out(request, detail, limits, ended=1)
-    else:
-        _sign_out(request, _expired(row), limits)  # ended by another request of the session
+    # The notice names the ending the row records (the limit and its value as read under the
+    # lock), or none when it ended otherwise (Sign out in another tab, say).
+    _sign_out(request, detail, limits, ended=1 if outcome == "expired" else 0)
     return None
 
 
@@ -727,26 +762,39 @@ class SessionLimitMiddleware:
             if recorded is None:
                 return None  # the row is held elsewhere at this moment: go on as admitted
             if recorded:
-                # As recorded, to the reading's precision: the page plans from this.
-                request.account_session = dataclasses.replace(state, last_active_at=state.now)
+                # As recorded: the page plans from this (Stay signed in answers with it).
+                request.account_session = (
+                    recorded
+                    if isinstance(recorded, SessionState)
+                    else dataclasses.replace(state, last_active_at=state.now)
+                )
                 return None
             # Not recorded: ended or expired since the reading, or a limit changed. Decide again.
             state = _decide(request)
             if state is None:
                 return None if _goes_on(request) else _refusal(request)
             request.account_session = state
-        _sign_out(request, None)
-        return None if _goes_on(request) else _refusal(request)
+        # Twice found live and twice not recorded (limits changing as it is read): the last
+        # decision stands, and the request goes on without its activity.
+        return None
 
     def process_exception(self, request, exception):
-        """A change refused because its session ended after the request began (SessionEnded):
-        signed out, with the sign-in page set to return to the page on screen, as for a session
-        found ended when the request arrived."""
+        """A change refused because its session ended or passed a limit after the request began
+        (SessionEnded): a row found past a limit is ended and recorded as a request would
+        (_settle_expiry), and the browser signed out, with the sign-in page set to return to the
+        page on screen, as for a session found ended when the request arrived."""
         if not isinstance(exception, SessionEnded):
             return None
         user = getattr(request, "user", None)
+        state = getattr(request, "account_session", None)
         if user is not None and user.is_authenticated:
-            _sign_out(request, None)
+            ending, limits, ended = None, None, 0
+            if state is not None:
+                settled = _settle_expiry(state)
+                (outcome, detail), limits = settled, settled.limits
+                if outcome != "open":
+                    ending, ended = detail, 1 if outcome == "expired" else 0
+            _sign_out(request, ending, limits, ended=ended)
         return _refusal(request)
 
 
@@ -754,20 +802,18 @@ class NoStoreMiddleware:
     """The outermost layer: marks every answer to a signed-in session (request.vr_signed_in, set
     by SessionLimitMiddleware), and every answer to a request carrying a session cookie that an
     earlier layer drew before that was known (a canonical-host redirect), not to be stored, after
-    every other layer has drawn or replaced it. Static files keep their caching."""
+    every other layer has drawn or replaced it. Static files served as such keep their caching."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        from whitenoise.middleware import WhiteNoiseFileResponse
+
         response = self.get_response(request)
-        if getattr(response, "vr_cacheable", False):
+        if getattr(response, "vr_cacheable", False) or isinstance(response, WhiteNoiseFileResponse):
             return response
         decided = hasattr(request, "vr_signed_in")
-        if (decided and request.vr_signed_in) or (
-            not decided
-            and _has_session_cookie(request)
-            and not request.path_info.startswith(settings.STATIC_URL)
-        ):
+        if (decided and request.vr_signed_in) or (not decided and _has_session_cookie(request)):
             add_never_cache_headers(response)
         return response

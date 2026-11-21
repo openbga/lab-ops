@@ -237,9 +237,7 @@
 
     function startPoller() {
       if (!poller) {
-        poller = setInterval(function () {
-          check().then(function () { plan(true); });
-        }, RECHECK_MS);
+        poller = setInterval(recheck, RECHECK_MS); // with its short retry when unanswered
       }
     }
 
