@@ -479,13 +479,13 @@ def test_an_order_in_a_list_value_applies_only_where_no_offered_sort_is_given(
     [
         ("view=all&q=Collection&sort=subject&per_page=25&order=subject", True),  # limit + order
         ("view=all&q=Collection&sort=subject&per_page=25&page=1", False),  # limit + 1, no order
-        ("view=all&q=Collection&sort=subject&order=subject&order=subject", False),  # two orders
+        # An older address may repeat a typed `order`: only the other parameters count.
+        ("view=all&q=Collection&sort=subject&per_page=25&order=subject&order=x", True),
+        ("view=all&q=Collection&sort=subject&per_page=25&page=1&order=subject", False),
     ],
-    ids=["order-in-the-spare-place", "ordinary-field-in-it", "two-orders"],
+    ids=["order-in-the-spare-place", "ordinary-field-in-it", "two-orders", "too-many-and-order"],
 )
-def test_only_the_order_may_take_the_place_beyond_the_field_limit(
-    client, agent, tickets, settings, value, carried
-):
+def test_only_order_may_go_beyond_the_field_limit(client, agent, tickets, settings, value, carried):
     settings.DATA_UPLOAD_MAX_NUMBER_FIELDS = 4
     client.force_login(agent)
     page = client.get(_detail(tickets[1]), {"list": value})

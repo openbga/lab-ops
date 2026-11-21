@@ -324,34 +324,45 @@ def preference(request):
     return HttpResponse(status=204)
 
 
-def _add_saved(request, stored):
-    """Add to request.GET the page size and sort in `stored` that its address leaves out, and note
-    their names: links may leave them out (core.grids.chosen_query). An empty value, which a
-    list's filter form sends for a setting the person did not choose, is left out first."""
-    params = request.GET.copy()
+def drop_unchosen(request):
+    """Leave out of request.GET an empty page size or sort, which a list's filter form sends for a
+    setting the person did not choose: it is no choice."""
     blank = [
-        name for name in GridPreferenceMiddleware.PARAMS if name in params and not params[name]
+        name
+        for name in GridPreferenceMiddleware.PARAMS
+        if name in request.GET and not request.GET[name]
     ]
-    for name in blank:
-        del params[name]
+    if blank:
+        params = request.GET.copy()
+        for name in blank:
+            del params[name]
+        request.GET = params
+
+
+def _add_saved(request, stored):
+    """Add to request.GET the page size and sort in `stored` that its address leaves out (after
+    drop_unchosen), and note their names: links may leave them out (core.grids.chosen_query)."""
+    drop_unchosen(request)
     missing = {
         name: stored[name]
         for name in GridPreferenceMiddleware.PARAMS
-        if name in stored and name not in params
+        if name in stored and name not in request.GET
     }
-    for name, value in missing.items():
-        params[name] = str(value)
-    if blank or missing:
-        request.GET = params
     if missing:
+        params = request.GET.copy()
+        for name, value in missing.items():
+            params[name] = str(value)
+        request.GET = params
         request.vr_saved_params = set(missing)
 
 
 def apply_saved_grid(request):
     """For a list that also takes a form (the staff queue's changes to several tickets): add the
     page size and sort saved for it to the form's request, as GridPreferenceMiddleware does for
-    each GET of the list, so the list drawn again when the change is refused, and the address it
-    returns to, match a GET of the address the form posted to. Nothing is saved."""
+    each GET of the list, so the list drawn again when the change is refused matches a GET of the
+    address the form posted to. The preferences are read anew, after the change, which can have
+    waited while another tab saved them. Nothing is saved."""
+    request._vr_preferences = None  # the reading for_request keeps for the request
     _add_saved(request, for_request(request).get(f"page:{request.resolver_match.view_name}", {}))
 
 

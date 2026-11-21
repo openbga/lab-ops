@@ -33,7 +33,7 @@ from core.grids import GridRequest, chosen_query
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
-from core.preferences import apply_saved_grid
+from core.preferences import apply_saved_grid, drop_unchosen
 from links.search import request_ids_for_identifier
 from service_levels.templatetags.clocks import clock_parts
 from taxonomy import terms
@@ -123,9 +123,11 @@ SHOWN_ORDER = "order"
 
 
 def _list_params(list_query):
-    """The parameters of a `list` value, or None when, without the one order shown, it has more
-    than a request may carry (DATA_UPLOAD_MAX_NUMBER_FIELDS): the queue's own address was
-    accepted, so its links open too, and the address a way back sends is accepted again."""
+    """The parameters of a `list` value, or None when those other than `order` are more than a
+    request may carry (DATA_UPLOAD_MAX_NUMBER_FIELDS): the queue's own address was accepted, so
+    its links open too, and the address a way back sends (without `order`) is accepted again. An
+    address from before the order was carried may repeat a typed `order`; reading stops at twice
+    the limit."""
     limit = settings.DATA_UPLOAD_MAX_NUMBER_FIELDS
     query = QueryDict(mutable=True)
     try:
@@ -133,12 +135,12 @@ def _list_params(list_query):
             list_query,
             keep_blank_values=True,
             encoding=query.encoding,
-            max_num_fields=None if limit is None else limit + 1,
+            max_num_fields=None if limit is None else 2 * limit + 2,
         )
     except ValueError:
         return None
-    orders = sum(1 for key, _value in pairs if key == SHOWN_ORDER)
-    if orders > 1 or (limit is not None and len(pairs) - orders > limit):
+    others = sum(1 for key, _value in pairs if key != SHOWN_ORDER)
+    if limit is not None and others > limit:
         return None
     for key, value in pairs:
         query.appendlist(key, value)
@@ -223,9 +225,7 @@ def request_list(request):
     user = request.user
     require_staff(user)
     if request.method == "POST":
-        # Changes to several tickets post to the list's address as the person chose it (its
-        # `chosen_query`): the saved page size and sort apply as for a GET of that address.
-        apply_saved_grid(request)
+        drop_unchosen(request)  # as the list middleware does for a GET of the same address
     current_view = request.GET.get("view") or DEFAULT_VIEW
     if current_view not in SYSTEM_VIEWS:
         # An unknown view (an old bookmark) opens the default one rather than an empty list.
@@ -246,6 +246,11 @@ def request_list(request):
         selected_rows = set(request.POST.getlist("requests"))
         for error in bulk_form.non_field_errors():
             messages.error(request, error)
+        # The refused change posted to the list's address as the person chose it (its
+        # `chosen_query`): drawn again, it is a GET of that address as things stand after the
+        # change, with the saved page size and sort and the teams' members read now.
+        apply_saved_grid(request)
+        bulk_form.refresh_choices()
     # Read after a change to several tickets: a refused one draws the views, the saved view's
     # name, order and Clear all as they stand after it, like the rows (a view renamed or deleted
     # meanwhile included).
@@ -273,7 +278,7 @@ def request_list(request):
         request.GET.get(name, "") != baseline.get(name, "")
         for name in SAVED_FILTERS
         if name != "view"
-    )
+    ) or bool(active_view and current_view != baseline.get("view", "all"))
     try:
         shown_sort = GridRequest.parse(request.GET, COLUMNS, DEFAULT_SORT).sort
     except ValueError:
@@ -302,8 +307,10 @@ def request_list(request):
             "selected_rows": selected_rows,
             "clear_url": clear_url,
             "refined": refined,
-            # Clear all also when a saved view's filters or order were changed on the page.
-            "restorable": refined or bool(named and shown_sort != named),
+            # Clear all also when a saved view's filters or order were changed on the page: a
+            # sort chosen there other than the view's own order.
+            "restorable": refined
+            or bool(active_view and "sort" in chosen_query(request) and shown_sort != named),
             "list_query": _queue_list(request, shown_sort),
             "chosen_query": chosen_query(request).urlencode(),  # the bulk form's address
         },

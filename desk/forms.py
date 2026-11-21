@@ -422,6 +422,11 @@ class BulkForm(StyledForm, forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.refresh_choices()
+
+    def refresh_choices(self):
+        """Read the teams and their members now: a refused form drawn again offers them as they
+        stand after the change it posted, not as they stood before it."""
         self.fields["assign_to"].choices = assign_choices("Choose")
 
     def clean(self):

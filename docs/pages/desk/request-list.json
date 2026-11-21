@@ -260,7 +260,7 @@
         },
         {
           "label": "Rows per page and pagination",
-          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total. Without a sort or rows per page chosen on the page, your saved ones apply, also after searching or filtering."
+          "description": "Choose how many rows to show per page. First, Previous, Next and Last keep the filters and sort; the footer gives the range and the total. Without a sort or rows per page chosen on the page, your saved ones apply, also after searching or filtering; in a saved view, its own order comes before your saved sort."
         },
         {
           "label": "Empty states",
