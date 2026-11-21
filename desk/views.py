@@ -28,6 +28,7 @@ from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.models import Client
 from core.concurrency import one_reading, reading_account
+from core.grids import chosen_query
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -148,7 +149,7 @@ def request_list(request):
     current_view = request.GET.get("view") or DEFAULT_VIEW
     if current_view not in SYSTEM_VIEWS:
         # An unknown view (an old bookmark) opens the default one rather than an empty list.
-        params = request.GET.copy()
+        params = chosen_query(request)  # not the values added from saved settings
         params.pop("view")
         return redirect(f"{reverse('desk:request-list')}?{params.urlencode()}")
     current_saved = request.GET.get("saved", "")
@@ -199,7 +200,7 @@ def request_list(request):
             "selected_rows": selected_rows,
             "clear_url": clear_url,
             "refined": refined,
-            "list_query": request.GET.urlencode(),
+            "list_query": request.GET.urlencode(),  # its sort orders Previous and Next
         },
     )
 

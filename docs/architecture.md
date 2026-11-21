@@ -302,7 +302,43 @@ The import does not provision accounts. [Importer](../dataimport/importing.py)
 Django forms and template components provide the same labels, error feedback and keyboard
 behavior across pages. List filtering, sorting and pagination run on the authorized queryset.
 DataTables manages column presentation. Table layout and other presentation preferences belong
-to individual accounts. [UI standards](ui-standards.md)
+to individual accounts: stored in the database ([core/preferences.py](../core/preferences.py)),
+read once for each request and never copied into the session, because two tabs of one sign-in
+can answer at the same moment and each saves its whole session as it ends. Every save compares
+with what is stored, not with what the request read: a list's page size and sort, and the What's
+new mark, are combined with the stored value holding its row, and a list saves only the page
+size and sort it applied with valid filters, once the response is ready (not a sort it does not
+offer, not with refused filters, nothing for a lookup or an error). A list's links and forms
+re-send only what the person chose on that page, not values added from their saved settings,
+so they never put back a value another tab changed. A person keeps at most 300; an
+addition counts and inserts holding that person's additions lock, a transaction-level advisory
+lock keyed like the access gate, so two at the same moment cannot both take the last place,
+while changing or removing a stored one takes no lock. The count needs READ COMMITTED, Django's
+default; a save checks its own transaction's isolation and is refused in one with an older
+snapshot. The first page's What's new mark is recorded as that page is drawn, for the account it
+is drawn for: it can take a last free place before the page's list choice is saved, and it is
+kept when the page is then replaced (an address without its trailing slash draws a 404 page
+before redirecting) or fails after drawing the top bar, unless the page was drawn inside its
+own reading (a ticket page), which discards it, or `ATOMIC_REQUESTS` rolls the request back. A
+mark drawn for an account deactivated meanwhile still records, for that account only. The seen
+mark keeps at most 400 entry ids; ids of another release's entries, whose dates this process
+does not know, are kept until that bound, ahead of a visit's own ids when theirs is the newer
+mark. A page drawn for an account removed at that moment, What's new included, draws without
+recording its mark (the preferences table's reference to that account; the transaction writes
+only that person's rows). A save the preferences refuse (the limit of 300, an isolation other
+than READ COMMITTED, a row changed under every attempt) leaves the page as drawn without
+recording the visit; a database failure, also of another table's reference, is raised, and
+under `ATOMIC_REQUESTS`, which this project does not use, the removal shows only when the request
+commits, so that page fails. A stored mark that does not read back exactly as written, or cannot
+be written back at all (a JSON number beyond double precision or range, which the application
+never writes), is not repaired by a page's first mark: it counts as none until a What's new
+visit with entries to mark replaces it. A stored page size that is not a whole number counts as
+none, and choosing that size replaces it. A stored value Python cannot read at all (an integer
+of more than 4,300 digits, which only another writer can store) fails that person's pages until
+it is removed. Processes of an earlier
+release take no such lock and keep a copy in the session, so while a deploy replaces processes
+one by one the limit and the next-page guarantee hold only between processes of this release.
+[UI standards](ui-standards.md)
 
 Page help is versioned content selected by the authorized page's route and variant. Downloads
 and POST actions are explained on the pages that invoke them. Staff What's new and the generated

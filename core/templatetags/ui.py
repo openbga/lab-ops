@@ -24,16 +24,17 @@ written directly inside the tag (not inside an {% if %}), renders into the named
 whitespace, so an empty body is falsy.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from django import template
+from django.http import QueryDict
 from django.template.base import token_kwargs
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 
-from core.grids import PageSizeForm
+from core.grids import PageSizeForm, chosen_query
 
 register = template.Library()
 
@@ -325,7 +326,8 @@ COMPONENTS = {
         reads=("sort",),
     ),
     "pagination": Component(
-        I + "pagination.html", ("page_obj", "noun", "filtered", "post_name", "page_parameter"),
+        I + "pagination.html",
+        ("page_obj", "noun", "filtered", "post_name", "page_parameter", "fixed_size"),
         reads=("page_obj",),
     ),
     "select_all": Component(I + "select_all.html", ("name", "label", "ready_label")),
@@ -369,10 +371,75 @@ def page_size_field(per_page, noun):
     return form["per_page"]
 
 
+def _chosen_query(context):
+    """The request's query parameters without those added from the person's saved settings
+    (request.vr_saved_params, core.preferences): a link or form of a list re-sends only what the
+    person chose on this page, so it never saves again a value another tab has changed since."""
+    request = context.get("request")
+    if not hasattr(request, "GET"):  # a component drawn without a request
+        return QueryDict(mutable=True)
+    return chosen_query(request)
+
+
+@register.simple_tag(takes_context=True)
+def page_size_params(context, page_parameter="page"):
+    """The query parameters the rows-per-page form of includes/pagination.html carries: all the
+    person chose but the page and the page size."""
+    query = _chosen_query(context)
+    left_out = {page_parameter or "page", "per_page"}
+    return [
+        (key, value) for key, values in query.lists() if key not in left_out for value in values
+    ]
+
+
+@register.simple_tag(takes_context=True)
+def chosen_param(context, name):
+    """One query parameter as the person chose it on this page ("" when it came from their saved
+    settings or is absent): the hidden sort and page size of a list's filter form."""
+    return _chosen_query(context).get(name, "")
+
+
+@register.simple_tag(takes_context=True)
+def grid_query(context, **changes):
+    """A list link's query string: what the person chose on this page, with `changes` applied
+    (None removes a parameter). For sort headings: what Django's querystring tag does, applied to
+    what the person chose, without the values added from saved settings (the steps are repeated
+    here so that a parameter named `query_dict` can be changed too; only `context`, which every
+    context tag takes, Django's included, cannot)."""
+    chosen = _chosen_query(context)
+    query = chosen.copy()
+    for name, value in changes.items():
+        if value is None:
+            query.pop(name, None)
+        elif isinstance(value, Iterable) and not isinstance(value, str):
+            query.setlist(name, value)  # QueryDict turns bytes into text, as for Django's tag
+        else:
+            query[name] = value
+    if not query and not chosen:
+        return ""
+    return "?" + query.urlencode()
+
+
+@register.simple_tag(takes_context=True)
+def chosen_query_string(context):
+    """The list's query string as the person chose it ("" when none): a record link's `list`
+    parameter, which its breadcrumb sends back to the list."""
+    return _chosen_query(context).urlencode()
+
+
+@register.simple_tag(takes_context=True)
+def saved_param_names(context):
+    """The query parameters the list middleware added from the person's saved settings, which a
+    list's forms leave out (bound hidden fields of the filter toolbar)."""
+    request = context.get("request")
+    return sorted(getattr(request, "vr_saved_params", ()))
+
+
 @register.simple_tag(takes_context=True)
 def pagination_query(context, page_number, page_parameter="page"):
-    """Change one table's GET page while preserving the other table and filter parameters."""
-    query = context["request"].GET.copy()
+    """Change one table's GET page while preserving the other table and filter parameters the
+    person chose (not those added from saved settings)."""
+    query = _chosen_query(context)
     query[page_parameter or "page"] = page_number
     return "?" + query.urlencode()
 

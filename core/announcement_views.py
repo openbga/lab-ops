@@ -17,7 +17,7 @@ from accounts.roles import require_role
 from . import announcements as service
 from .announcement_forms import AnnouncementFilterForm, AnnouncementForm
 from .concurrency import protect_form
-from .grids import GridRequest, active_filters
+from .grids import GridRequest, active_filters, shown
 from .models import Announcement, AuditEvent
 
 COLUMNS = {
@@ -60,6 +60,7 @@ def announcement_list(request):
         if filters["audience"]:
             queryset = queryset.filter(**{service.AUDIENCES[filters["audience"]][0]: True})
         chips = active_filters(request, form)
+        shown(request, grid)  # applied with valid filters: this page size and sort may be saved
     else:
         queryset = queryset.none()  # never silently widen an invalid filter
         chips = []

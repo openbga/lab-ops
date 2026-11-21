@@ -29,6 +29,6 @@ not read them. Every staff role reads this page.
     {% endif %}
   {% endfor %}
 {% endhistory_panel %}
-{% pagination page_obj=page_obj noun="items" filtered=active_filters %}
+{% pagination page_obj=page_obj noun="items" filtered=active_filters fixed_size=True %}
 {% endif %}
 {% endblock %}

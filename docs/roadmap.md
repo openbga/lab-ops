@@ -57,7 +57,7 @@ ships, move it to Built in the same change.
 | Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites; a reply refused because the laboratory closed the ticket meanwhile is shown again to copy into a follow-up; a ticket's page is read at one moment, so its reply form always matches the conversation it shows |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
 | Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
-| Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration |
+| Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration; each person's list layouts, page sizes, sidebar state and What's new visits are saved for their account and read for each page, so a change in one tab or on one workstation shows on the next page in the others, and the limit of 300 saved preferences holds when two are added at the same moment |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible, as they stand when it decides, when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The jobs act as an account of their own, named with a random suffix nobody can know in advance, so a person's account registered at the same moment under its old name, in any letter case, neither delays its first use nor ends up differing from it only in case. The public demonstration has no scheduler and keeps email off |
 | Release checks | On every pull request and weekly: static analysis of the application code and its workflows, an audit of the locked and vendored dependencies for known vulnerabilities, a scan of the history for committed secrets and a scan of the container image; a software bill of materials of the image for each run and each published release; the security policy says what is checked and what is not. Penetration testing, a bug bounty and scanning of anyone's deployment are left out |
@@ -89,14 +89,21 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
-### Review follow-up: preferences kept in the session
+### Review follow-up: a ticket's way back to the queue
 
-- **Delivers:** two small changes that the independent review of "the jobs' account's first use
-  and a page drawn across a change" found predating it. Each signed-in session keeps a copy of the
-  person's saved preferences, and two tabs answering at the same moment each save their own copy,
-  so the last one can put back an older What's new mark: the next page then shows a change as
-  unread although What's new was opened. Two first saves at the same moment can take a person past
-  the limit of 300 saved preferences. Acceptance cases: the review's tests for V2 and V3.
+- **Delivers:** small changes to the staff queue that the independent review of "preferences kept
+  in the session" found predating it. A staff ticket opened from the queue carries the queue's
+  address, with the sort and page size the queue added from the person's saved settings, because
+  Previous, Next and Save view need that order. Its breadcrumb back to the queue, the return after
+  a bulk change and Save view's Cancel send them as if chosen, so they can save again an older
+  sort or page size than another tab saved since; they should send only what the person chose
+  while Previous, Next and Save view keep the order shown. Two more: a ticket opened from the
+  queue at its default order, with nothing chosen or saved, shows no Previous or Next; and a view
+  saved at the default order stores no sort, so it reopens in the person's saved sort instead of
+  the order shown. Acceptance cases: the staff cases of the review's record round-trip test
+  (second confirmation) and the default-queue, named-view, queue-action and breadcrumb tests of
+  its fourth confirmation (marked as expected to fail until then), with the queue-navigation and
+  Save view tests of its third confirmation still passing.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** nothing.
 

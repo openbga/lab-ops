@@ -25,10 +25,10 @@ active, placeholder). can_manage_clients comes from the workspace context proces
           {% sort_header label="State" asc="state" desc="-state" col="state" %}
         </tr>
       </thead>
-      <tbody>
+      {% chosen_query_string as list_query %}<tbody>
         {% for client in page_obj %}
         <tr>
-          <th scope="row"><a class="vr-row-link" href="{% url 'clients:client-detail' client.pk %}{% if request.GET %}?list={{ request.GET.urlencode|urlencode:"" }}{% endif %}">{{ client.name }}</a></th>
+          <th scope="row"><a class="vr-row-link" href="{% url 'clients:client-detail' client.pk %}{% if list_query %}?list={{ list_query|urlencode:"" }}{% endif %}">{{ client.name }}</a></th>
           <td class="vr-id">{{ client.account_number|default:"—" }}</td>
           <td>{{ client.get_organization_type_display|default:"—" }}{% if client.parent %}<br><span class="vr-muted small">Part of {{ client.parent.name }}</span>{% endif %}</td>
           <td>{% if client.is_active == False %}{% status label="Inactive" tone="neutral" plain=True %}{% else %}{% status label="Active" tone="success" plain=True %}{% endif %}</td>

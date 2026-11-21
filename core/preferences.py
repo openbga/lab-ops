@@ -12,13 +12,21 @@ Keys and the values they accept:
 Every value is checked when written and again when read: a value that no longer fits (an old
 format, a column that was removed) is ignored and the page falls back to its defaults.
 Presentation only: a preference never widens what a user may see.
+
+Each request reads the stored values once (for_request); nothing is kept in the session, so a
+change made in another tab, browser or workstation shows from the next page. A person has at
+most MAX_PREFERENCES; adding one counts and inserts holding a lock of that person's additions.
 """
 
 import json
 import re
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.changelog import valid_marker
@@ -55,8 +63,9 @@ def clean(key, value):
         if not isinstance(value, dict) or not set(value) <= {"per_page", "sort"}:
             return None
         cleaned = {}
-        if value.get("per_page") in PAGE_SIZES and not isinstance(value["per_page"], bool):
-            cleaned["per_page"] = value["per_page"]
+        size = value.get("per_page")
+        if type(size) is int and size in PAGE_SIZES:  # not 50.0: the address takes whole numbers
+            cleaned["per_page"] = size
         if isinstance(value.get("sort"), str) and SORT.match(value["sort"]):
             cleaned["sort"] = value["sort"]
         return cleaned or None
@@ -67,83 +76,235 @@ def clean(key, value):
     return None
 
 
-SESSION_KEY = "vr_preferences"
+# The advisory lock of one person's additions to their preferences (PostgreSQL's two-key form; the
+# first key is this lock's own, as accounts.acting.ACCESS_GATE is the access gates'). An addition
+# counts the person's preferences and inserts its row holding it, so two additions at the same
+# moment cannot both take the last place under MAX_PREFERENCES. Changing or removing a stored
+# value adds no row and does not take it. The email notice opt-out (desk.notification_views) is
+# written outside the limit and does not take it either. The second key is the account's id
+# modulo 2**31 - 1, as for the access gate: accounts whose ids differ by that share it, which only
+# makes their additions take turns. Counting holding it needs READ COMMITTED (Django's default),
+# where the count sees what the previous holder committed; an addition in a transaction with an
+# older snapshot (REPEATABLE READ or stricter) is refused instead. Writers of an earlier release
+# take no such lock: while a deploy replaces processes one by one, an earlier process's addition
+# can still take the last place beside this one's, and add a row this one then finds.
+PREFERENCE_ADDITIONS = 19557
 
 
 def for_request(request):
-    """All valid preferences of the signed-in user.
+    """All valid preferences of the signed-in user, read from the database once per request.
 
-    Read from the database once per sign-in and kept in the session, which every request loads
-    anyway, so pages make no extra query. save() updates both. Another session of the same user
-    sees a change made elsewhere from its next sign-in.
+    Not kept in the session: two tabs of one sign-in can answer at the same moment, and each
+    saves its whole session as it ends, so a copy kept there could put back what the other had
+    just changed (an older What's new mark, a column order). Because they are read for each
+    request, a change made in another tab, browser or workstation shows from the next page.
     """
-    if hasattr(request, "_vr_preferences"):
-        return request._vr_preferences
-    prefs = {}
     user = getattr(request, "user", None)
-    session = getattr(request, "session", None)
-    if user is not None and user.is_authenticated:
-        cached = session.get(SESSION_KEY) if session is not None else None
-        if isinstance(cached, dict) and cached.get("user") == user.pk:
-            stored = cached.get("prefs", {}).items()
-        else:
-            stored = UserPreference.objects.filter(user=user).values_list("key", "value")
-        for key, value in stored:
+    pk = user.pk if user is not None and user.is_authenticated else None
+    cached = getattr(request, "_vr_preferences", None)
+    if cached is not None and cached[0] == pk:
+        return cached[1]
+    prefs = {}
+    if pk is not None:
+        for key, value in UserPreference.objects.filter(user_id=pk).values_list("key", "value"):
             if (valid := clean(key, value)) is not None:
                 prefs[key] = valid
-        if session is not None and cached != {"user": user.pk, "prefs": prefs}:
-            session[SESSION_KEY] = {"user": user.pk, "prefs": prefs}
-    request._vr_preferences = prefs
+    request._vr_preferences = (pk, prefs)
     return prefs
 
 
-def _remember(request, prefs):
-    if getattr(request, "session", None) is not None:
-        request.session[SESSION_KEY] = {"user": request.user.pk, "prefs": dict(prefs)}
+def _same_json(stored, value):
+    """Whether `stored` and `value` are written as the same JSON (Python takes 50.0 == 50)."""
+    return json.dumps(stored, sort_keys=True) == json.dumps(value, sort_keys=True)
+
+
+def _writable_json(value):
+    try:
+        json.dumps(value, allow_nan=False)
+    except ValueError:
+        return False
+    return True
+
+
+def account_removed(error, user_id):
+    """True when `error` (an IntegrityError) is a preference row of `user_id` losing its account:
+    a foreign-key failure of the preferences table while that account no longer exists. Any other
+    failure, also of another table's reference, is not."""
+    cause = error.__cause__
+    return (
+        getattr(cause, "sqlstate", None) == "23503"
+        and getattr(getattr(cause, "diag", None), "table_name", None)
+        == UserPreference._meta.db_table
+        and not get_user_model().objects.filter(pk=user_id).exists()
+    )
+
+
+def _hold_additions(user_id):
+    """Take `user_id`'s additions lock until the transaction ends (see PREFERENCE_ADDITIONS)."""
+    from accounts.acting import INT4
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("The preference additions lock is held for a transaction; open one.")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(%s, %s)", [PREFERENCE_ADDITIONS, user_id % INT4]
+        )
+
+
+def _replace(user_id, key, value):
+    """Whether `user_id` has `key` stored; if so its value is now `value`."""
+    return bool(
+        UserPreference.objects.filter(user_id=user_id, key=key).update(
+            value=value, updated_at=timezone.now()
+        )
+    )
+
+
+# Transaction isolation levels at which a count or a locked read sees what the previous holder of
+# the additions lock committed. PostgreSQL runs READ UNCOMMITTED as READ COMMITTED.
+WRITABLE_ISOLATION = ("read committed", "read uncommitted")
+
+
+def _writable():
+    """Inside the write's own transaction: refuse it at an isolation stricter than READ
+    COMMITTED (Django's default), where a count or a locked read comes from a snapshot older than
+    the lock, and a row changed since fails the statement. Raises ValueError, which every caller
+    treats as "not saved"."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("Check the isolation inside the write's transaction.")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('transaction_isolation')")
+        if cursor.fetchone()[0] not in WRITABLE_ISOLATION:
+            raise ValueError("Preferences can be saved only at READ COMMITTED.")
+
+
+def _add(user_id, key, value):
+    """Add `key` with `value` for `user_id`, unless they have MAX_PREFERENCES already (ValueError).
+    The caller holds the additions lock and found no row for `key` holding it. False when a row
+    for `key` exists all the same, added meanwhile by a writer that takes no lock (a process of
+    an earlier release, during a deploy): the caller reads it again."""
+    counted = UserPreference.objects.filter(user_id=user_id).aggregate(
+        total=Count("pk"), this=Count("pk", filter=Q(key=key))
+    )  # one statement, so both describe the same moment
+    if counted["total"] >= MAX_PREFERENCES:
+        if counted["this"]:
+            return False
+        raise ValueError("Too many saved preferences.")
+    try:
+        with transaction.atomic():
+            UserPreference.objects.create(user_id=user_id, key=key, value=value)
+    except IntegrityError as error:
+        diag = getattr(error.__cause__, "diag", None)
+        if getattr(diag, "constraint_name", None) != "unique_user_preference":
+            raise
+        return False
+    return True
+
+
+# How often a save starts again when the row it found, or failed to add, changes under it.
+ATTEMPTS = 3
 
 
 def save(request, key, value):
-    """Store (or, for None, remove) one preference of the signed-in user. Raises ValueError."""
+    """Store (or, for None, remove) one preference of the signed-in user. Raises ValueError.
+
+    Compared with what is stored, not with what this request read: another tab may have changed
+    or removed it since."""
     prefs = for_request(request)
-    if value is None:
-        UserPreference.objects.filter(user=request.user, key=key).delete()
-        prefs.pop(key, None)
-        _remember(request, prefs)
-        return
-    if clean(key, value) != value:
+    user_id = request.user.pk
+    if value is not None and clean(key, value) != value:
         raise ValueError(f"Not a valid value for {key!r}.")
-    if prefs.get(key) == value:
-        return
-    exists = UserPreference.objects.filter(user=request.user, key=key).exists()
-    if not exists and UserPreference.objects.filter(user=request.user).count() >= MAX_PREFERENCES:
-        raise ValueError("Too many saved preferences.")
-    UserPreference.objects.update_or_create(user=request.user, key=key, defaults={"value": value})
+    with transaction.atomic():
+        _writable()
+        if value is None:
+            UserPreference.objects.filter(user_id=user_id, key=key).delete()
+        elif not _replace(user_id, key, value):
+            _hold_additions(user_id)
+            # Again holding the lock: a row for this key added meanwhile (another tab) is
+            # replaced, not added a second time; so is one an earlier release added unlocked,
+            # and if that one is removed before it can be replaced, this adds it again.
+            for _attempt in range(ATTEMPTS):
+                if _replace(user_id, key, value) or _add(user_id, key, value):
+                    break
+            else:
+                raise ValueError("The preference changed while saving; try again.")
+    if value is None:
+        prefs.pop(key, None)
+    else:
+        prefs[key] = value
+
+
+def save_combined(request, key, combine):
+    """Store `combine(stored)` as the signed-in user's `key`, where `stored` is its valid value
+    as stored when this saves (None when there is none), not as this request read it: another tab
+    may have saved one meanwhile. The row is held from reading to writing (the additions lock
+    while there is none). Raises ValueError."""
+    prefs = for_request(request)
+    user_id = request.user.pk
+    rows = UserPreference.objects.select_for_update(no_key=True).filter(user_id=user_id, key=key)
+
+    def combined(row):
+        value = combine(None if row is None else clean(key, row.value))
+        if clean(key, value) != value:
+            raise ValueError(f"Not a valid value for {key!r}.")
+        return value
+
+    with transaction.atomic():
+        _writable()
+        row = rows.first()
+        if row is None:
+            _hold_additions(user_id)
+        for _attempt in range(ATTEMPTS):
+            row = row or rows.first()  # again holding the lock: one added meanwhile is combined
+            value = combined(row)
+            if row is not None:  # held: nobody can change or remove it before this commits
+                if not _same_json(row.value, value):  # 50.0 is replaced by 50, not kept
+                    rows.update(value=value, updated_at=timezone.now())
+                break
+            if _add(user_id, key, value):
+                break
+        else:
+            raise ValueError("The preference changed while saving; try again.")
     prefs[key] = value
-    _remember(request, prefs)
 
 
 def save_if_absent(request, key, value):
-    """Store `value` as the signed-in user's `key` only while they have none, and keep a value
-    stored meanwhile (by another tab, or an explicit choice). Raises ValueError."""
+    """Store `value` as the signed-in user's `key` only while they have none stored, and keep a
+    value stored meanwhile (by another tab, or an explicit choice). A stored value that can no
+    longer be read counts as none and is replaced, whenever it is found. Raises ValueError, also
+    when the row keeps changing under it."""
     if clean(key, value) != value:
         raise ValueError(f"Not a valid value for {key!r}.")
     prefs = for_request(request)
-    if key in prefs:
-        return
-    stored = UserPreference.objects.filter(user=request.user, key=key).first()
-    if stored is None:
-        if UserPreference.objects.filter(user=request.user).count() >= MAX_PREFERENCES:
-            raise ValueError("Too many saved preferences.")
-        stored, _created = UserPreference.objects.get_or_create(
-            user=request.user, key=key, defaults={"value": value}
-        )
-    elif clean(key, stored.value) is None:
-        # Unreadable, so as good as none: replaced, unless it was replaced meanwhile.
-        UserPreference.objects.filter(pk=stored.pk, value=stored.value).update(value=value)
-        stored.refresh_from_db()
-    if (kept := clean(key, stored.value)) is not None:
-        prefs[key] = kept
-        _remember(request, prefs)
+    user_id = request.user.pk
+    stored = UserPreference.objects.filter(user_id=user_id, key=key)
+    with transaction.atomic():
+        _writable()
+        locked = False
+        for _attempt in range(2 * ATTEMPTS):  # reading, locking, adding and repairing
+            row = stored.first()
+            if row is not None:
+                if (kept := clean(key, row.value)) is not None:
+                    break  # a readable one, from another tab or an explicit choice, stays
+                # Unreadable: replaced, unless it was replaced meanwhile (then read it again).
+                # A number JSON cannot write back (out of range) cannot be compared: left as is,
+                # it counts as none.
+                if not _writable_json(row.value):
+                    raise ValueError(f"The stored {key!r} cannot be compared.")
+                if stored.filter(pk=row.pk, value=row.value).update(
+                    value=value, updated_at=timezone.now()
+                ):
+                    kept = value  # held by this update until the transaction ends
+                    break
+            elif not locked:
+                _hold_additions(user_id)  # then read again holding it
+                locked = True
+            elif _add(user_id, key, value):
+                kept = value
+                break
+        else:
+            raise ValueError("The preference changed while saving; try again.")
+    prefs[key] = kept
 
 
 @login_required
@@ -167,8 +328,12 @@ class GridPreferenceMiddleware:
     """Remember each user's page size and sort per list, and apply them when the URL has none.
 
     Lists follow the shared grid contract (core.grids): `per_page` and `sort` in the query string.
-    A valid value in the URL is saved for this page; without one, the saved value is added to the
-    request, so the view, its pagination and its links all see it. The view still validates both.
+    Without one in the URL, the saved value is added to the request, so the view, its pagination
+    and its links all see it; the view still validates both. Once the response is ready, a value
+    the URL gave is saved for this list if the list applied it with valid filters
+    (core.grids.shown) and the response succeeded: a page that is not a list (a lookup), a sort
+    the list does not offer (an old link), filters the list refused, or an error saves nothing.
+    At the limit of saved preferences nothing is saved and the page still follows its address.
     """
 
     PARAMS = ("per_page", "sort")
@@ -177,7 +342,10 @@ class GridPreferenceMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        return self.get_response(request)
+        response = self.get_response(request)
+        if response.status_code < 400:
+            self.remember(request)
+        return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         user = getattr(request, "user", None)
@@ -194,8 +362,8 @@ class GridPreferenceMiddleware:
             given["per_page"] = int(request.GET["per_page"])
         if SORT.match(request.GET.get("sort", "")):
             given["sort"] = request.GET["sort"]
-        if given and {**stored, **given} != stored:
-            save(request, key, {**stored, **given})
+        if given:
+            request._vr_grid_given = (user.pk, key, given)
         missing = {
             name: stored[name] for name in self.PARAMS if name in stored and name not in request.GET
         }
@@ -206,3 +374,23 @@ class GridPreferenceMiddleware:
             request.GET = params
             request.vr_saved_params = set(missing)  # links may leave these out (core.grids)
         return None
+
+    def remember(self, request):
+        given = getattr(request, "_vr_grid_given", None)
+        grid = getattr(request, "vr_grid", None)
+        user = getattr(request, "user", None)
+        if given is None or grid is None or user is None or user.pk != given[0]:
+            return
+        _user_id, key, values = given
+        showed = {"per_page": grid.per_page, "sort": grid.sort}
+        accepted = {name: value for name, value in values.items() if showed[name] == value}
+        if not accepted:
+            return
+        try:
+            save_combined(request, key, lambda stored: {**(stored or {}), **accepted})
+        except ValueError:
+            pass  # too many saved preferences: the page followed its address, nothing is saved
+        except IntegrityError as error:
+            if getattr(error.__cause__, "sqlstate", None) != "23503":
+                raise
+            # The account was removed while the page was drawn: there is nobody to save it for.

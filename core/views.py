@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import connection
+from django.db import IntegrityError, connection
 from django.db.models import Count, Min
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -239,11 +239,23 @@ def whats_new(request):
     marker = preferences.for_request(request).get(preferences.WHATS_NEW_KEY)
     new_ids = {entry.id for entry in changelog.unread(entries, marker)} if marker else set()
     seen = changelog.seen_marker(entries)
-    if seen is not None and seen != marker:
+    if seen is not None and request.method != "HEAD":  # a HEAD response shows no entries
         try:
-            preferences.save(request, preferences.WHATS_NEW_KEY, seen)
+            # Combined with the mark as stored when saving, not as read: a visit in another tab,
+            # or on a process of another release whose entries differ, keeps what it marked.
+            preferences.save_combined(
+                request,
+                preferences.WHATS_NEW_KEY,
+                lambda stored: changelog.combined_marker(stored, seen, entries),
+            )
         except ValueError:
             pass  # too many saved preferences: the indicator stays, the list still shows
+        except IntegrityError as error:
+            # The account was removed while the page was drawn: nobody to record it for. Any
+            # other failure, also of another reference, is raised. (Under ATOMIC_REQUESTS, not
+            # used here, the reference is checked only when the request commits.)
+            if not preferences.account_removed(error, request.user.pk):
+                raise
     visible = visible_staff_items(request.user, request=request)
     return render(
         request,

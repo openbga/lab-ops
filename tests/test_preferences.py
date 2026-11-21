@@ -57,7 +57,7 @@ def test_bad_values_are_refused_and_stored_junk_falls_back(client, staff):
         client.post(reverse("preference"), "not json", content_type="text/plain").status_code == 400
     )
     assert client.get(reverse("preference")).status_code == 405
-    # Something stored in an older format is ignored, not trusted (read at the next sign-in).
+    # Something stored in an older format is ignored, not trusted.
     UserPreference.objects.create(
         user=user, key="grid:clients.clients:v1", value=["account_number"]
     )
@@ -113,13 +113,13 @@ def test_sidebar_state_and_anonymous_requests(client, staff):
 
 
 @pytest.mark.django_db
-def test_settings_are_read_once_per_sign_in(client, staff):
+def test_settings_are_read_for_every_page_not_kept_in_the_session(client, staff):
+    # Before: read once per sign-in and kept in the session, so another tab's or workstation's
+    # change showed only from the next sign-in, and a tab's copy could put back an older value.
     user = staff("technical-d", "technical")
     client.force_login(user)
     assert post(client, "nav.collapsed", True).status_code == 204
-    client.get(reverse("dashboard"))
-    UserPreference.objects.filter(user=user).delete()  # only the session copy remains
     assert page_prefs(client, reverse("dashboard")) == {"nav.collapsed": True}
-    client.logout()
-    client.force_login(user)  # a new sign-in reads the database again
+    UserPreference.objects.filter(user=user).delete()  # removed elsewhere
     assert page_prefs(client, reverse("dashboard")) == {}
+    assert "vr_preferences" not in client.session

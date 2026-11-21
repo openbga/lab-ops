@@ -490,11 +490,18 @@ def test_contact_detail_edit_keeps_before_and_after_even_if_label_stays_the_same
 
 def test_debug_help_matches_the_cookie_and_redirect_received_by_the_browser(client, admin):
     with override_settings(DEBUG=True, SESSION_COOKIE_SECURE=True, SECURE_SSL_REDIRECT=True):
-        client.force_login(admin)
+        # The cookie as the sign-in issues it: a page that changes nothing in the session sends
+        # none (preferences are no longer copied into the session on the first page).
+        signed_in = client.post(
+            reverse("account_login"),
+            {"login": admin.username, "password": PASSWORD},
+            secure=True,
+        )
+        assert signed_in.status_code == 302
+        assert signed_in.cookies[settings.SESSION_COOKIE_NAME]["secure"]
         assert client.get(reverse("security-settings")).status_code == 301
         response = client.get(reverse("security-settings"), secure=True)
         assert response.status_code == 200
-        assert response.cookies[settings.SESSION_COOKIE_NAME]["secure"]
         html = response.content.decode()
     assert "where the session cookie and HTTPS are not enforced" not in html
 

@@ -42,6 +42,25 @@ class GridRequest:
         return Paginator(ordered, self.per_page).get_page(self.page_number)
 
 
+def chosen_query(request):
+    """The request's query parameters without those the list middleware added from the person's
+    saved settings (request.vr_saved_params, core.preferences): what a list's links, forms and
+    record links carry, so they re-send only what the person chose and never save again a value
+    another tab has changed since."""
+    query = request.GET.copy()
+    for name in getattr(request, "vr_saved_params", ()):
+        query.pop(name, None)
+    return query
+
+
+def shown(request, grid):
+    """Note on `request` the page size and sort its list applies, once its filters are valid (with
+    or without matching rows): the list middleware (core.preferences.GridPreferenceMiddleware)
+    saves those the address gave, and only those, when the response succeeds."""
+    request.vr_grid = grid
+    return grid
+
+
 def active_filters(request, form):
     """Build removable links from validated, named filters without a query DSL."""
     chips = []

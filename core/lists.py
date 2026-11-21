@@ -4,7 +4,7 @@ from django.db.models import Q
 from django.http import HttpResponseBadRequest, QueryDict
 from django.shortcuts import render
 
-from core.grids import GridRequest, active_filters
+from core.grids import GridRequest, active_filters, shown
 
 
 def return_list_params(request, form_class):
@@ -73,6 +73,7 @@ def list_response(
                     queryset = queryset.filter(**{f"{field}__date__{lookup}": value})
         if refine:
             queryset = refine(queryset, cleaned)
+        shown(request, grid)  # applied with valid filters: this page size and sort may be saved
     else:
         queryset = queryset.none()
     chips = active_filters(request, form)

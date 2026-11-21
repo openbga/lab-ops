@@ -38,15 +38,25 @@ TYPES = {
 IMPACTS = {"high": "High impact", "medium": "Medium impact", "low": "Low impact"}
 REQUIRED = ("date", "type", "impact", "title")
 OPTIONAL = ("area", "link", "pr", "highlight")
-FILE_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
+# The slug is at most 80 characters, as an entry id (ID) and a stored seen mark allow.
+FILE_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-(?=[a-z0-9-]{1,80}\.md$)[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 ID = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9-]{1,80}$")
 LINK = re.compile(r"^[a-z0-9_-]+(?::[a-z0-9_-]+)*$")  # a Django route name without arguments
 NOTES_HEADING = "## Technical notes"
 TITLE_MAX = 120
-# An entry dated up to this long before the newest one a user has seen still counts as new if
-# the user has not seen it (it merged later than its date). Bounds the stored list of ids.
+# An entry dated less than this long before the newest one a user has seen still counts as new if
+# the user has not seen it (it merged later than its date). Bounds the stored list of ids: with
+# more than SEEN_IDS_MAX entries inside the window, the earliest published beyond SEEN_IDS_MAX
+# stay unread after a visit.
 SEEN_WINDOW = datetime.timedelta(days=60)
 SEEN_IDS_MAX = 400
+
+
+def in_window(day, newest):
+    """True when `day` is less than SEEN_WINDOW before `newest` (or after it). Compares their
+    difference, which any two dates have, rather than a day SEEN_WINDOW earlier, which a date
+    in the first weeks of year 1 does not."""
+    return newest - day < SEEN_WINDOW
 
 
 class ChangelogError(ValueError):
@@ -89,6 +99,10 @@ def parse_entry(path):
     name = path.name
     if not FILE_NAME.match(name):
         raise ChangelogError(f"{name}: the file name must be YYYY-MM-DD-short-slug.md")
+    try:
+        datetime.date.fromisoformat(name[:10])
+    except ValueError:
+        raise ChangelogError(f"{name}: the file name must start with a real date") from None
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
@@ -277,12 +291,43 @@ def stale(entries, path=None):
 
 def seen_marker(entries):
     """What to remember when a user opens What's new: the newest date and the ids in the window
-    before it. None when there are no entries."""
+    before it, the most recently published first when there are more than SEEN_IDS_MAX, kept in id
+    order. None when there are no entries."""
     if not entries:
         return None
     newest = max(entry.date for entry in entries)
-    ids = sorted((entry.id for entry in entries if entry.date > newest - SEEN_WINDOW), reverse=True)
-    return {"date": newest.isoformat(), "ids": ids[:SEEN_IDS_MAX]}
+    recent = sorted(
+        (entry for entry in entries if in_window(entry.date, newest)),
+        key=lambda entry: (entry.date, entry.id),
+        reverse=True,
+    )
+    ids = sorted((entry.id for entry in recent[:SEEN_IDS_MAX]), reverse=True)
+    return {"date": newest.isoformat(), "ids": ids}
+
+
+def combined_marker(stored, seen, entries=()):
+    """What to remember after a visit that saw `seen` (seen_marker of `entries`) when `stored` is
+    the mark kept already, from another tab or a process of another release whose entries differ:
+    every entry either marks as seen stays seen, within SEEN_IDS_MAX. The newer date; the ids of
+    the mark with that date first (this visit's on a tie), then the other's, each once, without
+    those this visit's entries date outside the window before the newer date, in seen_marker's
+    order. An id this visit does not know (another release's entry) is kept: its published date is
+    unknown here, and a file name's date can differ from it.
+    """
+    if not valid_marker(stored):
+        return seen
+    if not valid_marker(seen):
+        return stored
+    newer, older = (stored, seen) if stored["date"] > seen["date"] else (seen, stored)
+    published = {entry.id: entry.date for entry in entries}
+    newest = datetime.date.fromisoformat(newer["date"])
+
+    def kept(entry_id):
+        dated = published.get(entry_id)
+        return dated is None or in_window(dated, newest)
+
+    ids = [entry_id for entry_id in dict.fromkeys([*newer["ids"], *older["ids"]]) if kept(entry_id)]
+    return {"date": newer["date"], "ids": sorted(ids[:SEEN_IDS_MAX], reverse=True)}
 
 
 def valid_marker(value):
@@ -311,5 +356,5 @@ def unread(entries, marker):
     return [
         entry
         for entry in entries
-        if entry.date > newest or (entry.date > newest - SEEN_WINDOW and entry.id not in seen)
+        if entry.date > newest or (in_window(entry.date, newest) and entry.id not in seen)
     ]
