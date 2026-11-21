@@ -649,7 +649,13 @@ def test_a_reveal_page_posted_before_the_deactivation_commits_is_refused(
         session.join()
     assert deactivated == ["done"], deactivated
     assert session.outcome == "done", repr(session.error)
-    assert session.result.status_code in (403, 404), session.result.status_code
+    # Adapted for the automatic sign-out change: the deactivation ends the person's sessions, and
+    # a change that holds its account then refuses as from an ended session (SessionEnded), which
+    # signs the browser out (accounts.sessions): a redirect to sign in instead of 403 or 404.
+    response = session.result
+    assert response.status_code in (403, 404) or (
+        response.status_code == 302 and response.url.startswith(reverse("account_login"))
+    ), response.status_code
     assert AuditEvent.objects.filter(action=action).count() == before
 
 
