@@ -594,3 +594,41 @@ def test_a_refused_bulk_change_with_rows_shows_errors_in_the_form_only(client, a
     )
     assert refused.status_code == 200 and refused.context["page_obj"].object_list
     assert "the selected tickets are no longer on this page" not in refused.content.decode()
+
+
+# Neighbours of the third confirmation's fixes (desk/tests/test_review_queue_way_back_confirm3.py).
+
+
+def test_another_teams_change_keeps_a_choice_that_is_still_offered(
+    team_member, quality, accessioning, make_user
+):
+    from desk.forms import BulkForm
+    from teams.models import TeamMembership
+
+    choice = f"{quality.pk}:{team_member.pk}"
+    form = BulkForm({"action": "status", "assign_to": choice})  # refused: no status chosen
+    assert not form.is_valid()
+    TeamMembership.objects.create(team=accessioning, user=make_user("newcomer", "technical"))
+    form.refresh_choices()
+    assert form["assign_to"].value() == choice and "assign_to" not in form.errors
+    assert list(form.errors) == ["status"]
+
+
+def test_a_refusal_never_repeats_the_posted_value(agent):
+    from desk.forms import BulkForm
+
+    form = BulkForm({"action": "Collection hours", "assign_to": "Example caller"})
+    assert not form.is_valid()
+    words = str(form.errors)
+    assert "Collection hours" not in words and "Example caller" not in words
+    assert "Choose one of the options offered." in words
+
+
+def test_the_notice_without_a_selection_says_only_that_nothing_changed(client, agent, category):
+    client.force_login(agent)
+    refused = client.post(
+        f"{reverse('desk:request-list')}?view=waiting-client", {"action": "close"}
+    )
+    page = refused.content.decode()
+    assert refused.status_code == 200 and "Nothing was changed." in page
+    assert "the selected tickets are no longer on this page" not in page

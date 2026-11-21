@@ -770,7 +770,9 @@ def test_the_list_bulk_assign_refuses_a_person_deactivated_just_before(desk_page
     deactivate(gone, owner_admin)
     response = _bulk_post(c, ticket, team, gone, seen, "desk:request-list")
     assert response.status_code == 200
-    assert "Select a valid choice" in response.content.decode()
+    # The refusal does not repeat the posted value (review of the queue's way back, third
+    # confirmation, finding 6).
+    assert "Choose one of the options offered." in response.content.decode()
     assert (rev(ticket), holder(ticket)) == (seen, ticket.assignee_id)
 
 

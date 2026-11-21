@@ -30,7 +30,7 @@ restorable (a saved view's filters or order changed on the page: Clear all resto
 <p class="vr-form-note"><a href="{% url 'desk:view-edit' view.view.pk %}">Rename, share or delete “{{ view.label }}”</a></p>
 {% endif %}{% endfor %}
 {% url 'desk:request-create' as create_url %}
-{% if bulk_form.errors and not page_obj.object_list %}{% notice tone="danger" label="Not changed" blocking=True %}Nothing was changed, and the selected tickets are no longer on this page.{% for field in bulk_form %}{% for error in field.errors %} {{ field.label }}: {{ error }}{% endfor %}{% endfor %}{% endnotice %}{% endif %}
+{% if bulk_form.errors and not page_obj.paginator.count %}{% notice tone="danger" label="Not changed" blocking=True %}Nothing was changed{% if selected_rows %}, and the selected tickets are no longer on this page{% endif %}.{% for field in bulk_form %}{% for error in field.errors %} {{ field.label }}: {{ error }}{% endfor %}{% endfor %}{% endnotice %}{% endif %}
 {% panel title=page_title table=True hidden_title=True %}
   {% firstof active restorable as toolbar_active %}{% grid_toolbar label="Filter tickets" grid="desk.requests" invalid=filter_form.errors chips=active_filters sort=sort hidden=filter_form.hidden_fields clear_url=clear_url active=toolbar_active %}
   {% list_results items=page_obj noun="tickets" filtered=refined invalid=filter_form.errors clear_url=clear_url error_body="Correct the highlighted filter above. No tickets are hidden by an invalid filter." no_results_title="No tickets match" no_results_body="Nothing in this view matches these filters." empty_title="No tickets here" empty_body="Tickets appear here as they are logged in the desk or raised in the client portal." action_url=create_url action_label="New ticket" %}
