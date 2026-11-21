@@ -140,6 +140,7 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   {% include "includes/grid_columns_dialog.html" %}
   {{ form_route_patterns|json_script:"vr-form-routes" }}
   {% include "includes/form_dialog.html" %}
+  {% if account_session %}{% include "includes/session_warning.html" %}{% endif %}
   {% client_preferences %}
   {% block extra_js %}{% endblock %}
 </body>

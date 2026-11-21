@@ -45,6 +45,7 @@ SOURCES = {
     "accounts": "Accounts & roles",
     "forms": "Ticket forms",
     "unavailable": "Not available yet",
+    "session-limits": "Session limits, above",
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
@@ -53,7 +54,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "a49c1de338bb75d4f776e06b4f1761352e184c62150d68d9716ac26824daec20"
+RELEASE_SETTINGS_SHA256 = "1ddbf9c150f75aa6a03c73e7445e63b63dedd0df64fca02a361032feb600ff85"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -110,6 +111,7 @@ RELEASE = {
             "core.preferences.GridPreferenceMiddleware",
             "allauth.account.middleware.AccountMiddleware",
             "django.contrib.messages.middleware.MessageMiddleware",
+            "accounts.sessions.SessionLimitMiddleware",
             "accounts.middleware.LockedCredentialsMiddleware",
             "django.middleware.clickjacking.XFrameOptionsMiddleware",
             "core.form_dialog.FormDialogMiddleware",
@@ -164,7 +166,7 @@ RELEASE = {
     ),
     "ACCOUNT_LOGIN_BY_CODE_TIMEOUT": (lambda: account_settings.LOGIN_BY_CODE_TIMEOUT, 300),
     "SESSION_ENGINE": (lambda: settings.SESSION_ENGINE, "django.contrib.sessions.backends.db"),
-    "SESSION_COOKIE_AGE": (lambda: settings.SESSION_COOKIE_AGE, 1209600),
+    "SESSION_COOKIE_AGE": (lambda: settings.SESSION_COOKIE_AGE, 86400),
     # allauth's own session age for a remembered password sign-in (deprecated; defaults to
     # Django's): equal to SESSION_COOKIE_AGE in this release.
     "ACCOUNT_SESSION_COOKIE_AGE": (
@@ -507,52 +509,83 @@ def _sign_in(facts):
         _fact(
             "sign-in-records",
             "Record of sign-ins",
-            ["SESSION_ENGINE", "ACCOUNT_ADAPTER", "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE"],
+            [
+                "SESSION_ENGINE",
+                "ACCOUNT_ADAPTER",
+                "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE",
+                "MIDDLEWARE",
+            ],
             lambda: Fact(
                 "sign-in-records",
                 "Record of sign-ins",
                 "Sign-in log, and the last sign-in time",
                 "release",
                 "The application passes completed sign-ins, refused passwords, wrong codes "
-                "entered for an existing account and sign-outs made with Sign out to its sign-in "
+                "entered for an existing account, sign-outs made with Sign out and sessions "
+                "ended by the session limits, a deactivation or a new password to its sign-in "
                 "log (lab_ops.signin), with the username when the account is known. Some "
                 "refusals are not passed: a code entered after its emailed sign-in attempt "
                 "expired, a code for an address with no account, and a request stopped by the "
-                "request limit before any check. A session "
-                "that stops "
-                "working without Sign out, after a new password or a deactivation, is not passed "
-                "either. Where that log goes and how long it is kept is set by the logging "
-                "configuration and the host. The "
-                "database keeps each account's last sign-in time and, in each session while it "
-                "lasts, how it signed in. There is no stored list of sign-ins.",
+                "request limit before any check. Where that log goes and how long it is kept is "
+                "set by the logging configuration and the host. The database keeps each "
+                "account's last sign-in time and, for each session, when it started, when it "
+                "was last active and when and why it ended. Failed sign-ins are not stored, and "
+                "no page lists the sessions yet.",
             ),
         ),
     ]
 
 
+def _limits_text(field_name):
+    """`30 minutes for staff and client portal accounts`, or each audience's value when they
+    differ: the limits as they stand now (core.session_limits)."""
+    from .session_limits import limits
+
+    staff, portal = limits()
+    unit = 60 if field_name == "inactivity_minutes" else 3600
+    staff_value = duration_text(getattr(staff, field_name) * unit)
+    portal_value = duration_text(getattr(portal, field_name) * unit)
+    if staff_value == portal_value:
+        return f"{staff_value} for staff and client portal accounts"
+    return f"{staff_value} for staff, {portal_value} for client portal accounts"
+
+
 def _sessions(facts):
     facts += [
         _fact(
-            "session-length",
-            "Session length",
-            ["SESSION_COOKIE_AGE", "ACCOUNT_SESSION_COOKIE_AGE", "SESSION_SAVE_EVERY_REQUEST"],
+            "inactivity",
+            "Sign-out after a period without activity",
+            # Saving the session on every request would make its cookie's age a second, shorter
+            # inactivity limit where it is below this one.
+            ["MIDDLEWARE", "SESSION_SAVE_EVERY_REQUEST"],
             lambda: Fact(
-                "session-length",
-                "Session length",
-                duration_text(settings.SESSION_COOKIE_AGE),
-                "configuration",
-                "A session ends this long after it was last saved: at sign-in, at some account "
-                "steps such as confirming or changing the password or setting up a second "
-                "factor, and when messages too long for their cookie are kept in it. Opening "
-                "pages and changing a display preference do not otherwise save it.",
+                "inactivity",
+                "Sign-out after a period without activity",
+                _limits_text("inactivity_minutes"),
+                "session-limits",
+                "Opening a page, saving, searching or Stay signed in counts as activity; reading "
+                "or typing on a page does not. Pages warn 2 minutes before and offer Stay signed "
+                "in; the admin console does not warn. Signing in again returns to the page. Set "
+                "from 5 to 60 minutes.",
             ),
         ),
         _fact(
-            "inactivity",
-            "Sign-out after a period without activity",
-            ["SESSION_SAVE_EVERY_REQUEST"],
+            "session-length",
+            "Longest session",
+            [
+                "MIDDLEWARE",
+                "SESSION_COOKIE_AGE",
+                "ACCOUNT_SESSION_COOKIE_AGE",
+                "SESSION_SAVE_EVERY_REQUEST",
+            ],
             lambda: Fact(
-                "inactivity", "Sign-out after a period without activity", "None", "unavailable"
+                "session-length",
+                "Longest session",
+                _limits_text("maximum_hours"),
+                "session-limits",
+                "Counted from sign-in, whatever the activity. Pages warn 5 minutes before, so "
+                "that work can be saved; nothing extends it. Set from 1 to 24 hours. The "
+                "browser's session cookie expires 24 hours after sign-in at the latest.",
             ),
         ),
         _fact(
@@ -579,28 +612,42 @@ def _sessions(facts):
         _fact(
             "deactivation",
             "Deactivating an account",
-            ["AUTHENTICATION_BACKENDS"],
+            ["AUTHENTICATION_BACKENDS", "MIDDLEWARE"],
             lambda: Fact(
                 "deactivation",
                 "Deactivating an account",
-                "Refused at its next request",
+                "Ends its sessions at once",
                 "release",
-                "The account's sessions are not deleted: if it is made active again before they "
-                "expire, those browsers are signed in again.",
+                "Each of its browsers is signed out at its next request. The sessions stay "
+                "ended if the account is made active again.",
             ),
         ),
         _fact(
             "new-password",
             "A new password",
-            ["ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE"],
+            ["ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE", "MIDDLEWARE"],
             lambda: Fact(
                 "new-password",
                 "A new password",
-                "Signs out the account's other sessions",
+                "Ends the account's other sessions at once",
                 "configuration",
                 "Whoever changes their own password, on the account pages or in the admin "
                 "console, stays signed in where they changed it. A password a superuser sets for "
-                "another account signs out every session of that account.",
+                "another account, or a reset by email, ends every session of that account.",
+            ),
+        ),
+        _fact(
+            "page-storage",
+            "Pages kept by the browser",
+            ["MIDDLEWARE"],
+            lambda: Fact(
+                "page-storage",
+                "Pages kept by the browser",
+                "None",
+                "release",
+                "Every answer to a signed-in session is marked not to be stored (no-store), so "
+                "the browser keeps no copy of a page to show after sign-out. Static files, such "
+                "as styles and scripts, and the laboratory's logo are kept.",
             ),
         ),
         _fact(

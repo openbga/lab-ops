@@ -280,9 +280,11 @@ def test_person_link_disclosure_on_ticket_page(page: Page, demo, view: View):
 
 @pytest.mark.parametrize("direction", ["back", "forward"])
 def test_revealed_key_does_not_survive_back_or_forward(browser_type, live_server, demo, direction):
-    """A revealed key must not come back from the browser's back-forward cache. The
-    browser here keeps that cache on (Playwright turns it off by default), and the test checks
-    that the page really was restored from it (pageshow.persisted), so it cannot pass by reload."""
+    """A revealed key must not come back with the page after Back or Forward. The browser here
+    keeps its back-forward cache on (Playwright turns it off by default). Signed-in pages are
+    marked no-store (accounts.sessions), so Chromium fetches the page again instead of restoring
+    it, and says why; a browser that restores such a page anyway (pageshow.persisted) must show
+    it with the key masked again (static/js/app.js)."""
     from core.models import AuditEvent
     from links.models import ExternalSystem
     from links.services import add_link
@@ -333,7 +335,8 @@ def test_revealed_key_does_not_survive_back_or_forward(browser_type, live_server
             "JSON.stringify(performance.getEntriesByType('navigation')[0]"
             ".notRestoredReasons || null)"
         )
-        assert page.evaluate("window.vrRestored") is True, f"not restored from the cache: {reasons}"
+        if page.evaluate("window.vrRestored") is not True:
+            assert "response-cache-control-no-store" in reasons, reasons
         assert PATIENT_KEY not in page.locator("body").inner_text()
         assert PATIENT_KEY not in page.content()
         # The masked cell is back and works: a new reveal is a new, recorded reveal.

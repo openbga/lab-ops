@@ -70,6 +70,9 @@ MIDDLEWARE = [
     "core.preferences.GridPreferenceMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # Signs out a session past the laboratory's limits before anything acts for the account, and
+    # marks every answer to a signed-in session not to be stored (accounts.sessions).
+    "accounts.sessions.SessionLimitMiddleware",
     "accounts.middleware.LockedCredentialsMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
@@ -183,6 +186,10 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# The longest a session may last under the laboratory's limits (core.session_limits): the cookie
+# and the stored session expire then at the latest. The limits themselves are enforced on every
+# request (accounts.sessions), never by the cookie's expiry.
+SESSION_COOKIE_AGE = 24 * 60 * 60
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG

@@ -4,14 +4,21 @@
     "security-settings"
   ],
   "title": "Security settings",
-  "purpose": "See the laboratory's security and privacy contacts and what protects sign-in, sessions and patient information in this deployment, with who sets each part.",
-  "summary": "Your security and privacy contacts, and what protects sign-in, sessions and patient information here, with who sets each part. Only the admin role can open this page.",
+  "purpose": "See the laboratory's security and privacy contacts, set the session limits, and see what protects sign-in, sessions and patient information in this deployment, with who sets each part.",
+  "summary": "Your security and privacy contacts, the session limits you set, and what protects sign-in, sessions and patient information here, with who sets each part. Only the admin role can open this page.",
   "tasks": [
     {
       "title": "Record or change a contact",
       "steps": [
         "Under Security and privacy contacts select [[Security contact]] or [[Privacy contact]].",
         "Enter the name or office and any title, email and phone, explain why in [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Change when sessions are signed out",
+      "steps": [
+        "Under Session limits select [[Staff]] or [[Client portal]].",
+        "Set [[Sign out after no activity for]] (5 to 60 minutes) and [[Longest session]] (1 to 24 hours), explain why in [[Reason]] and select [[Save changes]]."
       ]
     },
     {
@@ -29,7 +36,8 @@
     }
   ],
   "good_to_know": [
-    "This page changes no setting. Only the contacts are edited, in their own form.",
+    "You change the contacts and the session limits here, each in its own form with a reason. Every other value is changed where Set by says.",
+    "A shorter limit applies from each session's next request: a session already idle longer is signed out then.",
     "Values are read from the running application each time the page opens, so they follow the deployment as it stands.",
     "The page states what is in force. It does not rate the deployment or say whether it meets any rule or standard.",
     "Staff see the contacts on the laboratory profile. Client portal accounts do not see them."
@@ -62,10 +70,31 @@
       ]
     },
     {
+      "title": "Session limits",
+      "paragraphs": [
+        "After how long without activity a session is signed out, and how long a session may last at most, for staff accounts and for client portal accounts. Limits never saved show the starting values, 30 minutes and 12 hours. The server checks both on every request; a page warns 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before the longest session ends.",
+        "Opening a page, saving, searching or Stay signed in counts as activity. Reading or typing on a page does not, so typing that is not saved before the sign-out is lost. Signing in again returns to the page. The admin console does not warn before signing out."
+      ],
+      "items": [
+        {
+          "label": "Accounts",
+          "description": "Staff or Client portal. The name opens that audience's form; after saving or cancelling you return to this page. A portal account follows the Client portal limits and every other account the Staff limits, as the account is when each request arrives."
+        },
+        {
+          "label": "Sign out after no activity for",
+          "description": "Minutes, from 5 to 60."
+        },
+        {
+          "label": "Longest session",
+          "description": "Hours, from 1 to 24, counted from sign-in whatever the activity. Nothing extends it."
+        }
+      ]
+    },
+    {
       "title": "Groups of settings",
       "paragraphs": [
         "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
-        "Sessions: how long a session lasts, sign-out after a period without activity, what closing the browser does, what deactivating an account and setting a new password do to its sessions, and how the session cookie is sent.",
+        "Sessions: sign-out after a period without activity and the longest session (both from Session limits above), what closing the browser does, what deactivating an account and setting a new password do to its sessions, that the browser keeps no copy of the pages, and how the session cookie is sent.",
         "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
       ],
@@ -80,7 +109,7 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. Session limits, above: you change it on this page. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",
@@ -93,7 +122,7 @@
       "items": [
         {
           "label": "History",
-          "description": "The newest 20 changes to the security contact and the privacy contact, shown oldest first: Lab contact changed, with the contact it changed and the name before and after, the reason given, the time and the administrator who made it. The laboratory profile's history lists them too."
+          "description": "The newest 20 changes to the security contact, the privacy contact and the session limits, shown oldest first: Lab contact changed, with the contact it changed and the name before and after, or Lab session limits changed, with the accounts they apply to and each value before and after; then the reason given, the time and the administrator who made it. The laboratory profile's history lists the contact changes too."
         }
       ]
     }
@@ -108,6 +137,10 @@
     "core/templatetags/navigation.py",
     "templates/core/security_settings.html",
     "templates/core/_contacts_panel.html",
-    "tests/test_security_settings_pages.py"
+    "tests/test_security_settings_pages.py",
+    "core/session_limits.py",
+    "templates/core/_session_limits_panel.html",
+    "accounts/sessions.py",
+    "tests/test_session_limits.py"
   ]
 }

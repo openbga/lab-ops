@@ -111,19 +111,6 @@ def contact_label(event):
     return ": ".join(part for part in (label, names) if part)
 
 
-def contact_history(limit=HISTORY_LIMIT):
-    """The newest changes to the security and privacy contacts, newest first, each with `detail`
-    naming the contact."""
-    events = list(
-        AuditEvent.objects.filter(action=CONTACT_ACTION)
-        .select_related("actor")
-        .order_by("-occurred_at")[:limit]
-    )
-    for event in events:
-        event.detail = contact_label(event)
-    return events
-
-
 @transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def lab_profile(request):
@@ -396,8 +383,10 @@ def lab_logo_image(request, sha256):
     data, content_type = found
     response = HttpResponse(data, content_type=content_type)
     response["X-Content-Type-Options"] = "nosniff"
-    # Content-addressed: the bytes behind a hash never change.
+    # Content-addressed: the bytes behind a hash never change. An image, not a page: it keeps
+    # this caching when the answers to a signed-in session are marked no-store (accounts.sessions).
     response["Cache-Control"] = "private, max-age=31536000, immutable"
+    response.vr_cacheable = True
     return response
 
 

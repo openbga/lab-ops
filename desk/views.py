@@ -719,8 +719,9 @@ def request_detail(request, pk):
         request_obj = _request_or_404(reading_account(request), pk)
         context = _detail_context(request, request_obj)
         response = render(request, "desk/request_detail.html", context)
-    # Never kept by a shared cache. Not no-store: the browser restores the page from its history,
-    # scrubbing a revealed key (static/js, e2e/test_links_journey.py).
+    # Never kept by a shared cache. accounts.sessions also marks it no-store, as every answer to
+    # a signed-in session; a browser that restores it from its history anyway shows a revealed
+    # key masked again (static/js/app.js, e2e/test_links_journey.py).
     patch_cache_control(response, private=True)
     return response
 

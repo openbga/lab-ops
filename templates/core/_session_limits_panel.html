@@ -1,0 +1,28 @@
+{% load ui %}{% comment %}
+The "Session limits" panel on Security settings (the admin role): after how long without activity
+a session is signed out and how long a session may last at most, for staff and for client portal
+accounts, as they stand when the page is read (core.session_limits.limits(); limits never saved
+show the starting values). Context: limits (staff then client portal), can_edit_limits (the admin
+role: the row header links to core/session_limits_form.html, ui-standards section 5 rule 3).
+{% endcomment %}
+{% panel title="Session limits" heading_id="limits-heading" table=True flush=True class="mb-3" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="limits-heading">
+      <thead><tr>
+        <th scope="col">Accounts</th>
+        <th scope="col">Sign out after no activity for</th>
+        <th scope="col">Longest session</th>
+      </tr></thead>
+      <tbody>
+        {% for limit in limits %}
+        <tr>
+          <th scope="row">{% if can_edit_limits %}<a class="vr-row-link" href="{% url 'session-limits-edit' limit.audience %}">{{ limit.get_audience_display }}</a>{% else %}{{ limit.get_audience_display }}{% endif %}</th>
+          <td class="vr-nowrap">{{ limit.inactivity_minutes }} minute{{ limit.inactivity_minutes|pluralize }}</td>
+          <td class="vr-nowrap">{{ limit.maximum_hours }} hour{{ limit.maximum_hours|pluralize }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% fill footer %}<p class="vr-muted small mb-0">Every page warns 2 minutes before signing out for no activity and offers Stay signed in, and 5 minutes before the longest session ends. Set from 5 to 60 minutes and from 1 to 24 hours. Only the admin role changes them, with a reason.</p>{% endfill %}
+{% endpanel %}

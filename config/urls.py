@@ -6,6 +6,7 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
+from accounts import session_views
 from core import (
     announcement_views,
     lab_profile_views,
@@ -40,6 +41,12 @@ urlpatterns = [
     path("health/", views.health, name="health"),
     path("whats-new/", views.whats_new, name="whats-new"),
     path("account/notices/", email_notices, name="email-notices"),
+    path("account/session/", session_views.session_status, name="account-session"),
+    path(
+        "account/session/continue/",
+        session_views.session_continue,
+        name="account-session-continue",
+    ),
     path("lab/record-retention/", views.record_retention, name="record-retention"),
     path("lab/announcements/", announcement_views.announcement_list, name="announcement-list"),
     path(
@@ -92,6 +99,11 @@ urlpatterns = [
         "lab/security/",
         security_settings_views.security_settings_page,
         name="security-settings",
+    ),
+    path(
+        "lab/security/sessions/<slug:audience>/",
+        security_settings_views.session_limits_edit,
+        name="session-limits-edit",
     ),
     path("ready/", views.ready, name="ready"),
     path("lookups/<slug:name>/", lookups.lookup, name="lookup"),

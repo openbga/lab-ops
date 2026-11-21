@@ -47,4 +47,7 @@ def workspace(request):
         "user_roles": roles,
         "can_manage_clients": bool(roles & set(CLIENT_ROLES)),
         "page_documentation": documentation_for_request(request),
+        # The signed-in session as this request found it (accounts.sessions), for the warning
+        # before sign-out (includes/session_warning.html); None when not signed in.
+        "account_session": getattr(request, "account_session", None),
     }

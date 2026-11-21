@@ -11,8 +11,8 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | Package | Responsibility |
 | --- | --- |
 | `config` | Runtime settings, URL configuration and logging |
-| `accounts` | User identities, roles, capabilities, authentication and initial setup |
-| `core` | Laboratory profile and contacts, the security settings facts, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
+| `accounts` | User identities, roles, capabilities, authentication, sessions and their limits, and initial setup |
+| `core` | Laboratory profile and contacts, the security settings facts and session limits, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
 | `clients` | Organization directory, sites, contacts and portal access grants |
 | `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
 | `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
@@ -74,10 +74,32 @@ instead of the files. When a deployment changes one, the fact says so and names 
 describing it. Whoever changes either file checks the
 facts and updates the pinned digest (a test fails until then). The page and the
 laboratory profile read in one snapshot (`core.concurrency.one_reading`) and are drawn after it. A laboratory setting
-added there later is a row with a revision: its change takes the row lock, checks the revision the
-form showed, rereads the acting account, requires a reason and records one audit event, as a
-security or privacy contact does in `core.lab_profile`. The same change updates
-[the safeguards reference](safeguards.md). [Security settings](../core/security_settings.py)
+on that page is a row with a revision, written the first time it is saved: its change holds the
+acting account (`accounts.acting`), takes its lock, checks the revision the form showed and the
+role as the account is held, requires a reason and records one audit event, as the session limits
+do in `core.session_limits`. The same change updates [the safeguards reference](safeguards.md).
+[Security settings](../core/security_settings.py)
+
+## Sessions
+
+Each sign-in is an `AccountSession` row, created by Django's `user_logged_in` signal once every
+sign-in step has passed and carried in the browser's session by its id
+([accounts/sessions.py](../accounts/sessions.py)). `SessionLimitMiddleware` runs after the
+session, authentication and message middleware and before anything that acts for the account. It
+reads the row and the limits for the account's audience (staff or client portal, as the account is
+when the request arrives) in one statement and compares them with the database's clock. A missing,
+foreign or ended row, no activity for the inactivity limit, or the longest session reached signs
+the browser out: the row records when and why, and a notice is kept for the sign-in page. Any other
+request is activity, recorded by one conditional `UPDATE` that matches only an open row inside both
+limits, so a row ended or expired after it was read is never brought back; the status address the
+page asks before warning is not activity. A page opened with GET then goes on as a signed-out
+visitor and its sign-in returns to it; a form, a dialog or a script request is answered at once,
+the sign-in set to return to the page the person was on. Every answer to a signed-in session is
+marked `no-store`, except a response that opts out (`vr_cacheable`, the laboratory's logo).
+Deactivating an account ends all its rows in the same transaction (`accounts.models.User.save`);
+a new password ends all of them except, when the account changes its own password, the row of the
+request making the change. The limits are rows of `core.SessionLimit`, one per audience, absent
+until first saved.
 
 ## Optional modules
 

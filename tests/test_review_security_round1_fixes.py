@@ -612,9 +612,9 @@ def test_an_unreadable_rule_is_never_echoed_and_never_an_error(bad):
     assert "marker" not in stated and "junk" not in stated and "12345" not in stated
 
 
-def test_a_sliding_session_is_a_changed_configuration():
-    assert fact("inactivity").value == "None"
-    assert fact("inactivity").source == "unavailable"
+def test_a_sliding_session_is_a_changed_configuration(db):
+    assert fact("inactivity").value == "30 minutes for staff and client portal accounts"
+    assert fact("inactivity").source == "session-limits"
     with override_settings(SESSION_COOKIE_AGE=900, SESSION_SAVE_EVERY_REQUEST=True):
         stated = assert_changed("inactivity", "SESSION_SAVE_EVERY_REQUEST")
         length = fact("session-length")
@@ -661,7 +661,7 @@ def test_logout_on_password_change_is_a_changed_configuration_and_signs_everyone
 
 
 def test_the_default_password_change_keeps_only_the_changing_session(two_sessions, admin):
-    assert fact("new-password").value == "Signs out the account's other sessions"
+    assert fact("new-password").value == "Ends the account's other sessions at once"
     changer, other = two_sessions()
     assert change_password(changer).status_code == 302
     assert changer.get("/").status_code == 200
@@ -863,7 +863,7 @@ def test_changing_the_secure_cookie_flag_alone_is_named_by_the_cookie_fact():
 def test_two_changed_settings_are_both_named_and_the_other_facts_stay_stated():
     with override_settings(SESSION_COOKIE_AGE=600, SESSION_SAVE_EVERY_REQUEST=True):
         assert_changed("session-length", "SESSION_COOKIE_AGE", "SESSION_SAVE_EVERY_REQUEST")
-        assert fact("deactivation").value == "Refused at its next request"
+        assert fact("deactivation").value == "Ends its sessions at once"
         assert fact("passwords").value != security_settings.CHANGED
 
 

@@ -99,3 +99,24 @@ def test_rgb_tokens_match_their_colour():
             ):
                 problems.append(f"{name}: {channels.strip()} does not match {colour}")
     assert not problems, "\n".join(problems)
+
+
+def test_every_rule_is_closed_where_it_ends():
+    """No rule nests the ones after it. app.css uses no CSS nesting, so a block opens inside
+    another only within an at-rule (@media, @supports and the like). A missing closing brace
+    otherwise makes every later rule a nested one, which browsers that support nesting match
+    only inside the unclosed rule (the attachments section was disabled that way)."""
+    text = re.sub(r"/\*.*?\*/", "", APP_CSS.read_text(), flags=re.S)
+    stack = []
+    for match in re.finditer(r"([^{};]*)\{|\}", text):
+        if match.group(0) == "}":
+            assert stack, (
+                f"unmatched closing brace near {text[max(0, match.start() - 80) : match.start()]!r}"
+            )
+            stack.pop()
+            continue
+        prelude = match.group(1).strip()
+        if stack and not stack[-1].startswith("@"):
+            raise AssertionError(f"{prelude!r} opens inside {stack[-1]!r}: a brace is missing")
+        stack.append(prelude)
+    assert not stack, f"unclosed: {stack}"

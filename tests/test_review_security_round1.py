@@ -377,29 +377,27 @@ def test_enrolment_total_and_numerator_describe_one_population(admin):
     assert int(enrolled) <= int(total), note
 
 
-def test_deactivation_is_described_as_refusal_and_reactivation_restores_sessions(client, admin):
-    """SS-01: deactivation refuses the account's next request but keeps its sessions, and the
-    page says exactly that (ending them at once is the roadmap's automatic sign-out item)."""
+def test_deactivation_ends_sessions_and_reactivation_does_not_restore_them(client, admin):
+    """SS-01, as the automatic sign-out change made it: deactivation ends the account's sessions
+    at once (accounts.sessions), a reactivation does not bring them back, and the page and the
+    safeguards reference say exactly that. Until that change the sessions were kept and came
+    back."""
     password_sign_in(client, admin)
-    key = client.session.session_key
     admin.is_active = False
     admin.save(update_fields=["is_active"])
     response = client.get(reverse("security-settings"))
     assert response.status_code == 302
-    remaining = Session.objects.filter(session_key=key).first()
-    assert remaining is not None and SESSION_KEY in remaining.get_decoded()
     admin.is_active = True
     admin.save(update_fields=["is_active"])
-    assert client.get(reverse("security-settings")).status_code == 200
+    assert client.get(reverse("security-settings")).status_code == 302
     text = wording("deactivation")
-    assert "refused at its next request" in text
-    assert "not deleted" in text and "signed in again" in text
-    assert "signed out" not in text
+    assert "ends its sessions at once" in text and "stay ended" in text
+    assert "not deleted" not in text and "signed in again" not in text
     row = reference_row(
         "Authorization and supervision, workforce clearance, termination procedures"
         " (Addressable), (a)(3)(ii)(A)-(C)"
     )
-    assert "not deleted" in row
+    assert "ends every session of the account at once" in row and "not deleted" not in row
 
 
 def test_sign_in_record_description_accounts_for_database_records(client, admin):

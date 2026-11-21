@@ -59,6 +59,10 @@
           "description": "Shows the signed-in name and staff roles or client organization. Change password, Email addresses and Two-factor authentication open your account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
         },
         {
+          "label": "Automatic sign-out",
+          "description": "After a period without activity, and after a longest session counted from sign-in, you are signed out; your laboratory sets both, separately for staff and client portal accounts. Opening a page, saving, searching or Stay signed in counts as activity; reading or typing does not. Two minutes before the sign-out for no activity a dialog, Still there?, counts down: Stay signed in keeps the session open and Sign out ends it now. Five minutes before the longest session ends, Your session ends soon asks you to save your work; nothing extends it. After a sign-out the sign-in page says why, and signing in again returns to the page you were on. What you typed and did not save is lost. Deactivating your account ends your sessions at once, and a new password ends your other sessions. Pages are marked not to be kept by the browser."
+        },
+        {
           "label": "Forms",
           "description": "Required fields are marked. Validation errors identify fields or the reason an action is blocked. After a failed page submission, focus moves to the first invalid field or the error summary when no field is invalid. Some forms open in a dialog; close/cancel leaves the underlying page. A direct form link opens the same dialog with its title as the page heading; Cancel returns to the related page or list. Sticky action buttons stay at the bottom while long forms scroll. Save applies the form only when server checks pass. A stale-edit message requires refreshing and checking current values before retrying."
         },
