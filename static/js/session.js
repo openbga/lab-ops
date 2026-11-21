@@ -159,7 +159,12 @@
       });
     }
 
-    function check() {
+    // `fresh`: an answer to a question already on its way may have been read before something
+    // this page did (a Stay signed in whose reply was lost), so wait for it and ask again.
+    function check(fresh) {
+      if (checking && fresh) {
+        return checking.then(function () { return check(false); });
+      }
       if (!checking) {
         checking = request("GET", settings.statusUrl).then(function (answer) {
           checking = null;
@@ -254,6 +259,7 @@
       }
       var switching = Boolean(variant && want);
       variant = want;
+      hideError(); // an error belongs to the warning it was shown in
       if (want) {
         parts.forEach(function (part) {
           part.hidden = part.getAttribute("data-vr-session-for") !== want;
@@ -399,7 +405,7 @@
           showError(REQUEST_FAILED);
           // The press may have been recorded and only its answer lost: ask after the short
           // retry delay (and again if unanswered), and close the warning if it was extended.
-          setTimeout(recheck, FAILED_RETRY_MS);
+          setTimeout(function () { recheck(true); }, FAILED_RETRY_MS);
           return;
         }
         plan(true);
@@ -415,8 +421,8 @@
     // A question that got no answer (no connection, or a request cut off when the page's clock
     // jumped, as after sleep) is asked again shortly, not at the next scheduled moment.
     var retrying = 0;
-    function recheck() {
-      check().then(function (answer) {
+    function recheck(fresh) {
+      check(fresh === true).then(function (answer) {
         if (!answer && !leaving && !retrying) {
           retrying = setTimeout(function () {
             retrying = 0;

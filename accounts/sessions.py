@@ -62,7 +62,8 @@ from django.contrib.auth import HASH_SESSION_KEY, get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.db import connection, transaction
-from django.db.models.functions import Now
+from django.db.models import DateTimeField, F, Func
+from django.db.models.functions import Greatest
 from django.dispatch import receiver
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
@@ -87,6 +88,16 @@ LONGEST_WARNING_SECONDS = 300
 STATUS_ROUTE = "account-session"
 CONTINUE_ROUTE = "account-session-continue"
 Ending = AccountSession.Ending
+
+
+class ClockTimestamp(Func):
+    """PostgreSQL's clock_timestamp(): the time when it is evaluated, not when the statement or
+    the transaction began."""
+
+    function = "clock_timestamp"
+    template = "%(function)s()"
+    output_field = DateTimeField()
+
 
 ENDED_MESSAGES = {
     Ending.INACTIVITY: "You were signed out after {inactivity} without activity. Sign in again "
@@ -421,7 +432,9 @@ def end_sessions(user, ending, *, keep=None, session_id=None):
         query = query.filter(pk=session_id)
     if keep is not None:
         query = query.exclude(pk=keep)
-    ended = query.update(ended_at=Now(), ending=ending)
+    # The database's clock when each row is updated (after any wait for it), and never before
+    # the row's last activity: an activity that committed while this waited stays before its end.
+    ended = query.update(ended_at=Greatest(F("last_active_at"), ClockTimestamp()), ending=ending)
     if ended and ending in (Ending.DEACTIVATED, Ending.NEW_PASSWORD):
         _log_after_commit(ending, user, ended)
     return ended
@@ -830,10 +843,12 @@ class SessionLimitMiddleware:
             if state is not None:
                 settled = _settle_expiry(state)
                 (outcome, detail), limits = settled, settled.limits
-                if outcome == "open":
-                    end_sessions(user, Ending.CHANGE_REFUSED, session_id=state.id)
-                else:
+                if outcome != "open":
                     ending, ended = detail, 1 if outcome == "expired" else 0
+                elif not end_sessions(user, Ending.CHANGE_REFUSED, session_id=state.id):
+                    # Ended meanwhile by another request (a limit, as cleanup found it): the
+                    # notice names what the row records.
+                    ending, limits = _ended_as_recorded(state.id)
             _sign_out(request, ending, limits, ended=ended)
         if request.method in ("GET", "HEAD") and _is_navigation(request):
             response = HttpResponseRedirect(sign_in_url(request.get_full_path()))
