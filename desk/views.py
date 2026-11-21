@@ -135,7 +135,7 @@ def _list_params(list_query):
             list_query,
             keep_blank_values=True,
             encoding=query.encoding,
-            max_num_fields=None if limit is None else 2 * limit + 2,
+            max_num_fields=None if limit is None else 2 * limit,
         )
     except ValueError:
         return None

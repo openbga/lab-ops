@@ -565,7 +565,9 @@ def test_saved_view_history_wording_for_pre_upgrade_records_after_rename_and_del
     # Adapted (C7): history is not rewritten, and the release note and help now say events
     # recorded before this change keep their search text; the new rename and delete events do not.
     assert marker in exported[0]["fields"]["after"]["filters"]["q"]
-    later = AuditEvent.objects.filter(object_id=str(view.pk)).exclude(pk=old.pk)
+    later = AuditEvent.objects.filter(object_type="desk.savedview", object_id=str(view.pk)).exclude(
+        pk=old.pk
+    )
     assert later.count() == 2 and marker not in str(list(later.values("before", "after")))
 
 

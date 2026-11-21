@@ -178,3 +178,40 @@ def test_unsent_ticket_entry_survives_declining_an_assignment(page: Page, demo):
     expect(page.get_by_text("Assignment changed.")).to_be_visible()
     ticket.refresh_from_db()
     assert ticket.revision == revision + 1
+
+
+def test_a_refused_change_whose_tickets_left_the_list_says_why(page: Page, demo, view: View):
+    """A change to several tickets refused after its tickets left the view (someone else moved
+    them meanwhile) draws an empty list, with a notice above it saying nothing was changed and
+    why (docs/pages/desk/request-list.json, Apply to selected)."""
+    from accounts.models import User
+    from desk import services
+    from desk.models import ServiceRequest, Status
+    from desk.selectors import staff_requests
+
+    reader = User.objects.get(username="demo_client_services")
+    supervisor = User.objects.get(username="demo_supervisor")
+    ticket = staff_requests(reader).filter(status=Status.OPEN).order_by("pk").first()
+    services.change_status(
+        actor=supervisor,
+        request=ticket,
+        expected_revision=ticket.revision,
+        status=Status.WAITING_CLIENT,
+    )
+    sign_in(page, "demo_client_services", demo.password)
+    page.goto(f"/requests/?view=waiting-client&q={ticket.number}")
+    page.get_by_role("checkbox", name=f"Select {ticket.number}").check()
+    if view.phone:
+        page.get_by_role("button", name=re.compile("^Change selected tickets")).click()
+    ticket.refresh_from_db()
+    services.change_status(  # another person answers the client: it leaves Waiting on client
+        actor=supervisor, request=ticket, expected_revision=ticket.revision, status=Status.OPEN
+    )
+    page.get_by_role("button", name="Apply to selected").click()  # nothing chosen: refused
+    notice = page.get_by_role("alert").filter(has_text="Nothing was changed")
+    expect(notice).to_be_visible()
+    expect(notice).to_contain_text("Assign to: Choose a team or a person.")
+    box = notice.bounding_box()
+    assert box and box["x"] >= 0 and box["x"] + box["width"] <= view.viewport["width"]
+    assert ServiceRequest.objects.get(pk=ticket.pk).assignee_id == ticket.assignee_id
+    assert not page.console_errors

@@ -320,13 +320,14 @@ over 4,000 characters, or with more parameters than a request may carry besides 
 Save view takes the whole value and stores only valid filters. The queue's own links assume
 Django's limit of 1,000 parameters, which this project does not change: a deployment that lowers
 it below the queue's filters plus a saved view's id gets refusals from those links. Changes to
-several tickets post to the queue's address as chosen and add the saved page size and sort to
-that post, saving nothing; a refused change reads the saved views after it. A saved view's order
+several tickets post to the queue's address as chosen and return to it; a refused change is drawn
+as a GET of that address after the change (the saved page size and sort, the saved views and the
+teams read then), saving nothing. A saved view's order
 is applied by the queue, not sent as a sort, so opening the view saves no sort for the person
 (an address from before this change that carries the sort is a choice, as it was), and a way
 back to the view applies its order again unless the person chose a sort there. The order shown is
 the sort chosen on the address, else a saved view's offered order, else the person's saved sort,
-else the list's default. Saved views' audit events written from this change on record that a view
+else the list's default; a chosen sort the list does not offer shows the default. Saved views' audit events written from this change on record that a view
 keeps a search, not its text; events written earlier keep theirs (history is not rewritten). A person keeps at most 300; an
 addition counts and inserts holding that person's additions lock, a transaction-level advisory
 lock keyed like the access gate, so two at the same moment cannot both take the last place,

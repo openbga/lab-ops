@@ -534,3 +534,63 @@ def test_a_saved_views_history_records_a_search_without_its_text(agent):
     created = events.get(action="saved_view.created", object_id=str(plain.pk))
     assert created.after["filters"] == {"status": "waiting_client"}
     assert SavedView.objects.filter(pk=plain.pk).get().filters == {"status": "waiting_client"}
+
+
+# Neighbours of the second confirmation's fixes (desk/tests/test_review_queue_way_back_confirm2.py).
+
+
+@pytest.fixture
+def team_member(make_user, quality):
+    from teams.models import TeamMembership
+
+    person = make_user("rota_member", "technical")
+    TeamMembership.objects.create(team=quality, user=person)
+    return person
+
+
+def test_a_bound_bulk_form_with_a_current_choice_is_valid_and_keeps_it(team_member, quality):
+    from desk.forms import BulkForm
+
+    choice = f"{quality.pk}:{team_member.pk}"
+    form = BulkForm({"action": "assign", "assign_to": choice})
+    assert form.is_valid(), form.errors
+    form.refresh_choices()  # the teams did not change: nothing is cleared or added
+    assert not form.errors and form["assign_to"].value() == choice
+
+
+def test_a_refused_bulk_form_asks_again_when_the_teams_changed(team_member, quality):
+    from desk.forms import BulkForm
+    from teams.models import TeamMembership
+
+    choice = f"{quality.pk}:{team_member.pk}"
+    form = BulkForm({"action": "status", "assign_to": choice})  # refused: no status chosen
+    assert not form.is_valid() and "status" in form.errors
+    TeamMembership.objects.filter(user=team_member).delete()
+    form.refresh_choices()
+    assert form["assign_to"].value() == ""
+    assert "Choose a team or a person again" in form.errors["assign_to"][0]
+    assert "status" in form.errors  # the reason it was refused stays
+
+
+def test_a_refused_bulk_change_on_an_emptied_page_says_why(client, agent, category):
+    from desk.models import Status
+
+    ticket = new_request(agent, category, subject="Collection hours")
+    client.force_login(agent)
+    url = f"{reverse('desk:request-list')}?view=waiting-client"
+    refused = client.post(url, {"action": "status", "requests": f"{ticket.pk}:{ticket.revision}"})
+    assert refused.status_code == 200 and not refused.context["page_obj"].object_list
+    page = refused.content.decode()
+    assert "the selected tickets are no longer on this page" in page
+    assert "Status: Choose a status." in page
+    assert ticket.status == Status.OPEN
+
+
+def test_a_refused_bulk_change_with_rows_shows_errors_in_the_form_only(client, agent, tickets):
+    client.force_login(agent)
+    refused = client.post(
+        f"{reverse('desk:request-list')}?view=all",
+        {"action": "status", "requests": f"{tickets[0].pk}:{tickets[0].revision}"},
+    )
+    assert refused.status_code == 200 and refused.context["page_obj"].object_list
+    assert "the selected tickets are no longer on this page" not in refused.content.decode()

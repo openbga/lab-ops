@@ -406,6 +406,17 @@ class ComplaintReviewForm(RevisionForm):
 BULK_ACTIONS = [("assign", "Assign"), ("status", "Set status"), ("close", "Close")]
 
 
+def _choice_values(choices):
+    """The values of grouped or flat choices."""
+    values = set()
+    for value, label in choices:
+        if isinstance(label, (list, tuple)):
+            values.update(inner for inner, _label in label)
+        else:
+            values.add(value)
+    return values
+
+
 class BulkForm(StyledForm, forms.Form):
     action = forms.ChoiceField(choices=BULK_ACTIONS, label="With the selected")
     assign_to = forms.ChoiceField(required=False, label="Assign to")
@@ -422,12 +433,24 @@ class BulkForm(StyledForm, forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.refresh_choices()
+        self.fields["assign_to"].choices = assign_choices("Choose")
 
     def refresh_choices(self):
         """Read the teams and their members now: a refused form drawn again offers them as they
-        stand after the change it posted, not as they stood before it."""
-        self.fields["assign_to"].choices = assign_choices("Choose")
+        stand after the change it posted, not as they stood before it. When they changed since the
+        form checked its choice, that check no longer holds: the choice is cleared and asked for
+        again, so the form never shows a person both chosen and unavailable."""
+        field = self.fields["assign_to"]
+        before = _choice_values(field.choices)
+        field.choices = assign_choices("Choose")
+        if not self.is_bound or _choice_values(field.choices) == before:
+            return
+        if self.data.get("assign_to"):
+            self.data = self.data.copy()
+            self.data["assign_to"] = ""
+            self.errors["assign_to"] = self.error_class(
+                ["The teams changed while you were choosing. Choose a team or a person again."]
+            )
 
     def clean(self):
         data = super().clean()

@@ -61,7 +61,7 @@
       "items": [
         {
           "label": "Views",
-          "description": "Opens the list of views with the number of tickets each holds, then your saved views and the ones shared with you. The current view is highlighted. A view's count ignores the filters you have set on this page."
+          "description": "Opens the list of views with the number of tickets each holds, then your saved views and the ones shared with you. The current view is highlighted. A view's count ignores the filters you have set on this page, and is counted as the page is drawn: a ticket changed at that moment can be in the count or the table only, until the next page."
         },
         {
           "label": "My open",
@@ -247,7 +247,7 @@
         },
         {
           "label": "Apply to selected",
-          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then, or a saved view's own order."
+          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then, or a saved view's own order. If nothing could be changed and none of the selected tickets is on the page drawn again, a Not changed notice above the list says why."
         }
       ]
     },
