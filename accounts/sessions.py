@@ -48,6 +48,7 @@ the way out, an error page). A response may opt out with `response.vr_cacheable 
 laboratory's logo, which is not a page).
 """
 
+import contextlib
 import contextvars
 import dataclasses
 import logging
@@ -252,7 +253,8 @@ def _touch(state):
     inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(state.user_id))
     waits = _view.get() == CONTINUE_ROUTE
     skip = "" if waits else " SKIP LOCKED"
-    with transaction.atomic(), connection.cursor() as cursor:
+    # One statement unless it waits: then the wait and the activity share a transaction.
+    with transaction.atomic() if waits else contextlib.nullcontext(), connection.cursor() as cursor:
         if waits:
             # The wait first, in its own statement; the statement below then reads the limits
             # and the row as they stand once the row is held (what committed meanwhile counts).
