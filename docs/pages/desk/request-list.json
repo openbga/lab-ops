@@ -174,7 +174,7 @@
         },
         {
           "label": "Apply, Clear all and filter chips",
-          "description": "Apply combines the search and filters and returns to page 1. Clear all returns to the current queue. In a saved view it restores the saved filters and sort. Removing a chip clears one criterion."
+          "description": "Apply combines the search and filters and returns to page 1. Clear all returns to the current queue. In a saved view it restores the saved filters and sort, and it shows whenever you changed either. Removing a chip clears one criterion."
         },
         {
           "label": "Filter and sort (phones)",
@@ -247,7 +247,7 @@
         },
         {
           "label": "Apply to selected",
-          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then."
+          "description": "Runs the chosen action. Each changed ticket gets a timeline entry and an audit event. The list then opens again with the view, filters, search, page and any sort or rows per page you chose; your saved sort and page size apply as they stand then, or a saved view's own order."
         }
       ]
     },

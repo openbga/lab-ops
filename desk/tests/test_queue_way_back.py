@@ -469,3 +469,68 @@ def test_an_order_in_a_list_value_applies_only_where_no_offered_sort_is_given(
         _detail(by_letter[order[0]]),
         _detail(by_letter[order[2]]),
     ]
+
+
+# Neighbours of the verification round's fixes (desk/tests/test_review_queue_way_back_verify.py).
+
+
+@pytest.mark.parametrize(
+    "value,carried",
+    [
+        ("view=all&q=Collection&sort=subject&per_page=25&order=subject", True),  # limit + order
+        ("view=all&q=Collection&sort=subject&per_page=25&page=1", False),  # limit + 1, no order
+        ("view=all&q=Collection&sort=subject&order=subject&order=subject", False),  # two orders
+    ],
+    ids=["order-in-the-spare-place", "ordinary-field-in-it", "two-orders"],
+)
+def test_only_the_order_may_take_the_place_beyond_the_field_limit(
+    client, agent, tickets, settings, value, carried
+):
+    settings.DATA_UPLOAD_MAX_NUMBER_FIELDS = 4
+    client.force_login(agent)
+    page = client.get(_detail(tickets[1]), {"list": value})
+    assert (page.context["list_query"] == value) == carried
+    back = page.context["list_url"]
+    assert client.get(back).status_code == 200  # the way back is always accepted
+    if not carried:
+        assert back == reverse("desk:request-list")
+        assert page.context["previous_url"] == page.context["next_url"] == ""
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_clear_all_shows_on_a_saved_view_only_once_it_is_changed(client, agent, tickets, changed):
+    view = SavedView.objects.create(owner=agent, name="Everything", filters={}, sort="number")
+    client.force_login(agent)
+    link = _picker_link(_queue(client)[0], view)
+    page = client.get(link + ("&sort=-subject" if changed else ""))
+    assert page.context["restorable"] == changed
+    assert (b">Clear all</a>" in page.content) == changed
+
+
+def test_a_saved_views_history_records_a_search_without_its_text(agent):
+    from core.models import AuditEvent
+    from desk import saved_views
+
+    plain = saved_views.create_view(
+        actor=agent, name="Waiting", shared_with="private", params={"status": "waiting_client"}
+    )
+    searched = saved_views.create_view(
+        actor=agent, name="Caller view", shared_with="private", params={"q": "Example caller"}
+    )
+    saved_views.update_view(
+        actor=agent,
+        view=searched,
+        expected_revision=searched.revision,
+        name="Renamed",
+        shared_with="private",
+        team=None,
+    )
+    saved_views.delete_view(actor=agent, view=searched, expected_revision=searched.revision + 1)
+    events = AuditEvent.objects.filter(object_type="desk.savedview")
+    payloads = [e.before for e in events] + [e.after for e in events]
+    assert "Example caller" not in str(payloads)
+    marked = [p["filters"]["q"] for p in payloads if p and "q" in p.get("filters", {})]
+    assert marked and set(marked) == {saved_views.SEARCH_NOT_RECORDED}
+    created = events.get(action="saved_view.created", object_id=str(plain.pk))
+    assert created.after["filters"] == {"status": "waiting_client"}
+    assert SavedView.objects.filter(pk=plain.pk).get().filters == {"status": "waiting_client"}

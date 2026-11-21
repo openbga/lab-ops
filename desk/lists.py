@@ -7,7 +7,17 @@ Every query starts from desk.selectors.staff_requests(user); filters only narrow
 from datetime import timedelta
 
 from django import forms
-from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
+from django.db.models import (
+    BigIntegerField,
+    Case,
+    Exists,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Value,
+    When,
+)
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 from django.utils import timezone
@@ -71,7 +81,9 @@ def needs_review():
     the complaint_review_independent constraint)."""
     reviewer_assigned = (
         _assignment_events()
-        .annotate(assignee_ref=Cast(KeyTextTransform("assignee_id", "event_data"), IntegerField()))
+        .annotate(
+            assignee_ref=Cast(KeyTextTransform("assignee_id", "event_data"), BigIntegerField())
+        )
         .filter(assignee_ref=OuterRef("complaint_review__reviewed_by"))
     )
     reviewer_decided = RequestEntry.objects.filter(

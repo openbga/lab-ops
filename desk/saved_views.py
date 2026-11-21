@@ -29,6 +29,18 @@ def clean_sort(sort):
     return sort if sort.removeprefix("-") in COLUMNS else ""
 
 
+SEARCH_NOT_RECORDED = "(search text not recorded)"
+
+
+def _audited(view):
+    """The view's audit snapshot without the text of its search, which can name a caller or a
+    contact: history records that the view keeps a search, not what it is."""
+    data = snapshot(view)
+    if (data.get("filters") or {}).get("q"):
+        data["filters"] = {**data["filters"], "q": SEARCH_NOT_RECORDED}
+    return data
+
+
 def visible_views(user):
     """Views this staff account may use: its own, those shared with everyone, and those shared
     with a team it belongs to."""
@@ -65,7 +77,7 @@ def create_view(*, actor, name, shared_with, team=None, params, sort=""):
     )
     view.full_clean()
     view.save()
-    record_event(actor=actor, action="saved_view.created", obj=view, after=snapshot(view))
+    record_event(actor=actor, action="saved_view.created", obj=view, after=_audited(view))
     return view
 
 
@@ -82,17 +94,17 @@ def update_view(*, actor, view, expected_revision, name, shared_with, team=None)
     view = _own(actor, view)
     if view.revision != expected_revision:
         raise ValidationError("This view changed. Reload it.")
-    before = snapshot(view)
+    before = _audited(view)
     view.name = (name or "").strip()
     view.shared_with = shared_with
     view.team = _sharing(actor, shared_with, team)
     view.full_clean()
-    if snapshot(view) == before:
+    if _audited(view) == before:
         raise ValidationError("Change the name or who sees it before saving.")
     view.revision += 1
     view.save()
     record_event(
-        actor=actor, action="saved_view.updated", obj=view, before=before, after=snapshot(view)
+        actor=actor, action="saved_view.updated", obj=view, before=before, after=_audited(view)
     )
     return view
 
@@ -102,7 +114,7 @@ def delete_view(*, actor, view, expected_revision=None):
     view = _own(actor, view)
     if expected_revision is not None and str(view.revision) != str(expected_revision):
         raise ValidationError("This view changed. Review it before deleting.")
-    record_event(actor=actor, action="saved_view.deleted", obj=view, before=snapshot(view))
+    record_event(actor=actor, action="saved_view.deleted", obj=view, before=_audited(view))
     view.delete()
 
 

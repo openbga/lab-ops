@@ -95,7 +95,7 @@
         },
         {
           "label": "Tickets (breadcrumb)",
-          "description": "Returns to the list you opened the ticket from, with the view, filters, search and page, and the sort or rows per page only if you chose them there; the ticket's action pages and its audit history do the same. Your saved sort and page size then apply as they stand, including a change made in another tab. If a change you save moves the ticket out of what you can see, you return to that list."
+          "description": "Returns to the list you opened the ticket from, with the view, filters, search and page, and the sort or rows per page only if you chose them there; the ticket's action pages and its audit history do the same. Your saved sort and page size then apply as they stand, including a change made in another tab; in a saved view, its own order applies. If a change you save moves the ticket out of what you can see, you return to that list."
         },
         {
           "label": "Closed notice",

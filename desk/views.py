@@ -111,9 +111,10 @@ LIST_LIMIT = 4000
 
 
 def _back(request):
-    """The list query string the request page was opened from (kept through its forms)."""
+    """The list query string the request page was opened from (kept through its forms): "" for
+    one that is too long or has too many parameters, so nothing on the page carries it on."""
     value = request.GET.get("list") or request.POST.get("list") or ""
-    return value if len(value) <= LIST_LIMIT else ""
+    return value if len(value) <= LIST_LIMIT and _list_params(value) is not None else ""
 
 
 # In a request page's `list` value, the sort the queue showed (_queue_list); the queue itself
@@ -122,9 +123,9 @@ SHOWN_ORDER = "order"
 
 
 def _list_params(list_query):
-    """The parameters of a `list` value, or None when it has more than a request may carry plus
-    the order shown (DATA_UPLOAD_MAX_NUMBER_FIELDS + 1): the queue's own address was accepted with
-    one field fewer, so its links open too."""
+    """The parameters of a `list` value, or None when, without the one order shown, it has more
+    than a request may carry (DATA_UPLOAD_MAX_NUMBER_FIELDS): the queue's own address was
+    accepted, so its links open too, and the address a way back sends is accepted again."""
     limit = settings.DATA_UPLOAD_MAX_NUMBER_FIELDS
     query = QueryDict(mutable=True)
     try:
@@ -135,6 +136,9 @@ def _list_params(list_query):
             max_num_fields=None if limit is None else limit + 1,
         )
     except ValueError:
+        return None
+    orders = sum(1 for key, _value in pairs if key == SHOWN_ORDER)
+    if orders > 1 or (limit is not None and len(pairs) - orders > limit):
         return None
     for key, value in pairs:
         query.appendlist(key, value)
@@ -228,32 +232,6 @@ def request_list(request):
         params = chosen_query(request)  # not the values added from saved settings
         params.pop("view")
         return redirect(f"{reverse('desk:request-list')}?{params.urlencode()}")
-    current_saved = request.GET.get("saved", "")
-    views, saved = _view_picker(user, current_view, current_saved)
-    active_view = next((item for item in saved if item["current"]), None)
-    inherited = getattr(request, "vr_saved_params", set())
-    if (
-        active_view
-        and active_view["view"].sort
-        and ("sort" not in request.GET or "sort" in inherited)
-    ):
-        # A saved view opens in its own order unless the person chose one on this page. That
-        # order is the view's, not the person's choice: it is neither saved for them (it is not
-        # on the address) nor re-sent by the list's links, which keep `saved`, so it applies again.
-        params = request.GET.copy()
-        params["sort"] = active_view["view"].sort
-        request.GET = params
-        request.vr_saved_params = {*inherited, "sort"}
-    title = active_view["label"] if active_view else SYSTEM_VIEWS[current_view][0]
-    clear_url = (
-        active_view["url"] if active_view else f"{reverse('desk:request-list')}?view={current_view}"
-    )
-    baseline = active_view["view"].filters if active_view else {}
-    refined = any(
-        request.GET.get(name, "") != baseline.get(name, "")
-        for name in SAVED_FILTERS
-        if name != "view"
-    )
     bulk_form = BulkForm(request.POST if request.method == "POST" else None, auto_id="bulk_%s")
     selected_rows = set()
     if request.method == "POST":
@@ -268,6 +246,34 @@ def request_list(request):
         selected_rows = set(request.POST.getlist("requests"))
         for error in bulk_form.non_field_errors():
             messages.error(request, error)
+    # Read after a change to several tickets: a refused one draws the views, the saved view's
+    # name, order and Clear all as they stand after it, like the rows (a view renamed or deleted
+    # meanwhile included).
+    current_saved = request.GET.get("saved", "")
+    views, saved = _view_picker(user, current_view, current_saved)
+    active_view = next((item for item in saved if item["current"]), None)
+    named = active_view["view"].sort if active_view else ""
+    if named.removeprefix("-") not in COLUMNS:
+        named = ""  # no order of its own, or one the list no longer offers: the person's applies
+    inherited = getattr(request, "vr_saved_params", set())
+    if named and ("sort" not in request.GET or "sort" in inherited):
+        # A saved view opens in its own order unless the person chose one on this page. That
+        # order is the view's, not the person's choice: it is neither saved for them (it is not
+        # on the address) nor re-sent by the list's links, which keep `saved`, so it applies again.
+        params = request.GET.copy()
+        params["sort"] = named
+        request.GET = params
+        request.vr_saved_params = {*inherited, "sort"}
+    title = active_view["label"] if active_view else SYSTEM_VIEWS[current_view][0]
+    clear_url = (
+        active_view["url"] if active_view else f"{reverse('desk:request-list')}?view={current_view}"
+    )
+    baseline = active_view["view"].filters if active_view else {}
+    refined = any(
+        request.GET.get(name, "") != baseline.get(name, "")
+        for name in SAVED_FILTERS
+        if name != "view"
+    )
     try:
         shown_sort = GridRequest.parse(request.GET, COLUMNS, DEFAULT_SORT).sort
     except ValueError:
@@ -296,6 +302,8 @@ def request_list(request):
             "selected_rows": selected_rows,
             "clear_url": clear_url,
             "refined": refined,
+            # Clear all also when a saved view's filters or order were changed on the page.
+            "restorable": refined or bool(named and shown_sort != named),
             "list_query": _queue_list(request, shown_sort),
             "chosen_query": chosen_query(request).urlencode(),  # the bulk form's address
         },
