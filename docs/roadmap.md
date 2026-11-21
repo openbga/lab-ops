@@ -56,7 +56,7 @@ ships, move it to Built in the same change.
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
 | Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites; a reply refused because the laboratory closed the ticket meanwhile is shown again to copy into a follow-up; a ticket's page is read at one moment, so its reply form always matches the conversation it shows |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
-| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
+| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; sign-out after a period without activity and after a longest session, set by an administrator for staff and for portal accounts, with a warning and Stay signed in; deactivation and a new password end sessions at once; signed-in pages marked not to be stored by the browser; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration; each person's list layouts, page sizes, sidebar state and What's new visits are saved for their account and read for each page, so a change in one tab or on one workstation shows on the next page in the others, and the limit of 300 saved preferences holds when two are added at the same moment |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible, as they stand when it decides, when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The jobs act as an account of their own, named with a random suffix nobody can know in advance, so a person's account registered at the same moment under its old name, in any letter case, neither delays its first use nor ends up differing from it only in case. The public demonstration has no scheduler and keeps email off |
@@ -68,8 +68,8 @@ A follow-up to an independent review fixes something already built, so it comes 
 
 The items on sign-in, sessions, access records, review and emergency access come before anything
 else, because a laboratory that handles patient-linked tickets needs them before real use. Today a
-second sign-in factor cannot be required, a session can last two weeks with no sign-out for
-inactivity, opening a ticket or downloading a file leaves no record, sign-ins are kept only in the
+second sign-in factor cannot be required, nobody can see or end their own sessions elsewhere,
+opening a ticket or downloading a file leaves no record, failed sign-ins are kept only in the
 server log, and nobody can review activity across records. Each of these answers a safeguard the
 HIPAA Security Rule names, and none needs anything unbuilt.
 
@@ -91,19 +91,23 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ### Automatic sign-out and session control
 
-- **Delivers:** sign-out after a period without activity and a maximum session length, both set by
-  the laboratory within fixed bounds, separately for staff and portal accounts; a warning before
-  sign-out with a way to continue, and what the person was typing kept so that signing in again
-  returns them to it; a page where each person sees where they are signed in and can sign out
-  elsewhere; an administrator can end a person's sessions, and deactivating an account or changing
-  its password ends them at once; every signed-in page is marked not to be stored by the browser.
-  Starting values are 30 minutes without activity and 12 hours overall, inside the NIST
-  recommendation of no more than one hour and 24 hours.
+Partly built: sign-out after a period without activity and after a longest session, set by an
+administrator on the Security settings page within fixed bounds (5 to 60 minutes and 1 to 24 hours),
+separately for staff and portal accounts, starting at 30 minutes and 12 hours; a warning before
+sign-out with Stay signed in, and before the longest session ends; signing in again returns to the
+page; deactivating an account or changing its password ends its sessions at once; every signed-in
+page is marked not to be stored by the browser. What remains:
+
+- **Delivers:** what the person was typing kept, so that signing in again after a sign-out for
+  inactivity returns them to it; a page where each person sees where they are signed in (the
+  browser and the address as the deployment reports them) and can sign out elsewhere; an
+  administrator can end a person's sessions from the account administration, with a reason.
 - **Basis:** 45 CFR §164.312(a)(2)(iii) (automatic logoff, addressable; the rule sets no period);
   §164.308(a)(3)(ii)(C) (termination procedures, addressable); NIST SP 800-63B-4 §2.2.3 (a
   recommendation).
 - **Depends on:** security settings and safeguards reference.
-- **Leaves out:** device management and limits by network address, which belong to the deployment.
+- **Leaves out:** device management and limits by network address, which belong to the deployment;
+  a warning in the admin console, which keeps Django's own pages.
 
 ### Required two-factor sign-in and password rules
 
@@ -763,7 +767,7 @@ contracts that apply to it.
 | [90 FR 898](https://www.federalregister.gov/d/2024-30983), proposed changes to the HIPAA Security Rule (2025-01-06, RIN 0945-AA22) | 2026-11-18 | A proposal, not in force. The [Unified Agenda](https://www.reginfo.gov/public/do/eAgendaViewRule?pubId=202510&RIN=0945-AA22) lists it as a long-term action with final action in July 2027 |
 | [FR Doc. 2026-23429](https://www.federalregister.gov/d/2026-23429), HIPAA Privacy Rule final rule | 2026-11-18 | Read in the public inspection copy filed 2026-11-16 for publication on 2026-11-19. Effective 60 days and compliance 240 days after publication. Confirm the dates in the published rule |
 | [OCR Cybersecurity Newsletter, January 2017](https://www.hhs.gov/sites/default/files/january-2017-cyber-newsletter.pdf), audit controls | 2026-11-18 | Guidance |
-| [NIST SP 800-66 Rev. 2](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf) (February 2024) and [NIST SP 800-63B-4](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf) (July 2025) | 2026-11-18 | Recommendations, not HIPAA requirements |
+| [NIST SP 800-66 Rev. 2](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf) (February 2024) and [NIST SP 800-63B-4](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf) (July 2025) | 2026-11-18; SP 800-63B-4 §2.2.3, §5.1, §5.2 and its usability guidance on timeouts again on 2026-11-21 | Recommendations, not HIPAA requirements |
 | [45 CFR §84.84](https://www.ecfr.gov/current/title-45/section-84.84), accessibility of web content under Section 504 | 2026-11-18 | Applies to recipients of HHS funding |
 | [42 CFR Part 493](https://www.ecfr.gov/current/title-42/part-493), CLIA | 2026-11-17 and 2026-11-18 | Applies to laboratories that test human specimens |
 | [CMS State Operations Manual, Appendix C](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/som107ap_c_lab.pdf), Rev. 236 (2026-01-23) | 2026-11-17 | Guidance for surveyors |

@@ -8,6 +8,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### High impact
 
+- **Security:** Sign out after a period without activity (2026-11-21, Security settings)
+
+  Sessions are signed out after a period without activity and after a longest session, which administrators set on Security settings for staff and for client portal accounts. Pages warn before signing out and offer Stay signed in, and signing in again returns to the page. Deactivating an account or setting a new password ends its other sessions at once, and pages are no longer kept by the browser.
+
+  <details><summary>Technical notes</summary>
+
+  Migrations `accounts.0003_account_session` and `core.0005_sessionlimit` add a table of sessions (start, last activity, end and why) and a table of session limits. Neither writes rows: limits never saved are 30 minutes without activity and 12 hours at most, set from 5 to 60 minutes and 1 to 24 hours. After the upgrade, everyone signed in is asked to sign in once more, because sessions from earlier releases carry no session record. `SESSION_COOKIE_AGE` is now 24 hours, the longest a session can last, counted by the cookie from when the session was last saved. The new `accounts.sessions.SessionLimitMiddleware` follows the message middleware, and the new `accounts.sessions.NoStoreMiddleware`, first in `MIDDLEWARE`, marks every answer to a signed-in session `Cache-Control: no-store`; the laboratory's logo keeps its caching. The sign-in log (`lab_ops.signin`) adds `signout.inactivity`, `signout.maximum`, `signout.deactivated` and `signout.new_password`.
+
+  </details>
+
 - **Added:** OpenBGA Lab Ops initial release (2026-11-18)
 
   Staff can manage client organizations, assign tickets and track service deadlines. Clients can request service, send attachments and follow replies in their portal.
@@ -97,6 +107,10 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 - **Fixed:** A ticket's way back to the queue keeps your latest list settings (2026-11-21, Tickets)
 
   Going back to Tickets from a ticket or its action pages, after changing several tickets, or from Save view's own page, now sends only the filters, sort and rows per page you chose on the list. A sort or rows per page you did not choose there follows your saved settings as they are then, including a change made in another tab (in a saved view, its own order), and searching or filtering no longer sets them aside. Previous in list and Next in list now also appear when you open a ticket from the list without choosing a filter or sort. A view saved from the list keeps the order it showed, even the default order, and opening a saved view no longer changes your own saved sort (a link to a view saved earlier still carries its sort). From now on, a saved view's history records that it keeps a search, not the search text; entries recorded earlier are unchanged. The Awaiting review filter now shows complaints only to supervisors, who are the ones who can review them.
+
+- **Fixed:** File lists and the ticket composer show their intended layout (2026-11-21, Tickets)
+
+  Chosen files and a ticket entry's files are listed with their spacing again, a withdrawn file is struck through, and the composer no longer offers files for a logged contact. A missing brace in the style sheet had switched those styles off in current browsers.
 
 - **Fixed:** Deactivations and organization changes wait their turn (2026-11-20)
 

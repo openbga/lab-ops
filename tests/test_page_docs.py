@@ -23,6 +23,8 @@ NON_PAGE_ROUTES = {
     "ready": "JSON database readiness probe",
     "lookup": "JSON option lookup for remote selects (core/lookups.py)",
     "preference": "POST-only per-user presentation setting (core/preferences.py)",
+    "account-session": "JSON time left in the session, asked before the sign-out warning",
+    "account-session-continue": "POST-only Stay signed in from the sign-out warning (JSON)",
     "mfa_download_recovery_codes": "Private text download from recovery-code help",
     "admin:login": "Redirect to the application sign-in page",
     "admin:autocomplete": "JSON related-object lookup",

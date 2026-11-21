@@ -470,7 +470,9 @@ def test_pages_and_preferences_do_not_extend_a_session_and_a_password_change_doe
 
     client.force_login(agent)
     key = client.session.session_key
-    earlier = timezone.now() + timedelta(days=1)
+    # An hour from now: a save renews it to SESSION_COOKIE_AGE (24 hours since the automatic
+    # sign-out change, two weeks before it).
+    earlier = timezone.now() + timedelta(hours=1)
     StoredSession.objects.filter(session_key=key).update(expire_date=earlier)
     assert client.get(reverse("dashboard")).status_code == 200
     assert post(client, "nav.collapsed", True).status_code == 204
@@ -484,7 +486,7 @@ def test_pages_and_preferences_do_not_extend_a_session_and_a_password_change_doe
     )
     assert changed.status_code == 302
     current = StoredSession.objects.get(session_key=client.session.session_key)
-    assert current.expire_date > earlier + timedelta(days=12)
+    assert current.expire_date > earlier + timedelta(hours=20)
 
 
 def test_rows_per_page_form_keeps_a_sort_the_address_gave_and_leaves_out_a_saved_one(

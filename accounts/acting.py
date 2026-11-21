@@ -220,8 +220,11 @@ def hold_actor(actor):
     Call it before anything else the change locks. Inside a `holding` block for the same
     account, it returns that block's reading and locks nothing. Otherwise a second call in the
     same transaction takes the locks again: it waits for nothing it holds already, but holds,
-    and may wait for, a membership added since. It decides nothing: the change's own checks, made
-    after its locks (desk.services.settle and the like), read the account as it is held."""
+    and may wait for, a membership added since. It decides nothing about the account: the
+    change's own checks, made after its locks (desk.services.settle and the like), read the
+    account as it is held. When the request acts for this account through a signed-in session,
+    that session's row is held too, and a session that has ended refuses the change
+    (accounts.sessions.SessionEnded)."""
     if not connection.in_atomic_block:
         raise RuntimeError("The acting account is held for a transaction; open one first.")
     pk = getattr(actor, "pk", None)
@@ -238,6 +241,14 @@ def hold_actor(actor):
         _hold_staff_rows(pk)
     else:
         _hold_portal_rows(pk)
+    # The session the request acts through, when it acts for this account: held like the account,
+    # so ending it (Sign out, a new password, a deactivation) waits for this change, and a change
+    # from a session that has ended or passed a limit is refused (accounts.sessions.SessionEnded,
+    # which the session middleware answers by signing the browser out).
+    from .sessions import SessionEnded, hold_acting_session
+
+    if not hold_acting_session(pk):
+        raise SessionEnded
     return current
 
 

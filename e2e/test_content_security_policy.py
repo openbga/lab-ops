@@ -29,6 +29,10 @@ def test_admin_and_identity_widgets_use_local_scripts(page, demo):
     admin.is_staff = admin.is_superuser = True
     admin.save(update_fields=["is_staff", "is_superuser"])
     sign_in(page, admin.username, demo.password)
+    # The signed-in page, loaded: htmx reads its configuration when the document is ready, and the
+    # sign-in click returns before the next page has loaded (a race seen on a slow runner).
+    expect(page).not_to_have_url(re.compile(r"/accounts/login/"))
+    page.wait_for_load_state()
     assert page.evaluate("htmx.config.allowEval") is False
     assert page.evaluate("htmx.config.includeIndicatorStyles") is False
     group = Group.objects.get(name="supervisor")

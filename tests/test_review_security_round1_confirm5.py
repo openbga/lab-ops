@@ -127,8 +127,13 @@ def test_reactivated_browser_can_explicitly_sign_out_and_record_it(client, staff
         recorder.reset_mock()
         user.is_active = True
         user.save(update_fields=["is_active"])
+        # Since the automatic sign-out change the retained session stays ended (accounts.sessions):
+        # the reactivated account signs in again, and its Sign out is recorded.
+        assert client.get(reverse("dashboard")).status_code == 302
+        assert client.session.session_key != original and SESSION_KEY not in client.session
+        password_sign_in(client, user)
         assert client.get(reverse("dashboard")).status_code == 200
-        assert client.session.session_key == original and not recorder.called
+        recorder.reset_mock()
         assert client.post(reverse("account_logout")).status_code == 302
         assert handed_off(recorder, "signout", user) and SESSION_KEY not in client.session
 

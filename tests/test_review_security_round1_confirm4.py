@@ -16,8 +16,7 @@ from allauth.account import app_settings
 from allauth.account.internal.flows import code_verification
 from allauth.core.internal import ratelimit
 from django.contrib.auth import SESSION_KEY
-from django.contrib.sessions.models import Session
-from django.test import override_settings
+from django.test import Client, override_settings
 from django.urls import reverse
 
 from accounts import signin_log
@@ -30,24 +29,27 @@ from tests.test_review_security_round1_signoff import ROOT, probe
 
 
 @pytest.mark.django_db
-def test_record_describes_a_retained_session_after_deactivation(client, staff):
+def test_record_describes_a_session_ended_by_deactivation(client, staff):
+    """As the automatic sign-out change made it: deactivation ends the session at once, a
+    reactivation does not bring it back, and the page says so; the sign-in log names sessions
+    ended by a deactivation. (Until that change the session was kept and came back.)"""
     account = staff("fourth-session-reader", "admin")
     password_sign_in(client, account)
-    key = client.session.session_key
     with patch.object(signin_log.logger, "info") as recorder:
         account.is_active = False
         account.save(update_fields=["is_active"])
         assert client.get(reverse("security-settings")).status_code == 302
-        assert Session.objects.get(session_key=key).get_decoded()[SESSION_KEY] == str(account.pk)
         account.is_active = True
         account.save(update_fields=["is_active"])
-        page = client.get(reverse("security-settings"))
-    assert page.status_code == 200 and client.session.session_key == key
-    assert not recorder.called
+        assert client.get(reverse("security-settings")).status_code == 302
+    assert not recorder.called  # logged after the deactivation commits (accounts.sessions)
+    reader = Client()
+    reader.force_login(account)
+    page = reader.get(reverse("security-settings"))
     rows = {row.key: row for group in page.context["groups"] for row in group.facts}
-    assert "signed in again" in rows["deactivation"].note
-    claim = "a session ended by a new password or deactivation"
-    assert claim not in rows["sign-in-records"].note.lower(), rows["sign-in-records"].note
+    assert "stay ended" in rows["deactivation"].note
+    assert "signed in again" not in rows["deactivation"].note
+    assert "a deactivation or a new password" in rows["sign-in-records"].note
 
 
 @pytest.mark.django_db

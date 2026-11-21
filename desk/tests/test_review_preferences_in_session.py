@@ -258,12 +258,14 @@ def test_messages_kept_in_the_session_save_it_as_session_length_says(client, age
     request.session.save()
     client.cookies.update(response.cookies)
     row = StoredSession.objects.get(session_key=request.session.session_key)
-    earlier = timezone.now() + timedelta(days=1)
+    # An hour ahead: a save renews it to SESSION_COOKIE_AGE (24 hours since the automatic
+    # sign-out change, two weeks before it).
+    earlier = timezone.now() + timedelta(hours=1)
     StoredSession.objects.filter(pk=row.pk).update(expire_date=earlier)
     page = client.get(reverse("dashboard"))
     assert page.status_code == 200 and "_messages" not in client.session
     row.refresh_from_db()
-    assert row.expire_date > earlier + timedelta(days=12)
+    assert row.expire_date > earlier + timedelta(hours=20)
     from core.security_settings import in_force
 
     stated = next(
@@ -557,12 +559,14 @@ def test_authenticator_setup_is_an_account_page_that_saves_the_session(client, a
     checked = client.post(challenge.url, {"password": PASSWORD})
     assert checked.status_code == 302 and checked.url == setup
     row = StoredSession.objects.get(pk=client.session.session_key)
-    earlier = timezone.now() + timedelta(days=1)
+    # An hour ahead: a save renews it to SESSION_COOKIE_AGE (24 hours since the automatic
+    # sign-out change, two weeks before it).
+    earlier = timezone.now() + timedelta(hours=1)
     StoredSession.objects.filter(pk=row.pk).update(expire_date=earlier)
     response = client.get(reverse("mfa_activate_totp"))
     assert response.status_code == 200 and settings.SESSION_COOKIE_NAME in response.cookies
     row.refresh_from_db()
-    assert row.expire_date > earlier + timedelta(days=12)
+    assert row.expire_date > earlier + timedelta(hours=20)
 
 
 def test_addition_in_a_repeatable_read_request_keeps_the_limit(client, agent):

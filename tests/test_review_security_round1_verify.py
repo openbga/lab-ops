@@ -365,7 +365,7 @@ def test_owners_own_admin_password_change_matches_statement(client, logout):
             # Release configuration: whoever changes their own password, in the admin console
             # too, stays signed in (proved above); only another account's sessions end.
             assert "in the admin console, stays signed in" in stated
-            assert "for another account signs out every session of that account" in stated
+            assert "for another account, or a reset by email, ends every session of that" in stated
 
 
 def test_enrolment_options_match_registered_mfa_methods(rf, admin):

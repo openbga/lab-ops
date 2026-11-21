@@ -6119,7 +6119,7 @@ p.vr-entry-contact {
   align-items: center;
   justify-content: space-between;
   gap: var(--vr-space-2);
-
+}
 
 /* ======================================================================= Attachments (M2-B) */
 /* The file picker (attachments/widgets/files.html) and an entry's file list
@@ -6159,4 +6159,37 @@ p.vr-entry-contact {
 
 .vr-entry-file-withdrawn .vr-entry-file-name {
   text-decoration: line-through;
+}
+
+/* ================================================================ Session warning
+   The warning before automatic sign-out (includes/session_warning.html, static/js/session.js): a
+   confirmation-sized alert dialog (.vr-confirm-dialog), which may open over the form dialog. The
+   countdown keeps its width as it changes. On a phone the dialog sits at the bottom of the screen,
+   above the device's safe area, with full-width buttons and the primary one last, in thumb reach. */
+.vr-session-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--vr-font-weight-bold);
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .vr-session-warning .modal-dialog-centered {
+    align-items: flex-end;
+    min-height: calc(100% - 2 * var(--bs-modal-margin) - env(safe-area-inset-bottom));
+    margin-bottom: calc(var(--bs-modal-margin) + env(safe-area-inset-bottom));
+  }
+
+  .vr-session-warning .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--vr-space-2);
+  }
+
+  .vr-session-warning .modal-footer > * {
+    margin: 0;
+  }
+
+  .vr-session-warning .modal-footer .btn {
+    width: 100%;
+  }
 }

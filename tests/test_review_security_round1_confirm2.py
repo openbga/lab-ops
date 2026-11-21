@@ -170,9 +170,11 @@ def help_item(label):
     )
 
 
+# Adapted for the automatic sign-out change: 86400 became this release's own value, so a changed
+# cookie age is now 43200.
 def test_source_help_allows_an_alternate_module_with_both_release_files_intact(tmp_path):
     (tmp_path / "synthetic_settings.py").write_text(
-        "from config.settings import *\nSESSION_COOKIE_AGE = 86400\n"
+        "from config.settings import *\nSESSION_COOKIE_AGE = 43200\n"
     )
     age, label, note, changed = probe(
         tmp_path,
@@ -185,7 +187,7 @@ def test_source_help_allows_an_alternate_module_with_both_release_files_intact(t
         """,
         module="synthetic_settings",
     )
-    assert age == 86400 and label == "Application configuration"
+    assert age == 43200 and label == "Application configuration"
     assert "synthetic_settings" in note and "SESSION_COOKIE_AGE" in note
     assert changed == [security_settings.MODULE]
     assert "only by changing those files" not in help_item("Set by")

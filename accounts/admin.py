@@ -28,6 +28,7 @@ from allauth.account.models import EmailAddress
 from allauth.mfa.models import Authenticator
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.forms import AdminPasswordChangeForm as AdminSitePasswordChangeForm
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import (
@@ -344,6 +345,39 @@ class AccountPasswordForm(AdminPasswordChangeForm):
         if commit:
             user.save(update_fields=["password"])
         return user
+
+
+class OwnPasswordForm(AdminSitePasswordChangeForm):
+    """The admin console's own Change password page (for the signed-in account). It saves the
+    password only, as AccountPasswordForm does for an account's password page: the account was
+    read when the request began, and a full save would put back what changed since."""
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        if commit:
+            user.save(update_fields=["password"])
+        return user
+
+
+def own_password_change(request, extra_context=None):
+    """The admin console's own Change password page, as AdminSite.password_change draws it, with
+    OwnPasswordForm: Django's form saves the whole account."""
+    from django.contrib.auth.views import PasswordChangeView
+    from django.urls import reverse
+
+    site = admin.site
+    defaults = {
+        "form_class": OwnPasswordForm,
+        "success_url": reverse("admin:password_change_done", current_app=site.name),
+        "extra_context": {**site.each_context(request), **(extra_context or {})},
+    }
+    if site.password_change_template is not None:
+        defaults["template_name"] = site.password_change_template
+    request.current_app = site.name
+    return PasswordChangeView.as_view(**defaults)(request)
+
+
+admin.site.password_change = own_password_change
 
 
 @admin.register(User)

@@ -115,8 +115,17 @@ def test_every_group_key_and_source_is_valid_and_no_fact_claims_a_standard():
 # statements read from the configuration
 
 
-def test_session_length_follows_the_release_setting():
-    assert fact("session-length").value == "2 weeks"
+def test_session_length_follows_the_laboratory_limits_and_the_release_cookie_age(db):
+    from core.models import SessionLimit
+
+    stated = fact("session-length")
+    assert stated.value == "12 hours for staff and client portal accounts"
+    assert stated.source == "session-limits" and "24 hours" in stated.note
+    SessionLimit.objects.create(audience="portal", inactivity_minutes=15, maximum_hours=8)
+    assert fact("session-length").value == "12 hours for staff, 8 hours for client portal accounts"
+    assert fact("inactivity").value == (
+        "30 minutes for staff, 15 minutes for client portal accounts"
+    )
     with override_settings(SESSION_COOKIE_AGE=1800):
         stated = assert_changed("session-length", "SESSION_COOKIE_AGE")
     assert "30 minutes" not in stated
@@ -418,10 +427,11 @@ def is_signed_out(browser):
 
 def test_the_page_states_what_the_sessions_tests_below_prove():
     stated = fact("deactivation")
-    assert stated.value == "Refused at its next request" and "not deleted" in stated.note
+    assert stated.value == "Ends its sessions at once" and "stay ended" in stated.note
     stated = fact("new-password")
-    assert stated.value == "Signs out the account's other sessions"
+    assert stated.value == "Ends the account's other sessions at once"
     assert "stays signed in where they changed it" in stated.note
+    assert fact("page-storage").value == "None"
 
 
 def test_a_deactivated_account_is_refused_at_its_next_request(make_staff, signed_in):
@@ -429,6 +439,11 @@ def test_a_deactivated_account_is_refused_at_its_next_request(make_staff, signed
     browser = signed_in(user)
     other = signed_in(user)
     user.is_active = False
+    user.save()
+    assert is_signed_out(browser)
+    assert is_signed_out(other)
+    # Made active again, the account's earlier sessions stay ended.
+    user.is_active = True
     user.save()
     assert is_signed_out(browser)
     assert is_signed_out(other)

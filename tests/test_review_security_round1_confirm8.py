@@ -83,6 +83,8 @@ def _python(directory, program, *args, write_cache=False):
 
 
 @pytest.mark.parametrize("module", ["eighth_site.settings", None], ids=["dotted-module", "unnamed"])
+# Adapted for the automatic sign-out change: 86400 became this release's own value, so a changed
+# cookie age is now 43200.
 def test_changed_setting_locations_follow_the_active_django_configuration(tmp_path, module):
     # Both entry points use the same settings and change the same two session rules.
     package = tmp_path / "eighth_site"
@@ -90,7 +92,7 @@ def test_changed_setting_locations_follow_the_active_django_configuration(tmp_pa
     (package / "__init__.py").touch()
     (package / "settings.py").write_text(
         "from config.settings import *\n"
-        "SESSION_COOKIE_AGE = 86400\n"
+        "SESSION_COOKIE_AGE = 43200\n"
         "SESSION_SAVE_EVERY_REQUEST = True\n"
     )
     loaded, age, save_every_request, value, note = _python(
@@ -120,7 +122,7 @@ def test_changed_setting_locations_follow_the_active_django_configuration(tmp_pa
         str(ROOT),
         module or "",
     )
-    assert loaded == module and age == 86400 and save_every_request is True
+    assert loaded == module and age == 43200 and save_every_request is True
     assert value == CHANGED
     assert "SESSION_COOKIE_AGE" in note and "SESSION_SAVE_EVERY_REQUEST" in note
     assert "config/settings.py" not in note and "config/logging.py" not in note

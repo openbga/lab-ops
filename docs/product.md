@@ -237,14 +237,24 @@ one and checks nothing against a contact.
 The Security settings page, for administrators, lists what protects sign-in, sessions and patient
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
-It shows the password rule, the failed sign-in limit, sign-in with an emailed code, session length
-and what ends a session, how many active staff accounts with a role can view patient information,
+It shows the password rule, the failed sign-in limit, sign-in with an emailed code, the session
+limits and what ends a session, how many active staff accounts with a role can view patient information,
 how many active staff and portal accounts have a second factor, how many form fields hold patient
 information, and the HTTPS and content security policy settings. It describes this release's
 configuration and follows the deployment settings read from the environment; where a deployment
 has changed a setting in `config/settings.py`, the item says so and names the setting. It
-reports facts and gives no score. Settings a laboratory changes are added to this page by later roadmap items,
-each change with a reason and an audit event. The [safeguards reference](safeguards.md) states,
+reports facts and gives no score. Administrators set the session limits on this page, separately
+for staff and for client portal accounts: after how long without activity a session is signed out
+(5 to 60 minutes) and how long a session may last at most (1 to 24 hours), starting at 30 minutes
+and 12 hours. Each change needs a reason and is kept in the page's history with the values before
+and after. The laboratory chooses the periods; the application does not.
+
+Pages warn 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before
+the longest session ends; the admin console does not warn. Opening a page, saving, searching or Stay signed in counts as
+activity; reading or typing on a page does not, so typing that is not saved before the sign-out
+is lost. Signing in again returns to the page. Deactivating an account ends its sessions at once,
+and a new password ends the account's other sessions. Pages shown to a signed-in person are
+marked not to be stored by the browser. The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
 laboratory and its host.
 

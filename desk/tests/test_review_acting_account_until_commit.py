@@ -339,7 +339,7 @@ def test_a_deactivation_does_not_wait_for_as_long_as_the_persons_changes_overlap
         # Each request reads its account when it starts (the middleware).
         return lambda: _note(User.objects.get(pk=person.pk), tickets[n], f"Overlap note {n}.")
 
-    gates, sessions, passed_hold = {}, [], []
+    gates, sessions, passed_hold, active_at_ticket = {}, [], [], []
     with gated(services, "_locked_request", gates):
         for n in range(3):
             session = Session(note(n))
@@ -347,6 +347,14 @@ def test_a_deactivation_does_not_wait_for_as_long_as_the_persons_changes_overlap
             sessions.append(session.start())
             # It has held the person's rows and reached its ticket (or it was refused).
             passed_hold.append(gates[session.thread].arrived.wait(timeout=3))
+            # Adapted for the automatic sign-out change: the deactivation now also ends the
+            # person's sessions, so it commits a few milliseconds after the first note instead of
+            # at once, and a note started in that window reads the account still active, waits at
+            # its first step and reaches its ticket only once the deactivation has committed (and
+            # is refused there). What must not happen is a later note reaching its ticket while
+            # the deactivation is still pending: checked by whether the account was still active
+            # when it got there (the note is stopped at the gate meanwhile).
+            active_at_ticket.append(passed_hold[-1] and User.objects.get(pk=person.pk).is_active)
             if n == 0:
                 deactivation = Session(_deactivate_by(person, owner)).start()
                 first_wait = deactivation.waiting_or_ended(seconds=3)
@@ -366,8 +374,10 @@ def test_a_deactivation_does_not_wait_for_as_long_as_the_persons_changes_overlap
         "passed the hold": passed_hold,
         "saved": saved,
         "after the second note committed, still waiting behind the third": behind_third,
+        "reached its ticket while the deactivation was pending": active_at_ticket,
     }
-    assert passed_hold[1:] == [False, False], detail
+    assert passed_hold[1] is False and active_at_ticket[1:] == [False, False], detail
+    assert not behind_third, detail
     assert saved[1:] == [False, False], detail
 
 

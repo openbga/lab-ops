@@ -176,6 +176,41 @@ class LabModule(models.Model):
         return self.key
 
 
+class SessionLimit(models.Model):
+    """How long a session of one kind of account may last, as the laboratory sets it within fixed
+    bounds (core.session_limits; accounts.sessions applies it). An audience without a row has the
+    starting values: rows are written the first time an administrator saves that audience's
+    limits, never by a migration, so an empty database stays empty (core.demo). `revision` is the
+    stale-edit check of the form."""
+
+    class Audience(models.TextChoices):
+        STAFF = "staff", "Staff"
+        PORTAL = "portal", "Client portal"
+
+    audience = models.CharField(max_length=20, choices=Audience.choices, unique=True)
+    inactivity_minutes = models.PositiveSmallIntegerField("Sign out after no activity for")
+    maximum_hours = models.PositiveSmallIntegerField("Longest session")
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(inactivity_minutes__gte=5, inactivity_minutes__lte=60),
+                name="session_limit_inactivity_bounds",
+                violation_error_message="Choose from 5 to 60 minutes.",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(maximum_hours__gte=1, maximum_hours__lte=24),
+                name="session_limit_maximum_bounds",
+                violation_error_message="Choose from 1 to 24 hours.",
+            ),
+        ]
+
+    def __str__(self):
+        return self.get_audience_display()
+
+
 class AuditEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     occurred_at = models.DateTimeField(auto_now_add=True)

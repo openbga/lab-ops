@@ -227,7 +227,13 @@ STAFF_NAV = (
             "lab-contact-edit",
         ),
     ),
-    NavItem("security-settings", "Security settings", "security-settings", "shield-lock"),
+    NavItem(
+        "security-settings",
+        "Security settings",
+        "security-settings",
+        "shield-lock",
+        ("session-limits-edit",),
+    ),
     NavItem("record-retention", "Record retention", "record-retention", "archive"),
     NavItem(
         "scheduled-jobs",

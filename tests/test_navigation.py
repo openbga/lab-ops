@@ -63,6 +63,8 @@ NON_PAGE_ROUTES = {
     "health",
     "lookup",
     "preference",
+    "account-session",
+    "account-session-continue",
     "ready",
     "mfa_download_recovery_codes",
     # Desk

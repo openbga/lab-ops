@@ -1,0 +1,81 @@
+{
+  "id": "core-session-limits-form",
+  "routes": [
+    "session-limits-edit"
+  ],
+  "title": "Edit staff session limits / Edit client portal session limits",
+  "purpose": "Set after how long without activity, and after how long at most, staff or client portal sessions are signed out, with a reason.",
+  "summary": "Set when staff or client portal sessions are signed out: after a period without activity and after a longest session. Only the admin role can do this, with a reason.",
+  "tasks": [
+    {
+      "title": "Change the limits",
+      "steps": [
+        "Enter [[Sign out after no activity for]] in minutes (5 to 60) and [[Longest session]] in hours (1 to 24).",
+        "Explain why in [[Reason]] and select [[Save changes]]. You return to Security settings."
+      ]
+    },
+    {
+      "title": "Go back without saving",
+      "steps": [
+        "Select [[Cancel]]. Nothing changes."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The new limits apply to every session of these accounts from its next request. A session already idle longer than a shortened limit is signed out then.",
+    "Only activity that reaches the server counts: opening a page, saving, searching or Stay signed in. Typing on a page does not.",
+    "If someone saved these limits after you opened the form, your change is refused and what you typed stays. Reload and compare before saving again.",
+    "Your reason is kept with the change in the history on Security settings, with each value before and after."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role may open this form; other staff roles, client portal accounts and a superuser without the role are refused, whatever the address. It opens from Staff or Client portal under Session limits on Security settings, as a dialog or a full page, and returns there. An unknown audience answers Not found to the admin role. Your role is checked again as your account stands when you save, so a role removed after the form opened refuses the save."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Sign out after no activity for",
+          "description": "Required. Whole minutes from 5 to 60; starts at 30 for limits never saved. A page warns 2 minutes before and offers Stay signed in."
+        },
+        {
+          "label": "Longest session",
+          "description": "Required. Whole hours from 1 to 24, counted from sign-in whatever the activity; starts at 12 for limits never saved. A page warns 5 minutes before, so that work can be saved. Nothing extends it."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Kept with the change in the history on Security settings."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves both values with an audit event naming you, the values before and after, and your reason. Saving the same values records nothing and shows No changes to save."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Security settings without saving."
+        }
+      ]
+    },
+    {
+      "title": "Rules and states",
+      "paragraphs": [
+        "A value outside its bounds is refused under its field: Choose from 5 to 60 minutes, or Choose from 1 to 24 hours.",
+        "The form carries the revision of the limits it showed. A change saved by someone else in between refuses yours, keeps what you typed and asks you to reload and compare.",
+        "The limits are the laboratory's choice. The application sets no period by rule; the bounds keep both values within a published recommendation."
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/security_settings_views.py",
+    "core/session_limits.py",
+    "core/lab_profile_forms.py",
+    "core/models.py",
+    "templates/core/session_limits_form.html",
+    "accounts/sessions.py",
+    "tests/test_session_limits.py"
+  ]
+}

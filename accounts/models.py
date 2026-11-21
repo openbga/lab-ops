@@ -1,5 +1,8 @@
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models, transaction
+from django.db.models.functions import Now
 
 from .roles import CAPABILITIES
 
@@ -31,6 +34,7 @@ class User(AbstractUser):
     )
 
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
         # One transaction for the account and what its save signals change with it (releasing
         # a deactivated account's assignments, resetting portal access on a move), so they
         # succeed or fail together on every path, inside or outside a caller's transaction.
@@ -55,7 +59,78 @@ class User(AbstractUser):
                     .filter(pk=self.pk)
                     .values_list("pk", flat=True)
                 )
+            # The stored password, when this save writes the column: whatever changes the
+            # stored value (a new password, an unusable one, a hash upgraded at sign-in) changes
+            # what Django's sessions are checked against, so the sessions end with it.
+            new_password = False
+            if not self._state.adding and (update_fields is None or "password" in update_fields):
+                stored = (
+                    type(self).objects.filter(pk=self.pk).values_list("password", flat=True).first()
+                )
+                new_password = stored is not None and stored != self.password
+            # Before the account's row is updated: ending a session waits for a change of the
+            # person's under way that holds it (accounts.sessions.hold_acting_session), and that
+            # change may still take the account's row (an assignment to the person) after it.
+            self._end_sessions(update_fields, new_password=new_password)
             super().save(*args, **kwargs)
+
+    def _end_sessions(self, update_fields, *, new_password):
+        """A deactivation ends every session of the account at once, and a new password every
+        session but the one that set it, when the account set its own (accounts.sessions). Their
+        browsers are signed out at their next request, and an ended session never comes back,
+        even if the account is made active again."""
+        if self._state.adding:
+            return
+        from .sessions import Ending, end_sessions, kept_on_password_change
+
+        if not self.is_active and (update_fields is None or "is_active" in update_fields):
+            end_sessions(self, Ending.DEACTIVATED)
+        elif new_password:
+            end_sessions(self, Ending.NEW_PASSWORD, keep=kept_on_password_change(self))
 
     class Meta(AbstractUser.Meta):
         permissions = list(CAPABILITIES.items())
+
+
+class AccountSession(models.Model):
+    """One sign-in of an account, from the moment it signs in until its session ends
+    (accounts.sessions). The browser's session carries this row's id; a session whose row is
+    missing or ended is signed out at its next request. The row is kept after it ends, with when
+    and why, and is never shown to anyone but the account it belongs to."""
+
+    class Ending(models.TextChoices):
+        SIGNED_OUT = "signed_out", "Signed out"
+        INACTIVITY = "inactivity", "No activity"
+        MAXIMUM = "maximum", "Longest session reached"
+        DEACTIVATED = "deactivated", "Account deactivated"
+        NEW_PASSWORD = "new_password", "New password"
+        SIGNED_IN_AGAIN = "signed_in_again", "Signed in again in the same browser"
+        CHANGE_REFUSED = "change_refused", "A change found it past a limit"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never
+    # deleted (accounts.admin), and their change history protects them.
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="account_sessions")
+    started_at = models.DateTimeField(db_default=Now())
+    last_active_at = models.DateTimeField(db_default=Now())
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ending = models.CharField(max_length=20, choices=Ending.choices, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["user"],
+                condition=models.Q(ended_at__isnull=True),
+                name="account_session_open",
+            )
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(ended_at__isnull=True, ending="")
+                | models.Q(ended_at__isnull=False) & ~models.Q(ending=""),
+                name="account_session_ending",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.started_at:%Y-%m-%d %H:%M}"

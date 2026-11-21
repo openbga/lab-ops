@@ -42,6 +42,9 @@ def capture():
     return stream, handler
 
 
+# The database: a request carrying a session cookie has its session looked up by the automatic
+# sign-out check (accounts.sessions), whatever its address.
+@pytest.mark.django_db
 @override_settings(ROOT_URLCONF=__name__)
 def test_request_log_has_safe_fields_only_and_correlates_errors():
     stream, handler = capture()

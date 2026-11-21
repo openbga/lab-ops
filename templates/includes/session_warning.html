@@ -1,0 +1,39 @@
+{% load static ui %}{% comment %}
+The warning before automatic sign-out (accounts/sessions.py), on every page of a signed-in session:
+layouts/document.html includes it when account_session is set (staff pages and the client portal).
+The hidden element carries what static/js/session.js needs: the status and Stay signed in addresses,
+the sign-in page, the seconds left as the server measured them for this request, and how long
+before each ending the page warns. The script asks the status address (not activity) before it
+warns, then shows one alert dialog:
+  - before the sign-out for no activity: "Still there?", with Stay signed in (primary, focused;
+    activity, so it extends the session) and Sign out (allauth's logout, a POST);
+  - before the longest session ends: "Your session ends soon", with Close (nothing extends it).
+When both are due the one that ends first is shown. The countdown (m:ss) is part of the dialog's
+description, read once when the dialog opens; its updates each second are not announced. Elements
+marked data-vr-session-for belong to one of the two; the script shows that one's. Parts are found by
+their data attributes, not ids: form-dialog.js renames the ids of the page behind an open form.
+Without JavaScript there is no warning; the server signs the session out all the same.
+{% endcomment %}{% url 'account-session' as status_url %}{% url 'account-session-continue' as continue_url %}{% url 'account_login' as sign_in_url %}{% url 'account_logout' as logout_url %}
+{% with times=account_session.as_json %}<div hidden data-vr-session data-status-url="{{ status_url }}" data-continue-url="{{ continue_url }}" data-sign-in-url="{{ sign_in_url }}" data-inactivity-seconds="{{ account_session.inactivity_remaining }}" data-maximum-seconds="{{ account_session.maximum_remaining }}" data-warning-seconds="{{ times.warning_seconds }}" data-longest-warning-seconds="{{ times.longest_warning_seconds }}"></div>{% endwith %}
+<div class="modal fade vr-confirm-dialog vr-session-warning" id="vr-session-warning" tabindex="-1" role="alertdialog" aria-labelledby="vr-session-title" aria-describedby="vr-session-text" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" data-vr-session-warning>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="vr-session-title"><span data-vr-session-for="inactivity">Still there?</span><span data-vr-session-for="maximum" hidden>Your session ends soon</span></h2>
+      </div>
+      <div class="modal-body">
+        <div id="vr-session-text">
+          <p class="mb-0" data-vr-session-for="inactivity">You will be signed out in <span class="vr-session-countdown" data-vr-session-countdown aria-live="off">2:00</span> because there has been no activity.</p>
+          <p class="mb-0" data-vr-session-for="maximum" hidden>Your session reaches its longest length in <span class="vr-session-countdown" data-vr-session-countdown aria-live="off">5:00</span>. Save your work; you will need to sign in again.</p>
+        </div>
+        {% notice tone="danger" blocking=True hidden=True class="mt-3 mb-0" hook="vr-session-error" %}<span data-vr-notice-text></span>{% endnotice %}
+      </div>
+      <div class="modal-footer">
+        <form method="post" action="{{ logout_url }}" data-vr-session-for="inactivity">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">Sign out</button></form>
+        <button type="button" class="btn btn-primary" data-vr-session-for="inactivity" data-vr-session-stay>Stay signed in</button>
+        <button type="button" class="btn btn-primary" data-vr-session-for="maximum" data-vr-session-close hidden>Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{% static 'js/session.js' %}" defer></script>

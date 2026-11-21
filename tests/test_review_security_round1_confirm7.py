@@ -60,10 +60,12 @@ def test_missing_receipt_does_not_misidentify_an_unchanged_logging_file(deployme
     assert "config/logging.py differs" not in note, note
 
 
+# Adapted for the automatic sign-out change: 86400 became this release's own value, so a changed
+# cookie age is now 43200.
 def test_alternate_module_does_not_send_the_reader_to_a_nonexistent_settings_file(deployment):
     stock = deployment / "config/settings.py"
     (deployment / "seventh_site.py").write_bytes(
-        stock.read_bytes() + b"\nSESSION_COOKIE_AGE = 86400\n"
+        stock.read_bytes() + b"\nSESSION_COOKIE_AGE = 43200\n"
     )
     stock.unlink()
     age, stock_found, value, note = probe(
@@ -78,7 +80,7 @@ def test_alternate_module_does_not_send_the_reader_to_a_nonexistent_settings_fil
         """,
         module="seventh_site",
     )
-    assert age == 86400 and not stock_found
+    assert age == 43200 and not stock_found
     assert value == CHANGED and "seventh_site" in note
     assert "SESSION_COOKIE_AGE" in note
     assert "in config/settings.py" not in note, note

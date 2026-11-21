@@ -93,9 +93,9 @@ retention requirements.
 ## Security settings
 
 Setup > Security settings shows administrators the values this deployment runs with, among them
-the session length, the failed sign-in limit, `SECURE_HSTS_SECONDS`, `CONTENT_SECURITY_POLICY` and
-whether email sign-in codes are available. Deployment settings are changed on the host, not on that
-page. The page compares the configuration files as they were when the application started, so
+the session limits, the failed sign-in limit, `SECURE_HSTS_SECONDS`, `CONTENT_SECURITY_POLICY` and
+whether email sign-in codes are available. The session limits are set on that page; deployment
+settings are changed on the host, not on that page. The page compares the configuration files as they were when the application started, so
 restart the application after changing them, and do not replace them while it starts or runs.
 Bytecode compiled in unchecked-hash mode is not compared with its source, so do not ship the
 configuration that way. The [safeguards reference](safeguards.md) separates what the application does from what
@@ -177,8 +177,9 @@ noticed by migration `service_levels.0003`, so the first run does not notify old
 
 `lab_ops.request` records the generated request ID, HTTP method, matched route, status
 and duration. Use the `X-Request-ID` response header to correlate an error.
-`lab_ops.signin` records sign-ins, failures and explicit sign-outs. Treat usernames as
-personal data. Set access and retention limits for platform and proxy logs too.
+`lab_ops.signin` records sign-ins, failures, explicit sign-outs and sessions ended by the session
+limits (`signout.inactivity`, `signout.maximum`), a deactivation (`signout.deactivated`) or a new
+password (`signout.new_password`). Treat usernames as personal data. Set access and retention limits for platform and proxy logs too.
 Keep credentials, bodies, URLs carrying tokens and ticket contents out of operational logs.
 
 ## Software bill of materials

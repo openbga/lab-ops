@@ -136,3 +136,41 @@ class ModuleSwitchForm(forms.Form):
         help_text="Kept with the change in the laboratory profile's history.",
         widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
     )
+
+
+class SessionLimitsForm(GroupedForm, forms.Form):
+    """Set one audience's session limits (core.session_limits.save_limits), with a reason.
+    `expected_revision` is the limits' revision the form showed: a change saved in between
+    refuses this one. The bounds are checked again when saving."""
+
+    inactivity_minutes = forms.IntegerField(
+        label="Sign out after no activity for",
+        min_value=5,
+        max_value=60,
+        help_text="Minutes, from 5 to 60. Opening a page, saving or Stay signed in counts as "
+        "activity; reading or typing on a page does not.",
+        error_messages={
+            "min_value": "Choose from 5 to 60 minutes.",
+            "max_value": "Choose from 5 to 60 minutes.",
+        },
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
+    maximum_hours = forms.IntegerField(
+        label="Longest session",
+        min_value=1,
+        max_value=24,
+        help_text="Hours, from 1 to 24, counted from sign-in whatever the activity.",
+        error_messages={
+            "min_value": "Choose from 1 to 24 hours.",
+            "max_value": "Choose from 1 to 24 hours.",
+        },
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
+    reason = forms.CharField(
+        label="Reason",
+        max_length=2000,
+        help_text="Kept with the change in the history on Security settings.",
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
+    groups = ((None, ["inactivity_minutes", "maximum_hours", "reason"]),)
