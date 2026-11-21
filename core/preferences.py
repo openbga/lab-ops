@@ -21,6 +21,7 @@ most MAX_PREFERENCES; adding one counts and inserts holding a lock of that perso
 import json
 import re
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Count, Q
@@ -62,8 +63,9 @@ def clean(key, value):
         if not isinstance(value, dict) or not set(value) <= {"per_page", "sort"}:
             return None
         cleaned = {}
-        if value.get("per_page") in PAGE_SIZES and not isinstance(value["per_page"], bool):
-            cleaned["per_page"] = value["per_page"]
+        size = value.get("per_page")
+        if type(size) is int and size in PAGE_SIZES:  # not 50.0: the address takes whole numbers
+            cleaned["per_page"] = size
         if isinstance(value.get("sort"), str) and SORT.match(value["sort"]):
             cleaned["sort"] = value["sort"]
         return cleaned or None
@@ -109,6 +111,27 @@ def for_request(request):
                 prefs[key] = valid
     request._vr_preferences = (pk, prefs)
     return prefs
+
+
+def _writable_json(value):
+    try:
+        json.dumps(value, allow_nan=False)
+    except ValueError:
+        return False
+    return True
+
+
+def account_removed(error, user_id):
+    """True when `error` (an IntegrityError) is a preference row of `user_id` losing its account:
+    a foreign-key failure of the preferences table while that account no longer exists. Any other
+    failure, also of another table's reference, is not."""
+    cause = error.__cause__
+    return (
+        getattr(cause, "sqlstate", None) == "23503"
+        and getattr(getattr(cause, "diag", None), "table_name", None)
+        == UserPreference._meta.db_table
+        and not get_user_model().objects.filter(pk=user_id).exists()
+    )
 
 
 def _hold_additions(user_id):
@@ -259,6 +282,10 @@ def save_if_absent(request, key, value):
                 if (kept := clean(key, row.value)) is not None:
                     break  # a readable one, from another tab or an explicit choice, stays
                 # Unreadable: replaced, unless it was replaced meanwhile (then read it again).
+                # A number JSON cannot write back (out of range) cannot be compared: left as is,
+                # it counts as none.
+                if not _writable_json(row.value):
+                    raise ValueError(f"The stored {key!r} cannot be compared.")
                 if stored.filter(pk=row.pk, value=row.value).update(
                     value=value, updated_at=timezone.now()
                 ):

@@ -566,3 +566,59 @@ def test_grid_query_without_a_request_starts_from_nothing_chosen(changes, expect
     )
     rendered = template.render(Context({f"v_{k}": v for k, v in changes.items()}))
     assert rendered.replace("&amp;", "&") == expected
+
+
+# Fifth confirmation's neighbours -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("stored", "cleaned"),
+    [
+        ({"per_page": 50}, {"per_page": 50}),
+        ({"per_page": 50.0}, None),
+        ({"per_page": True}, None),
+        ({"per_page": "50"}, None),
+        ({"per_page": 50.0, "sort": "subject"}, {"sort": "subject"}),
+    ],
+)
+def test_a_saved_page_size_counts_only_as_a_whole_number(stored, cleaned):
+    """G6's neighbour: a page size the address could not carry back (50.0 becomes "50.0") is
+    none, while a sort saved with it stays."""
+    assert preferences.clean("page:desk:request-list", stored) == cleaned
+
+
+@pytest.mark.parametrize("sign", ["", "-"], ids=["positive", "negative"])
+def test_a_mark_json_cannot_write_back_is_left_and_opening_whats_new_replaces_it(
+    client, agent, sign
+):
+    """G5's neighbours: a stored number beyond the float range, either sign, is not compared by
+    a page's first mark (no database error), and opening What's new replaces it."""
+    from django.db.models import JSONField, Value
+    from django.db.models.functions import Cast
+
+    raw = '{"former":' + sign + "9" * 310 + ".5}"
+    row = UserPreference.objects.create(
+        user=agent, key=preferences.WHATS_NEW_KEY, value=Cast(Value(raw), JSONField())
+    )
+    client.force_login(agent)
+    with patch.object(changelog, "entries", lambda: [edition(20)]):
+        page = client.get(reverse("dashboard"))
+        assert page.status_code == 200
+        assert UserPreference.objects.filter(
+            pk=row.pk, value=Cast(Value(raw), JSONField())
+        ).exists()
+        assert client.get(reverse("whats-new")).status_code == 200
+    row.refresh_from_db()
+    assert row.value == changelog.seen_marker([edition(20)])
+
+
+@pytest.mark.parametrize("name", ["query_dict", "changes", "name", "value", "chosen", "query"])
+def test_grid_query_changes_a_parameter_of_any_name(rf, name):
+    """G9's neighbours: names of the tag's own variables and of Django's tag's arguments are
+    ordinary parameters (only `context`, which every context tag takes, is not)."""
+    from django.template import Context, Template
+
+    request = rf.get(f"/?{name}=old&q=collection")
+    template = Template("{% load ui %}{% grid_query " + name + '="new" %}')
+    rendered = template.render(Context({"request": request})).replace("&amp;", "&")
+    assert rendered == f"?{name}=new&q=collection"

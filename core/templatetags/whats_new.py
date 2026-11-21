@@ -47,9 +47,10 @@ def whats_new_button(context):
                 except ValueError:
                     pass  # too many saved preferences: the next page tries again
                 except IntegrityError as error:
-                    if getattr(error.__cause__, "sqlstate", None) != "23503":
-                        raise
                     # The account was removed while the page was drawn: nobody to record it for.
+                    # Any other failure, also of another reference, is raised.
+                    if not preferences.account_removed(error, drawn_for):
+                        raise
 
             after_reading(record)
     else:

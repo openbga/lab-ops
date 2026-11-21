@@ -23,7 +23,7 @@
     }
   ],
   "good_to_know": [
-    "Opening [[What's new]] clears your unread count from the next page you open, in every tab and on any workstation, including changes in the collapsed list.",
+    "Opening [[What's new]] clears your unread count from the next page you open, in every tab and on any workstation, collapsed list included, within the 400 changes it remembers.",
     "Earlier months open automatically when they contain unread changes. Select a month heading to browse it.",
     "A Go to link appears only when the destination is in your staff menu."
   ],
@@ -70,7 +70,7 @@
       "items": [
         {
           "label": "What's new",
-          "description": "Available to every signed-in staff account, including staff without a laboratory role. The top bar counts unread changes for your account. A new account starts with the current entries marked as seen. Up to 400 changes from the latest 60 days are remembered as seen. Changes that only another version of the application lists, as during an update, can also take some of those 400 places, so a change can stay unread after a visit while more than 400 are remembered."
+          "description": "Available to every signed-in staff account, including staff without a laboratory role. The top bar counts unread changes for your account. A new account starts with the current entries marked as seen. Up to 400 changes from the latest 60 days are remembered as seen. Changes that only another version of the application lists, as during an update, can also take some of those 400 places, so when more than 400 changes have been seen across versions, one can stay unread after a visit."
         },
         {
           "label": "New",

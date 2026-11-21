@@ -1,6 +1,5 @@
 from urllib.parse import urlencode
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, connection
@@ -255,10 +254,7 @@ def whats_new(request):
             # The account was removed while the page was drawn: nobody to record it for. Any
             # other failure, also of another reference, is raised. (Under ATOMIC_REQUESTS, not
             # used here, the reference is checked only when the request commits.)
-            removed = getattr(error.__cause__, "sqlstate", None) == "23503" and not (
-                get_user_model().objects.filter(pk=request.user.pk).exists()
-            )
-            if not removed:
+            if not preferences.account_removed(error, request.user.pk):
                 raise
     visible = visible_staff_items(request.user, request=request)
     return render(

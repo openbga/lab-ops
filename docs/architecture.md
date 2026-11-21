@@ -323,11 +323,14 @@ own reading (a ticket page), which discards it, or `ATOMIC_REQUESTS` rolls the r
 mark drawn for an account deactivated meanwhile still records, for that account only. The seen
 mark keeps at most 400 entry ids; ids of another release's entries, whose dates this process
 does not know, are kept until that bound, ahead of a visit's own ids when theirs is the newer
-mark. What's new visited by an account removed at that moment draws without recording the
-visit; any other failure to record it is raised, and under `ATOMIC_REQUESTS`, which this project
-does not use, the removal shows only when the request commits, so that page fails. A stored
-value that does not read back exactly as written (a JSON number beyond double precision, which
-the application never writes) is not repaired: it counts as none on every page. Processes of an earlier
+mark. A page drawn for an account removed at that moment, What's new included, draws without
+recording its mark; a refusal at the limit of 300 leaves the page as drawn, any other failure to
+record it, also of another table's reference, is raised, and under `ATOMIC_REQUESTS`, which this
+project does not use, the removal shows only when the request commits, so that page fails. A
+stored mark that does not read back exactly as written, or cannot be written back at all (a JSON
+number beyond double precision or range, which the application never writes), is not repaired
+by a page's first mark: it counts as none until opening What's new replaces it. A stored page
+size that is not a whole number counts as none. Processes of an earlier
 release take no such lock and keep a copy in the session, so while a deploy replaces processes
 one by one the limit and the next-page guarantee hold only between processes of this release.
 [UI standards](ui-standards.md)
