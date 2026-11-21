@@ -411,8 +411,19 @@
     });
 
     // A page shown again (back-forward cache, or a tab brought back after sleep) has stale numbers.
+    // A question that got no answer (no connection, or a request cut off when the page's clock
+    // jumped, as after sleep) is asked again shortly, not at the next scheduled moment.
+    var retrying = 0;
     function recheck() {
-      check().then(function () { plan(true); });
+      check().then(function (answer) {
+        if (!answer && !leaving && !retrying) {
+          retrying = setTimeout(function () {
+            retrying = 0;
+            recheck();
+          }, FAILED_RETRY_MS);
+        }
+        plan(true);
+      });
     }
 
     window.addEventListener("pageshow", function (event) {

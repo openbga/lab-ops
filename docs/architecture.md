@@ -85,33 +85,37 @@ do in `core.session_limits`. The same change updates [the safeguards reference](
 Each sign-in is an `AccountSession` row, created by Django's `user_logged_in` signal once every
 sign-in step has passed and carried in the browser's session by its id
 ([accounts/sessions.py](../accounts/sessions.py)). `SessionLimitMiddleware` runs after the
-session, authentication and message middleware and before anything that acts for the account. It
-reads the row and the limits for the account's audience (staff or client portal, as the account is
-when the request arrives) in one statement and compares them with the database's clock. A missing,
-foreign or ended row, no activity for the inactivity limit, or the longest session reached signs
-the browser out: an expired row records the limit and the moment it passed, and a notice is kept
-for the sign-in page. A request that goes on counts as activity once it reaches its view, after
-its CSRF check: one conditional `UPDATE` moves the last activity to the database's clock at that
-moment (never back) and matches only an open row inside both limits, so a row ended or expired
-after it was read is never brought back; a row another transaction holds at that moment (another
-request of the session, a change or an ending under way) is skipped, not waited for. The status
-address the page asks before warning is not
-activity. A page opened with GET then goes on as a signed-out visitor and its sign-in returns to
-it; a form, a dialog or a script request is answered at once, the sign-in set to return to the
-page the person was on, and so is any such request that needs a sign-in from a browser that is not
-signed in. `NoStoreMiddleware`, the outermost layer, marks every answer to a signed-in session
-`no-store`, except a response that opts out (`vr_cacheable`, the laboratory's logo).
+session, authentication, message and locked-credentials middleware. Before anything acts for the
+account it reads the row and the limits for the account's audience (staff or client portal, as
+the account is when the request arrives) in one statement, by the database's clock. A missing,
+foreign or ended row signs the browser out. A row past a limit is locked and read again: if it
+had still passed a limit as of the request, by its values and the limits as they stand, it ends
+with the limit passed first and the moment it passed, the browser is signed out and a notice is
+kept for the sign-in page; if it had been extended or a limit lengthened meanwhile, the request
+goes on. A request that goes on counts as activity once it reaches its view, after its CSRF check
+and the locked-credentials check: one statement moves the last activity to the database's clock
+at that moment (never back), with the limits read in the same statement, and matches only an open
+row inside both limits. A row another transaction holds at that moment (another request of the
+session, a change or an ending under way) is skipped, not waited for, except by Stay signed in.
+The status address the page asks before warning is not activity. A page opened with GET then goes
+on as a signed-out visitor and its sign-in returns to it; a form, a dialog or a script request is
+answered at once, the sign-in set to return to the page the person was on, and so is any such
+request a view sends to sign in and back to its own address while the browser is not signed in.
+`NoStoreMiddleware`, the outermost layer, marks every answer to a signed-in session, and to a
+request with a session cookie answered before that was known, `no-store`, except static files and
+a response that opts out (`vr_cacheable`, the laboratory's logo).
 
 A change that holds its acting account (`accounts.acting.hold_actor`) also holds the request's
-session row `FOR SHARE` and is refused (`SessionEnded`) once it has ended, so ending a session
-waits for such a change under way. Deactivating an account ends all its rows in the same
-transaction (`accounts.models.User.save`); any change of the stored password ends all of them
-except, when the account changes its own password and the request keeps Django's session valid,
-the row of the request making the change. Rows are ended before the account's row is written, so
-a change holding a session can still take the account's row. Rows a browser abandoned stay open
-until they pass a limit; they are closed as expired when the account next signs in or its sessions
-are ended. The rows are kept after they end. The limits are rows of `core.SessionLimit`, one per
-audience, absent until first saved.
+session row `FOR SHARE` and is refused (`SessionEnded`, answered like a session found ended) once
+the row has ended or passed a limit, so ending a session waits for such a change under way.
+Deactivating an account ends all its rows in the same transaction (`accounts.models.User.save`);
+any change of the stored password ends all of them except, when the account changes its own
+password other than by an emailed reset and the request keeps Django's session valid, the row of
+the request making the change. Rows are ended before the account's row is written, so a change
+holding a session can still take the account's row. Rows a browser abandoned stay open until they
+pass a limit; they are closed as expired, and logged, when the account next signs in or its
+sessions are ended. The rows are kept after they end. The limits are rows of `core.SessionLimit`,
+one per audience, absent until first saved.
 
 ## Optional modules
 

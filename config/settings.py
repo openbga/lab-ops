@@ -73,10 +73,10 @@ MIDDLEWARE = [
     "core.preferences.GridPreferenceMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    # Signs out a session past the laboratory's limits before anything acts for the account and
-    # records its activity once a view is reached (accounts.sessions).
-    "accounts.sessions.SessionLimitMiddleware",
     "accounts.middleware.LockedCredentialsMiddleware",
+    # Signs out a session past the laboratory's limits before anything acts for the account and
+    # records its activity once a view is reached, after the check above (accounts.sessions).
+    "accounts.sessions.SessionLimitMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
 ]

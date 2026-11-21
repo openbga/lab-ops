@@ -243,7 +243,8 @@ def hold_actor(actor):
         _hold_portal_rows(pk)
     # The session the request acts through, when it acts for this account: held like the account,
     # so ending it (Sign out, a new password, a deactivation) waits for this change, and a change
-    # started after it ended is refused (accounts.sessions.SessionEnded, a PermissionDenied).
+    # from a session that has ended or passed a limit is refused (accounts.sessions.SessionEnded,
+    # a PermissionDenied).
     from .sessions import SessionEnded, hold_acting_session
 
     if not hold_acting_session(pk):

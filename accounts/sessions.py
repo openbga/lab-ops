@@ -7,14 +7,16 @@ view or other middleware acts for the account:
 
 - the row is missing (a session from before this release, or one whose row was erased), belongs
   to another account, or has ended (signed out, deactivated, a new password): sign out;
-- no activity for the inactivity limit, or the longest session reached since sign-in: end the row
-  with that reason (and the moment the limit passed) and sign out;
+- no activity for the inactivity limit, or the longest session reached since sign-in: lock the
+  row and read it again; if it had still passed a limit as of this request, by its values and the
+  limits as they stand, end it with the limit passed first and the moment it passed, and sign
+  out; if it had been extended or a limit lengthened meanwhile, go on;
 - otherwise the request may go on. Once its address resolves to a view and its CSRF check has
   passed, it counts as activity: one UPDATE moves the row's last activity to the database's
   clock at that moment, never back, only while the row is open and inside both limits, so a row
   ended or expired in between is not brought back. A row another transaction holds at that
-  moment is not waited for: that is another request of the session, or a change or an ending
-  under way, which decide for themselves.
+  moment is not waited for (another request of the session, or a change or an ending under way,
+  which decide for themselves), except by Stay signed in, whose only purpose is this activity.
 
 The limits are the laboratory's (core.session_limits), one pair for staff and one for client
 portal accounts, chosen by what the account is when the request arrives, and read with the row
@@ -26,16 +28,18 @@ address that does not exist, a request its CSRF check refuses, or the status add
 asks how long remains before it warns.
 
 A change that holds its acting account (accounts.acting.hold_actor) also holds the request's
-session row, FOR SHARE, and is refused when the row has ended: ending a session (Sign out, a new
-password, a deactivation) waits for such a change under way and refuses one started afterwards.
+session row, FOR SHARE, and is refused (SessionEnded, answered like a session found ended) when
+the row has ended or passed a limit: ending a session (Sign out, a new password, a deactivation)
+waits for such a change under way and refuses one started afterwards.
 
 What a request does once its session ends depends on what it is. A page opened with GET goes on
 as a signed-out visitor, so a page that needs a sign-in sends them to the sign-in page, which
 returns to that page afterwards. Anything else (a form sent, a dialog or a partial update) is
 answered at once, with the sign-in page set to return to the page the person was on; a dialog or
 a partial update is told to load that page in the whole window. A form, a dialog or a partial
-update that needs a sign-in from a browser that is not signed in for any other reason (Django
-refused its session, it signed out in another tab) is answered the same way.
+update that a view sends to sign in and back to its own address (login_required), from a browser
+that is not signed in for any other reason (Django refused its session, it signed out in another
+tab), is answered the same way.
 
 Every answer to a signed-in session, or to one that ended or signed in during the request, is
 marked not to be stored (no-store) by NoStoreMiddleware, the outermost layer, so the browser keeps
@@ -50,7 +54,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from django.conf import settings
 from django.contrib import messages
@@ -108,6 +112,11 @@ _current = contextvars.ContextVar("account_session", default=None)
 # The session a password change of this request kept, (account id, session id): it stays open
 # only if the request also kept Django's session valid (_settle_kept_session).
 _kept = contextvars.ContextVar("account_session_kept", default=None)
+# The view this request reached (its resolved name), for kept_on_password_change and for Stay
+# signed in's activity, which waits for its row.
+_view = contextvars.ContextVar("account_session_view", default=None)
+# The signed-in account of this request, so that its audience needs no further reading.
+_account_var = contextvars.ContextVar("account_session_account", default=None)
 
 
 @dataclass(frozen=True)
@@ -181,74 +190,166 @@ def _read(session_id, user):
         return cursor.fetchone()
 
 
+def _limits_sql(user):
+    """SQL for the account's limits as they stand when the statement runs (the defaults where
+    none is set), with its parameters: (inactivity interval, longest interval, params)."""
+    from core.session_limits import DEFAULTS
+
+    _, limits = _tables()
+    kind = audience(user)
+    inactivity = (
+        f"make_interval(mins => COALESCE((SELECT inactivity_minutes FROM {limits} "
+        f"WHERE audience = %s), %s))"
+    )
+    longest = (
+        f"make_interval(hours => COALESCE((SELECT maximum_hours FROM {limits} "
+        f"WHERE audience = %s), %s))"
+    )
+    return (
+        inactivity,
+        longest,
+        [kind, DEFAULTS["inactivity_minutes"]],
+        [kind, DEFAULTS["maximum_hours"]],
+    )
+
+
+def _account(user_or_pk):
+    """The account itself, given it or its id (for its audience)."""
+    if hasattr(user_or_pk, "client_id"):
+        return user_or_pk
+    acting = _account_var.get()
+    if acting is not None and acting.pk == user_or_pk:
+        return acting
+    return get_user_model().objects.only("pk", "client_id").get(pk=user_or_pk)
+
+
 def _touch(state):
-    """Record activity, only while the row is open and inside both limits, measured by the
-    database's clock when the row is updated (clock_timestamp(), not when the statement began),
-    and never move the last activity back. Returns True when recorded, None when another
-    transaction holds the row right now (another request of this session recording its own
-    activity, a change under way holding it, or an ending about to commit): this request does not
-    wait for it and goes on as admitted, and a change it makes is decided under that hold
-    (hold_acting_session). False when the row no longer qualifies (ended or expired since the
-    reading)."""
+    """Record activity, only while the row is open and inside both limits as they stand, measured
+    by the database's clock when the row is updated (clock_timestamp(), not when the statement
+    began), and never move the last activity back.
+
+    Returns True when recorded and False when the row is missing or no longer qualifies (ended or
+    expired since the reading). Returns None when another transaction holds the row at this
+    moment (another request of this session recording its own activity, a change under way
+    holding it, or an ending about to commit): this request does not wait for it and goes on as
+    admitted; a change it makes is decided under its own hold (hold_acting_session). Stay signed
+    in, whose only purpose is this activity, waits for the row instead."""
     sessions, _ = _tables()
+    inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(state.user_id))
+    skip = "" if _view.get() == CONTINUE_ROUTE else " SKIP LOCKED"
     with connection.cursor() as cursor:
         cursor.execute(
-            f"WITH locked AS (SELECT id FROM {sessions} WHERE id = %s AND user_id = %s "
-            f"FOR NO KEY UPDATE SKIP LOCKED), "
+            f"WITH target AS (SELECT id FROM {sessions} WHERE id = %s AND user_id = %s), "
+            f"locked AS (SELECT id FROM {sessions} WHERE id = %s AND user_id = %s "
+            f"FOR NO KEY UPDATE{skip}), "
             f"recorded AS (UPDATE {sessions} s "
             f"SET last_active_at = GREATEST(s.last_active_at, clock_timestamp()) FROM locked "
             f"WHERE s.id = locked.id AND s.ended_at IS NULL "
-            f"AND s.last_active_at > clock_timestamp() - %s "
-            f"AND s.started_at > clock_timestamp() - %s RETURNING s.id) "
-            f"SELECT (SELECT count(*) FROM locked), (SELECT count(*) FROM recorded)",
-            [state.id, state.user_id, state.inactivity, state.maximum],
+            f"AND s.last_active_at > clock_timestamp() - {inactivity} "
+            f"AND s.started_at > clock_timestamp() - {longest} RETURNING s.id) "
+            f"SELECT (SELECT count(*) FROM target), (SELECT count(*) FROM locked), "
+            f"(SELECT count(*) FROM recorded)",
+            [
+                state.id,
+                state.user_id,
+                state.id,
+                state.user_id,
+                *inactivity_params,
+                *longest_params,
+            ],
         )
-        locked, recorded = cursor.fetchone()
+        found, locked, recorded = cursor.fetchone()
+    if not found:
+        return False
     if not locked:
         return None
     return recorded == 1
 
 
-def _limits_for(user):
-    """(inactivity, longest) for the account's audience as it is now."""
-    from core.models import SessionLimit
-    from core.session_limits import DEFAULTS
+# The limit passed first, and the moment it passed, from a row's values: the same rule for every
+# way a row is found expired (a request, an account's next sign-in, an account-wide ending).
+_PASSED = (
+    "ending = CASE WHEN started_at + {longest} <= last_active_at + {inactivity} "
+    "THEN %s ELSE %s END, "
+    "ended_at = LEAST(started_at + {longest}, last_active_at + {inactivity})"
+)
 
-    row = SessionLimit.objects.filter(audience=audience(user)).values_list(
-        "inactivity_minutes", "maximum_hours"
-    )
-    minutes, hours = row.first() or (DEFAULTS["inactivity_minutes"], DEFAULTS["maximum_hours"])
-    return timedelta(minutes=minutes), timedelta(hours=hours)
+
+def _settle_expiry(state):
+    """For a row a request found expired: lock it, read it as it stands (waiting for another
+    request ending or extending it), and end it if, by its values now and the limits as they
+    stand, it was past a limit at the moment the request was read (state.now), with the limit
+    passed first and the moment it passed. Returns ("expired", ending) when this request ended
+    it; ("ended", None) when it had ended already or is missing; ("open", state) with the row as
+    it stands when it had not expired after all (extended, or a limit lengthened, since the
+    reading)."""
+    sessions, _ = _tables()
+    inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(state.user_id))
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT ended_at, started_at, last_active_at, {inactivity}, {longest}, now() "
+            f"FROM {sessions} WHERE id = %s AND user_id = %s FOR NO KEY UPDATE",
+            [*inactivity_params, *longest_params, state.id, state.user_id],
+        )
+        row = cursor.fetchone()
+        if row is None or row[0] is not None:
+            return "ended", None
+        _ended, started_at, last_active_at, inactivity_limit, longest_limit, now = row
+        longest_at = started_at + longest_limit
+        inactivity_at = last_active_at + inactivity_limit
+        if longest_at > state.now and inactivity_at > state.now:
+            fresh = SessionState(
+                state.id,
+                state.user_id,
+                started_at,
+                last_active_at,
+                now,
+                inactivity_limit,
+                longest_limit,
+            )
+            return "open", fresh
+        ending = Ending.MAXIMUM if longest_at <= inactivity_at else Ending.INACTIVITY
+        AccountSession.objects.filter(pk=state.id).update(
+            ended_at=min(longest_at, inactivity_at), ending=ending
+        )
+    return "expired", ending
+
+
+def _end_expired(state, ending=None):
+    """End a row found expired (_settle_expiry). Returns 1 when this request ended it, else 0."""
+    return 1 if _settle_expiry(state)[0] == "expired" else 0
 
 
 def close_expired(user):
-    """End the account's open rows that have passed a limit, as the limits stand now, with the
-    limit passed first and the moment it passed. A browser that closed or was abandoned leaves
-    its row open until then. Returns how many ended."""
-    inactivity, maximum = _limits_for(user)
+    """End the account's open rows that have passed a limit, by their values and the limits as
+    they stand when the statement runs, with the limit passed first and the moment it passed. A
+    browser that closed or was abandoned leaves its row open until then. Each one ended is
+    recorded in the sign-in log once this commits. Returns how many ended."""
     sessions, _ = _tables()
+    inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
+    passed = _PASSED.format(inactivity=inactivity, longest=longest)
     with connection.cursor() as cursor:
         cursor.execute(
-            f"UPDATE {sessions} SET "
-            f"ending = CASE WHEN started_at + %s <= last_active_at + %s "
-            f"THEN %s ELSE %s END, "
-            f"ended_at = LEAST(started_at + %s, last_active_at + %s) "
+            f"UPDATE {sessions} SET {passed} "
             f"WHERE user_id = %s AND ended_at IS NULL "
-            f"AND (started_at + %s <= clock_timestamp() "
-            f"OR last_active_at + %s <= clock_timestamp())",
+            f"AND (started_at + {longest} <= clock_timestamp() "
+            f"OR last_active_at + {inactivity} <= clock_timestamp()) RETURNING ending",
             [
-                maximum,
-                inactivity,
+                *longest_params,
+                *inactivity_params,
                 Ending.MAXIMUM,
                 Ending.INACTIVITY,
-                maximum,
-                inactivity,
+                *longest_params,
+                *inactivity_params,
                 user.pk,
-                maximum,
-                inactivity,
+                *longest_params,
+                *inactivity_params,
             ],
         )
-        return cursor.rowcount
+        endings = [row[0] for row in cursor.fetchall()]
+    for ending in sorted(set(endings)):
+        _log_after_commit(ending, user, endings.count(ending))
+    return len(endings)
 
 
 def end_sessions(user, ending, *, keep=None, session_id=None):
@@ -269,20 +370,27 @@ def end_sessions(user, ending, *, keep=None, session_id=None):
     return ended
 
 
-def hold_acting_session(user_pk):
-    """For a change that holds its acting account (accounts.acting.hold_actor): when this request
-    acts for `user_pk` through a signed-in session, hold that session's row FOR SHARE until the
-    transaction ends and say whether it is still open. Ending the session waits for the change,
-    and hold_actor refuses a change started after it ended (SessionEnded). True when the request
-    has no session of that account (a job, a command, a test calling a service)."""
+def hold_acting_session(user):  # the account or its id
+    """For a change that holds its acting account (accounts.acting.hold_actor, with the account as
+    held): when this request acts for that account through a signed-in session, hold the
+    session's row FOR SHARE until the transaction ends and say whether the session may still act:
+    open, and inside both limits as they stand, by the database's clock now. Ending the session
+    waits for the change, and hold_actor refuses a change from a session that has ended or expired
+    (SessionEnded). True when the request has no session of that account (a job, a command, a
+    test calling a service)."""
     current = _current.get()
+    user_pk = getattr(user, "pk", user)
     if current is None or current[0] != user_pk:
         return True
     sessions, _ = _tables()
+    inactivity, longest, inactivity_params, longest_params = _limits_sql(_account(user))
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT ended_at IS NULL FROM {sessions} WHERE id = %s AND user_id = %s FOR SHARE",
-            [current[1], user_pk],
+            f"SELECT ended_at IS NULL "
+            f"AND last_active_at > clock_timestamp() - {inactivity} "
+            f"AND started_at > clock_timestamp() - {longest} "
+            f"FROM {sessions} WHERE id = %s AND user_id = %s FOR SHARE",
+            [*inactivity_params, *longest_params, current[1], user_pk],
         )
         row = cursor.fetchone()
     return bool(row and row[0])
@@ -303,14 +411,21 @@ def _log_after_commit(ending, user, count):
     transaction.on_commit(log)
 
 
+# The page where an account's password is set without its sessions being kept: a reset by
+# email, even from a browser signed in to the account. Elsewhere the account's own session is
+# kept when it changes its own password, and checked again after the view
+# (_settle_kept_session), since a page may still not keep Django's session.
+RESETTING_VIEWS = frozenset({"account_reset_password_from_key"})
+
+
 def kept_on_password_change(user):
     """The session to keep when this account's password changes: the one making the change, when
-    the account changes its own password. None otherwise (a password set for another account, or
-    a reset by email from a browser not signed in to it), so that every session of the account
-    ends. A kept session stays open only if the request keeps Django's session valid too
-    (_settle_kept_session): a reset by email signed in to the same account does not."""
+    the account changes its own password other than by a reset (RESETTING_VIEWS). None otherwise
+    (a password set for another account, a reset by email), so that every session of the account
+    ends in the same transaction as the password. A kept session stays open only if the request
+    keeps Django's session valid too (_settle_kept_session)."""
     current = _current.get()
-    if current is not None and current[0] == user.pk:
+    if current is not None and current[0] == user.pk and _view.get() not in RESETTING_VIEWS:
         _kept.set(current)
         return current[1]
     return None
@@ -429,34 +544,24 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     messages.info(request, text, fail_silently=True)
 
 
-def _end_expired(state, ending):
-    """End this row for the limit it was found past when the request's reading was taken, at the
-    moment that limit passed by that reading; only while it is still open. Returns 1 when this
-    request ended it, 0 when another had (two tabs of one session finding it expired together)."""
-    passed = (
-        state.started_at + state.maximum
-        if ending == Ending.MAXIMUM
-        else state.last_active_at + state.inactivity
-    )
-    return AccountSession.objects.filter(pk=state.id, ended_at__isnull=True).update(
-        ended_at=passed, ending=ending
-    )
-
-
 def _expired(row):
-    """The limit a row read by _read has passed, or None."""
+    """The limit a row read by _read had passed when it was read, or None. When both had, the one
+    that passed first (the longest session on a tie), as close_expired and _end_expired decide."""
     _, started_at, last_active_at, _ended, now, minutes, hours = row
-    if now - started_at >= timedelta(hours=hours):
+    longest_at = started_at + timedelta(hours=hours)
+    inactivity_at = last_active_at + timedelta(minutes=minutes)
+    if longest_at <= now and longest_at <= inactivity_at:
         return Ending.MAXIMUM
-    if now - last_active_at >= timedelta(minutes=minutes):
+    if inactivity_at <= now:
         return Ending.INACTIVITY
     return None
 
 
-def check(request):
-    """Decide whether the signed-in session of this request may go on. Returns its state when it
-    may, or None after signing it out. Records nothing: the activity is recorded once the request
-    reaches a view (SessionLimitMiddleware.process_view)."""
+def _decide(request):
+    """Whether the signed-in session of this request may go on, from a reading of its row and its
+    limits. Returns its state when it may, or None after signing it out. A row found expired is
+    ended only if, locked and read again, it still had expired (_settle_expiry); if it had been
+    extended or a limit lengthened meanwhile, the request goes on from that reading."""
     user = request.user
     session_id = _valid_id(request.session.get(SESSION_KEY))
     row = _read(session_id, user) if session_id else None
@@ -466,26 +571,23 @@ def check(request):
     _, started_at, last_active_at, _ended, now, minutes, hours = row
     limits = (timedelta(minutes=minutes), timedelta(hours=hours))
     state = SessionState(session_id, user.pk, started_at, last_active_at, now, *limits)
-    ending = _expired(row)
-    if ending is not None:
-        _sign_out(request, ending, limits, ended=_end_expired(state, ending))
-        return None
-    return state
+    if _expired(row) is None:
+        return state
+    outcome, detail = _settle_expiry(state)
+    if outcome == "open":
+        return detail
+    if outcome == "expired":
+        _sign_out(request, detail, limits, ended=1)
+    else:
+        _sign_out(request, _expired(row), limits)  # ended by another request of the session
+    return None
 
 
-def check_again(request, state):
-    """The activity was not recorded: the row ended, or reached a limit, after it was read.
-    Decide again from the row as it is now, and sign out."""
-    row = _read(state.id, request.user)
-    ending, ended, limits = None, 0, (state.inactivity, state.maximum)
-    if row is not None and row[3] is None:
-        _, started_at, last_active_at, _ended, now, minutes, hours = row
-        limits = (timedelta(minutes=minutes), timedelta(hours=hours))
-        ending = _expired(row)
-        if ending is not None:
-            fresh = SessionState(state.id, state.user_id, started_at, last_active_at, now, *limits)
-            ended = _end_expired(fresh, ending)
-    _sign_out(request, ending, limits, ended=ended)
+def check(request):
+    """Decide whether the signed-in session of this request may go on (_decide). Records nothing:
+    the activity is recorded once the request reaches a view (SessionLimitMiddleware.process_view).
+    """
+    return _decide(request)
 
 
 def _session_endpoints():
@@ -526,16 +628,29 @@ def _refusal(request):
     return response
 
 
-def _asks_to_sign_in(response):
-    """Whether the response sends the browser to sign in in order to continue (a sign-in address
-    carrying `next`, as login_required gives), directly or through HTMX."""
-    try:
-        sign_in = resolve_url(settings.LOGIN_URL)
-    except NoReverseMatch:
-        return False
+def _sign_in_paths():
+    """The addresses that send a browser to sign in: the application's sign-in page and the admin
+    console's, which forwards to it with the same `next`."""
+    paths = set()
+    for name in (settings.LOGIN_URL, "admin:login"):
+        try:
+            paths.add(resolve_url(name))
+        except NoReverseMatch:
+            pass
+    return paths
+
+
+def _asks_to_sign_in(request, response):
+    """Whether the response sends the browser to sign in and then back to this very request's
+    address (as login_required and the admin console do), directly or through HTMX. A sign-in
+    that returns elsewhere is left as it is."""
+    paths = _sign_in_paths()
     for header in ("Location", "HX-Redirect"):
         target = urlsplit(response.get(header, "") or "")
-        if target.path == sign_in and not target.netloc and "next=" in target.query:
+        if target.path not in paths or target.netloc:
+            continue
+        back = parse_qs(target.query).get("next", [])
+        if back and back[0] == request.get_full_path():
             return True
     return False
 
@@ -545,8 +660,9 @@ def _has_session_cookie(request):
 
 
 class SessionLimitMiddleware:
-    """After the session, authentication and message middleware, before anything that acts for
-    the account (accounts.sessions)."""
+    """After the session, authentication and message middleware, so that it decides before
+    anything acts for the account; after the locked-credentials check too, so that a page that
+    check refuses before its view is not activity (process_view runs in this order)."""
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -556,7 +672,12 @@ class SessionLimitMiddleware:
         request.vr_signed_in = signed_in
         request.account_session = None
         signed_in_now = signed_in
-        current, kept = _current.set(None), _kept.set(None)
+        tokens = (
+            _current.set(None),
+            _kept.set(None),
+            _view.set(None),
+            _account_var.set(request.user if signed_in else None),
+        )
         try:
             response = None
             if signed_in:
@@ -574,48 +695,79 @@ class SessionLimitMiddleware:
             if (
                 not signed_in_now
                 and response.status_code in (204, 301, 302, 303, 307, 308)
-                and _asks_to_sign_in(response)
+                and _asks_to_sign_in(request, response)
                 and not _goes_on(request)
+                and _page_on_screen(request)
             ):
                 # Not signed in for another reason (Django refused the session, Sign out in
-                # another tab, never signed in): the same answer as for a session that ended,
-                # with the cookies the answer replaced set.
+                # another tab, never signed in), and the page on screen is known: the same answer
+                # as for a session that ended, with the cookies the answer replaced set.
                 cookies = response.cookies
                 response = _refusal(request)
                 response.cookies = cookies
         finally:
-            _current.reset(current)
-            _kept.reset(kept)
+            _current.reset(tokens[0])
+            _kept.reset(tokens[1])
+            _view.reset(tokens[2])
+            _account_var.reset(tokens[3])
         if signed_in_now:
             request.vr_signed_in = True
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        """Record the activity of a request that reached its view (its CSRF check passed)."""
+        """Record the activity of a request that reached its view (its CSRF check passed, no
+        earlier check answered instead)."""
+        match = request.resolver_match
+        _view.set(match.view_name if match is not None else None)
         state = getattr(request, "account_session", None)
         if state is None or not _is_activity(request):
             return None
-        recorded = _touch(state)
-        if recorded is None:
-            return None  # the row is held elsewhere at this moment: go on as admitted
-        if recorded:
-            # As recorded, to the reading's precision: the page plans from this.
-            request.account_session = dataclasses.replace(state, last_active_at=state.now)
-            return None
-        check_again(request, state)
+        for _attempt in range(2):
+            recorded = _touch(state)
+            if recorded is None:
+                return None  # the row is held elsewhere at this moment: go on as admitted
+            if recorded:
+                # As recorded, to the reading's precision: the page plans from this.
+                request.account_session = dataclasses.replace(state, last_active_at=state.now)
+                return None
+            # Not recorded: ended or expired since the reading, or a limit changed. Decide again.
+            state = _decide(request)
+            if state is None:
+                return None if _goes_on(request) else _refusal(request)
+            request.account_session = state
+        _sign_out(request, None)
         return None if _goes_on(request) else _refusal(request)
+
+    def process_exception(self, request, exception):
+        """A change refused because its session ended after the request began (SessionEnded):
+        signed out, with the sign-in page set to return to the page on screen, as for a session
+        found ended when the request arrived."""
+        if not isinstance(exception, SessionEnded):
+            return None
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            _sign_out(request, None)
+        return _refusal(request)
 
 
 class NoStoreMiddleware:
     """The outermost layer: marks every answer to a signed-in session (request.vr_signed_in, set
-    by SessionLimitMiddleware) not to be stored, after every other layer has drawn or replaced
-    it."""
+    by SessionLimitMiddleware), and every answer to a request carrying a session cookie that an
+    earlier layer drew before that was known (a canonical-host redirect), not to be stored, after
+    every other layer has drawn or replaced it. Static files keep their caching."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        if getattr(request, "vr_signed_in", False) and not getattr(response, "vr_cacheable", False):
+        if getattr(response, "vr_cacheable", False):
+            return response
+        decided = hasattr(request, "vr_signed_in")
+        if (decided and request.vr_signed_in) or (
+            not decided
+            and _has_session_cookie(request)
+            and not request.path_info.startswith(settings.STATIC_URL)
+        ):
             add_never_cache_headers(response)
         return response

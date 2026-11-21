@@ -5,9 +5,11 @@ adopted unchanged except where a test says it was adapted."""
 
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from email.utils import parsedate_to_datetime
+from queue import Queue
 from threading import Barrier
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -288,19 +290,29 @@ def test_direct_limits_addresses_for_accounts_without_a_lab_role(
 @pytest.mark.parametrize("which", ["inactivity", "maximum"])
 @pytest.mark.parametrize("offset_us", [-1, 0, 1])
 def test_exact_time_boundaries(person, monkeypatch, which, offset_us):
+    """Adapted after verification (finding 4): a row found expired is locked and read again
+    before it is ended, by its values as they stand, as of the moment the request was read. So
+    the row's times are set in the database and the reading's clock is placed `offset_us`
+    microseconds before the limit's deadline (after it when negative)."""
     from accounts import sessions
 
     browser = signed_in(person)
+    if which == "maximum":
+        rows(person).update(
+            started_at=Now() - timedelta(hours=12) + timedelta(minutes=10), last_active_at=Now()
+        )
+    else:
+        rows(person).update(last_active_at=Now() - timedelta(minutes=10))
     original = sessions._read
 
     def reading(session_id, user):
         uid, start, last, end, now, minutes, hours = original(session_id, user)
-        delta = timedelta(microseconds=offset_us)
-        if which == "maximum":
-            start = now - timedelta(hours=hours) + delta
-        else:
-            last = now - timedelta(minutes=minutes) + delta
-        return uid, start, last, end, now, minutes, hours
+        deadline = (
+            start + timedelta(hours=hours)
+            if which == "maximum"
+            else last + timedelta(minutes=minutes)
+        )
+        return uid, start, last, end, deadline - timedelta(microseconds=offset_us), minutes, hours
 
     monkeypatch.setattr(sessions, "_read", reading)
     answer = browser.get(reverse("account-session")).json()
@@ -509,15 +521,23 @@ def test_declining_unchanged_limits_records_nothing_and_shows_notice(admin):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_recording_activity_keeps_the_latest_committed_timestamp(person):
+def test_recording_activity_keeps_the_latest_committed_timestamp(person, monkeypatch):
     """Both activities fall comfortably inside the limits. Only their recorded order matters.
 
-    Adapted after round 1 (finding 3): the activity statement no longer waits for a row another
-    transaction holds; it skips it and the request goes on. While the row is held with a newer
-    time, Stay signed in answers without waiting and nothing moves that time back; a later
-    activity records a time no earlier than it."""
+    Restored to the reviewer's original after verification: Stay signed in waits for its row
+    again (verification finding 3), so the blocked update this test observes exists again."""
+    from accounts import sessions
+
     browser = signed_in(person)
     row = rows(person).get()
+    worker_pid = Queue()
+    original = sessions._touch
+
+    def touch(state):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_backend_pid()")
+            worker_pid.put(cursor.fetchone()[0])
+        return original(state)
 
     def continue_session():
         try:
@@ -525,16 +545,24 @@ def test_recording_activity_keeps_the_latest_committed_timestamp(person):
         finally:
             connections.close_all()
 
+    monkeypatch.setattr(sessions, "_touch", touch)
     with ThreadPoolExecutor(max_workers=1) as pool:
-        with transaction.atomic():
+        with transaction.atomic(), connection.cursor() as cursor:
             rows(person).select_for_update().get()
+            result = pool.submit(continue_session)
+            pid = worker_pid.get(timeout=10)
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                cursor.execute("SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s))", [pid])
+                if cursor.fetchone()[0]:
+                    break
+                time.sleep(0.01)
+            else:
+                pytest.fail("The activity update never reached the held session row")
             rows(person).update(last_active_at=Now())
-            latest = rows(person).get().last_active_at
-            answer = pool.submit(continue_session).result(timeout=10)  # not waiting for the hold
-            assert answer["signed_in"] is True
-        row.refresh_from_db()
-        assert row.last_active_at == latest
-        assert pool.submit(continue_session).result(timeout=10)["signed_in"] is True
+            row.refresh_from_db()
+            latest = row.last_active_at
+        assert result.result(timeout=10)["signed_in"] is True
     row.refresh_from_db()
     assert row.last_active_at >= latest
 
