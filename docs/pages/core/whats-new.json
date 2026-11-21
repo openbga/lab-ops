@@ -70,7 +70,7 @@
       "items": [
         {
           "label": "What's new",
-          "description": "Available to every signed-in staff account, including staff without a laboratory role. The top bar counts unread changes for your account. A new account starts with the current entries marked as seen. Up to 400 changes from the latest 60 days are remembered as seen."
+          "description": "Available to every signed-in staff account, including staff without a laboratory role. The top bar counts unread changes for your account. A new account starts with the current entries marked as seen. Up to 400 changes from the latest 60 days are remembered as seen. Changes that only another version of the application lists, as during an update, can also take some of those 400 places, so a change can stay unread after a visit while more than 400 are remembered."
         },
         {
           "label": "New",

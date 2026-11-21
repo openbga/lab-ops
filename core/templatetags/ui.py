@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from django import template
 from django.http import QueryDict
 from django.template.base import token_kwargs
+from django.template.defaulttags import querystring
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
@@ -402,17 +403,10 @@ def chosen_param(context, name):
 @register.simple_tag(takes_context=True)
 def grid_query(context, **changes):
     """A list link's query string: what the person chose on this page, with `changes` applied
-    (None removes a parameter). For sort headings, as Django's querystring tag but without the
-    values added from saved settings."""
-    query = _chosen_query(context)
-    for name, value in changes.items():
-        if value is None:
-            query.pop(name, None)
-        elif not isinstance(value, str) and hasattr(value, "__iter__"):
-            query.setlist(name, [str(item) for item in value])
-        else:
-            query[name] = value
-    return "?" + query.urlencode()
+    (None removes a parameter). For sort headings: Django's querystring tag applied to what the
+    person chose, without the values added from saved settings, so values are encoded as that
+    tag encodes them."""
+    return querystring(context, _chosen_query(context), **changes)
 
 
 @register.simple_tag(takes_context=True)

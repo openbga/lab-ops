@@ -91,14 +91,19 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ### Review follow-up: a ticket's way back to the queue
 
-- **Delivers:** a small change that the independent review of "preferences kept in the session"
-  found predating it. A staff ticket opened from the queue carries the queue's address, with the
-  sort and page size the queue added from the person's saved settings, because Previous, Next and
-  Save view need that order. Its breadcrumb back to the queue sends them as if chosen, so it can
-  save again an older sort or page size than another tab saved since. The breadcrumb should send
-  only what the person chose while Previous, Next and Save view keep the order shown. Acceptance
-  cases: the staff ticket case of the review's record round-trip test (second confirmation), with
-  its queue-navigation and Save view tests (third confirmation) still passing.
+- **Delivers:** small changes to the staff queue that the independent review of "preferences kept
+  in the session" found predating it. A staff ticket opened from the queue carries the queue's
+  address, with the sort and page size the queue added from the person's saved settings, because
+  Previous, Next and Save view need that order. Its breadcrumb back to the queue, the return after
+  a bulk change and Save view's Cancel send them as if chosen, so they can save again an older
+  sort or page size than another tab saved since; they should send only what the person chose
+  while Previous, Next and Save view keep the order shown. Two more: a ticket opened from the
+  queue at its default order, with nothing chosen or saved, shows no Previous or Next; and a view
+  saved at the default order stores no sort, so it reopens in the person's saved sort instead of
+  the order shown. Acceptance cases: the staff cases of the review's record round-trip test
+  (second confirmation) and the default-queue, named-view, queue-action and breadcrumb tests of
+  its fourth confirmation (marked as expected to fail until then), with the queue-navigation and
+  Save view tests of its third confirmation still passing.
 - **Depends on:** nothing unbuilt.
 - **Leaves out:** nothing.
 

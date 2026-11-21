@@ -19,6 +19,7 @@ waits for a lock or has finished.
 """
 
 import json
+from dataclasses import replace
 from datetime import date
 from unittest.mock import patch
 
@@ -508,3 +509,60 @@ def test_rows_per_page_form_keeps_a_sort_the_address_gave_and_leaves_out_a_saved
     assert '<input type="hidden" name="sort" value="-name">' in given
     for form in (saved, given):  # the person's filters always go with it
         assert '<input type="hidden" name="q" value="Example">' in form
+
+
+# Fourth confirmation's neighbours ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("newest", "day"),
+    [
+        (date(2026, 11, 20), date(2026, 9, 21)),  # 60 days before: outside
+        (date(2026, 11, 20), date(2026, 9, 22)),  # 59 days before: inside
+        (date(2026, 11, 20), date(2026, 11, 20)),
+        (date(2026, 11, 20), date(2026, 12, 1)),  # after the newest: inside
+        (date(2000, 3, 1), date(2000, 1, 1)),  # across a leap day: 60 days, outside
+    ],
+)
+def test_the_window_is_the_same_test_as_a_day_sixty_days_earlier(newest, day):
+    """F6's neighbour: comparing the difference of two dates decides as the subtraction did."""
+    assert changelog.in_window(day, newest) == (day > newest - changelog.SEEN_WINDOW)
+
+
+def test_entries_dated_in_the_first_weeks_of_year_one_are_seen_and_counted(client, agent):
+    """F6's neighbour: a catalog whose newest entry is too early for a day sixty days before it
+    still marks, counts and combines like any other (the release check accepts such dates)."""
+    first = replace(edition(18), id="0001-01-01-delivery", date=date(1, 1, 1))
+    later = replace(edition(18), id="0001-03-01-delivery", date=date(1, 3, 1))
+    mark = changelog.seen_marker([later, first])
+    assert mark == {"date": "0001-03-01", "ids": [later.id, first.id]}
+    assert changelog.unread([later, first], {"date": "0001-01-01", "ids": [first.id]}) == [later]
+    assert changelog.combined_marker({"date": "0001-01-01", "ids": [first.id]}, mark, [first]) == {
+        "date": "0001-03-01",
+        "ids": [later.id, first.id],
+    }
+    with patch.object(changelog, "entries", lambda: [later, first]):
+        client.force_login(agent)
+        assert client.get(reverse("whats-new")).status_code == 200
+        stored = UserPreference.objects.get(user=agent, key=preferences.WHATS_NEW_KEY).value
+        assert changelog.unread([later, first], stored) == []
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({"sort": "name"}, "?sort=name"),
+        ({"sort": None}, ""),
+        ({"site": ["a", "b"]}, "?site=a&site=b"),
+    ],
+)
+def test_grid_query_without_a_request_starts_from_nothing_chosen(changes, expected):
+    """F9-F11's neighbour: a component drawn without a request (no request in its context) gets
+    Django's querystring result for an empty query."""
+    from django.template import Context, Template
+
+    template = Template(
+        "{% load ui %}{% grid_query " + " ".join(f"{k}=v_{k}" for k in changes) + " %}"
+    )
+    rendered = template.render(Context({f"v_{k}": v for k, v in changes.items()}))
+    assert rendered.replace("&amp;", "&") == expected

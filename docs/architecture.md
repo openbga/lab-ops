@@ -322,7 +322,12 @@ before redirecting) or fails after drawing the top bar, unless the page was draw
 own reading (a ticket page), which discards it, or `ATOMIC_REQUESTS` rolls the request back. A
 mark drawn for an account deactivated meanwhile still records, for that account only. The seen
 mark keeps at most 400 entry ids; ids of another release's entries, whose dates this process
-does not know, are kept until that bound. Processes of an earlier
+does not know, are kept until that bound, ahead of a visit's own ids when theirs is the newer
+mark. What's new visited by an account removed at that moment draws without recording the
+visit; any other failure to record it is raised, and under `ATOMIC_REQUESTS`, which this project
+does not use, the removal shows only when the request commits, so that page fails. A stored
+value that does not read back exactly as written (a JSON number beyond double precision, which
+the application never writes) is not repaired: it counts as none on every page. Processes of an earlier
 release take no such lock and keep a copy in the session, so while a deploy replaces processes
 one by one the limit and the next-page guarantee hold only between processes of this release.
 [UI standards](ui-standards.md)

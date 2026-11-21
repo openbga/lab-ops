@@ -52,6 +52,13 @@ SEEN_WINDOW = datetime.timedelta(days=60)
 SEEN_IDS_MAX = 400
 
 
+def in_window(day, newest):
+    """True when `day` is less than SEEN_WINDOW before `newest` (or after it). Compares their
+    difference, which any two dates have, rather than a day SEEN_WINDOW earlier, which a date
+    in the first weeks of year 1 does not."""
+    return newest - day < SEEN_WINDOW
+
+
 class ChangelogError(ValueError):
     """An entry file that cannot be read; the message names the file and the key."""
 
@@ -290,7 +297,7 @@ def seen_marker(entries):
         return None
     newest = max(entry.date for entry in entries)
     recent = sorted(
-        (entry for entry in entries if entry.date > newest - SEEN_WINDOW),
+        (entry for entry in entries if in_window(entry.date, newest)),
         key=lambda entry: (entry.date, entry.id),
         reverse=True,
     )
@@ -313,17 +320,13 @@ def combined_marker(stored, seen, entries=()):
         return stored
     newer, older = (stored, seen) if stored["date"] > seen["date"] else (seen, stored)
     published = {entry.id: entry.date for entry in entries}
-    since = datetime.date.fromisoformat(newer["date"]) - SEEN_WINDOW
+    newest = datetime.date.fromisoformat(newer["date"])
 
-    def in_window(entry_id):
+    def kept(entry_id):
         dated = published.get(entry_id)
-        return dated is None or dated > since
+        return dated is None or in_window(dated, newest)
 
-    ids = [
-        entry_id
-        for entry_id in dict.fromkeys([*newer["ids"], *older["ids"]])
-        if in_window(entry_id)
-    ]
+    ids = [entry_id for entry_id in dict.fromkeys([*newer["ids"], *older["ids"]]) if kept(entry_id)]
     return {"date": newer["date"], "ids": sorted(ids[:SEEN_IDS_MAX], reverse=True)}
 
 
@@ -353,5 +356,5 @@ def unread(entries, marker):
     return [
         entry
         for entry in entries
-        if entry.date > newest or (entry.date > newest - SEEN_WINDOW and entry.id not in seen)
+        if entry.date > newest or (in_window(entry.date, newest) and entry.id not in seen)
     ]
