@@ -86,6 +86,14 @@ class User(AbstractUser):
         if not self.is_active and (update_fields is None or "is_active" in update_fields):
             end_sessions(self, Ending.DEACTIVATED)
         elif new_password:
+            if not _may_change_access(update_fields):
+                # A save of the password alone takes no access gate, so the person's own
+                # endings (Where you are signed in), which hold their acting session before the
+                # others, could be under way: take the account's session-ending lock first, as
+                # they do, so the two take turns instead of each holding a row the other needs.
+                from .session_list import lock_endings
+
+                lock_endings(self.pk)
             end_sessions(self, Ending.NEW_PASSWORD, keep=kept_on_password_change(self))
 
     class Meta(AbstractUser.Meta):

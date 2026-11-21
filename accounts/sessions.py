@@ -384,26 +384,34 @@ def _end_expired(state, ending=None):
     return 1 if _settle_expiry(state)[0] == "expired" else 0
 
 
-def _lock_open(user, *, session_id=None, keep=None, expired_only=False):
-    """Lock the account's open rows asked for (the one given, or all but `keep`; only those past
-    a limit by this reading when `expired_only`), in id order, FOR NO KEY UPDATE, waiting for a
-    change under way that holds one. Returns their ids. Every ending of several rows locks them in
-    this order, so two never wait for each other in a cycle."""
+def _lock_open(user, *, session_id=None, keep=None, everything=False, expired=False):
+    """Lock the account's open rows asked for: the one given, every one when `everything`, and
+    those past a limit by this reading when `expired`; never `keep`. All in one statement, in id
+    order, FOR NO KEY UPDATE, waiting for a change under way that holds one. Returns their ids.
+    Every ending locks its rows this way, once, so two endings never wait for each other in a
+    cycle; the acting session a change holds first (hold_acting_session) is the exception, which
+    the session-ending lock covers (accounts.session_list, accounts.models.User._end_sessions)."""
     sessions, _ = _tables()
     conditions, params = ["user_id = %s", "ended_at IS NULL"], [user.pk]
-    if session_id is not None:
-        conditions.append("id = %s::uuid")
-        params.append(str(session_id))
     if keep is not None:
         conditions.append("id <> %s::uuid")
         params.append(str(keep))
-    if expired_only:
+    wanted = []
+    if everything:
+        wanted.append("true")
+    if session_id is not None:
+        wanted.append("id = %s::uuid")
+        params.append(str(session_id))
+    if expired:
         inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
-        conditions.append(
-            f"(started_at + {longest} <= clock_timestamp() "
-            f"OR last_active_at + {inactivity} <= clock_timestamp())"
+        wanted.append(
+            f"started_at + {longest} <= clock_timestamp() "
+            f"OR last_active_at + {inactivity} <= clock_timestamp()"
         )
         params += [*longest_params, *inactivity_params]
+    if not wanted:
+        return []
+    conditions.append("(" + " OR ".join(f"({part})" for part in wanted) + ")")
     with connection.cursor() as cursor:
         cursor.execute(
             f"SELECT id FROM {sessions} WHERE {' AND '.join(conditions)} "
@@ -460,10 +468,11 @@ def close_expired(user):
     """End the account's open rows that have passed a limit, with the limit passed first and the
     moment it passed: the rows past a limit by a first reading are locked (waiting for a change
     under way that holds one), then each is ended only if, read again with the limits as they
-    stand, it still has (_end_locked). A browser that closed or was abandoned leaves its row open
-    until then. Each one ended is recorded in the sign-in log once this commits. Returns how many
-    ended."""
-    ended = _end_locked(user, _lock_open(user, expired_only=True), "", expired_only=True)
+    stand, it still has (_end_locked). One transaction, so the rows stay locked between the two. A
+    browser that closed or was abandoned leaves its row open until then. Each one ended is
+    recorded in the sign-in log once this commits. Returns how many ended."""
+    with transaction.atomic(savepoint=False):
+        ended = _end_locked(user, _lock_open(user, expired=True), "", expired_only=True)
     _log_expired(user, ended)
     return len(ended)
 
@@ -477,15 +486,31 @@ def end_sessions(user, ending, *, keep=None, session_id=None):
     return len(end_session_rows(user, ending, keep=keep, session_id=session_id))
 
 
-def end_session_ids(user, ending, *, keep=None, session_id=None):
+def end_session_ids(user, ending, *, keep=None, session_id=None, cleanup=False):
     """end_sessions, returning the ids of the rows this ended with `ending`, sorted."""
-    return [pk for pk, _started in end_session_rows(user, ending, keep=keep, session_id=session_id)]
+    rows = end_session_rows(user, ending, keep=keep, session_id=session_id, cleanup=cleanup)
+    return [pk for pk, _started in rows]
 
 
-def end_session_rows(user, ending, *, keep=None, session_id=None):
+def end_session_rows(user, ending, *, keep=None, session_id=None, cleanup=False):
     """end_sessions, returning (id, started_at) of each row this ended with `ending`, by id. The
-    rows are locked first, in id order, and decided after the wait (_end_locked)."""
-    ended = _end_locked(user, _lock_open(user, session_id=session_id, keep=keep), ending)
+    rows are locked first, all at once in id order, and decided after the wait (_end_locked), in
+    one transaction. With `cleanup` and one session given, the account's other rows past a limit
+    are locked with it and ended as expired (close_expired), so that the two are not locked out of
+    order."""
+    everything = session_id is None
+    with transaction.atomic(savepoint=False):
+        locked = _lock_open(
+            user,
+            session_id=session_id,
+            keep=keep,
+            everything=everything,
+            expired=cleanup and not everything,
+        )
+        targets = locked if everything else [pk for pk in locked if pk == str(session_id)]
+        ended = _end_locked(user, targets, ending)
+        others = [pk for pk in locked if pk not in targets]
+        ended += _end_locked(user, others, "", expired_only=True)
     _log_expired(user, ended, manual=ending)
     rows = sorted((pk, started) for pk, recorded, started in ended if recorded == ending)
     if rows and ending in LOGGED_ENDINGS:
@@ -614,9 +639,11 @@ def start_session(sender, request, user, **kwargs):
         previous = _valid_id(session.get(SESSION_KEY))
         if previous is not None:
             # Signed in again over an open session in the same browser (Django keeps the
-            # session's data when the account is the same one).
-            end_sessions(user, Ending.SIGNED_IN_AGAIN, session_id=previous)
-        close_expired(user)  # sessions abandoned since, past a limit
+            # session's data when the account is the same one), with the sessions abandoned
+            # since and past a limit, locked together in id order.
+            end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
+        else:
+            close_expired(user)  # sessions abandoned since, past a limit
         record = AccountSession.objects.create(user=user, user_agent=agent, address=address)
     session[SESSION_KEY] = str(record.pk)
 

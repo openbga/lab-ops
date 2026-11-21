@@ -109,7 +109,10 @@ def sign_out_session(request, session_id):
 @login_required
 @require_POST
 def sign_out_other_sessions(request):
-    drawn_at = parse_datetime(request.POST.get("drawn_at", "") or "")
+    try:
+        drawn_at = parse_datetime(request.POST.get("drawn_at", "") or "")
+    except ValueError:  # well formed but not a date (2026-02-29): the wording only needs it
+        drawn_at = None
     if drawn_at is not None and timezone.is_naive(drawn_at):
         drawn_at = None
     try:
@@ -119,7 +122,7 @@ def sign_out_other_sessions(request):
     except PermissionDenied as error:
         return _refused(request, error)
     if not ended.ids:
-        messages.info(request, "No other session was open, so nothing changed.")
+        messages.info(request, "No other session was open, so none was signed out.")
         return redirect(PAGE)
     newer = ended.later or 0
     text = f"Signed out of {_count(len(ended.ids), 'other session')}."

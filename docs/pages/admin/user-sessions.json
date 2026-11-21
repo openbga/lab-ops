@@ -42,7 +42,7 @@
     {
       "title": "Actions",
       "items": [
-        {"label": "End sessions", "description": "Ends every session of the account open when you save, including any that signed in after the page opened. Each browser goes to the sign-in page at its next request, with a notice that an administrator ended its session, and anything typed there and not saved is lost. A session that has passed a session limit when it is ended, including one that passes it while a change of the person's finishes, is recorded as ended by that limit and not counted. Returns to the account's page with how many sessions ended. When none was open, nothing changes and nothing is recorded; on your own account the message says your other sessions were not open."},
+        {"label": "End sessions", "description": "Ends every session of the account open when you save, including any that signed in after the page opened. Each browser goes to the sign-in page at its next request, with a notice that an administrator ended its session, and anything typed there and not saved is lost. A session that has passed a session limit when it is ended, including one that passes it while a change of the person's finishes, is recorded as ended by that limit and not counted. Returns to the account's page with how many sessions ended. When none was open, none is ended and nothing is recorded in the audit history, though a session found past a session limit is still closed as ended by that limit; on your own account the message says your other sessions were not open."},
         {"label": "Breadcrumbs", "description": "Return to the administration home, the Accounts section, the user list or the account's page without ending anything."}
       ]
     },

@@ -414,7 +414,7 @@ def test_signing_out_all_others_with_none_open_changes_nothing(agent, other_agen
     me = signed_in(agent)
     foreign = signed_in(other_agent)
     page = follow(me, me.post("/account/sessions/others/sign-out/", {"drawn_at": ""}))
-    assert messages_of(page) == ["No other session was open, so nothing changed."]
+    assert messages_of(page) == ["No other session was open, so none was signed out."]
     assert row_of(foreign).ended_at is None and row_of(me).ended_at is None
     assert not AuditEvent.objects.filter(action=session_list.ACTION).exists()
 

@@ -657,11 +657,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 name = user.get_username()
                 if not ended and own:
                     text = (
-                        "None of your other sessions was open, so nothing changed. The session "
-                        "you are using stays signed in."
+                        "None of your other sessions was open, so none was ended. The session you "
+                        "are using stays signed in."
                     )
                 elif not ended:
-                    text = f"No session of {name} was open, so nothing changed."
+                    text = f"No session of {name} was open, so none was ended."
                 elif own:
                     text = (
                         f"Ended {len(ended)} of your other session{'s' if len(ended) != 1 else ''}"

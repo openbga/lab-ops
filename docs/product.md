@@ -256,16 +256,16 @@ is lost. Signing in again returns to the page. Deactivating an account ends its 
 and a new password ends the account's other sessions. Pages shown to a signed-in person are
 marked not to be stored by the browser.
 
-Every signed-in person, staff or client portal, opens Where you are signed in from the account
-menu. It lists their own open sessions with the browser and the address each one reported when it
-signed in, when it signed in and when it was last active, and marks the one they are using. They
-can sign out any other session, or all of them at once; that browser goes to the sign-in page at
-its next request, with a notice that it was signed out from another session. A shared demonstration
-account sees only its own session there, because the others belong to other visitors. A superuser
-ends every session of an account from its page in the admin console, with a reason, for example
-when someone leaves or loses a device; the person can sign in again unless the account is also
-deactivated. Each ending is kept in the audit history with the sessions
-ended, without their browsers or addresses. The [safeguards reference](safeguards.md) states,
+Every signed-in person, staff or client portal, opens Where you are signed in from the account menu.
+It lists their own open sessions with the browser and the address each one reported when it signed
+in, when it signed in and when it was last active, and marks the one they are using. They can sign
+out any other session, or all of them at once; that browser goes to the sign-in page at its next
+request, with a notice that it was signed out from another session. A shared demonstration account
+sees only its own session there, because the others belong to other visitors. A superuser ends every
+session of an account (on their own account, every one but the one they are using) from its page in
+the admin console, with a reason, for example when someone leaves or loses a device; the person can
+sign in again unless the account is also deactivated. Each ending is kept in the audit history with
+the sessions ended, without their browsers or addresses. The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
 laboratory and its host.
 

@@ -57,7 +57,7 @@ LOCKED_REFUSAL = (
     "This is a shared demonstration account. Its other sessions belong to other visitors, so they "
     "are not listed and cannot be signed out here."
 )
-NOT_OPEN = "That session had already ended, so nothing changed."
+NOT_OPEN = "That session had already ended, so it was not signed out."
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,11 @@ class OpenSession:
         return browser_label(self.user_agent)
 
 
-def _lock_endings(*account_ids):
+def lock_endings(*account_ids):
+    """Take the session-ending locks of these accounts, in key order, until the transaction ends.
+    Taken before anything else by every ending that holds a session of the account first (the
+    actions here hold the acting session; a new password saved without the access gate,
+    accounts.models.User._end_sessions, takes it before ending the rows)."""
     keys = sorted({pk % INT4 for pk in account_ids if pk is not None})
     with connection.cursor() as cursor:
         for key in keys:
@@ -157,11 +161,14 @@ def sign_out_other(*, actor, current, session_id):
             "This is the session you are using now. Use Sign out in your account menu to end it."
         )
     with transaction.atomic():
-        _lock_endings(getattr(actor, "pk", None))
+        lock_endings(getattr(actor, "pk", None))
         held = _held_person(actor, current)
         if target is None:
             return []
-        ids = end_session_ids(held, Ending.SIGNED_OUT_ELSEWHERE, session_id=target, keep=current)
+        # With the account's rows past a limit, closed as expired (locked together, in id order).
+        ids = end_session_ids(
+            held, Ending.SIGNED_OUT_ELSEWHERE, session_id=target, keep=current, cleanup=True
+        )
         if ids:
             _record(held, held, Ending.SIGNED_OUT_ELSEWHERE, ids, "Signed out from another session")
         return ids
@@ -184,7 +191,7 @@ def sign_out_others(*, actor, current, drawn_at=None):
     is not counted as later: it signed in before."""
     current = _valid_id(current)
     with transaction.atomic():
-        _lock_endings(getattr(actor, "pk", None))
+        lock_endings(getattr(actor, "pk", None))
         held = _held_person(actor, current)
         rows = end_session_rows(held, Ending.SIGNED_OUT_ELSEWHERE, keep=current)
         ids = [pk for pk, _started in rows]
@@ -209,7 +216,7 @@ def end_account_sessions(*, actor, account_id, reason, current=None):
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     with transaction.atomic():
-        _lock_endings(getattr(actor, "pk", None), account_id)
+        lock_endings(getattr(actor, "pk", None), account_id)
         held = hold_actor(actor)
         if held is None or not can_end_sessions(held):
             raise PermissionDenied("Only a superuser can end an account's sessions.")

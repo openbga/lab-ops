@@ -54,7 +54,7 @@
     {
       "title": "Actions",
       "items": [
-        {"label": "Sign out", "description": "On each other session's row. Asks for confirmation, then ends that session; its browser goes to the sign-in page at its next request, with a notice that it was signed out from another session of your account. If the session had already ended (signed out there, past a session limit) nothing changes and the message says so. The session you are using has no button: use Sign out in the account menu."},
+        {"label": "Sign out", "description": "On each other session's row. Asks for confirmation, then ends that session; its browser goes to the sign-in page at its next request, with a notice that it was signed out from another session of your account. If the session had already ended (signed out there, past a session limit) it is not signed out and the message says so; one past a limit is closed as ended by that limit. The session you are using has no button: use Sign out in the account menu."},
         {"label": "Sign out of all other sessions", "description": "In the page header when another session is listed. Asks for confirmation, then ends every other session of your account open at that moment, including any that signed in after you opened the page; the message says how many, and how many of those signed in later. This browser stays signed in."}
       ]
     },

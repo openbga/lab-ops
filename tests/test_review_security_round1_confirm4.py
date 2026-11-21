@@ -49,7 +49,8 @@ def test_record_describes_a_session_ended_by_deactivation(client, staff):
     rows = {row.key: row for group in page.context["groups"] for row in group.facts}
     assert "stay ended" in rows["deactivation"].note
     assert "signed in again" not in rows["deactivation"].note
-    assert "a deactivation or a new password" in rows["sign-in-records"].note
+    # Adapted (session list): the list of endings the log names grew by two.
+    assert "a deactivation, a new password" in rows["sign-in-records"].note
 
 
 @pytest.mark.django_db

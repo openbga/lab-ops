@@ -122,19 +122,22 @@ at sign-in, by the trusted proxy settings the sign-in limits use; a release stil
 migration applies goes on inserting rows through the column's database default. Where you are
 signed in (`accounts.session_list`) lists the account's rows that are open and inside both limits
 by the database's clock, and the person ends one other row or every other row; a superuser ends
-every row of an account from the account administration, with a reason. Each ending takes, before
-anything else, a session-ending advisory lock for the account whose rows it ends and for the
-acting account, in key order, then holds the acting account (`hold_actor`, which holds the acting
-session `FOR SHARE`). Two sessions ending each other therefore take turns, and the second is
-refused because its own row has ended, instead of each holding its own row and waiting for the
-other's. Every ending of rows (these, a deactivation, a new password, the cleanup of expired rows)
-first locks them in id order, waiting for a change under way that holds one, then decides each in
-a new statement, so that what committed during the wait counts: a row that has passed a limit by
-the database's clock then ends as expired, at the moment its limit passed; any other ends as
-asked. One `account.sessions_ended` audit event names the rows ended as asked, never their
-browser or address. Every other row open when the change is saved ends, including rows that
-signed in after the page was drawn; the confirmation counts those by their sign-in time against
-the database's clock when the page read the rows.
+every row of an account from the account administration, with a reason (on their own account,
+every row but the one in use). Each of these endings takes, before anything else, a
+session-ending advisory lock for the account whose rows it ends and for the acting account, in key
+order, then holds the acting account (`hold_actor`, which holds the acting session `FOR SHARE`).
+Two sessions ending each other therefore take turns, and the second is refused because its own row
+has ended, instead of each holding its own row and waiting for the other's. A save of a new
+password alone, which takes no access gate, takes the account's session-ending lock too before it
+ends the rows. Every ending of rows (these, a deactivation, a new password, signing in again in
+the same browser, Sign out, the cleanup of expired rows) locks all its rows in one statement, in
+id order, waiting for a change under way that holds one, then decides each in a new statement of
+the same transaction, so that what committed during the wait counts: a row that has passed a limit
+by the database's clock then ends as expired, at the moment its limit passed; any other ends as
+asked. One `account.sessions_ended` audit event names the rows ended as asked, never their browser
+or address. Every other row open when the change is saved ends, including rows that signed in
+after the page was drawn; the confirmation counts those by their sign-in time against the
+database's clock when the page read the rows.
 
 ## Optional modules
 

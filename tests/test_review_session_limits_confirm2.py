@@ -270,7 +270,11 @@ def test_static_cache_exemption_is_for_asset_responses(operator, kind):
 @pytest.mark.parametrize("ending", ["inactivity", "maximum", "signed_out"])
 def test_notice_when_winner_committed_before_status_read(operator, caplog, ending):
     browser, row = login(operator)
-    clock(row, 13 * HOUR if ending == "maximum" else HOUR, MIN if ending == "maximum" else 35 * MIN)
+    # Adapted (session list, review round 1 verification): an ending of a row already past a
+    # limit records the limit (accounts.sessions.end_session_rows), so the explicit sign-out
+    # starts from a live row.
+    idle = MIN if ending in ("maximum", "signed_out") else 35 * MIN
+    clock(row, 13 * HOUR if ending == "maximum" else HOUR, idle)
     if ending == "signed_out":
         assert sessions.end_sessions(operator, ending, session_id=row.pk) == 1
     else:
