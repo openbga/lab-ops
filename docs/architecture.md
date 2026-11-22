@@ -249,7 +249,11 @@ leaves the dialog's question in place until then. An answer without `held` (an e
 counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the
 page's script notes how the form was drawn then and after each htmx swap; a page that held unsent
 text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
-loads the form again in place and puts the focus in its first text box.
+loads the form again in place and puts the focus in its first text box. A Discard load that fails offers Try
+again, which repeats it, asking first when the form was edited since; one that answers with no form
+(Not found, or the record because the form is no longer offered) opens its address as a page. Not
+covered: after a Discard load failed, a Close or a save that is then abandoned (Keep editing, a save
+cancelled before it is sent) drops the focus rule, so Try again's form takes the dialog's own focus.
 
 The nonconformance forms keep the revision they post
 ([nonconformance/views.py](../nonconformance/views.py)). A form that posts the revision of the
