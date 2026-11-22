@@ -86,6 +86,8 @@ class Component:
     reads: tuple = ()  # documented page variables, taken when not passed as a parameter
     body: str = ""  # "" no body; "block" always a block; "unless:<param>" a block unless given
     derive: Callable | None = None  # extra template values from (values, body, slots)
+    # extra template values from (values, context), worked out before the body is drawn
+    before: Callable | None = None
     caller_templates: tuple = ()  # parameters naming a template rendered in the page's context
 
 
@@ -104,6 +106,8 @@ class ComponentNode(template.Node):
         for name in spec.caller_templates:
             if values[name]:
                 values[name] = mark_safe(engine.get_template(values[name]).render(context))
+        if spec.before:
+            values.update(spec.before(values, context))
         body, slots = "", {}
         if self.nodelist is not None:
             parts = []
@@ -143,6 +147,21 @@ def compile_component(name, spec):
         return ComponentNode(name, spec, kwargs, nodelist)
 
     return compile_tag
+
+
+def form_page_kept(values, context):
+    """keep=...: the form's part in keeping what was typed (accounts.kept.prepare), worked out
+    before the fields are drawn, so that what is given back is drawn in them."""
+    from accounts import kept
+
+    if not values["keep"] or values["method"] == "get" or values["local"]:
+        return {"kept": None}
+    key = (
+        values["keep"]
+        if values["keep_id"] in ("", None)
+        else f"{values['keep']}-{values['keep_id']}"
+    )
+    return {"kept": kept.prepare(context.get("request"), values["form"], key)}
 
 
 def panel_values(values, body, slots, has_body):
@@ -251,8 +270,9 @@ COMPONENTS = {
         I + "form_page.html",
         ("form", "formset", "formset_label", "action", "multipart", "note", "times",
          "no_required_note", "cancel_url", "submit_label", "destructive", "secondary",
-         "no_submit", "local", "title", "method", "id", "class"),
+         "no_submit", "local", "title", "method", "id", "class", "keep", "keep_id"),
         body="block",
+        before=form_page_kept,
     ),
     "form_actions": Component(
         I + "form_actions.html",

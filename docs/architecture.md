@@ -142,6 +142,53 @@ or address. Every other row open when the change is saved ends, including rows t
 after the page was drawn; the confirmation counts those by their sign-in time against the
 database's clock when the page read the rows.
 
+What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
+A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
+account, its session row, the form's key and the names of the fields that may be kept: visible
+fields a person types in or chooses from, ticked lists and an item list's quantity boxes
+included, never a file, a hidden value such as a revision, a field fetched as one types or one the
+form lists as holding patient information; a form with more than 200 such fields gets no token.
+Once the page learns that its session has ended it sends what is typed with the token to
+`account/session/keep/`, which needs no session and no CSRF token (the signed token is the proof)
+and is not activity. A form posted after its session ended is kept from its post: when the
+middleware refuses it, when a view sends it to sign in (with or without a referrer), and when its
+CSRF check fails because the person signed in again in another tab. A copy is inserted, in one
+statement by the clock when it runs, only when the token's row ended by a limit less than 24 hours
+earlier, the account is active, no Sign out came after (an ending recorded by any release, or the
+account's discard moment), no copy for that form already given back in that browser came from a
+later session, and a typed field holds text; the request form's own fields are read again first,
+under a share lock on the form that a change of its fields takes first, and only names that still
+exist and hold no patient information are kept. Each copy records the kind of control each value
+came from. The first copy for a row and form stands. Each copy is bound to the browser by the
+digest of a value in a cookie of its own (`lab_ops_kept`), set with every page that draws such a
+form and with every answer that held a copy; a page drawn for a browser without it derives the
+value from its session row with a keyed hash, so every answer of that session sets the same value
+in whatever order they arrive, and a shared account never hands one person's typing to another.
+The cookie lasts as long as a page's token (48 hours). Not covered: in a browser that has no
+cookie yet, answers of two different sign-ins arriving in either order leave one sign-in's value,
+and a copy kept under the other is not given back; and if the cookie is deleted while two pages of
+an ended session send their typing, each gets its own value and only one copy comes back (nothing
+on the server can tell which answer the browser kept, and the cookie is HttpOnly). The same form drawn for the same account in that browser on a page opened
+with GET (not a prefetch) is drawn with the newest eligible copy as its initial values, before
+its fields render, so nothing depends on scripts; a ticked box takes a value only from a ticked
+box and only the value a ticked box posts, one answer carries between one choice and several, a
+date its input cannot hold (still being typed, or impossible) is handed to the date editor as text
+(without scripts the page says it was not put back), and a choice no longer offered or a field no
+longer on the form, also one left out when the copy was kept, is left as drawn, and the page says
+so (also when nothing could be put back). The copies for that form are locked `FOR UPDATE SKIP LOCKED` and
+emptied in a savepoint of the page's reading, so the opted-in pages draw inside a reading and a
+page that fails rolls the take back: a page that finds the newest copy held by another page gives
+nothing back (never an older copy), and one whose reading began before another committed the take
+gets a serialization refusal, rolled back to the savepoint, and gives nothing back either. Discard is a link that opens the page again. A refused
+save drawn again gives nothing back. Sign out, and Sign out arriving just after the session passed
+a limit with its CSRF check passed, records the account's discard moment and removes its copies after taking a per-account
+advisory lock that keeping takes shared, so no copy from an earlier session is inserted
+afterwards. The scheduled job removes copies 24 hours after their session ended, skipping one a
+page holds at that moment. Copies have no audit event and are never logged. The two addresses a
+refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
+ticket with the list it was opened from, so signing in again from such a page opens the ticket;
+the composer posts to an address that carries its queue.
+
 ## Optional modules
 
 An optional module's switch lives in `core.modules`. Its pages and reads start from selectors

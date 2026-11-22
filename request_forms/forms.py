@@ -67,6 +67,8 @@ class ValuesMixin:
         defn = defn or definition.read(template)
         self.definition = defn
         self.template = defn.template
+        # accounts.kept reads this form's patient fields again when it keeps what was typed.
+        self.kept_recheck = ("request_form", defn.template.pk)
         self.staff = not is_portal_account(user)
         self.template_fields = defn.fillable(user, new_request=self.new_request)
         self.layout_fields = defn.fillable(user, headings=True, new_request=self.new_request)
@@ -132,6 +134,16 @@ class ValuesMixin:
 
     def value_fields(self):
         return [self[field_name(template_field.key)] for template_field in self.template_fields]
+
+    @property
+    def patient_information_fields(self):
+        """The names of this form's fields that hold patient information: what was typed in them
+        is never kept across a sign-out (accounts.kept)."""
+        return [
+            field_name(template_field.key)
+            for template_field in self.template_fields
+            if template_field.holds_patient_information
+        ]
 
     def layout(self):
         """The form in order: ("heading", TemplateField) and ("field", BoundField) pairs. A

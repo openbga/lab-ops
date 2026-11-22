@@ -64,14 +64,18 @@ def portal_sites(user):
     return sites.order_by("name", "pk")
 
 
-def site_required(user):
+def site_required(user, site_count=None):
     """Whether a raise form must ask for a site: the account is narrowed to sites, or it sees
-    the whole organization and that has more than one active site. Never without a grant."""
+    the whole organization and that has more than one active site. Never without a grant.
+    `site_count`: the number of portal_sites(user) the caller already read, so that the answer and
+    the sites it offers come from the same reading."""
     access = _access(user)
     if access is None:
         return False
     if not access.whole_organization:
         return True
+    if site_count is not None:
+        return site_count > 1
     organization_sites = client_scope(ClientSite.objects.filter(is_active=True), user)
     return organization_sites.count() > 1
 

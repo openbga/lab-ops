@@ -12,7 +12,7 @@ Visibility of a stored value is the stricter of its copy and the current field:
 
 from dataclasses import dataclass, field
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db.models import Exists, OuterRef, Q
 
 from accounts.roles import ROLES, has_capability, has_role
@@ -372,3 +372,36 @@ def revealable_value(user, value_id):
     if not staff_requests(user).filter(pk=row.filled_form.request_id).exists():
         return None
     return row
+
+
+def kept_eligible_fields(template_id, user_id):
+    """For keeping what was typed across a sign-out (accounts.kept): the form field names a new
+    request form of this template would draw for this account as it stands now (definition.read,
+    its fillable fields and an item list's orderable items, as the portal page draws them), less
+    those that hold patient information. Read with the definition's own share locks, which a
+    change of the form takes first, so a change under way finishes before this reads. None when
+    there is no such template or account."""
+    from django.contrib.auth import get_user_model
+
+    from . import definition
+    from .forms import field_name
+
+    template = RequestTemplate.objects.filter(pk=template_id).first()
+    user = get_user_model().objects.filter(pk=user_id).first()
+    if template is None or user is None:
+        return None
+    try:
+        defn = definition.read(template)
+    except ObjectDoesNotExist:
+        return None  # removed while this waited for its lock
+    names = []
+    for template_field in defn.fillable(user, new_request=True):
+        if template_field.kind in NO_VALUE_KINDS or template_field.holds_patient_information:
+            continue
+        name = field_name(template_field.key)
+        if template_field.kind == FieldKind.ITEMS:
+            items = defn.orderable_items(template_field)
+            names.extend(f"{name}_{item.pk}" for item in items)
+        else:
+            names.append(name)
+    return names

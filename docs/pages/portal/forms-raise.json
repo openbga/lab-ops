@@ -144,6 +144,10 @@
         {
           "label": "Cancel",
           "description": "Returns to New ticket without sending."
+        },
+        {
+          "label": "Kept across a sign-out",
+          "description": "If you are signed out for no activity, or because your session reached its longest length, while typing a new ticket, what you typed is kept for 24 hours. Sign in again in the same browser and open this page: it is back in the form with a Put back notice. Check it before you send it; Discard opens the page again with the form as it starts. Ticked choices and item quantities come back too; chosen files are not kept. It is given back once, only to you and only in that browser. Pressing Send after the sign-out keeps it too. Sign out discards it. Fields that ask for patient details are never kept: fill them again. A page copying an earlier ticket (Request again) keeps its typing apart from the plain form."
         }
       ]
     },
@@ -168,6 +172,9 @@
     "request_forms/templates/request_forms/widgets/items.html",
     "request_forms/tests/test_additions.py",
     "request_forms/tests/test_pages.py",
-    "request_forms/tests/test_values.py"
+    "request_forms/tests/test_values.py",
+    "accounts/kept.py",
+    "static/js/kept-typing.js",
+    "templates/includes/kept_typing.html"
   ]
 }

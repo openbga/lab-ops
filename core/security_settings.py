@@ -714,6 +714,24 @@ def _sessions(facts):
             ),
         ),
         _fact(
+            "kept-typing",
+            "Typing at a sign-out",
+            # The keep cookie follows the session cookie's Secure setting (accounts.kept).
+            ["MIDDLEWARE", "SESSION_COOKIE_SECURE"],
+            lambda: Fact(
+                "kept-typing",
+                "Typing at a sign-out",
+                "Kept for 24 hours when a session limit signs the person out",
+                "release",
+                "What was typed in a ticket's reply, note or logged contact, a portal reply or a "
+                "new portal ticket is kept in the database, for that account in that browser "
+                "only, never in the browser's storage, and given back once in the same form when "
+                "the person signs in again. Files and fields that hold patient information are "
+                "not kept. Sign out discards it; the scheduled job removes it 24 hours after the "
+                "sign-out.",
+            ),
+        ),
+        _fact(
             "session-cookie",
             "Session cookie",
             ["SESSION_COOKIE_HTTPONLY", "SESSION_COOKIE_SECURE"],

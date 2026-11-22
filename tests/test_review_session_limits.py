@@ -687,6 +687,8 @@ def test_timed_out_ticket_form_keeps_ticket_text_out_of_session_metadata(
         "data-vr-session",
         "data-status-url",
         "data-continue-url",
+        # Adopted (kept typing, 2026-11-22): the keep address, an address like the others.
+        "data-keep-url",
         "data-sign-in-url",
         "data-inactivity-seconds",
         "data-maximum-seconds",

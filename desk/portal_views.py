@@ -20,7 +20,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
@@ -242,15 +242,20 @@ def _request_page(request, number, reply_form):
 
 @transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @client_required
-@require_POST
+@require_http_methods(["GET", "HEAD", "POST"])
 def request_reply(request, number):
-    service_request = _portal_request(request.user, number)
     list_params = return_list_params(request, PortalRequestFilter)
     detail_url = reverse(
         "portal:request-detail",
         args=[number],
         query={"list": urlencode(list_params)} if list_params else None,
     )
+    if request.method != "POST":
+        # A refused reply is drawn at this address; signing in again from it (the sign-in page
+        # returns to the address on screen) opens the ticket, which checks its own access, with
+        # the list it was opened from.
+        return redirect(detail_url)
+    service_request = _portal_request(request.user, number)
     form = ReplyForm(request.POST, request.FILES)
     if service_request.status not in REPLYABLE:
         # Closed after the page was drawn: the page again, with the text typed (never sent).
@@ -335,16 +340,19 @@ def request_create(request):
                 request, f"Ticket {created.number} sent. It is now with the laboratory."
             )
             return redirect("portal:request-detail", number=created.number)
-    return render(
-        request,
-        "desk/portal/request_form.html",
-        {
-            "page_title": "New follow-up ticket" if follow_up_of else "New ticket",
-            "form": form,
-            "follow_up_of": follow_up_of,
-            "category_terms": terms.drawn(form.fields["category"].queryset),
-        },
-    )
+    # Drawn in one reading, so that typing given back into the form (accounts.kept) is taken only
+    # if the page draws: a page that fails leaves it to the next one.
+    with one_reading():
+        return render(
+            request,
+            "desk/portal/request_form.html",
+            {
+                "page_title": "New follow-up ticket" if follow_up_of else "New ticket",
+                "form": form,
+                "follow_up_of": follow_up_of,
+                "category_terms": terms.drawn(form.fields["category"].queryset),
+            },
+        )
 
 
 def portal_queue(user):

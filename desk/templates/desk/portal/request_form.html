@@ -11,7 +11,7 @@ a topic whose settings changed since). The send button sits at the end of the on
 {% block content %}
 {% notice tone="info" label="No patient details" %}Please do not enter patient names, dates of birth or other personal health details. Use an order, accession or sample number in Your reference instead.{% endnotice %}
 {% if follow_up_of %}{% url 'portal:request-detail' follow_up_of.number as cancel_url %}{% else %}{% url 'portal:request-list' as cancel_url %}{% endif %}
-{% form_page form=form cancel_url=cancel_url submit_label="Send" class="vr-narrow" multipart=True %}
+{% form_page form=form cancel_url=cancel_url submit_label="Send" class="vr-narrow" multipart=True keep="portal-ticket" keep_id=follow_up_of.pk %}
   {% fill note %}{% if follow_up_of %}This ticket follows up {{ follow_up_of.number }}, which is closed.{% endif %}{% endfill %}
   <fieldset class="vr-form-section">
     {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}

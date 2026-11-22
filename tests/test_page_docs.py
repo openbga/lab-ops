@@ -25,6 +25,7 @@ NON_PAGE_ROUTES = {
     "preference": "POST-only per-user presentation setting (core/preferences.py)",
     "account-session": "JSON time left in the session, asked before the sign-out warning",
     "account-session-continue": "POST-only Stay signed in from the sign-out warning (JSON)",
+    "account-session-keep": "POST-only keeping of typing after a session limit (JSON)",
     "account-session-sign-out": "POST-only Sign out of one session on Where you are signed in",
     "account-sessions-sign-out-others": "POST-only Sign out of all other sessions on Where you are "
     "signed in",

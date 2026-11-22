@@ -106,8 +106,7 @@ follows the conversation. Add entry jumps directly to it.
   {% panel title=composer_title id="composer" heading_id="composer-heading" %}
     {% if is_closed %}<p class="vr-form-note">The ticket is closed: only internal notes can be added.</p>{% endif %}
     {% if not audience and not is_closed %}{% notice tone="info" label="Nobody in the portal sees this ticket" %}A reply is recorded but reaches nobody. Call the client and log the contact instead.{% endnotice %}{% endif %}
-    {% url 'desk:request-entry' req.pk as composer_action %}
-    {% form_page form=composer action=composer_action no_required_note=True submit_label=is_closed|yesno:"Add note,Send" class="vr-composer" multipart=True %}
+    {% form_page form=composer action=composer_action no_required_note=True submit_label=is_closed|yesno:"Add note,Send" class="vr-composer" multipart=True keep="ticket-entry" keep_id=req.pk %}
       <input type="hidden" name="list" value="{{ list_query }}">
       {{ composer.expected_revision }}
       <fieldset class="vr-form-section vr-composer-mode">

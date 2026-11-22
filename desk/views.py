@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
@@ -102,6 +102,11 @@ def _request_or_404(user, pk):
 
 def _record_url(request_obj, list_query=""):
     url = reverse("desk:request-detail", args=[request_obj.pk])
+    return f"{url}?{urlencode({'list': list_query})}" if list_query else url
+
+
+def _entry_url(request_obj, list_query=""):
+    url = reverse("desk:request-entry", args=[request_obj.pk])
     return f"{url}?{urlencode({'list': list_query})}" if list_query else url
 
 
@@ -650,6 +655,11 @@ def _detail_context(request, request_obj, composer=None):
                 "expected_revision": request_obj.revision,
             },
         )
+    if closed or request_obj.status == Status.RESOLVED:
+        # The page offers no status change then (desk/request_detail.html), also when it draws a
+        # refused entry again, so typing kept across a sign-out with one says it could not be put
+        # back and the form's keep marker does not name it (accounts.kept).
+        composer.fields.pop("new_status", None)
     supervisor = is_supervisor(user)
     return {
         **_nonconformance_context(request, request_obj),
@@ -672,6 +682,9 @@ def _detail_context(request, request_obj, composer=None):
         "is_member": request_obj.team.memberships.filter(user=user).exists(),
         "is_closed": closed,
         "composer_title": "Add an internal note" if closed else "Reply or add a note",
+        # Carries the queue in its address too: a refused entry is drawn at it, and signing in
+        # again from there returns to it (request_entry sends a GET on to the ticket).
+        "composer_action": _entry_url(request_obj, list_query),
         "list_query": list_query,
         "list_url": _queue_url(list_query),
         "previous_url": _record_url(ServiceRequest(pk=previous), list_query) if previous else "",
@@ -728,8 +741,13 @@ def request_detail(request, pk):
 
 @transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @login_required
-@require_POST
+@require_http_methods(["GET", "HEAD", "POST"])
 def request_entry(request, pk):
+    if request.method != "POST":
+        # A refused entry is drawn at this address; signing in again from it (the sign-in page
+        # returns to the address on screen) opens the ticket, which checks its own access, with
+        # the queue it was opened from.
+        return redirect(_record_url(ServiceRequest(pk=pk), _back(request)))
     request_obj = _request_or_404(request.user, pk)
     form = EntryForm(request.POST, request.FILES, closed=request_obj.status == Status.CLOSED)
     if form.is_valid():

@@ -8,10 +8,12 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 
 from attachments.services import attach_to_new_request
 from clients.portal import client_required
+from core.concurrency import one_reading
 from desk.models import EntryKind
 from taxonomy.choices import Priority
 
@@ -163,14 +165,22 @@ def raise_request(request, key):
             definition=fresh,
         )
     patient_fields = [f for f in form.template_fields if f.holds_patient_information]
-    return render(
-        request,
-        "request_forms/portal/raise.html",
-        {
-            "page_title": form.template.portal_label,
-            "template": form.template,  # as the form's definition read it
-            "form": form,
-            "asks_patient_information": bool(patient_fields),
-            "again": again if copied is not None else "",
-        },
-    )
+    # Drawn in one reading, so that typing given back into the form (accounts.kept) is taken only
+    # if the page draws: a page that fails leaves it to the next one.
+    with one_reading():
+        return render(
+            request,
+            "request_forms/portal/raise.html",
+            {
+                "page_title": form.template.portal_label,
+                "template": form.template,  # as the form's definition read it
+                "form": form,
+                "asks_patient_information": bool(patient_fields),
+                "again": again if copied is not None else "",
+                # What was typed is kept for this form, and apart for it copying an earlier
+                # ticket ("Request again", also when drawn again after a refused save).
+                "keep_id": f"{form.template.pk}-again-{slugify(again)[:30]}"
+                if again
+                else form.template.pk,
+            },
+        )

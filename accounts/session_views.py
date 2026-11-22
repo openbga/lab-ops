@@ -3,13 +3,16 @@
 The page's questions about its own session (accounts.sessions): how long remains, and Stay
 signed in. Both answer JSON to the page's script and never carry anything about the account but
 the times. Asking how long remains is not activity; Stay signed in is (the middleware records it
-before the view runs).
+before the view runs). Once its session has ended, the page sends what was typed in its forms to
+be kept (accounts.kept); that is not activity either, and needs no signed-in session.
 
 Where you are signed in (accounts.session_list): every signed-in account, staff or client portal,
 sees its own open sessions and signs out the others. A shared demonstration account
 (credentials_locked) sees only the session it is using and how many others are open: the others
 belong to other visitors.
 """
+
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,10 +21,17 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_GET, require_POST
 
-from . import session_list
+from . import kept, session_list
 from .sessions import sign_in_url
+
+# The largest body the keep address reads: four copies of kept.MAX_TOTAL characters, each up to
+# six bytes as JSON escapes, with room for the tokens.
+KEEP_BODY_BYTES = kept.MAX_FORMS * (kept.MAX_TOTAL * 6 + 16_000)
 
 PAGE = "account-sessions"
 
@@ -41,6 +51,37 @@ def session_status(request):
 @require_POST
 def session_continue(request):
     return _answer(request)
+
+
+# No CSRF check: the browser's session, and the CSRF secret of a new sign-in in another tab, may
+# be gone by now. Each form's signed token proves the server drew that form for that account and
+# session, which another site cannot read; nothing else is done here.
+@csrf_exempt
+@sensitive_post_parameters()
+@never_cache
+@require_POST
+def keep_typing(request):
+    """Keep what was typed in the page's forms, sent as JSON {"forms": [{"token": ..., "values":
+    {name: text}}]} once the page's session has ended. Answers {"kept": n}, the forms a copy is
+    held for; then the sign-in page says so."""
+    length = request.META.get("CONTENT_LENGTH", "")
+    if not (length.isascii() and length.isdigit()) or int(length) > KEEP_BODY_BYTES:
+        return JsonResponse({"kept": 0}, status=413)
+    try:
+        data = json.loads(request.body)
+    except ValueError:
+        return JsonResponse({"kept": 0}, status=400)
+    items = data.get("forms") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return JsonResponse({"kept": 0}, status=400)
+    count = sum(
+        1
+        for item in items[: kept.MAX_FORMS]
+        if isinstance(item, dict) and kept.keep_for(request, item.get("token"), item.get("values"))
+    )
+    if count:
+        messages.info(request, kept.KEPT_MESSAGE, fail_silently=True)
+    return JsonResponse({"kept": count})  # the middleware sets the browser's cookie
 
 
 def _current_id(request):

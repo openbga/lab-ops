@@ -4,6 +4,8 @@
 // asks how long remains (the status address, which is not activity): another tab may have been
 // active. Stay signed in is activity; nothing extends the longest session. The server decides;
 // the page only warns, and goes to the sign-in page once the server says the session has ended.
+// Before it goes, it sends what is typed in forms that keep it (static/js/kept-typing.js) to the
+// keep address, which keeps a copy if the session ended by a limit (accounts/kept.py).
 (function () {
   "use strict";
 
@@ -15,6 +17,7 @@
   var FAILED_RETRY_MS = 2000; // a status request at zero that got no answer
   var GIVE_UP_MS = 5000; // past zero with no answer: the server has ended the session by now
   var REQUEST_TIMEOUT_MS = 15000;
+  var KEEP_TIMEOUT_MS = 8000; // sending what was typed, before going to the sign-in page
   var LONGEST_DELAY_MS = 2147483647; // setTimeout's limit
   var REQUEST_FAILED = "The request could not be completed. Check the connection and try again.";
 
@@ -49,6 +52,8 @@
     var stayButton = element.querySelector("[data-vr-session-stay]");
     var closeButton = element.querySelector("[data-vr-session-close]");
     var errorRegion = element.querySelector("[data-vr-session-error]");
+    var keptLines = Array.from(element.querySelectorAll("[data-vr-session-kept]"));
+    var keeping = null; // what was typed, on its way to be kept (sent once)
     var times = null; // the two endings and the two leads, in ms on this page's Date.now() clock
     var variant = null; // the warning wanted on screen: "inactivity", "maximum" or null
     var state = "hidden"; // Bootstrap's: hidden, showing, shown or hiding
@@ -107,13 +112,53 @@
       return next;
     }
 
+    function typed(options) {
+      return window.vrKeptTyping ? window.vrKeptTyping.collect(options) : [];
+    }
+
+    // Send what is typed in forms that keep it, once; resolves when answered or given up. The
+    // session has ended by now, so the request needs none: each form's token names it. Kept, the
+    // page may go without asking about its unsent text (static/js/ticket-draft.js).
+    function keep() {
+      if (keeping) {
+        return keeping;
+      }
+      var forms = typed({ commit: true });
+      if (!forms.length || !settings.keepUrl) {
+        keeping = Promise.resolve();
+        return keeping;
+      }
+      var controller = new AbortController();
+      var timeout = setTimeout(function () { controller.abort(); }, KEEP_TIMEOUT_MS);
+      keeping = fetch(settings.keepUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ forms: forms }),
+        signal: controller.signal,
+      }).then(function (response) {
+        return response.ok ? response.json() : null;
+      }).then(function (answer) {
+        clearTimeout(timeout);
+        if (answer && answer.kept > 0) {
+          document.dispatchEvent(new CustomEvent("vr:typing-kept", { detail: { kept: answer.kept } }));
+        }
+      }).catch(function () {
+        clearTimeout(timeout);
+      });
+      return keeping;
+    }
+
     function leave() {
       clearTimeout(timer);
       clearTimeout(ticker);
       stopPoller();
       // Again on a later call: a page that asked before unloading (unsaved form) may still be here.
       leaving = true;
-      window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(window.location.pathname + window.location.search));
+      keep().then(function () {
+        window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(window.location.pathname + window.location.search));
+      });
     }
 
     function accept(answer, number) {
@@ -228,6 +273,12 @@
       if (!variant) {
         return;
       }
+      var holds = typed().length > 0;
+      keptLines.forEach(function (line) {
+        if (line.hidden === holds) {
+          line.hidden = !holds;
+        }
+      });
       var left = Math.max(0, remaining());
       var text = clockText(Math.ceil(left / 1000));
       countdowns.forEach(function (countdown) {
