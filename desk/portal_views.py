@@ -20,7 +20,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
@@ -242,8 +242,12 @@ def _request_page(request, number, reply_form):
 
 @transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @client_required
-@require_POST
+@require_http_methods(["GET", "HEAD", "POST"])
 def request_reply(request, number):
+    if request.method != "POST":
+        # A refused reply is drawn at this address; signing in again from it (the sign-in page
+        # returns to the address on screen) opens the ticket, which checks its own access.
+        return redirect("portal:request-detail", number=number)
     service_request = _portal_request(request.user, number)
     list_params = return_list_params(request, PortalRequestFilter)
     detail_url = reverse(

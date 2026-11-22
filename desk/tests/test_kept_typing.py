@@ -78,31 +78,27 @@ def end_open(user, ending=Ending.INACTIVITY, ago=timedelta(0)):
 
 
 def marker(page):
-    """(token, field names, values JSON id or None) of the page's kept-typing marker."""
+    """(token, field names, True when a copy was given back or None) of the page's kept-typing
+    marker."""
     text = page.content.decode()
     found = re.search(r'<input type="hidden" name="_vr_kept" value="([^"]+)"([^>]*)>', text)
     if found is None:
         return None
     attrs = found.group(2)
     names = re.search(r'data-vr-kept-fields="([^"]*)"', attrs)
-    values = re.search(r'data-vr-kept-values="([^"]*)"', attrs)
     return (
         found.group(1),
         json.loads(html.unescape(names.group(1))),
-        values.group(1) if values else None,
+        True if "data-vr-kept-restored" in attrs else None,
     )
 
 
 def given_back(page):
-    """The values a page gives back (its JSON), or None."""
-    found = marker(page)
-    if found is None or found[2] is None:
+    """The values a page gave back (drawn in its form's fields), or None."""
+    given = getattr(page.wsgi_request, "vr_kept_given", None)
+    if not given or marker(page) is None or marker(page)[2] is None:
         return None
-    text = page.content.decode()
-    script = re.search(
-        rf'<script id="{re.escape(found[2])}" type="application/json">(.*?)</script>', text, re.S
-    )
-    return json.loads(script.group(1))
+    return next(iter(given.values()))
 
 
 def send(browser, token, values):
@@ -375,7 +371,9 @@ def test_a_copy_already_held_for_another_browser_is_not_reported_kept(agent, tic
     browser, token = typed_then_signed_out(agent, ticket_page(ticket))
     assert send(BrowserClient(), token, {"body": "From elsewhere"}) == 1
     assert send(browser, token, {"body": TYPED}) == 0
-    assert kept.BROWSER_COOKIE not in browser.cookies
+    # The page set this browser's cookie when it was drawn; the copy is the other browser's.
+    digest = kept.hashlib.sha256(browser.cookies[kept.BROWSER_COOKIE].value.encode()).hexdigest()
+    assert KeptDraft.objects.get().browser != digest
 
 
 def test_not_given_back_into_a_refused_save_or_a_partial_request(agent, ticket):
@@ -432,11 +430,13 @@ def test_a_closed_ticket_gives_the_note_back_with_only_note_offered(agent, ticke
     )
     browser.force_login(agent)
     page = browser.get(ticket_page(ticket))
-    # Given back as kept; the page offers only a note now, so its script leaves the kind as drawn
-    # and shows the sentence saying so (e2e/test_kept_typing.py).
+    # Given back as kept; the page offers only a note now, so the kind is left as drawn (Note)
+    # and the page says something could not be put back.
     assert given_back(page) == composer(kind="reply", body=TYPED)
-    assert 'value="reply"' not in page.content.decode()
-    assert "data-vr-kept-missed hidden" in page.content.decode()
+    text = page.content.decode()
+    assert 'value="reply"' not in text and "data-vr-kept-missed>" in text  # shown, not hidden
+    assert page.context["composer"]["kind"].value() == "note"
+    assert page.context["composer"]["body"].value() == TYPED
 
 
 # Sign out and the scheduled job
@@ -462,7 +462,7 @@ def test_the_scheduled_job_removes_copies_24_hours_after_their_session_ended(
     other_browser, other_token = typed_then_signed_out(other, ticket_page(ticket))
     assert send(other_browser, other_token, {"body": "Recent"}) == 1
     AccountSession.objects.filter(user=agent).update(ended_at=Now() - timedelta(hours=25))
-    assert kept.remove_expired() == {"kept_removed": 1}
+    assert kept.remove_expired() == {"kept_removed": 1, "busy": 0}
     assert list(KeptDraft.objects.values_list("user", flat=True)) == [other.pk]
     # An expired copy is never given back before the job runs.
     AccountSession.objects.filter(user=other).update(ended_at=Now() - timedelta(hours=25))

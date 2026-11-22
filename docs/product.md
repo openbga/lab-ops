@@ -255,9 +255,10 @@ activity; reading or typing on a page does not. Signing in again returns to the 
 signs the person out, what they were typing in a ticket's reply, note or logged contact, in a reply
 in the portal, or in a new portal ticket is kept for 24 hours, in the database and for that
 account in that browser only: it comes back in the same form the next time they sign in there and
-open the page, with a notice and a Discard button, and also when they press Send after the
-sign-out. Files they had chosen, fields that hold patient information and typing in any other
-form are not kept. Sign out discards whatever was kept. Deactivating an account ends its sessions at once,
+open the page, with a notice and Discard, and also when they press Send after the sign-out.
+Ticked choices and quantities come back with the text. Files they had chosen, fields that hold
+patient information and typing in any other form are not kept. Sign out discards whatever was
+kept. Signing in again after a reply was refused opens the ticket. Deactivating an account ends its sessions at once,
 and a new password ends the account's other sessions. Pages shown to a signed-in person are
 marked not to be stored by the browser.
 

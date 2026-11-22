@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
@@ -728,8 +728,12 @@ def request_detail(request, pk):
 
 @transaction.non_atomic_requests  # the service opens its own; the redraw its own reading
 @login_required
-@require_POST
+@require_http_methods(["GET", "HEAD", "POST"])
 def request_entry(request, pk):
+    if request.method != "POST":
+        # A refused entry is drawn at this address; signing in again from it (the sign-in page
+        # returns to the address on screen) opens the ticket, which checks its own access.
+        return redirect("desk:request-detail", pk=pk)
     request_obj = _request_or_404(request.user, pk)
     form = EntryForm(request.POST, request.FILES, closed=request_obj.status == Status.CLOSED)
     if form.is_valid():

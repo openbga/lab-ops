@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 
 from attachments.services import attach_to_new_request
@@ -172,5 +173,10 @@ def raise_request(request, key):
             "form": form,
             "asks_patient_information": bool(patient_fields),
             "again": again if copied is not None else "",
+            # What was typed is kept for this form, and for this form copying an earlier ticket
+            # ("Request again", also when drawn again after a refused save) apart (accounts.kept).
+            "keep_id": f"{form.template.pk}-again-{slugify(again)[:30]}"
+            if again
+            else form.template.pk,
         },
     )

@@ -145,22 +145,36 @@ database's clock when the page read the rows.
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible
-fields a person types in or chooses from, never a file, a hidden value such as a revision, a field
-fetched as one types or one the form lists as holding patient information. Once the page learns
-that its session has ended it sends what is typed with the token to `account/session/keep/`,
-which needs no session and no CSRF token (the signed token is the proof) and is not activity; a
-form posted after its session ended is kept from its post as the middleware refuses it. A copy is
-inserted, in one statement, only when the token's row ended by a limit less than 24 hours earlier,
-the account is active, it has not used Sign out since, and a typed field holds text; the first
-copy for a row and form stands. Each copy is bound to the browser that sent it by the digest of a
-random value in a cookie of its own (`lab_ops_kept`), so a shared account never hands one
-person's typing to another. The same form drawn for the same account in that browser on a page
-opened with GET gives the newest copy back, filtered to the fields the form keeps as drawn now,
-and takes every copy for that form once the page's reading ends; a refused save drawn again
-gives nothing back. Sign out removes the account's copies after taking a per-account advisory
-lock that keeping takes shared, so no copy is inserted after the Sign out that removed the others.
-The scheduled job removes copies 24 hours after their session ended. Copies have no audit event
-and are never logged.
+fields a person types in or chooses from, ticked lists and an item list's quantity boxes
+included, never a file, a hidden value such as a revision, a field fetched as one types or one the
+form lists as holding patient information; a form with more than 200 such fields gets no token.
+Once the page learns that its session has ended it sends what is typed with the token to
+`account/session/keep/`, which needs no session and no CSRF token (the signed token is the proof)
+and is not activity. A form posted after its session ended is kept from its post: when the
+middleware refuses it, when a view sends it to sign in (with or without a referrer), and when its
+CSRF check fails because the person signed in again in another tab. A copy is inserted, in one
+statement by the clock when it runs, only when the token's row ended by a limit less than 24 hours
+earlier, the account is active, no Sign out came after (an ending recorded by any release, or the
+account's discard moment), no copy for that form already given back in that browser came from a
+later session, and a typed field holds text; the fields of a request form that hold patient
+information are read again first, under a share lock on the form that a change of its fields
+takes first. The first copy for a row and form stands. Each copy is bound to the browser by the
+digest of a random value in a cookie of its own (`lab_ops_kept`), set with every page that draws
+such a form, so all its tabs keep under one value and a shared account never hands one person's
+typing to another. The same form drawn for the same account in that browser on a page opened
+with GET (not a prefetch) is drawn with the newest eligible copy as its initial values, before
+its fields render, so nothing depends on scripts; a choice no longer offered is left as drawn and
+the page says so. The copies for that form are locked `FOR UPDATE SKIP LOCKED` and emptied in a
+savepoint of the page's reading: a second page drawn at once gives nothing back, and one whose
+reading began before the first committed gets a serialization refusal, rolled back to the
+savepoint, and gives nothing back either. Discard is a link that opens the page again. A refused
+save drawn again gives nothing back. Sign out, and Sign out arriving just after the session passed
+a limit, records the account's discard moment and removes its copies after taking a per-account
+advisory lock that keeping takes shared, so no copy from an earlier session is inserted
+afterwards. The scheduled job removes copies 24 hours after their session ended, skipping one a
+page holds at that moment. Copies have no audit event and are never logged. The two addresses a
+refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
+ticket, so signing in again from such a page opens the ticket.
 
 ## Optional modules
 

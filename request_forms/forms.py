@@ -67,6 +67,8 @@ class ValuesMixin:
         defn = defn or definition.read(template)
         self.definition = defn
         self.template = defn.template
+        # accounts.kept reads this form's patient fields again when it keeps what was typed.
+        self.kept_recheck = ("request_form", defn.template.pk)
         self.staff = not is_portal_account(user)
         self.template_fields = defn.fillable(user, new_request=self.new_request)
         self.layout_fields = defn.fillable(user, headings=True, new_request=self.new_request)

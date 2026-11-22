@@ -273,7 +273,12 @@ def whats_new(request):
 
 def csrf_failure(request, reason=""):
     """Use the normal error shell without echoing CSRF diagnostics or request values. Never
-    stored: it answers a form post."""
-    response = render(request, "403.html", {"csrf_failure": True}, status=403)
+    stored: it answers a form post. A form from a page whose session ended by a limit, sent after
+    the person signed in again in another tab (which renewed the CSRF secret), is kept first
+    (accounts.kept), and the page says so."""
+    from accounts.kept import keep_posted
+
+    kept = keep_posted(request)
+    response = render(request, "403.html", {"csrf_failure": True, "kept": kept}, status=403)
     add_never_cache_headers(response)
     return response

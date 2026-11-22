@@ -372,3 +372,23 @@ def revealable_value(user, value_id):
     if not staff_requests(user).filter(pk=row.filled_form.request_id).exists():
         return None
     return row
+
+
+def kept_patient_fields(template_id):
+    """The form field names of the template's fields that hold patient information as they stand,
+    for keeping what was typed across a sign-out (accounts.kept): the template row is held FOR
+    SHARE first, as a change of one of its fields locks it first (services.update_field), so a
+    change under way finishes before this reads. None when there is no such template."""
+    from django.db import connection
+
+    from .forms import field_name
+
+    table = connection.ops.quote_name(RequestTemplate._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT 1 FROM {table} WHERE id = %s FOR SHARE", [template_id])
+        if cursor.fetchone() is None:
+            return None
+    keys = TemplateField.objects.filter(
+        template_id=template_id, holds_patient_information=True
+    ).values_list("key", flat=True)
+    return [field_name(key) for key in keys]

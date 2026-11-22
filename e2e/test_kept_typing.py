@@ -105,7 +105,7 @@ def test_a_note_typed_before_the_sign_out_comes_back_after_signing_in(page: Page
     assert KeptDraft.objects.get().taken_at is not None
 
     # Discard returns the form to how the page drew it and keeps the focus in the form.
-    notice.get_by_role("button", name="Discard").click()
+    notice.get_by_role("link", name="Discard").click()
     expect(notice).to_be_hidden()
     expect(field(composer, "Message")).to_have_value("")
     assert composer.evaluate("form => form.contains(document.activeElement)")
@@ -150,7 +150,7 @@ def test_a_portal_reply_comes_back_and_its_notice_fits_the_screen(page: Page, de
     expect(notice).to_be_visible()
     expect(field(form, "Your reply")).to_have_value(TYPED)
     assert page.evaluate("document.documentElement.scrollWidth - window.innerWidth") <= 0
-    discard = notice.get_by_role("button", name="Discard")
+    discard = notice.get_by_role("link", name="Discard")
     box = discard.bounding_box()
     assert box and box["x"] >= 0 and box["x"] + box["width"] <= page.viewport_size["width"]
     if view.phone:

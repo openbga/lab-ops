@@ -3,38 +3,50 @@
 A page drawn for a signed-in session marks each form that keeps typing ({% form_page keep=... %},
 rendered by accounts/templatetags/kept.py) with a signed token naming the account, the session
 row, the form and the fields that may be kept: the visible fields a person types in or chooses
-from, never a file, a hidden value (a revision, a definition token), a password, a field fetched
-as one types or a field that holds patient information. The token is no secret of the account:
-it names a session row, not the browser's session, and proves only that the server drew that
-form for that account and session.
+from (lists of choices and the quantity boxes of an item list included), never a file, a hidden
+value (a revision, a definition token), a password, a field fetched as one types or a field that
+holds patient information. A form with more than MAX_FIELDS such fields gets no token. The token
+is no secret of the account: it names a session row, not the browser's session, and proves only
+that the server drew that form for that account and session.
 
 Kept. Once the page learns that its session has ended, before it goes to the sign-in page
 (static/js/session.js), it sends what is typed in those forms with their tokens to the keep
 address (accounts.session_views.keep_typing), which needs no signed-in session: the browser's
 session has ended by then. A form sent after its session ended is kept from what it posted
-(keep_posted, from accounts.sessions._refusal). A copy is kept only when the token's session
-ended because it passed a limit (LIMIT_ENDINGS) at most KEPT_FOR ago, the
-account is active, it has not signed out with Sign out since that session ended, and some field
-that is typed in holds text. The first copy for a session and form stands; later ones for the
-same session and form change nothing.
+(keep_posted): when the middleware refuses it (accounts.sessions._refusal), when a view sends it
+to sign in, and when its CSRF check fails because the person signed in again in another tab
+(core.views.csrf_failure). A copy is kept only when the token's session ended because it passed a
+limit (LIMIT_ENDINGS) less than KEPT_FOR before the decision, the account is active, it has not
+signed out with Sign out since that session ended, no copy for that form already given back in
+that browser came from a session that ended later, and some field that is typed in holds text.
+Fields of a request form that hold patient information as the form stands at that moment are
+dropped first (`recheck`), whatever the page was drawn with. The first copy for a session and form
+stands; later ones for the same session and form change nothing.
 
 In this browser only. A copy records the digest of a random value the browser holds in a cookie
-of its own (BROWSER_COOKIE: HttpOnly, nothing typed in it), set or renewed by the answer that kept
-the copy. It is given back only to a request carrying that cookie, so an account several people
-share (the public demonstration's) never gives one person's typing to another, and a copy never
-follows the account to another browser.
+of its own (BROWSER_COOKIE: HttpOnly, nothing typed in it), set or renewed with every page that
+draws a form that keeps typing, so every tab of the browser keeps under the same value. A copy is
+given back only to a request carrying that cookie, so an account several people share (the public
+demonstration's) never gives one person's typing to another, and a copy never follows the account
+to another browser.
 
 Given back. The same form, drawn for the same account in the same browser on a page opened in the
-window with GET within KEPT_FOR of the session's end, carries the newest copy not yet given back
-and the time its session ended, and the page puts the values back (static/js/kept-typing.js) and
+window with GET (not a prefetch) within KEPT_FOR of the session's end, carries the newest copy not
+yet given back, unless a copy for that form already given back in that browser came from a session
+that ended later or a Sign out came after it, with the time its session ended; the page puts the
+values back (static/js/kept-typing.js), or shows the text to copy where scripts do not run, and
 says so. Only the names the form keeps as drawn now are given back, so a field this person may no
-longer fill stays empty. Every copy for that form in that browser is taken when the page is
-drawn: emptied, and kept as a marker until it is removed, once the page's reading ends
-(core.concurrency.after_reading).
+longer fill stays empty, and the page says when something could not be put back. The copies for
+that form are taken as they are read: locked (FOR UPDATE SKIP LOCKED) and emptied in a savepoint of
+the page's reading, so two pages drawn at once give a copy back once (the second gives nothing,
+also when the first committed while it was drawn), and a page that fails to draw leaves it to the
+next one. An emptied copy stays as a marker until it is removed.
 
-Removed. All of an account's copies at Sign out (discard_all); the rest by the scheduled job
-(remove_expired) once KEPT_FOR has passed since their session ended. Copies are never logged,
-audited, listed or shown to anyone but the account that typed them.
+Removed. All of an account's copies at Sign out, and also when Sign out arrives just after the
+session passed a limit (discard_all), which records the moment so that a copy sent later from a
+session that ended before it is refused; the rest by the scheduled job (remove_expired) once
+KEPT_FOR has passed since their session ended. Copies are never logged, audited, listed or shown
+to anyone but the account that typed them.
 """
 
 import hashlib
@@ -47,12 +59,14 @@ from django import forms
 from django.conf import settings
 from django.core import signing
 from django.core.exceptions import BadRequest, SuspiciousOperation
-from django.db import connection, transaction
+from django.db import OperationalError, connection, transaction
+from django.db.models import Exists, OuterRef
 from django.db.models.functions import Now
 from django.http.multipartparser import MultiPartParserError
+from django.utils.module_loading import import_string
 
 from .acting import INT4
-from .models import AccountSession, KeptDraft, User
+from .models import AccountSession, KeptDraft, KeptDraftCutoff, User
 
 Ending = AccountSession.Ending
 # How long after its session ended a copy can be kept and given back.
@@ -68,9 +82,11 @@ SALT = "accounts.kept"
 # ended can be kept from what it posted.
 FIELD = "_vr_kept"
 # What one keep request and one copy may hold. A copy that does not fit is not kept at all, so a
-# person is never given back part of what they typed as if it were all of it.
+# person is never given back part of what they typed as if it were all of it; a form with more
+# fields than MAX_FIELDS is not marked at all.
 MAX_FORMS = 4
-MAX_FIELDS = 40
+MAX_FIELDS = 200
+MAX_CHOICES = 100  # values of one field of several values
 MAX_VALUE = 50_000  # characters in one field
 MAX_TOTAL = 100_000  # characters in one copy
 MAX_KEY = KeptDraft._meta.get_field("form").max_length
@@ -79,7 +95,7 @@ MAX_KEY = KeptDraft._meta.get_field("form").max_length
 # and Sign out exclusively, so a copy is never kept after the Sign out that removed the others.
 KEPT_LOCK = 19560
 # Widgets whose value is what the person typed or chose on the page. Exact classes: a subclass
-# (a list fetched as one types, a widget of several values) is not kept.
+# (a list fetched as one types) is not kept.
 TYPED_WIDGETS = (
     forms.TextInput,
     forms.Textarea,
@@ -91,6 +107,13 @@ TYPED_WIDGETS = (
     forms.DateTimeInput,
 )
 CHOSEN_WIDGETS = (forms.Select, forms.RadioSelect, forms.CheckboxInput)
+SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
+# What a form names to have its fields that hold patient information read again when a copy is
+# kept (its `kept_recheck`, (name, id)): the function returns their html names as they stand,
+# holding what a change of them locks first so that one under way finishes before.
+RECHECKS = {"request_form": "request_forms.selectors.kept_patient_fields"}
+# Requests a browser makes without the person opening the page.
+PREFETCH_HEADERS = ("Sec-Purpose", "Purpose", "X-Purpose", "X-Moz")
 
 # The browser's own cookie (see the module): a random value, never anything typed.
 BROWSER_COOKIE = "lab_ops_kept"
@@ -103,18 +126,27 @@ KEPT_MESSAGE = (
 
 
 def _browser(request, *, create):
-    """(value, digest) of the browser's keep cookie; a new value when it carries none (or one not
-    of this kind) and `create`, else None."""
-    value = request.COOKIES.get(BROWSER_COOKIE, "")
+    """(value, digest) of this browser's keep cookie: the value already chosen for this request,
+    else the cookie it carries; a new value when it carries none (or one not of this kind) and
+    `create`, else None. The value chosen is set on the answer (remember_browser)."""
+    value = getattr(request, "vr_kept_browser", None) or request.COOKIES.get(BROWSER_COOKIE, "")
     if not (isinstance(value, str) and 40 <= len(value) <= 64 and set(value) <= BROWSER_ALPHABET):
         if not create:
             return None
         value = secrets.token_urlsafe(32)
+    request.vr_kept_browser = value
     return value, hashlib.sha256(value.encode()).hexdigest()
 
 
+def ensure_browser(request):
+    """For a page that draws a form keeping typing: the browser's cookie, created now if missing,
+    set (renewed) on the page's answer, so that every tab keeps under one value."""
+    _browser(request, create=True)
+
+
 def remember_browser(request, response):
-    """Set or renew the browser's keep cookie on the answer to a request that kept a copy."""
+    """Set or renew the browser's keep cookie on the answer to a request that chose its value
+    (accounts.sessions.SessionLimitMiddleware calls this for every answer)."""
     value = getattr(request, "vr_kept_browser", None)
     if value:
         response.set_cookie(
@@ -128,47 +160,66 @@ def remember_browser(request, response):
 
 
 def keep_for(request, value, values):
-    """keep() for this request's browser: on success the answer sets its cookie
-    (remember_browser)."""
-    browser, digest = _browser(request, create=True)
-    held = keep(value, values, digest)
-    if held:
-        request.vr_kept_browser = browser
-    return held
+    """keep() for this request's browser (one cookie value for the whole request)."""
+    _browser_value, digest = _browser(request, create=True)
+    return keep(value, values, digest)
 
 
 def keepable(form):
-    """(names, typed): the html names of the form's fields whose values may be kept, in the
-    form's order, and those of them a person types in. Never a disabled field or one whose name
-    the form lists in `patient_information_fields`."""
+    """(names, typed, several): the html names of the form's fields whose values may be kept, in
+    the form's order (the quantity boxes of an item list each by its own name), those of them a
+    person types in, and those that hold a list of values. Never a disabled field or one whose
+    name the form lists in `patient_information_fields`."""
     patient = set(getattr(form, "patient_information_fields", ()) or ())
-    names, typed = [], []
+    names, typed, several = [], [], []
     for bound in form.visible_fields():
-        field, widget = bound.field, type(bound.field.widget)
-        if field.disabled or bound.name in patient or bound.html_name in patient:
+        field, widget = bound.field, bound.field.widget
+        kind, name = type(widget), bound.html_name
+        if field.disabled or bound.name in patient or name in patient:
             continue
-        if widget in TYPED_WIDGETS:
-            typed.append(bound.html_name)
-        elif widget not in CHOSEN_WIDGETS:
+        if kind in TYPED_WIDGETS:
+            typed.append(name)
+        elif kind in SEVERAL_WIDGETS:
+            several.append(name)
+        elif isinstance(widget, forms.MultiWidget) and all(
+            type(part) in TYPED_WIDGETS for part in widget.widgets
+        ):
+            parts = [name + suffix for suffix in widget.widgets_names]
+            names.extend(parts)
+            typed.extend(parts)
             continue
-        names.append(bound.html_name)
-    return names, typed
+        elif kind not in CHOSEN_WIDGETS:
+            continue
+        names.append(name)
+    return names, typed, several
 
 
-def token(request, key, names, typed):
+def token(request, key, form):
     """The form's token for a page drawn for a signed-in session, or "" when there is nothing to
-    keep or no session row (a page drawn for a visitor)."""
+    keep, too much, or no session row (a page drawn for a visitor)."""
+    names, typed, several = keepable(form)
     state = getattr(request, "account_session", None)
     user = getattr(request, "user", None)
     if state is None or user is None or not user.is_authenticated or not typed or not key:
         return ""
+    if len(names) > MAX_FIELDS:
+        return ""
     data = {"u": user.pk, "s": str(state.id), "k": str(key)[:MAX_KEY], "f": names, "t": typed}
+    if several:
+        data["m"] = several
+    recheck = getattr(form, "kept_recheck", None)
+    if recheck:
+        data["r"] = list(recheck)
     return signing.dumps(data, salt=SALT, compress=True)
+
+
+def _strings(value):
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def _read(value):
     """The token's contents, checked, or None."""
-    if not isinstance(value, str) or not value or len(value) > 8000:
+    if not isinstance(value, str) or not value or len(value) > 16000:
         return None
     try:
         data = signing.loads(value, salt=SALT, max_age=TOKEN_AGE)
@@ -177,34 +228,52 @@ def _read(value):
     if not isinstance(data, dict):
         return None
     account, session, key = data.get("u"), data.get("s"), data.get("k")
-    names, typed = data.get("f"), data.get("t")
+    names, typed, several = data.get("f"), data.get("t"), data.get("m", [])
+    recheck = data.get("r")
     if not isinstance(account, int) or not isinstance(key, str) or not key:
         return None
     try:
         session = str(uuid.UUID(str(session)))
     except ValueError, TypeError, AttributeError:
         return None
-    if not (isinstance(names, list) and isinstance(typed, list)):
+    if not (_strings(names) and _strings(typed) and _strings(several)) or len(names) > MAX_FIELDS:
         return None
-    if not all(isinstance(name, str) for name in names + typed) or not set(typed) <= set(names):
+    if not (set(typed) | set(several)) <= set(names):
         return None
-    return {"u": account, "s": session, "k": key, "f": names[:MAX_FIELDS], "t": typed}
+    if recheck is not None and not (
+        isinstance(recheck, list)
+        and len(recheck) == 2
+        and recheck[0] in RECHECKS
+        and isinstance(recheck[1], int)
+    ):
+        return None
+    return {"u": account, "s": session, "k": key, "f": names, "t": typed, "m": several,
+            "r": recheck}  # fmt: skip
 
 
-def _clean(values, names, typed):
-    """The values to keep, by name (strings only, in the token's order), or None when there is
-    nothing typed to keep or the copy is too large."""
+def _clean(values, names, typed, several):
+    """The values to keep, by name in the token's order (a string, or a list of strings for a
+    field of several values), or None when there is nothing typed to keep or the copy is too
+    large."""
     if not isinstance(values, dict):
         return None
     out, total = {}, 0
     for name in names:
-        value = values.get(name, "")
-        if not isinstance(value, str):
+        if name in several:
+            value = values.get(name, [])
+            if not _strings(value) or len(value) > MAX_CHOICES:
+                return None
+            value = [item.replace("\x00", "") for item in value]
+            size = sum(len(item) for item in value)
+        else:
+            value = values.get(name, "")
+            if not isinstance(value, str):
+                return None
+            value = value.replace("\x00", "")  # PostgreSQL's JSON refuses it
+            size = len(value)
+        if size > MAX_VALUE:
             return None
-        value = value.replace("\x00", "")  # PostgreSQL's JSON refuses it
-        if len(value) > MAX_VALUE:
-            return None
-        total += len(value)
+        total += size
         out[name] = value
     if total > MAX_TOTAL or not any(out.get(name, "").strip() for name in typed):
         return None
@@ -217,6 +286,27 @@ def _lock(account_id, *, shared):
         cursor.execute(f"SELECT {function}(%s, %s)", [KEPT_LOCK, account_id % INT4])
 
 
+def _without_patient_fields(data):
+    """The token's names less the fields that hold patient information as the form stands now
+    (its recheck), a field's quantity boxes included."""
+    if not data["r"]:
+        return data
+    patient = import_string(RECHECKS[data["r"][0]])(data["r"][1])
+    if patient is None:  # the form is gone: what it holds cannot be known
+        return None
+    patient = set(patient)
+
+    def allowed(name):
+        return name not in patient and not any(name.startswith(f"{p}_") for p in patient)
+
+    return {
+        **data,
+        "f": [name for name in data["f"] if allowed(name)],
+        "t": [name for name in data["t"] if allowed(name)],
+        "m": [name for name in data["m"] if allowed(name)],
+    }
+
+
 def keep(value, values, browser):
     """Keep a copy of `values` for the form and session the token names, for the browser whose
     cookie has the digest `browser`, if that session ended because it passed a limit (see the
@@ -225,25 +315,34 @@ def keep(value, values, browser):
     data = _read(value)
     if data is None or not browser:
         return False
-    cleaned = _clean(values, data["f"], data["t"])
-    if cleaned is None:
-        return False
     table = connection.ops.quote_name(KeptDraft._meta.db_table)
     sessions = connection.ops.quote_name(AccountSession._meta.db_table)
     users = connection.ops.quote_name(User._meta.db_table)
+    cutoffs = connection.ops.quote_name(KeptDraftCutoff._meta.db_table)
     with transaction.atomic(), connection.cursor() as cursor:
         _lock(data["u"], shared=True)
-        # One statement decides and inserts: the session's ending and its time never change once
-        # recorded; the account's state and a later Sign out are read as they stand, under the
-        # lock Sign out takes before it removes copies.
+        # The form's patient fields as they stand, after a change of them under way.
+        data = _without_patient_fields(data)
+        cleaned = data and _clean(values, data["f"], data["t"], data["m"])
+        if cleaned is None or data is None:
+            return False
+        # One statement decides and inserts, by the clock when it runs: the session's ending and
+        # its time never change once recorded; the account's state, a later Sign out (recorded as
+        # an ending by any release, or as the account's discard moment) are read as they stand,
+        # under the lock Sign out takes before it removes copies.
         cursor.execute(
             f'INSERT INTO {table} (session_id, user_id, form, browser, "values", kept_at) '
-            f"SELECT s.id, s.user_id, %s, %s, %s::jsonb, now() FROM {sessions} s "
+            f"SELECT s.id, s.user_id, %s, %s, %s::jsonb, clock_timestamp() FROM {sessions} s "
             f"JOIN {users} u ON u.id = s.user_id "
             f"WHERE s.id = %s AND s.user_id = %s AND u.is_active "
-            f"AND s.ending = ANY(%s) AND s.ended_at > now() - %s "
+            f"AND s.ending = ANY(%s) AND s.ended_at > clock_timestamp() - %s "
             f"AND NOT EXISTS (SELECT 1 FROM {sessions} o WHERE o.user_id = s.user_id "
             f"AND o.ending = %s AND o.ended_at >= s.ended_at) "
+            f"AND NOT EXISTS (SELECT 1 FROM {cutoffs} c WHERE c.user_id = s.user_id "
+            f"AND c.discarded_at >= s.ended_at) "
+            f"AND NOT EXISTS (SELECT 1 FROM {table} t JOIN {sessions} ts ON ts.id = t.session_id "
+            f"WHERE t.user_id = s.user_id AND t.form = %s AND t.browser = %s "
+            f"AND t.taken_at IS NOT NULL AND ts.ended_at >= s.ended_at) "
             f"ON CONFLICT (session_id, form) DO NOTHING RETURNING id",
             [
                 data["k"],
@@ -254,6 +353,8 @@ def keep(value, values, browser):
                 list(LIMIT_ENDINGS),
                 KEPT_FOR,
                 Ending.SIGNED_OUT,
+                data["k"],
+                browser,
             ],
         )
         if cursor.fetchone() is not None:
@@ -280,72 +381,227 @@ def keep_posted(request):
         data = _read(value)
         if data is None:
             return False
-        values = {name: request.POST.get(name, "") for name in data["f"]}
+        values = {
+            name: request.POST.getlist(name) if name in data["m"] else request.POST.get(name, "")
+            for name in data["f"]
+        }
     except BadRequest, SuspiciousOperation, MultiPartParserError, OSError, ValueError:
         return False
     return keep_for(request, value, values)
 
 
+def _prefetch(request):
+    return any("prefetch" in request.headers.get(name, "").lower() for name in PREFETCH_HEADERS)
+
+
 def offer(request, key, names):
     """For a form drawn on a page opened in the window with GET by a signed-in session: (values,
-    ended_at) of the newest copy of this account's for the form, kept in this browser and not yet
-    given back, within KEPT_FOR of its session's end, holding only `names`; or None. Every such
-    copy is taken once the page's reading ends, so a copy is given back once."""
-    from core.concurrency import after_reading
-
+    ended_at, dropped) of the newest copy of this account's for the form, kept in this browser and
+    not yet given back (see the module for what else it must not be older than), within KEPT_FOR
+    of its session's end, holding only `names`, and whether it held something else that cannot be
+    put back now; or None. The copies are taken as they are read, in a savepoint, so no other page
+    gives them back."""
     from .sessions import _is_navigation
 
     user = getattr(request, "user", None)
     state = getattr(request, "account_session", None)
     if request.method != "GET" or state is None or user is None or not user.is_authenticated:
         return None
-    if not _is_navigation(request) or "prefetch" in request.headers.get("Sec-Purpose", ""):
+    if not _is_navigation(request) or _prefetch(request):
         return None
     browser = _browser(request, create=False)
     if browser is None:
         return None
-    rows = list(
+    digest = browser[1]
+    ended = OuterRef("session__ended_at")
+    candidates = (
         KeptDraft.objects.filter(
             user=user,
             form=key,
-            browser=browser[1],
+            browser=digest,
             taken_at__isnull=True,
             session__ending__in=LIMIT_ENDINGS,
             session__ended_at__gt=Now() - KEPT_FOR,
         )
         .exclude(session_id=state.id)
-        .order_by("-session__ended_at", "-id")
-        .values_list("id", "values", "session__ended_at")
+        .exclude(
+            Exists(
+                KeptDraft.objects.filter(
+                    user=user,
+                    form=key,
+                    browser=digest,
+                    taken_at__isnull=False,
+                    session__ended_at__gte=ended,
+                )
+            )
+        )
+        .exclude(
+            Exists(
+                AccountSession.objects.filter(
+                    user=user, ending=Ending.SIGNED_OUT, ended_at__gte=ended
+                )
+            )
+        )
+        .exclude(Exists(KeptDraftCutoff.objects.filter(user=user, discarded_at__gte=ended)))
     )
+    try:
+        with transaction.atomic():
+            rows = list(
+                candidates.select_for_update(skip_locked=True, of=("self",))
+                .order_by("-session__ended_at", "-id")
+                .values_list("id", "values", "session__ended_at")
+            )
+            if rows:
+                KeptDraft.objects.filter(id__in=[row[0] for row in rows]).update(
+                    values=None, taken_at=Now()
+                )
+    except OperationalError:
+        # Taken by a page whose change committed after this page's reading began (REPEATABLE
+        # READ refuses to lock it): that page gave it back.
+        return None
     if not rows:
         return None
-    ids = [row[0] for row in rows]
-
-    def take():
-        KeptDraft.objects.filter(id__in=ids, taken_at__isnull=True).update(
-            values=None, taken_at=Now()
-        )
-
-    after_reading(take)
     _, values, ended_at = rows[0]
     allowed = set(names)
-    given = {name: value for name, value in (values or {}).items() if name in allowed}
-    if not any(isinstance(value, str) and value.strip() for value in given.values()):
+    values = values or {}
+    given = {name: value for name, value in values.items() if name in allowed}
+
+    def filled(value):
+        return bool(value.strip()) if isinstance(value, str) else bool(value)
+
+    if not any(filled(value) for value in given.values()):
         return None
-    return given, ended_at
+    dropped = any(filled(value) for name, value in values.items() if name not in allowed)
+    return given, ended_at, dropped
 
 
-def discard_all(user):
-    """Remove every copy of the account's (Sign out), after waiting for a copy being kept."""
+def discard_all(user_id):
+    """Remove every copy of the account's (Sign out) and record the moment, after waiting for a
+    copy being kept, so that no copy from a session that ended before it is kept afterwards."""
     with transaction.atomic():
-        _lock(user.pk, shared=False)
-        KeptDraft.objects.filter(user_id=user.pk).delete()
+        _lock(user_id, shared=False)
+        cutoffs = connection.ops.quote_name(KeptDraftCutoff._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {cutoffs} (user_id, discarded_at) VALUES (%s, clock_timestamp()) "
+                f"ON CONFLICT (user_id) DO UPDATE SET discarded_at = EXCLUDED.discarded_at",
+                [user_id],
+            )
+        KeptDraft.objects.filter(user_id=user_id).delete()
 
 
 def remove_expired(now=None):
-    """The scheduled job: remove the copies whose session ended KEPT_FOR ago or more."""
+    """The scheduled job: remove the copies whose session ended KEPT_FOR ago or more, skipping a
+    copy another transaction holds at that moment (a page giving it back) until the next run."""
     from django.utils import timezone
 
     now = now or timezone.now()
-    removed, _ = KeptDraft.objects.filter(session__ended_at__lte=now - KEPT_FOR).delete()
-    return {"kept_removed": removed}
+    table = connection.ops.quote_name(KeptDraft._meta.db_table)
+    sessions = connection.ops.quote_name(AccountSession._meta.db_table)
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute(
+            f"DELETE FROM {table} WHERE id IN (SELECT k.id FROM {table} k "
+            f"JOIN {sessions} s ON s.id = k.session_id WHERE s.ended_at <= %s "
+            f"FOR UPDATE OF k SKIP LOCKED)",
+            [now - KEPT_FOR],
+        )
+        removed = cursor.rowcount
+    busy = KeptDraft.objects.filter(session__ended_at__lte=now - KEPT_FOR).count()
+    return {"kept_removed": removed, "busy": busy}
+
+
+def _offered(field, value):
+    """Whether a choice field offers `value` (a string) as drawn now."""
+    return value == "" or any(str(key) == value for key, _label in _flat_choices(field))
+
+
+def _flat_choices(field):
+    for key, label in field.choices:
+        if isinstance(label, (list, tuple)):  # a group
+            yield from label
+        else:
+            yield key, label
+
+
+def _put_back(form, given):
+    """Draw the copy's values in the unbound form: its initial values, field by field, as the
+    widgets read them. A choice no longer offered is left as the form starts. Returns whether
+    something could not be put back."""
+    missed = False
+    names, _typed, several = keepable(form)
+    allowed = set(names)
+    for bound in form.visible_fields():
+        field, widget, name = bound.field, bound.field.widget, bound.html_name
+        if isinstance(widget, forms.MultiWidget) and type(widget) not in TYPED_WIDGETS:
+            parts = {
+                suffix[1:]: given[name + suffix]
+                for suffix in widget.widgets_names
+                if name + suffix in allowed and name + suffix in given
+            }
+            if parts:
+                form.initial[bound.name] = parts
+            continue
+        if name not in allowed or name not in given:
+            continue
+        value = given[name]
+        if name in several:
+            offered = [item for item in value if _offered(field, item)]
+            missed = missed or len(offered) < len(value)
+            form.initial[bound.name] = offered
+        elif isinstance(widget, forms.CheckboxInput):
+            form.initial[bound.name] = value != ""
+        elif isinstance(field, forms.ChoiceField) or hasattr(field, "queryset"):
+            if _offered(field, value):
+                form.initial[bound.name] = value
+            else:
+                missed = True
+        else:
+            form.initial[bound.name] = value
+    return missed
+
+
+def prepare(request, form, key):
+    """For a full-page form drawn with {% form_page keep=... %}, before its fields are drawn: the
+    contents of its marker (includes/kept_typing.html), or None when the form keeps nothing for
+    this request. When a copy is given back (offer), its values are drawn in the form, the page
+    says when its session ended and whether something could not be put back, and Discard opens
+    the page again (the copy is taken by then). Drawing the marker sets the browser's cookie."""
+    if request is None or not key or not form:
+        return None
+    value = token(request, key, form)
+    if not value:
+        return None
+    ensure_browser(request)
+    names, _typed, several = keepable(form)
+    contents = {
+        "token": value,
+        "field": FIELD,
+        "names": json.dumps(names),
+        "several": json.dumps(several),
+        "key": key,
+        "bound": form.is_bound,
+    }
+    offered = None if form.is_bound else offer(request, key, names)
+    if offered:
+        given, ended_at, dropped = offered
+        missed = _put_back(form, given)
+        # What a page gave back, for its tests to read.
+        request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
+        filled = [
+            name
+            for name, value in given.items()
+            if (value.strip() if isinstance(value, str) else value)
+        ]
+        contents.update(
+            restored=True,
+            ended_at=ended_at,
+            missed=dropped or missed,
+            # The names given back with a value: a template may leave a field of the form out of
+            # the page (kept-typing.js then shows the sentence on what was not put back).
+            given=json.dumps(filled),
+            discard_url=request.get_full_path(),
+            has_files=any(
+                isinstance(bound.field.widget, forms.FileInput) for bound in form.visible_fields()
+            ),
+        )
+    return contents

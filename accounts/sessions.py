@@ -674,9 +674,9 @@ def end_signed_out_session(sender, request, user, **kwargs):
     if user is not None and session_id is not None:
         end_sessions(user, Ending.SIGNED_OUT, session_id=session_id)
     if user is not None:
-        # Signing out leaves nothing typed behind: every copy kept for the account goes, after
-        # the ending above, so a copy sent later from an ended session finds that Sign out.
-        discard_all(user)
+        # Signing out leaves nothing typed behind: every copy kept for the account goes, and the
+        # moment is recorded, so a copy sent later from an ended session finds that Sign out.
+        discard_all(user.pk)
 
 
 def _valid_id(value):
@@ -728,6 +728,8 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     from core.security_settings import duration_text
 
     user = request.user
+    # Whose session this request ended (a Sign out arriving just after the limit, _refusal).
+    request.vr_ended_account = user.pk
     request.session.flush()
     request.user = AnonymousUser()
     request.account_session = None
@@ -829,13 +831,36 @@ def _goes_on(request):
     return request.method in ("GET", "HEAD") and _is_navigation(request)
 
 
-def _refusal(request):
-    """The answer to a request whose session ended, other than a page opened with GET. A form
-    posted with its keep token (accounts.kept) is kept first, if its session ended by a limit."""
-    from .kept import KEPT_MESSAGE, keep_posted, remember_browser
+def _is_sign_out(request):
+    """Whether the request is Sign out (the application's or the admin console's)."""
+    paths = set()
+    for name in ("account_logout", "admin:logout"):
+        try:
+            paths.add(_route_path(name))
+        except NoReverseMatch:
+            pass
+    return request.method == "POST" and request.path_info in paths
 
+
+def _keep_refused(request):
+    """For a form or Sign out refused because the browser's session ended: a form posted with
+    its keep token (accounts.kept) is kept, if its session ended by a limit; Sign out from a
+    session this request found past its limit still discards what was kept for the account."""
+    from .kept import KEPT_MESSAGE, discard_all, keep_posted
+
+    account = getattr(request, "vr_ended_account", None)
+    if _is_sign_out(request):
+        if account is not None:
+            discard_all(account)
+        return
     if keep_posted(request):
         messages.info(request, KEPT_MESSAGE, fail_silently=True)
+
+
+def _refusal(request):
+    """The answer to a request whose session ended, other than a page opened with GET, after
+    keeping what its form posted (_keep_refused)."""
+    _keep_refused(request)
     sign_in = sign_in_url(_page_on_screen(request))
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
@@ -843,7 +868,6 @@ def _refusal(request):
         response = JsonResponse({"signed_in": False, "sign_in": sign_in}, status=401)
         response["HX-Redirect"] = sign_in
     add_never_cache_headers(response)
-    remember_browser(request, response)
     return response
 
 
@@ -916,15 +940,20 @@ class SessionLimitMiddleware:
                 and response.status_code in (204, 301, 302, 303, 307, 308)
                 and _asks_to_sign_in(request, response)
                 and not _goes_on(request)
-                and _page_on_screen(request)
             ):
-                # Not signed in for another reason (Django refused the session, Sign out in
-                # another tab, never signed in), and the page on screen is known: the same answer
-                # as for a session that ended, with the cookies the answer replaced set.
-                cookies = response.cookies
-                response = _refusal(request)
-                cookies.update(response.cookies)  # the keep cookie, if a copy was kept
-                response.cookies = cookies
+                if _page_on_screen(request):
+                    # Not signed in for another reason (Django refused the session, Sign out in
+                    # another tab, never signed in), and the page on screen is known: the same
+                    # answer as for a session that ended, with the cookies the answer replaced
+                    # set.
+                    cookies = response.cookies
+                    response = _refusal(request)
+                    cookies.update(response.cookies)
+                    response.cookies = cookies
+                else:
+                    # The page on screen is not known (no referrer): the view's own answer, after
+                    # keeping what the form posted all the same.
+                    _keep_refused(request)
         finally:
             _current.reset(tokens[0])
             _kept.reset(tokens[1])
@@ -932,6 +961,11 @@ class SessionLimitMiddleware:
             _account_var.reset(tokens[3])
         if signed_in_now:
             request.vr_signed_in = True
+        # The browser's keep cookie, when a page drew a form that keeps typing or a copy was kept
+        # (accounts.kept).
+        from .kept import remember_browser
+
+        remember_browser(request, response)
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):

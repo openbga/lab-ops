@@ -200,3 +200,18 @@ class KeptDraft(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.form}"
+
+
+class KeptDraftCutoff(models.Model):
+    """When the account last signed out with Sign out (accounts.kept.discard_all): no copy of what
+    was typed in a session that ended at or before this moment is kept, so a page of an earlier
+    session sending later finds the Sign out. One row per account, moved forward at each Sign
+    out."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, primary_key=True, related_name="kept_draft_cutoff"
+    )
+    discarded_at = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.user} {self.discarded_at:%Y-%m-%d %H:%M}"

@@ -81,9 +81,7 @@ def keep_typing(request):
     )
     if count:
         messages.info(request, kept.KEPT_MESSAGE, fail_silently=True)
-    response = JsonResponse({"kept": count})
-    kept.remember_browser(request, response)
-    return response
+    return JsonResponse({"kept": count})  # the middleware sets the browser's cookie
 
 
 def _current_id(request):

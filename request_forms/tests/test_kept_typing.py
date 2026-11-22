@@ -22,7 +22,7 @@ pytestmark = pytest.mark.django_db
 def names_and_token(page):
     text = page.content.decode()
     found = re.search(
-        r'name="_vr_kept" value="([^"]+)" data-vr-kept data-vr-kept-fields="([^"]*)"', text
+        r'name="_vr_kept" value="([^"]+)" data-vr-kept [^>]*data-vr-kept-fields="([^"]*)"', text
     )
     return found.group(1), json.loads(html.unescape(found.group(2)))
 
@@ -32,17 +32,27 @@ def test_a_request_form_keeps_typed_fields_but_never_patient_information(portal_
     browser = BrowserClient()
     browser.force_login(portal_user)
     token, names = names_and_token(browser.get(page))
-    # Client fields a person types in or chooses from, then the common fields; not the patient
-    # identifier, the item list, the files or the hidden definition token.
-    assert sorted(names) == [
-        "client_reference",
-        "description",
-        "field-count",
-        "field-handling",
-        "field-ready-at",
-        "subject",
-        "urgent",
+    # Client fields a person types in or chooses from (each quantity box of the item list by its
+    # own name), then the common fields; not the patient identifier, the files or the hidden
+    # definition token.
+    items = [
+        f"field-items_{pk}"
+        for pk in pickup.fields.get(key="items")
+        .catalog.items.filter(is_active=True)
+        .values_list("pk", flat=True)
     ]
+    assert sorted(names) == sorted(
+        [
+            "client_reference",
+            "description",
+            "field-count",
+            "field-handling",
+            "field-ready-at",
+            "subject",
+            "urgent",
+            *items,
+        ]
+    )
     assert "field-patient" not in kept._read(token)["f"]
     AccountSession.objects.filter(user=portal_user, ended_at__isnull=True).update(
         ended_at=Now(), ending=AccountSession.Ending.INACTIVITY

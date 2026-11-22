@@ -4,6 +4,7 @@
 {% block content %}
 {% if csrf_failure %}
 <p>This form could not be verified. Reload the page and try again. Nothing was changed.</p>
+{% if kept %}<p>What you had typed in it is kept for 24 hours: open the same page again in this browser to get it back.</p>{% endif %}
 {% else %}
 <p>Your account does not include the role or client access this page needs. Nothing was changed.</p>
 <p class="vr-muted">If you need access, ask a laboratory administrator.</p>
