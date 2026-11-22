@@ -169,7 +169,9 @@ contacts and its retention statement. An administrator keeps the contacts curren
 or from Setup > Security settings, giving a reason for each change. Security settings also lists
 what protects sign-in, sessions and patient information and who sets each item, and there an
 administrator sets after how long without activity, and after how long at most, staff and client
-portal sessions are signed out. Pages warn before signing out and offer Stay signed in.
+portal sessions are signed out. Pages warn before signing out and offer Stay signed in. Each
+person sees where their account is signed in, from the account menu, and signs out the sessions
+they do not recognize; a superuser ends a person's sessions from the admin console, with a reason.
 Administrators can publish announcements for staff, clients or the sign-in page. Anyone visiting
 sign-in can read an announcement addressed there. The Help drawer describes these audiences and
 the controls on each page. [Product scope and record keeping](product.md#record-keeping-and-laboratory-policy)

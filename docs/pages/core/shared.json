@@ -56,7 +56,7 @@
         },
         {
           "label": "Account menu",
-          "description": "Shows the signed-in name and staff roles or client organization. Change password, Email addresses and Two-factor authentication open your account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
+          "description": "Shows the signed-in name and staff roles or client organization. Change password, Email addresses and Two-factor authentication open your account settings. Where you are signed in lists the browsers where your account is signed in and signs out the others. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
         },
         {
           "label": "Automatic sign-out",

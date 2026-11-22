@@ -86,6 +86,20 @@ class User(AbstractUser):
         if not self.is_active and (update_fields is None or "is_active" in update_fields):
             end_sessions(self, Ending.DEACTIVATED)
         elif new_password:
+            if not _may_change_access(update_fields):
+                # A save of the password alone takes no access gate exclusively, so it locks the
+                # sessions before the account's row (written below), the other way round from
+                # an access change. Take, in the order the person's own endings take them (Where
+                # you are signed in, which hold their acting session before the others): the
+                # account's session-ending lock, so the two take turns; then its access gate
+                # shared, so an access change under way finishes first and one that starts
+                # afterwards waits. The person's own changes under way, which hold the gate
+                # shared too, are not waited for here.
+                from .acting import share_access
+                from .session_list import lock_endings
+
+                lock_endings(self.pk)
+                share_access([self.pk])
             end_sessions(self, Ending.NEW_PASSWORD, keep=kept_on_password_change(self))
 
     class Meta(AbstractUser.Meta):
@@ -96,7 +110,8 @@ class AccountSession(models.Model):
     """One sign-in of an account, from the moment it signs in until its session ends
     (accounts.sessions). The browser's session carries this row's id; a session whose row is
     missing or ended is signed out at its next request. The row is kept after it ends, with when
-    and why, and is never shown to anyone but the account it belongs to."""
+    and why. Its browser and address are shown only to the account it belongs to (Where you are
+    signed in, accounts.session_list); the account administration shows how many are open."""
 
     class Ending(models.TextChoices):
         SIGNED_OUT = "signed_out", "Signed out"
@@ -106,6 +121,8 @@ class AccountSession(models.Model):
         NEW_PASSWORD = "new_password", "New password"
         SIGNED_IN_AGAIN = "signed_in_again", "Signed in again in the same browser"
         CHANGE_REFUSED = "change_refused", "A change found it past a limit"
+        SIGNED_OUT_ELSEWHERE = "signed_out_elsewhere", "Signed out from another session"
+        ADMINISTRATOR = "administrator", "Ended by an administrator"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never
@@ -115,6 +132,13 @@ class AccountSession(models.Model):
     last_active_at = models.DateTimeField(db_default=Now())
     ended_at = models.DateTimeField(null=True, blank=True)
     ending = models.CharField(max_length=20, choices=Ending.choices, blank=True)
+    # As the browser and the deployment reported them at sign-in (blank for sessions from before
+    # they were recorded, or when the request carried none): the User-Agent header, cut to its
+    # first characters, and the client address by the deployment's trusted proxy settings. The
+    # database's own default, so that a release still running while this one migrates (whose
+    # sign-in names neither column) goes on signing people in.
+    user_agent = models.CharField(max_length=300, blank=True, db_default="")
+    address = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
         indexes = [

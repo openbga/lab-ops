@@ -109,7 +109,9 @@ per-address limit. Set `ALLAUTH_TRUSTED_PROXY_COUNT` to the number of trusted pr
 appending to `X-Forwarded-For`, or set `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` to a header
 your platform overwrites with the visitor's address. Verify the selected value from a known
 client. Make sure visitors cannot supply that value themselves. With the default per-process
-cache, each worker maintains separate counters.
+cache, each worker maintains separate counters. The same setting chooses the address recorded for
+each session at sign-in and shown on Where you are signed in; without it, every session shows the
+proxy's address.
 
 ## Browser security headers
 
@@ -178,8 +180,10 @@ noticed by migration `service_levels.0003`, so the first run does not notify old
 `lab_ops.request` records the generated request ID, HTTP method, matched route, status
 and duration. Use the `X-Request-ID` response header to correlate an error.
 `lab_ops.signin` records sign-ins, failures, explicit sign-outs and sessions ended by the session
-limits (`signout.inactivity`, `signout.maximum`), a deactivation (`signout.deactivated`) or a new
-password (`signout.new_password`). Treat usernames as personal data. Set access and retention limits for platform and proxy logs too.
+limits (`signout.inactivity`, `signout.maximum`), a deactivation (`signout.deactivated`), a new
+password (`signout.new_password`), the person from another of their sessions
+(`signout.signed_out_elsewhere`) or a superuser (`signout.administrator`). Treat usernames as
+personal data. Set access and retention limits for platform and proxy logs too.
 Keep credentials, bodies, URLs carrying tokens and ticket contents out of operational logs.
 
 ## Software bill of materials

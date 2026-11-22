@@ -25,6 +25,9 @@ NON_PAGE_ROUTES = {
     "preference": "POST-only per-user presentation setting (core/preferences.py)",
     "account-session": "JSON time left in the session, asked before the sign-out warning",
     "account-session-continue": "POST-only Stay signed in from the sign-out warning (JSON)",
+    "account-session-sign-out": "POST-only Sign out of one session on Where you are signed in",
+    "account-sessions-sign-out-others": "POST-only Sign out of all other sessions on Where you are "
+    "signed in",
     "mfa_download_recovery_codes": "Private text download from recovery-code help",
     "admin:login": "Redirect to the application sign-in page",
     "admin:autocomplete": "JSON related-object lookup",

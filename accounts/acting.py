@@ -37,8 +37,10 @@ FOR KEY SHARE rather than FOR SHARE: other updates of the account go on (a sign-
 email notice preference, an assignment's FOR NO KEY UPDATE of its assignee), so two people
 assigning tickets to each other, or one person's two changes at once, never wait for each other
 here. The account's page in the administration takes the gate on every save and waits for the
-person's change under way; a password change saves the password only and waits for no gate (an
-update of the row still waits a moment for a change holding it, such as an assignment).
+person's change under way; a password change saves the password only and takes the gate shared
+(accounts.models.User._end_sessions): it waits for an access change under way, not for the
+person's own change (an update of the row still waits a moment for a change holding it, such as
+an assignment).
 
 Row locks alone would let a change started while an access change waits overtake it: PostgreSQL
 grants a share lock on a row at once when the row carries only share locks, whoever waits for a
@@ -96,6 +98,18 @@ def close_access(user_ids):
     if not connection.in_atomic_block:
         raise RuntimeError("An access gate is held for a transaction; open one first.")
     _gate(user_ids, shared=False)
+
+
+def share_access(user_ids):
+    """Take these accounts' access gates shared, in key order, until the transaction ends: for a
+    change that takes no access away but must not overlap one that does, such as a new password
+    saved alone, which ends the sessions an access change also ends and locks them in the other
+    order (sessions, then the account). It waits for an access change under way, and one that
+    starts afterwards waits for it; the person's own changes, which hold their gate shared too,
+    do not wait for it, nor it for them."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("An access gate is held for a transaction; open one first.")
+    _gate(user_ids, shared=True)
 
 
 def try_hold_access(user_ids):

@@ -829,7 +829,13 @@ def test_a_held_access_gate_by_itself_allows_the_person_to_save_the_setting(
     finally:
         assert gate.release() == "done", gate.session.error
         update.join()
-    assert (state, update.outcome) == ("ended", "done"), update.error
+    # Adapted (session list, review round 1 confirmation): a password saved alone ends the
+    # account's other sessions, rows first and the account's row after, the other way round from
+    # an access change, so it takes the access gate shared (accounts.models.User._end_sessions):
+    # it waits for an access change under way, as here, and saves once it ends; it still never
+    # waits for the person's own change (test_review_acting_account_until_commit_verify.py).
+    expected = "waiting" if setting == "own password" else "ended"
+    assert (state, update.outcome) == (expected, "done"), update.error
     assert update.result.status_code == 302
     person.refresh_from_db()
     if setting == "own password":

@@ -117,6 +117,31 @@ pass a limit; they are closed as expired, and logged, when the account next sign
 sessions are ended. The rows are kept after they end. The limits are rows of `core.SessionLimit`,
 one per audience, absent until first saved.
 
+A row records the browser's `User-Agent` (printable, cut to 300 characters) and the client address
+at sign-in, by the trusted proxy settings the sign-in limits use; a release still running while the
+migration applies goes on inserting rows through the column's database default. Where you are
+signed in (`accounts.session_list`) lists the account's rows that are open and inside both limits
+by the database's clock, and the person ends one other row or every other row; a superuser ends
+every row of an account from the account administration, with a reason (on their own account,
+every row but the one in use). Each of these endings takes, before anything else, a
+session-ending advisory lock for the account whose rows it ends and for the acting account, in key
+order, then holds the acting account (`hold_actor`, which holds the acting session `FOR SHARE`).
+Two sessions ending each other therefore take turns, and the second is refused because its own row
+has ended, instead of each holding its own row and waiting for the other's. Signing in again in
+the same browser takes the account's session-ending lock too. A save of a new password alone,
+which takes no access gate exclusively and ends the rows before writing the account's row (an
+access change locks the account's row first), takes the session-ending lock and then the access
+gate shared, so it takes turns with the person's own endings and with an access change, but not
+with the person's other changes. Every ending of rows (these, a deactivation, a new password, signing in again in
+the same browser, Sign out, the cleanup of expired rows) locks all its rows in one statement, in
+id order, waiting for a change under way that holds one, then decides each in a new statement of
+the same transaction, so that what committed during the wait counts: a row that has passed a limit
+by the database's clock then ends as expired, at the moment its limit passed; any other ends as
+asked. One `account.sessions_ended` audit event names the rows ended as asked, never their browser
+or address. Every other row open when the change is saved ends, including rows that signed in
+after the page was drawn; the confirmation counts those by their sign-in time against the
+database's clock when the page read the rows.
+
 ## Optional modules
 
 An optional module's switch lives in `core.modules`. Its pages and reads start from selectors
@@ -192,13 +217,15 @@ page, takes their gates one at a time in id order: a member it has not reached y
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
 Updates that take no access away, such as a sign-in, the email notice preference or a capability
-added to a role, do not wait for the gate (an update of the account's row still waits a moment for
+added to a role, do not wait for the gate (a sign-in that upgrades the stored password hash saves
+a new password, and waits as a password change does; an update of the account's row still waits a moment for
 a change that holds that row, such as an assignment of a ticket to the person or a notice being
 sent to them; `setup_lab`, giving an existing account a role it lacks, takes the gate as the account
 page does, so each records only its own additions); a save on the account's page and every save of a portal account's
 access take the gate and wait for the person's change under way. A password change, by the
 person or on the account's password page, saves the password only: a full save of the account
-as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored
+as read when the request began would put back a deactivation committed meanwhile. It takes the
+gate shared, so it waits for an access change under way but not for the person's own change. A save that names only other columns (a sign-in's time) leaves the organization as stored
 and never compares it with the copy of the account it read earlier
 ([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
 drawn (a fingerprint of the values it draws: names, email, organization, flags, the roles and

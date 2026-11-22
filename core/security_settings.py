@@ -523,15 +523,18 @@ def _sign_in(facts):
                 "release",
                 "The application passes completed sign-ins, refused passwords, wrong codes "
                 "entered for an existing account, sign-outs made with Sign out and sessions "
-                "ended by the session limits, a deactivation or a new password to its sign-in "
-                "log (lab_ops.signin), with the username when the account is known. Some "
+                "ended by the session limits, a deactivation, a new password, the person from "
+                "another of their sessions or a superuser to its sign-in log (lab_ops.signin), "
+                "with the username when the account is known. Some "
                 "refusals are not passed: a code entered after its emailed sign-in attempt "
                 "expired, a code for an address with no account, and a request stopped by the "
                 "request limit before any check. Where that log goes and how long it is kept is "
                 "set by the logging configuration and the host. The database keeps each "
-                "account's last sign-in time and, for each session, when it started, when it "
-                "was last active and when and why it ended. Failed sign-ins are not stored, and "
-                "no page lists the sessions yet.",
+                "account's last sign-in time and, for each session, when it started, the "
+                "browser and address it reported at sign-in, when it was last active and when "
+                "and why it ended. Each person sees their own open sessions on Where you are "
+                "signed in; ended sessions stay in the database and no page lists them. Failed "
+                "sign-ins are not stored.",
             ),
         ),
     ]
@@ -554,6 +557,25 @@ def _limits_text(field_name):
     if staff_value == portal_value:
         return f"{staff_value} for staff and client portal accounts"
     return f"{staff_value} for staff, {portal_value} for client portal accounts"
+
+
+def _session_address():
+    """Where the address a session records comes from, by the deployment's proxy settings as
+    allauth reads them (the ones the sign-in limits use, accounts.sessions.reported_by)."""
+    header = allauth_settings.TRUSTED_CLIENT_IP_HEADER
+    proxies = allauth_settings.TRUSTED_PROXY_COUNT
+    if header:
+        return f"the address is read from the {header} header (ALLAUTH_TRUSTED_CLIENT_IP_HEADER)."
+    if proxies > 0:
+        return (
+            f"the address is read from X-Forwarded-For behind "
+            f"{_count(proxies, 'trusted proxy', 'trusted proxies')} (ALLAUTH_TRUSTED_PROXY_COUNT), "
+            "or is the connecting one when a request carries no X-Forwarded-For."
+        )
+    return (
+        "the address is the connecting one, so behind a proxy every session shows the proxy's "
+        "address until ALLAUTH_TRUSTED_PROXY_COUNT or ALLAUTH_TRUSTED_CLIENT_IP_HEADER is set."
+    )
 
 
 def _sessions(facts):
@@ -644,6 +666,37 @@ def _sessions(facts):
                 "Whoever changes their own password, on the account pages or in the admin "
                 "console, stays signed in where they changed it. A password a superuser sets for "
                 "another account, or a reset by email, ends every session of that account.",
+            ),
+        ),
+        _fact(
+            "own-sessions",
+            "Where you are signed in",
+            # The address is the account adapter's (accounts.sessions.reported_by).
+            ["MIDDLEWARE", "ACCOUNT_ADAPTER"],
+            lambda: Fact(
+                "own-sessions",
+                "Where you are signed in",
+                "Each person sees their own open sessions and signs out the others",
+                "person",
+                "Opened from the account menu by staff and client portal accounts. Each session "
+                "shows the browser and the address it reported at sign-in; "
+                + _session_address()
+                + " A shared demonstration account sees only its own session.",
+            ),
+        ),
+        _fact(
+            "end-sessions",
+            "Ending a person's sessions",
+            ["MIDDLEWARE"],
+            lambda: Fact(
+                "end-sessions",
+                "Ending a person's sessions",
+                "A superuser, from the account's page in the admin console, with a reason",
+                "accounts",
+                "Every open session of the account ends, except the one in use when superusers "
+                "end their own account's sessions, and its browsers go to the sign-in page at "
+                "their next request. The account can sign in again unless it is also "
+                "deactivated. Each ending is kept in the audit history.",
             ),
         ),
         _fact(

@@ -47,6 +47,17 @@ urlpatterns = [
         session_views.session_continue,
         name="account-session-continue",
     ),
+    path("account/sessions/", session_views.sessions_page, name="account-sessions"),
+    path(
+        "account/sessions/others/sign-out/",
+        session_views.sign_out_other_sessions,
+        name="account-sessions-sign-out-others",
+    ),
+    path(
+        "account/sessions/<uuid:session_id>/sign-out/",
+        session_views.sign_out_session,
+        name="account-session-sign-out",
+    ),
     path("lab/record-retention/", views.record_retention, name="record-retention"),
     path("lab/announcements/", announcement_views.announcement_list, name="announcement-list"),
     path(
