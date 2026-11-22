@@ -258,8 +258,12 @@ as drawn (on a refused save, as posted; a form whose revision is not a whole num
 and the copy keeps it (`KeptDraft.revision`). A page giving such a copy back draws that revision in
 the field instead of the one it read, draws its token again with it, and says when the two differ,
 so the save is checked against the record as it stood when the person typed and is refused as
-changed since, with the typing kept, when the record changed after it. A copy that holds no
-revision is drawn with 0, which no record has. Each form is kept under a key naming the form and
+changed since, with the typing kept, when the record changed after it. The copy's revision is drawn
+whenever a copy is given back, also when nothing of it fits the form any more (what was drawn, an
+emptied answer, may still differ from the record). A copy that holds no revision (kept by the
+previous release while both ran during an upgrade) is drawn with 0, which no record has, and its
+token carries 0, so its save is refused, the page says the version is not known, and the typing can
+be kept again. A revision is a whole number up to what the column stores. Each form is kept under a key naming the form and
 its record (`nc-12-edit`, `nc-12-action-4-done`, `nc-12-link-3-remove`, `nc-from-ticket-7` with the
 ticket's revision, `nc-new` with none). A form page opened with GET is drawn in one reading with the
 account read in it and takes its copy before it decides what to draw: a copy typed against an

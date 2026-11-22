@@ -113,6 +113,8 @@ MAX_CHOICES = 100  # values of one field of several values
 MAX_VALUE = 50_000  # characters in one field
 MAX_TOTAL = 100_000  # characters in one copy
 MAX_KEY = KeptDraft._meta.get_field("form").max_length
+# The largest revision a copy stores (KeptDraft.revision, a PostgreSQL integer).
+REVISION_MAX = 2_147_483_647
 # The advisory lock namespace (PostgreSQL's two-key form; see accounts.acting and
 # accounts.session_list for the others): the second key is the account. Keeping takes it shared
 # and Sign out exclusively, so a copy is never kept after the Sign out that removed the others.
@@ -421,11 +423,13 @@ def token(request, key, form):
 
 
 def _revision(value):
-    """A revision: a whole number of at least 1, or None."""
+    """A revision as a form carries it: a whole number up to what a copy can store (REVISION_MAX),
+    or None. 0 is no record's revision: a form given back from a copy kept without one (by an
+    earlier release) carries it, so that its save is refused and its typing can be kept again."""
     if isinstance(value, bool):
         return None
     number = value if isinstance(value, int) else whole_number(str(value or ""))
-    return number if number is not None and number >= 1 else None
+    return number if number is not None and 0 <= number <= REVISION_MAX else None
 
 
 def drawn_revision(form):
@@ -989,7 +993,8 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
     says when its session ended and whether something could not be put back, and Discard opens
     the page again (the copy is taken by then). A form that names `kept_revision` is drawn with
     the revision the copy was typed against, and `changed` says when that is not the one the page
-    read. Drawing the marker sets the browser's cookie. `taken`: the copy the page took already
+    read ("changed"; "unknown" for a copy kept without one). Drawing the marker sets the browser's
+    cookie. `taken`: the copy the page took already
     (take; None when it found none), instead of taking it now. `give`: False for a part of a page
     drawn again in place (the desk's category section), which never gives a copy back."""
     if request is None or not key or not form:
@@ -1028,13 +1033,16 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
             if given
             else (0, False, [])
         )
-        # A form that posts a revision posts the one the copy was typed against once something
-        # of it is drawn (0, which no record has, for a copy without one), and the page says
-        # when the record changed after it; its token, drawn again, carries that revision.
-        changed = False
-        if drawn and getattr(form, "kept_revision", None):
-            changed = revision is None or revision != drawn_revision(form)
-            form.initial[form.kept_revision] = revision if revision is not None else 0
+        # A form that posts a revision posts the one the copy was typed against whenever a copy
+        # is given back, also when nothing of it could be drawn (what was drawn may still differ
+        # from the record: an answer emptied), or 0, which no record has, for a copy kept without
+        # one; the page says why its save is refused. Its token, drawn again, carries it.
+        changed = ""
+        if getattr(form, "kept_revision", None):
+            kept_revision = revision if revision is not None else 0
+            if kept_revision != drawn_revision(form):
+                changed = "unknown" if kept_revision == 0 else "changed"
+            form.initial[form.kept_revision] = kept_revision
             contents["token"] = token(request, key, form)
         # What a page gave back, for its tests to read.
         request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
@@ -1047,7 +1055,8 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
             restored=True,
             # Nothing of it could be drawn: the page says so instead.
             nothing=not drawn,
-            # The record changed after the copy was typed: a save is refused as changed since.
+            # The record changed after the copy was typed ("changed"), or the copy does not say
+            # which revision it was typed against ("unknown"): a save is refused.
             changed=changed,
             ended_at=ended_at,
             missed=dropped or missed or bool(texts),

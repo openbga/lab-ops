@@ -515,14 +515,19 @@ def test_a_refused_save_is_marked_with_the_revision_it_posted(record, agent, lea
 
 
 def test_a_copy_without_a_revision_is_never_saved_over_the_record(record, agent):
-    """A copy of a revision form that holds no revision (never kept so: made here directly) is
-    drawn with revision 0, which no record has, so its save is refused."""
+    """A copy of a revision form that holds no revision (kept by the previous release while both
+    ran during an upgrade; made here directly) is drawn with revision 0, which no record has: its
+    save is refused, the page says the version is not known (not that the record changed), and
+    its token carries 0, so the typing can be kept again."""
     nc = fresh(record)
     typed = {"containment": "Labels reprinted.", "root_cause": "", "similar_cases": ""}
     browser, _data = kept_then_signed_in(agent, url("investigation", nc.pk), typed)
     KeptDraft.objects.update(revision=None)
     page = browser.get(url("investigation", nc.pk))
-    assert drawn_revision(page) == 0 and CHANGED in page.content.decode()
+    text = page.content.decode()
+    assert drawn_revision(page) == 0 and CHANGED not in text
+    assert "kept without the version of the record" in text
+    assert kept._read(marker(page)[0])["v"] == 0
     refused = browser.post(url("investigation", nc.pk), {**typed, "expected_revision": 0})
     assert refused.status_code == 200 and html.escape(STALE) in refused.content.decode()
     assert fresh(nc).containment == ""
@@ -535,13 +540,14 @@ def test_the_same_text_against_another_revision_is_another_copy():
     assert not kept._same_copy(stored, ({"note": "Checked."}, {"note": "text"}, False, None))
 
 
-def test_a_token_naming_a_revision_that_is_no_whole_number_is_refused(agent):
+def test_a_token_naming_a_revision_a_copy_cannot_store_is_refused(agent):
     from django.core import signing
 
     base = {"u": agent.pk, "s": "00000000-0000-0000-0000-000000000001", "k": "nc-1-edit",
             "f": ["note"], "t": ["note"], "w": {"note": "text"}}  # fmt: skip
-    for bad in (0, -1, "3", True, 1.5):
+    for bad in (-1, "3", True, 1.5, kept.REVISION_MAX + 1):
         token = signing.dumps({**base, "v": bad}, salt=kept.SALT, compress=True)
         assert kept._read(token) is None, bad
-    token = signing.dumps({**base, "v": 3}, salt=kept.SALT, compress=True)
-    assert kept._read(token)["v"] == 3
+    for good in (0, 3, kept.REVISION_MAX):  # 0: a copy kept without one, given back
+        token = signing.dumps({**base, "v": good}, salt=kept.SALT, compress=True)
+        assert kept._read(token)["v"] == good

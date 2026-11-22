@@ -772,6 +772,10 @@ def from_ticket(request, pk):
         else:
             messages.success(request, f"Nonconformance {nc.number} opened.")
             return redirect(_record_url(nc))
+    elif posted and _posted_earlier(request, ticket.revision):
+        # Invalid and drawn from an earlier reading of the ticket: completing the fields alone
+        # cannot make it saveable, so it says so too (as _form_response does for a record).
+        form.add_error(None, desk_services.STALE)
     title = "Open nonconformance"
     contents = kept.prepare(request, form, key, taken=taken)
     response = render(

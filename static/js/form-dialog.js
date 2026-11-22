@@ -41,6 +41,10 @@
     var directDestination = null;
     var currentUrl = "";
     var retryUrl = null;
+    // The address a kept copy's Discard loads in place (static/js/kept-typing.js): when it does not
+    // answer with a form (Not found, or sent back to the record because the form is no longer
+    // offered), the window opens it as a page instead, so the discarded typing leaves the screen.
+    var discardUrl = null;
     var localForm = null;
     var requests = new Set();
     var disabledControls = new Map();
@@ -317,6 +321,7 @@
       dirty = false;
       retryUrl = url;
       currentUrl = url;
+      discardUrl = source && source.hasAttribute && source.hasAttribute("data-vr-kept-discard") ? url : null;
       clearPageActions();
       var route = routeFor(new URL(url, window.location.href));
       setSize(route && route.size);
@@ -682,11 +687,18 @@
       }
       var response = new DOMParser().parseFromString(detail.serverResponse, "text/html");
       var page = response.querySelector("[data-vr-form-page]");
+      var discarded = discardUrl;
+      discardUrl = null;
       if (page && (status < 400 || status === 409 || status === 422)) {
         settling = true;
         needsFocus = true;
         detail.shouldSwap = true;
         detail.isError = false;
+      } else if (discarded && status !== 401) { // 401: static/js/session.js signs in
+        detail.shouldSwap = false;
+        detail.isError = false;
+        nativeLeaving = true; // the load under way is this navigation's own
+        window.location.assign(discarded);
       } else {
         detail.shouldSwap = false;
         showError(status === 403 ? "You do not have permission for this action. Your input was kept." :
@@ -716,7 +728,7 @@
     document.addEventListener("htmx:afterRequest", requestEnded);
     ["htmx:sendError", "htmx:timeout", "htmx:responseError"].forEach(function (name) {
       document.addEventListener(name, function (event) {
-        if (isDialogRequest(event)) {
+        if (isDialogRequest(event) && !nativeLeaving) {
           showError(name === "htmx:responseError" && event.detail.xhr.status === 403 ?
             "You do not have permission for this action. Your input was kept." :
             "The request could not be completed. Your input was kept; check the connection and try again.", Boolean(retryUrl));

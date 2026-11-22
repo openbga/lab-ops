@@ -125,10 +125,47 @@ def test_a_record_changed_meanwhile_gives_the_typing_back_and_refuses_the_save(p
     expect(field(page, "Similar cases")).to_have_value(SIMILAR)  # still there to copy
     assert record().similar_cases != SIMILAR
 
-    # Discard opens the form as the record stands now.
+    # The refused form carries no notice; opening the form again shows the record as it stands.
     page.goto(f"/quality/nonconformances/{nc.pk}/investigation/")
     expect(page.locator("[data-vr-kept-notice]")).to_have_count(0)
     expect(field(page, "Similar cases")).not_to_have_value(SIMILAR)
+    assert not page.console_errors, page.console_errors
+
+
+def test_discard_after_the_form_left_the_record_opens_the_record(page: Page, demo):
+    """The action was finished while the person was signed out: Edit action is no longer offered.
+    The typing is given back with the earlier revision; Discard then opens the address as a page,
+    which sends the person to the record with the reason, and the typing leaves the screen."""
+    from accounts.models import User
+    from nonconformance import services
+    from nonconformance.models import ActionStatus, CorrectiveAction
+
+    nc = record()
+    action = CorrectiveAction.objects.get(nonconformance=nc, status=ActionStatus.OPEN)
+    page.clock.install()
+    sign_in(page, STAFF, demo.password)
+    address = f"/quality/nonconformances/{nc.pk}/actions/{action.pk}/edit/"
+    page.goto(address)
+    field(page, "Action").fill("Agree the pickup time in writing and by phone.")
+    field(page, "Reason").fill("Phone confirmation added.")
+    signed_out_by_inactivity(page)
+    services.finish_action(
+        actor=User.objects.get(username="demo_supervisor"),
+        nc=nc,
+        expected_revision=nc.revision,
+        action=action,
+        done=True,
+        note="Agreed with the courier.",
+    )
+
+    sign_in(page, STAFF, demo.password, visit=False)
+    notice = page.locator("[data-vr-kept-notice]")
+    expect(notice).to_contain_text(CHANGED)
+    expect(field(page, "Reason")).to_have_value("Phone confirmation added.")
+    notice.get_by_role("link", name="Discard").click()
+    expect(page).to_have_url(re.compile(rf"/quality/nonconformances/{nc.pk}/$"))
+    expect(page.get_by_text("This action is already finished.")).to_be_visible()
+    expect(page.get_by_text("Phone confirmation added.")).to_have_count(0)
     assert not page.console_errors, page.console_errors
 
 
