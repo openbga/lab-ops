@@ -1,4 +1,9 @@
-"""Second confirmation of the dialog's Discard focus and failed-load retry."""
+"""Second confirmation of the dialog's Discard focus and failed-load retry.
+
+Changed on adoption: each case waits for the page's network to be idle before the session is
+ended, so the page's own status request (sent after a dialog load, and reused by a check while on
+its way) is answered first; on a slow runner it otherwise re-armed a full deadline.
+"""
 
 from urllib.parse import urlsplit
 
@@ -117,6 +122,7 @@ def test_signout_compares_the_dialog_with_its_original_text_after_a_failed_save(
     expect(note).to_be_enabled()
     if not leave_edited:
         note.fill(original)
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire_row()
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
     destination = wait_for_sign_in(page)

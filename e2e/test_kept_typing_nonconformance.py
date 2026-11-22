@@ -49,7 +49,10 @@ def record():
 
 
 def signed_out_by_inactivity(page: Page) -> None:
-    """Move the session past its limit and the page's clock with it, then wait for sign in."""
+    """Move the session past its limit and the page's clock with it, then wait for sign in. The
+    page's own status request (sent after a dialog load) is answered first: one still on its way
+    would be reused by the page's check and re-arm a full deadline."""
+    page.wait_for_load_state("networkidle")
     assert open_session(STAFF).update(last_active_at=Now() - (INACTIVITY - timedelta(seconds=3)))
     page.clock.fast_forward(int((INACTIVITY - timedelta(seconds=3)).total_seconds() * 1000))
     expect(page).to_have_url(re.compile(r"/accounts/login/\?next="), timeout=15_000)

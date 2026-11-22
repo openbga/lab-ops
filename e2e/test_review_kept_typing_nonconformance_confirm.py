@@ -1,4 +1,9 @@
-"""Confirmation journeys for Discard retries and the record-page sign-in destination."""
+"""Confirmation journeys for Discard retries and the record-page sign-in destination.
+
+Changed on adoption: each case waits for the page's network to be idle before the session is
+ended, so the page's own status request (sent after a dialog load, and reused by a check while on
+its way) is answered first; on a slow runner it otherwise re-armed a full deadline.
+"""
 
 from urllib.parse import urlsplit
 
@@ -24,6 +29,7 @@ def returned_status(page, demo):
     page.goto(address)
     page.locator("#vr-form-content").get_by_role("radio").first.check()
     field(page, "Reason (optional)").fill(prior.DRAFT)
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire_row()
     with page.expect_response(lambda response: response.status == 401):
         page.get_by_role("button", name="Change status").click()
@@ -78,6 +84,7 @@ def test_timed_out_discard_retries_through_session_expiry(page, returned_status)
     reason = field(page, "Reason (optional)")
     reason.fill("A revision considered after the timeout.")
     page.get_by_role("button", name="Try again").click()
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire_row()
     with page.expect_response(
         lambda response: response.status == 401 and urlsplit(response.url).path == address
@@ -216,8 +223,10 @@ def test_first_edit_in_an_enabled_dialog_survives_signout(page, demo, schedule):
         page.get_by_role("button", name="Discard changes").click()
         expect(dialog).to_be_hidden()
     if schedule == "fixture":
+        page.wait_for_load_state("networkidle")  # the page's own status request answered first
         prior.expire(page, prior.OWNER)
     else:
+        page.wait_for_load_state("networkidle")  # the page's own status request answered first
         expire_row()
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
     destination = wait_for_sign_in(page)
@@ -266,6 +275,7 @@ def test_queued_keystroke_during_first_focus_is_kept_with_normal_browser_timers(
     expect(note).to_be_focused()
     edited = note.input_value()
     assert "Dispatch checked." in edited and edited != record.containment
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire_row()
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
     destination = wait_for_sign_in(page)

@@ -1,4 +1,9 @@
-"""Verify Discard and ordinary dialog recovery using a synthetic investigation."""
+"""Verify Discard and ordinary dialog recovery using a synthetic investigation.
+
+Changed on adoption: each case waits for the page's network to be idle before the session is
+ended, so the page's own status request (sent after a dialog load, and reused by a check while on
+its way) is answered first; on a slow runner it otherwise re-armed a full deadline.
+"""
 
 import re
 from urllib.parse import urlsplit
@@ -205,6 +210,7 @@ def test_edited_discard_can_be_declined_then_confirmed_after_expiry(
     question.get_by_role("button", name="Keep editing").click()
     expect(field(page, "Similar cases")).to_have_value(EDIT)
     discard(page).click()
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire_row()
     with page.expect_response(lambda r: urlsplit(r.url).path == address and r.status == 401):
         question.get_by_role("button", name="Discard changes").click()
@@ -253,6 +259,7 @@ def test_second_timeout_without_further_typing_on_a_legacy_copy(page, demo, draw
     address = reverse("nonconformance:investigation", args=[record.pk])
     prior.signed_in_at(page, demo, prior.OWNER, address)
     field(page, "Similar cases").fill(prior.DRAFT)
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     prior.expire(page, prior.OWNER)
     draft = KeptDraft.objects.get(taken_at__isnull=True)
     draft.revision = None
@@ -271,6 +278,7 @@ def test_second_timeout_without_further_typing_on_a_legacy_copy(page, demo, draw
         expect(notice).to_contain_text("none of it fits")
         expect(field(page, "Similar cases")).to_have_value(record.similar_cases)
 
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     prior.expire(page, prior.OWNER)
     assert wait_for_sign_in(page) == address
     pending = KeptDraft.objects.filter(taken_at__isnull=True)

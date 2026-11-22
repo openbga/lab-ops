@@ -3,7 +3,12 @@
 Adopted from the independent review of the nonconformance kept typing (round 1). The last case was
 changed on adoption: the help now says that after a refused save the form is opened again from the
 record (the refused form is drawn from what was posted and carries no Discard), and the case
-follows those steps."""
+follows those steps.
+
+Changed on adoption: each case waits for the page's network to be idle before the session is
+ended, so the page's own status request (sent after a dialog load, and reused by a check while on
+its way) is answered first; on a slow runner it otherwise re-armed a full deadline.
+"""
 
 import re
 from urllib.parse import parse_qs, urlsplit
@@ -37,6 +42,7 @@ def changed_investigation(page, demo):
     signed_in_at(page, demo, OWNER, reverse("nonconformance:detail", args=[record.pk]))
     page.get_by_role("link", name="Record investigation").first.click()
     field(page.locator("#vr-form-dialog"), "Similar cases").fill(DRAFT)
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire(page, OWNER)
     assert parse_qs(urlsplit(page.url).query)["next"] == [address]
     updated = services.record_investigation(
@@ -96,6 +102,7 @@ def test_discard_clears_the_restored_reason_when_the_ticket_link_was_removed(pag
     signed_in_at(page, demo, OWNER, address)
     reason = field(page, "Reason")
     reason.fill("The pickup appears on a different ticket.")
+    page.wait_for_load_state("networkidle")  # the page's own status request answered first
     expire(page, OWNER)
     services.unlink_ticket(
         actor=User.objects.get(username="demo_supervisor"),
