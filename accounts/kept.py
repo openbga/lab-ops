@@ -218,14 +218,19 @@ KEPT_MESSAGE = (
 
 def notify(request):
     """Tell the sign-in page that what was typed is kept, once: not when the notice already waits
-    (a refused post and the page's keep request can both hold a copy), read without using up the
-    notices that wait."""
+    (a refused post and the page's keep request can both hold a copy). What waits is looked at
+    without using it up or changing it (the storage's loaded and queued messages); a request
+    without message storage says nothing."""
     from django.contrib import messages
 
-    storage = messages.get_messages(request)
-    waiting = any(message.message == KEPT_MESSAGE for message in storage)
-    storage.used = False
-    if not waiting:
+    storage = getattr(request, "_messages", None)
+    if storage is None:
+        return
+    waiting = [
+        *(getattr(storage, "_loaded_messages", None) or []),  # loads what waits, uses nothing up
+        *(getattr(storage, "_queued_messages", None) or []),
+    ]
+    if not any(getattr(message, "message", None) == KEPT_MESSAGE for message in waiting):
         messages.info(request, KEPT_MESSAGE, fail_silently=True)
 
 
@@ -280,9 +285,12 @@ def keep_for(request, value, values):
     """keep() for this request's browser (one cookie value for the whole request), set or renewed
     on the answer only when a copy is held."""
     choice, digest = _browser(request, create=True)
-    held = keep(value, values, digest)
+    held, inserted = _keep(value, values, digest)
     if held:
         request.vr_kept_browser = choice
+    # Whether this request's own copy was kept (not one kept before for the session and form,
+    # perhaps from another tab with other text): accounts.sessions._refusal says so.
+    request.vr_kept_inserted = inserted
     return held
 
 
@@ -479,9 +487,14 @@ def keep(value, values, browser):
     cookie has the digest `browser`, if that session ended because it passed a limit (see the
     module). True when a copy for that session and form is held for that browser after this (kept
     now, or by an earlier request), False otherwise."""
+    return _keep(value, values, browser)[0]
+
+
+def _keep(value, values, browser):
+    """keep(): (held, whether this call inserted the copy)."""
     data = _read(value)
     if data is None or not browser:
-        return False
+        return False, False
     table = connection.ops.quote_name(KeptDraft._meta.db_table)
     sessions = connection.ops.quote_name(AccountSession._meta.db_table)
     users = connection.ops.quote_name(User._meta.db_table)
@@ -494,11 +507,11 @@ def keep(value, values, browser):
         # The form's own fields as they stand, after a change of them under way.
         checked = _without_patient_fields(data, values)
         if checked is None:
-            return False  # the form is gone: nothing of it can be given back
+            return False, False  # the form is gone: nothing of it can be given back
         cleaned = _clean(values, checked["f"], checked["t"], checked["m"], sent_typed=data["t"])
         if cleaned is None:
             # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
-            return held.exists()
+            return held.exists(), False
         dropped = isinstance(values, dict) and any(
             _filled(values.get(name, "")) for name in data["f"] if name not in checked["f"]
         )
@@ -539,10 +552,10 @@ def keep(value, values, browser):
             ],
         )
         if cursor.fetchone() is not None:
-            return True
+            return True, True
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
         # of the same page, whose answer was lost). Held only while it may still be given back.
-        return held.exists()
+        return held.exists(), False
 
 
 def keep_posted(request):

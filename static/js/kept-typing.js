@@ -46,15 +46,16 @@
       if (element.name !== name) {
         return false;
       }
-      if (!element.disabled || all === true) {
+      if (!element.matches(":disabled") || all === true) {
         return true;
       }
       return all === "busy" && element.hasAttribute("data-vr-busy-disabled");
     });
   }
 
-  // Forms whose own save is under way (htmx posts them; the form dialog disables them meanwhile).
-  var posting = new Set();
+  // Forms whose own save is under way, with how many of their posts are (htmx posts them; the form
+  // dialog disables them meanwhile).
+  var posting = new Map();
   function postedForm(event) {
     var detail = event.detail || {};
     var element = detail.elt;
@@ -67,13 +68,18 @@
   document.addEventListener("htmx:beforeRequest", function (event) {
     var form = postedForm(event);
     if (form) {
-      posting.add(form);
+      posting.set(form, (posting.get(form) || 0) + 1);
     }
   });
   document.addEventListener("htmx:afterRequest", function (event) {
     var form = postedForm(event);
-    if (form) {
-      posting.delete(form);
+    if (form && posting.has(form)) {
+      var left = posting.get(form) - 1;
+      if (left > 0) {
+        posting.set(form, left);
+      } else {
+        posting.delete(form);
+      }
     }
   });
 

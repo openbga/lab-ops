@@ -886,8 +886,12 @@ def _refusal(request):
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
     else:
-        # `kept`: what the form posted is kept (static/js/session.js lets its page go).
-        response = JsonResponse({"signed_in": False, "sign_in": sign_in, "kept": held}, status=401)
+        # `kept`: what this form posted is the copy kept (static/js/session.js lets its page go);
+        # not when a copy kept before for the session and form stands instead.
+        kept_now = held and getattr(request, "vr_kept_inserted", False)
+        response = JsonResponse(
+            {"signed_in": False, "sign_in": sign_in, "kept": kept_now}, status=401
+        )
         response["HX-Redirect"] = sign_in
     add_never_cache_headers(response)
     return response

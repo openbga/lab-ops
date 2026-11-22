@@ -131,7 +131,7 @@
         content.querySelectorAll("button, input, select, textarea").forEach(function (button) {
           if (!disabledControls.has(button)) {
             disabledControls.set(button, button.disabled);
-            if (!button.disabled) {
+            if (!button.matches(":disabled")) { // not disabled already, also by a fieldset
               button.setAttribute("data-vr-busy-disabled", ""); // static/js/kept-typing.js
             }
           }

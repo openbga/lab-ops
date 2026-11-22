@@ -209,8 +209,11 @@ drawn once more. The section is not drawn in one reading (nor in a request's tra
 a change of a ticket form never waits for it: the slot reads the list of forms once, chooses from it,
 reads the chosen form's definition after it, and draws that list (a form the definition shows
 retired, moved or withdrawn is neither drawn nor listed, and the chosen form is labelled from its
-definition); a refused save drawn again leaves out a form no longer in the list. "Some required
-details are not known yet" is kept only while the form would draw it. A copy taken for a form grown past 200 fields since is still
+definition, as read between two equal lists). A submission reads the list before and after its
+picker and form in the same way, and a refused save is drawn again from that moment (the list, the
+form and its category as read then, nothing read again), less a form removed since or not offered
+to the request's organization, which the picker then names as the reason for No form. "Some
+required details are not known yet" is kept only while the form would draw it. A copy taken for a form grown past 200 fields since is still
 drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
 dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the
 keep address answers, for each form sent, whether a copy is held, and the page sends
@@ -218,10 +221,12 @@ keep address answers, for each form sent, whether a copy is held, and the page s
 ended and kept from its post, from the dialog or from a page the browser does not name, is answered
 with a sign-in that returns to the address it was posted to. An htmx request that finds the session
 ended (401 `{"signed_in": false}`) no longer goes to sign in at once: the page sends what is typed
-first, as at the end of its countdown, also when the element that asked has left the page by then,
+first, as at the end of its countdown, also when the element that asked has left the page by then
+(the refusal says whether what that form posted is the copy kept, so its guard lets the page go),
 and it goes to the sign-in address the server gave when it has no dialog form of its own to return
-to (only this site's sign-in page with a `next` on this site). The page collects a form in the
-dialog also while the dialog has it disabled for a request. Once a copy is held for the dialog's
+to (only this site's sign-in page with a `next` on this site). While a form's own post is under
+way, the page collects the controls the dialog disabled for it; a dialog load over the form
+(Discard, another page) collects nothing of it. The kept notice is added once per sign-out. Once a copy is held for the dialog's
 form the dialog lets the page go without asking, and the composer only for its own copy; a refusal
 leaves the dialog's question in place until then. An answer without `held` (an earlier release)
 counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the

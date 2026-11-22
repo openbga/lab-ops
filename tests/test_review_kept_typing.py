@@ -982,7 +982,8 @@ def test_unmarked_submit_preserves_the_session_refusal_contract(review_form_case
     address = sessions.sign_in_url(page)
     if dialog:
         assert response.status_code == 401 and response["HX-Redirect"] == address
-        assert response.json() == {"signed_in": False, "sign_in": address}
+        # The refusal also says whether what this form posted is the copy kept (new-ticket batch).
+        assert response.json() == {"signed_in": False, "sign_in": address, "kept": False}
     else:
         assert response.status_code == 302 and response.url == address
     assert not case.ticket.entries.filter(body=text).exists()
