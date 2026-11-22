@@ -205,9 +205,12 @@ from what was drawn, as the section would (`request_forms.intake.slot`), and the
 marker and draws the copy in every part (`prepare` with the copy taken). The page is drawn in one
 reading with the account read in it; when PostgreSQL refuses one of the ticket form's share locks
 because the row changed after the reading began, the reading is rolled back, the take with it, and
-drawn once more. The section is not drawn in one reading, so that a change of a ticket form never
-waits for it: its picker lists the forms as read once after the chosen form's definition, and a
-form missing from that list is not drawn. A copy taken for a form grown past 200 fields since is still
+drawn once more. The section is not drawn in one reading (nor in a request's transaction), so that
+a change of a ticket form never waits for it: the slot reads the list of forms once, chooses from it,
+reads the chosen form's definition after it, and draws that list (a form the definition shows
+retired, moved or withdrawn is neither drawn nor listed, and the chosen form is labelled from its
+definition); a refused save drawn again leaves out a form no longer in the list. "Some required
+details are not known yet" is kept only while the form would draw it. A copy taken for a form grown past 200 fields since is still
 drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
 dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the
 keep address answers, for each form sent, whether a copy is held, and the page sends
@@ -215,8 +218,13 @@ keep address answers, for each form sent, whether a copy is held, and the page s
 ended and kept from its post, from the dialog or from a page the browser does not name, is answered
 with a sign-in that returns to the address it was posted to. An htmx request that finds the session
 ended (401 `{"signed_in": false}`) no longer goes to sign in at once: the page sends what is typed
-first, as at the end of its countdown. Once a copy is held for the dialog's form the dialog lets the
-page go without asking. The dialog announces when it has set up its form (`vr:form-ready`), and the
+first, as at the end of its countdown, also when the element that asked has left the page by then,
+and it goes to the sign-in address the server gave when it has no dialog form of its own to return
+to (only this site's sign-in page with a `next` on this site). The page collects a form in the
+dialog also while the dialog has it disabled for a request. Once a copy is held for the dialog's
+form the dialog lets the page go without asking, and the composer only for its own copy; a refusal
+leaves the dialog's question in place until then. An answer without `held` (an earlier release)
+counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the
 page's script notes how the form was drawn then and after each htmx swap; a page that held unsent
 text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
 loads the form again in place and puts the focus in its first text box.

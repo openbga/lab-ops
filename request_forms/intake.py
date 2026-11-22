@@ -101,16 +101,32 @@ def drawable(defn, category, client=ANY_ORGANIZATION):
     )
 
 
-def chosen_template(category, raw, client=None):
+def chosen_template(category, raw, client=None, templates=None):
     """The form to show for `category` on a page being drawn: `raw` is the picker's value, or
     None when the picker was not shown yet (then the category's only form offered to `client`,
-    if it has exactly one). Never used to read a submission (see Intake)."""
+    if it has exactly one). `templates`: the list the picker draws, read once (slot), so the
+    choice and the list agree. Never used to read a submission (see Intake)."""
     if category is None or raw == "":
         return None
-    templates = list(staff_templates(category, client))
+    if templates is None:
+        templates = list(staff_templates(category, client))
     if raw is not None:
         return next((t for t in templates if str(t.pk) == str(raw)), None)
     return templates[0] if len(templates) == 1 else None
+
+
+def _draw_list(picker, templates, values_form):
+    """Draw the picker with `templates` as read (not read again when it renders), the chosen
+    form's own entry as the definition its fields come from describes it (its name, whether it
+    is for selected organizations only), so the picker and the fields tell one story."""
+    field = picker.fields[PICKER]
+    choices = [("", field.empty_label)]
+    for template in templates:
+        if values_form is not None and template.pk == values_form.template.pk:
+            template = values_form.template
+            template.offered_to_some = bool(values_form.definition.client_ids)
+        choices.append((template.pk, field.label_from_instance(template)))
+    field.choices = choices
 
 
 def slot(category, user, *, intake=None, query=None):
@@ -118,22 +134,28 @@ def slot(category, user, *, intake=None, query=None):
     (None, None) when it draws nothing: after a refused submit the Intake as posted (`intake`);
     otherwise unbound, the form chosen by `query`'s picker value (a mapping: the picker's own
     request, or what a page gives back; absent, the category's only form) among those offered to
-    the organization it names. Everything about the chosen form comes from the one reading its
-    ValuesForm signs (`drawable`). The ValuesForm's fields are kept across a sign-out as part of
-    the ticket's (accounts.kept): the picker chose it, so a copy saying another form was chosen
-    keeps none of its fields."""
+    the organization it names. The picker's list is read once and drawn as read; the chosen
+    form's definition is read after it (`drawable`): a form that reading shows retired, moved or
+    withdrawn is neither drawn nor listed, and a form no longer in the list is not drawn. The
+    ValuesForm's fields are kept across a sign-out as part of the ticket's (accounts.kept): the
+    picker chose it, so a copy saying another form was chosen keeps none of its fields."""
     if category is None or user is None:
         return None, None
     if intake is not None:
         picker, values_form = intake.picker, intake.values_form
-        if not picker.errors and not picker.fields[PICKER].queryset.exists():
+        templates = list(picker.fields[PICKER].queryset)
+        if not picker.errors and not templates:
             return None, None
+        if values_form is not None and values_form.template.pk not in {t.pk for t in templates}:
+            values_form = None  # retired or moved since the submission was read
     else:
         query = query or {}
         raw = query.get(PICKER)
         # The organization chosen when the section is drawn: only the forms offered to it.
         client = whole_number(query.get("client"))
-        chosen = chosen_template(category, raw, client)
+        picker = RequestFormPicker(category, client=client)
+        templates = list(picker.fields[PICKER].queryset)
+        chosen = chosen_template(category, raw, client, templates)
         values_form = None
         if chosen is not None:
             # One read: the controls, the instructions and the token, with the category the
@@ -141,20 +163,12 @@ def slot(category, user, *, intake=None, query=None):
             defn = definition.read(chosen, category=category)
             if drawable(defn, category, ANY_ORGANIZATION if client is None else client):
                 values_form = ValuesForm(defn.template, user=user, definition=defn)
-        picker = RequestFormPicker(category, client=client)
-        # The list read once, after the chosen form's definition, and drawn as read: a form
-        # retired, moved or withdrawn after its definition was read is not in it, and is then not
-        # drawn either, so the picker and the fields always agree.
-        field = picker.fields[PICKER]
-        offered = list(field.queryset)
-        if not offered:
+            else:
+                templates = [t for t in templates if t.pk != chosen.pk]
+        if not templates:
             return None, None
-        if values_form is not None and values_form.template.pk not in {t.pk for t in offered}:
-            values_form = None
-        field.choices = [("", field.empty_label)] + [
-            (template.pk, field.label_from_instance(template)) for template in offered
-        ]
         picker.initial[PICKER] = values_form.template.pk if values_form is not None else ""
+    _draw_list(picker, templates, values_form)
     if values_form is not None:
         values_form.kept_recheck = (*values_form.kept_recheck[:2], PICKER)
     return picker, values_form

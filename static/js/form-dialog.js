@@ -617,6 +617,11 @@
       if (!isDialogRequest(event)) {
         return;
       }
+      // A refusal because the session ended: static/js/session.js keeps what was typed and goes to
+      // sign in; the form's guard is released only once its copy is held (vr:typing-kept).
+      if (event.detail.xhr.status === 401) {
+        return;
+      }
       if (event.detail.xhr.getResponseHeader("HX-Redirect")) {
         nativeLeaving = true;
         dirty = false;

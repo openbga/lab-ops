@@ -129,11 +129,12 @@ SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
 # draw for the account as it stands now (none that hold patient information), holding what a change
 # of them locks first so that one under way finishes before; a name with the prefix that it does not
 # return is dropped. Its third element names the form's own fields outside the prefix (a box of
-# the form's). `chooser` is the html name of the field that chose that form on a larger page (the
-# desk's ticket form picker): when the copy says another was chosen, the form's fields belong to
-# the form drawn before the choice, and when the form is gone the rest of the page still stands,
-# so in both cases every field of the form's is dropped and the rest kept. Without a chooser the
-# page is the form's own, and a copy of a form that is gone is not kept at all.
+# the form's), decided by the function in the same way. `chooser` is the html name of the field
+# that chose that form on a larger page (the desk's ticket form picker): when the copy says another
+# was chosen, the form's fields belong to the form drawn before the choice, and when the form is
+# gone the rest of the page still stands, so in both cases every field of the form's is dropped
+# and the rest kept. Without a chooser the page is the form's own, and a copy of a form that is
+# gone is not kept at all.
 RECHECKS = {
     "request_form": (
         "request_forms.selectors.kept_eligible_fields",
@@ -445,13 +446,12 @@ def _without_patient_fields(data, values=None):
         eligible = import_string(function)(data["r"][1], data["u"])
         if eligible is None and not chooser:
             return None
-    form_stands = eligible is not None
     eligible = set(eligible or ())
 
     def allowed(name):
-        if name.startswith(prefix):
-            return name in eligible
-        return form_stands or name not in extra
+        if name.startswith(prefix) or name in extra:
+            return name in eligible  # empty when the form does not stand
+        return True
 
     return {
         **data,

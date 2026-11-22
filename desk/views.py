@@ -489,7 +489,16 @@ def request_create(request):
     initial = {}
     if client_id := request.GET.get("client"):
         initial["client"] = client_id
-    form = RequestCreateForm(request.POST or None, request.FILES or None, initial=initial)
+
+    # Drawn in one reading with the take of what a session limit kept of this page, so that the
+    # page tells one story and a page that fails to draw leaves the copy to the next one. The form
+    # is built in the reading (its assignment choices are read there).
+    def draw():
+        return _new_ticket_page(request, RequestCreateForm(initial=initial), None)
+
+    if request.method != "POST" or not (request.POST or request.FILES):
+        return _drawn_in_one_reading(request, draw)
+    form = RequestCreateForm(request.POST, request.FILES, initial=initial)
     # A request form's own fields (request_forms): validated with the form, saved in the
     # creation's transaction through on_created. Imported here: desk models never import it.
     from request_forms.intake import bound_intake, saver
@@ -580,15 +589,7 @@ def request_create(request):
             form.add_error("category", terms.CHANGED)
         elif intake.values_form is not None:
             messages.error(request, FORM_CHANGED)
-    if form.is_bound:
-        return _new_ticket_page(request, form, intake)
-
-    # Drawn in one reading with the take of what a session limit kept of this page, so that the
-    # page tells one story and a page that fails to draw leaves the copy to the next one.
-    def draw():
-        return _new_ticket_page(request, RequestCreateForm(initial=initial), None)
-
-    return _drawn_in_one_reading(request, draw)
+    return _new_ticket_page(request, form, intake)
 
 
 def _new_ticket_page(request, form, intake):
@@ -645,6 +646,7 @@ def _new_ticket_page(request, form, intake):
     return response
 
 
+@transaction.non_atomic_requests  # its definition locks end with the read (ATOMIC_REQUESTS)
 @never_cache  # it carries a request form's controls and token, drawn from one reading
 @login_required
 @require_GET

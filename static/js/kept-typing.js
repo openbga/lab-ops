@@ -138,8 +138,11 @@
       var values = {};
       var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
+      // The form dialog disables its form while a request of it is under way: what it holds is
+      // still what the person typed.
+      var busy = Boolean(form.closest("#vr-form-content[aria-busy='true']"));
       list(marker, "data-vr-kept-fields").forEach(function (name) {
-        var elements = controls(form, name);
+        var elements = controls(form, name, busy);
         if (!elements.length) {
           return;
         }
@@ -202,8 +205,13 @@
   // on the window, whose capture listeners run before the document's.
   var discardedInDialog = false;
   window.addEventListener("click", function (event) {
-    var discard = event.target.closest && event.target.closest("a[data-vr-kept-discard]");
-    discardedInDialog = Boolean(discard && discard.closest("#vr-form-content"));
+    var target = event.target.closest ? event.target : null;
+    var discard = target && target.closest("a[data-vr-kept-discard]");
+    if (discard) {
+      discardedInDialog = Boolean(discard.closest("#vr-form-content"));
+    } else if (!(target && target.closest("#vr-form-discard"))) {
+      discardedInDialog = false; // anything but the dialog's question about unsaved changes
+    }
   }, true);
   document.addEventListener("vr:form-ready", function () {
     if (!discardedInDialog) {
@@ -220,10 +228,14 @@
 
   // How each kept control was drawn, for those not seen yet (the page's, then those htmx draws).
   function baseline() {
-    markers().forEach(function (marker) {
-      if (marker.hasAttribute("data-vr-kept-bound")) {
+    // A form drawn with unsent text, also one whose marker has no token (a copy given back into
+    // a form that can no longer be marked).
+    document.querySelectorAll("input[data-vr-kept][data-vr-kept-bound]").forEach(function (marker) {
+      if (marker.form) {
         unsent.add(marker.form);
       }
+    });
+    markers().forEach(function (marker) {
       list(marker, "data-vr-kept-fields").forEach(function (name) {
         controls(marker.form, name, true).forEach(function (element) {
           if (!drawn.has(element)) {
