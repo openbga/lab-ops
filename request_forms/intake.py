@@ -39,7 +39,7 @@ from .models import RequestTemplate
 from .selectors import staff_templates
 from .services import FORM_CHANGED, NOT_OFFERED, attach_values, lock_for_intake, offered_in
 
-PICKER = "request_form"
+PICKER = "request_form"  # also accounts.kept.CHOOSERS
 CHOOSE = "Choose a ticket form, or No form."
 NO_LONGER = (
     "The form chosen is no longer used for this category, so nothing was saved. Choose a form "

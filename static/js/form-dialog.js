@@ -611,13 +611,36 @@
     function isDialogRequest(event) {
       return event.detail.target === content;
     }
-    // When the request is sent: one cancelled before (a question declined, a page's own check)
-    // never ends, so it must not leave the dialog busy.
+    // How the form's controls stood when the request was asked for (before htmx disables any for
+    // it), applied when it is sent: one cancelled before then (a question declined, a page's own
+    // check) never ends, so it must not leave the dialog busy.
+    var asked = new WeakMap();
+    document.addEventListener("htmx:beforeRequest", function (event) {
+      if (!isDialogRequest(event)) {
+        return;
+      }
+      var states = new Map();
+      content.querySelectorAll("button, input, select, textarea").forEach(function (control) {
+        states.set(control, { own: control.disabled, off: control.matches(":disabled") });
+      });
+      asked.set(event.detail.xhr, states);
+    });
     document.addEventListener("htmx:beforeSend", function (event) {
       if (!isDialogRequest(event)) {
         return;
       }
       errorRegion.hidden = true;
+      var states = asked.get(event.detail.xhr);
+      if (states) {
+        states.forEach(function (state, control) {
+          if (!disabledControls.has(control)) {
+            disabledControls.set(control, state.own);
+            if (!state.off) {
+              control.setAttribute("data-vr-busy-disabled", ""); // static/js/kept-typing.js
+            }
+          }
+        });
+      }
       requests.add(event.detail.xhr);
       setBusy();
     });

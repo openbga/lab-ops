@@ -220,7 +220,9 @@ restored with other instructions) look like no change, so that page can show the
 moment with the instructions of the other; the next submit is checked against the current
 definition as always. A refused save lists every form of the category (those for selected
 organizations marked), as it did before; the offer to the ticket's organization is checked when it
-is saved. A page drawn in its own reading makes its small writes (the first What's new visit) once
+is saved. When three readings in a row each see a setup change, the form is not drawn and the page
+shows the last reading's list with the category as read at its start. A page drawn in its own
+reading makes its small writes (the first What's new visit) once
 the reading has ended, so a failure of such a write comes after a copy of kept typing was taken. A copy taken for a form grown past 200 fields since is still
 drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
 dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the

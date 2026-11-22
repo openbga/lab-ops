@@ -142,6 +142,10 @@ RECHECKS = {
         ("details_not_known",),
     )
 }
+# The html names of the fields that choose such a form on a larger page (the desk's ticket form
+# picker, request_forms.intake.PICKER): "" there (No form) is an answer, unlike a picker the page
+# did not show, where the category's only form is chosen when a copy is given back (_same_copy).
+CHOOSERS = frozenset({"request_form"})
 # The kinds of control a value can come from: a value goes back only into a control of the same
 # kind (or between one choice and several, one answer), so a field that changed kind since never
 # shows an answer given to another question (a "no" as a ticked confirmation).
@@ -229,12 +233,11 @@ def _same_copy(stored, sent):
     the same answers (empty ones aside) from the same kinds of control, and the same omission."""
 
     def answers(values, controls):
-        # An empty answer is no answer, except from a list of choices, where "" (chosen nothing,
-        # such as No form) differs from a list the page did not show (its default applies).
+        # An empty answer is no answer, except from a field that chooses a form (CHOOSERS).
         return {
             name: (_typed(value), controls.get(name))
             for name, value in (values or {}).items()
-            if value not in ("", []) or controls.get(name) == "choice"
+            if value not in ("", []) or name in CHOOSERS
         }
 
     (values, controls, dropped), (new_values, new_controls, new_dropped) = stored, sent
@@ -594,8 +597,7 @@ def _keep(value, values, browser):
         stored = held.values_list("values", "controls", "dropped").first()
         if stored is None or stored[0] is None:
             return held.exists(), False, False
-        mine = (cleaned, controls, dropped)
-        return True, _same_copy(stored, mine), False
+        return True, _same_copy(stored, (cleaned, controls, dropped)), False
 
 
 def keep_posted(request):
