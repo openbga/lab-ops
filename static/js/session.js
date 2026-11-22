@@ -54,6 +54,7 @@
     var errorRegion = element.querySelector("[data-vr-session-error]");
     var keptLines = Array.from(element.querySelectorAll("[data-vr-session-kept]"));
     var keeping = null; // what was typed, on its way to be kept (sent once)
+    var returnTo = null; // the form dialog's page whose typing was kept, to open after signing in
     var times = null; // the two endings and the two leads, in ms on this page's Date.now() clock
     var variant = null; // the warning wanted on screen: "inactivity", "maximum" or null
     var state = "hidden"; // Bootstrap's: hidden, showing, shown or hiding
@@ -142,6 +143,8 @@
       }).then(function (answer) {
         clearTimeout(timeout);
         if (answer && answer.kept > 0) {
+          // Kept from a form in the form dialog: signing in again opens that form's page.
+          returnTo = window.vrKeptTyping ? window.vrKeptTyping.returnTo() : null;
           document.dispatchEvent(new CustomEvent("vr:typing-kept", { detail: { kept: answer.kept } }));
         }
       }).catch(function () {
@@ -157,7 +160,8 @@
       // Again on a later call: a page that asked before unloading (unsaved form) may still be here.
       leaving = true;
       keep().then(function () {
-        window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(window.location.pathname + window.location.search));
+        var next = returnTo || window.location.pathname + window.location.search;
+        window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(next));
       });
     }
 

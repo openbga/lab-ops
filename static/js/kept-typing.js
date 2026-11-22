@@ -12,11 +12,20 @@
 //     opens the page again (the
 //     copy is taken by then); this script lets it go without the composer's question about unsent
 //     text (static/js/ticket-draft.js) and then puts the focus in the form's first text box.
+//   - A marker drawn again with part of its form (the desk's new ticket draws it in the category
+//     section, which htmx draws again with the ticket form's fields): the controls drawn with it
+//     are compared with how they were drawn then, and a form that held unsent text when the page
+//     was drawn (data-vr-kept-bound) still counts as unsent.
+//   - A form in the shared form dialog (static/js/form-dialog.js) is noted as drawn once the dialog
+//     has set it up (vr:form-ready); returnTo() gives the address of its page when it is among the
+//     forms collected, so that signing in again opens that page, where the copy is given back
+//     (static/js/session.js).
 (function () {
   "use strict";
 
   var DISCARDED = "#vr-kept-discarded";
-  var drawn = new Map(); // each kept control's state as the page drew it
+  var drawn = new WeakMap(); // each kept control's state as the page (or htmx) drew it
+  var unsent = new WeakSet(); // forms whose marker was drawn with unsent text
 
   function list(marker, name) {
     try {
@@ -27,9 +36,11 @@
     }
   }
 
-  function controls(form, name) {
+  // The form's controls named `name` that it would send; with `all`, also those disabled for now
+  // (the form dialog disables its form while it opens).
+  function controls(form, name, all) {
     return Array.from(form.elements).filter(function (element) {
-      return element.name === name && !element.disabled;
+      return element.name === name && (all || !element.disabled);
     });
   }
 
@@ -88,16 +99,35 @@
     });
   }
 
+  var returnAddress = null; // the form dialog's page of a form collected last
+
+  // The address of the form dialog's page (data-vr-form-url, this site's) holding a form that
+  // collect() gave last, or null.
+  function returnTo() {
+    return returnAddress;
+  }
+
+  function dialogPage(form) {
+    var page = form.closest("#vr-form-content [data-vr-form-page]");
+    var address = page && page.getAttribute("data-vr-form-url");
+    if (!address) {
+      return null;
+    }
+    var url = new URL(address, window.location.href);
+    return url.origin === window.location.origin ? url.pathname + url.search : null;
+  }
+
   // `commit`: before sending, a date editor still being typed in writes what it shows to its
   // field first (static/js/controls.js), as it would on leaving the field.
   function collect(options) {
     var commit = Boolean(options && options.commit);
     var out = [];
+    returnAddress = null;
     markers().forEach(function (marker) {
       var form = marker.form;
       var several = list(marker, "data-vr-kept-several");
       var values = {};
-      var dirty = marker.hasAttribute("data-vr-kept-bound");
+      var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
       list(marker, "data-vr-kept-fields").forEach(function (name) {
         var elements = controls(form, name);
@@ -119,6 +149,7 @@
       });
       if (dirty && text) {
         out.push({ token: marker.value, values: values });
+        returnAddress = returnAddress || dialogPage(form);
       }
     });
     return out;
@@ -155,18 +186,36 @@
     window.location.reload();
   });
 
-  window.vrKeptTyping = { collect: collect };
+  window.vrKeptTyping = { collect: collect, returnTo: returnTo };
+
+  // How each kept control was drawn, for those not seen yet (the page's, then those htmx draws).
+  function baseline() {
+    markers().forEach(function (marker) {
+      if (marker.hasAttribute("data-vr-kept-bound")) {
+        unsent.add(marker.form);
+      }
+      list(marker, "data-vr-kept-fields").forEach(function (name) {
+        controls(marker.form, name, true).forEach(function (element) {
+          if (!drawn.has(element)) {
+            drawn.set(element, state(element));
+          }
+        });
+      });
+    });
+  }
+
+  // After htmx has drawn part of a form again, or the form dialog has set up its form, and the
+  // page's scripts have set up its controls.
+  ["htmx:afterSettle", "vr:form-ready"].forEach(function (name) {
+    document.addEventListener(name, function () {
+      setTimeout(baseline, 0);
+    });
+  });
 
   // After the other scripts of the page have set up their controls (selects, dates, the composer).
   function start() {
     setTimeout(function () {
-      markers().forEach(function (marker) {
-        list(marker, "data-vr-kept-fields").forEach(function (name) {
-          controls(marker.form, name).forEach(function (element) {
-            drawn.set(element, state(element));
-          });
-        });
-      });
+      baseline();
       // A field given back with a value that this page does not show: say it was not put back.
       // A sentence drawn only for dates handed to the date editor as text goes once the editor
       // shows them (static/js/controls.js reads data-vr-date-text).
@@ -176,7 +225,7 @@
           return;
         }
         var absent = list(marker, "data-vr-kept-given").some(function (name) {
-          return !controls(marker.form, name).length;
+          return !controls(marker.form, name, true).length;
         });
         if (absent) {
           missed.hidden = false;

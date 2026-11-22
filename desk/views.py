@@ -22,6 +22,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from accounts import kept
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
 from attachments.models import Attachment
@@ -456,6 +457,12 @@ def request_find(request):
 
 # ------------------------------------------------------------------------------ new request
 
+# What a new ticket keeps across a sign-out by a session limit (accounts.kept), as one copy: the
+# ticket's own fields (the organization, site and contact by id), the ticket form chosen and that
+# form's fields. Its marker is drawn in the category section, so that it is drawn again with the
+# ticket form's fields whenever the category or the form changes (desk/_category_section.html).
+KEEP_NEW_TICKET = "staff-ticket"
+
 
 @login_required
 def request_create(request):
@@ -554,6 +561,30 @@ def request_create(request):
             form.add_error("category", terms.CHANGED)
         elif intake.values_form is not None:
             messages.error(request, FORM_CHANGED)
+    if form.is_bound:
+        return _new_ticket_page(request, form, intake)
+    # Drawn in the transaction that takes what a session limit kept of this page, so that a page
+    # that fails to draw leaves it to the next one.
+    with transaction.atomic():
+        return _new_ticket_page(request, form, intake)
+
+
+def _new_ticket_page(request, form, intake):
+    """The New ticket page: `form` as posted, or unbound with what a session limit kept of the
+    page given back (accounts.kept): taken first, because its category, organization and ticket
+    form decide what else the page draws, then drawn in every part of the form."""
+    from request_forms.intake import PICKER, slot
+
+    taken = None
+    query = request.GET if request.method == "GET" else {}
+    if not form.is_bound:
+        taken = kept.take(request, KEEP_NEW_TICKET)
+        if taken is not None:
+            kept.draw(form, taken)  # the category and organization, as still offered
+            picked = taken.values.get(PICKER)
+            query = {"client": form["client"].value() or ""}
+            if isinstance(picked, str):
+                query[PICKER] = picked
     chosen = form["category"].value()
     category = (
         RequestCategory.objects.filter(pk=chosen, parent__isnull=False)
@@ -566,6 +597,9 @@ def request_create(request):
         # One object for the guidance, the category terms and the request form's token, so the
         # page tells one story and a second submit is accepted.
         category = intake.category
+    # The ticket form slot as drawn (request_forms.intake.slot), kept as part of the ticket.
+    drawn = slot(category, request.user, intake=intake, query=query)
+    contents = kept.prepare(request, kept.Parts(form, *drawn), KEEP_NEW_TICKET, taken=taken)
     response = render(
         request,
         "desk/request_form.html",
@@ -576,6 +610,8 @@ def request_create(request):
             "category_terms": terms.drawn([category]),
             "data": request.POST if request.method == "POST" else QueryDict(),
             "intake_values": intake,
+            "intake_drawn": drawn,
+            "kept": contents,
             "submit_label": "Log ticket",
             "cancel_url": reverse("desk:request-list"),
             "crumbs": [("Tickets", reverse("desk:request-list")), ("New ticket", None)],
@@ -602,10 +638,24 @@ def category_guidance(request):
         .select_related("default_team")
         .first()
     )
+    from request_forms.intake import slot
+
+    drawn = slot(category, request.user, query=request.GET)
+    # The section carries the page's keep marker, drawn again with the ticket form's fields; a
+    # section never gives a copy back (accounts.kept).
+    contents = kept.prepare(
+        request, kept.Parts(RequestCreateForm(), *drawn), KEEP_NEW_TICKET, give=False
+    )
     return render(
         request,
         "desk/_category_section.html",
-        {"category": category, "category_terms": terms.drawn([category]), "data": QueryDict()},
+        {
+            "category": category,
+            "category_terms": terms.drawn([category]),
+            "data": QueryDict(),
+            "intake_drawn": drawn,
+            "kept": contents,
+        },
     )
 
 

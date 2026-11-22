@@ -29,6 +29,7 @@ from django import forms
 from django.urls import reverse_lazy
 
 from core.forms import StyledForm
+from core.ids import whole_number
 from taxonomy.models import RequestCategory
 
 from . import definition
@@ -110,6 +111,46 @@ def chosen_template(category, raw, client=None):
     if raw is not None:
         return next((t for t in templates if str(t.pk) == str(raw)), None)
     return templates[0] if len(templates) == 1 else None
+
+
+def slot(category, user, *, intake=None, query=None):
+    """(picker, values_form) as the desk's new-request slot draws them for `category`, or
+    (None, None) when it draws nothing: after a refused submit the Intake as posted (`intake`);
+    otherwise unbound, the form chosen by `query`'s picker value (a mapping: the picker's own
+    request, or what a page gives back; absent, the category's only form) among those offered to
+    the organization it names. Everything about the chosen form comes from the one reading its
+    ValuesForm signs (`drawable`). The ValuesForm's fields are kept across a sign-out as part of
+    the ticket's (accounts.kept): the picker chose it, so a copy saying another form was chosen
+    keeps none of its fields."""
+    if category is None or user is None:
+        return None, None
+    if intake is not None:
+        picker, values_form = intake.picker, intake.values_form
+        if not picker.errors and not picker.fields[PICKER].queryset.exists():
+            return None, None
+    else:
+        query = query or {}
+        raw = query.get(PICKER)
+        # The organization chosen when the section is drawn: only the forms offered to it.
+        client = whole_number(query.get("client"))
+        chosen = chosen_template(category, raw, client)
+        values_form = None
+        if chosen is not None:
+            # One read: the controls, the instructions and the token, with the category the
+            # page shows.
+            defn = definition.read(chosen, category=category)
+            if drawable(defn, category, ANY_ORGANIZATION if client is None else client):
+                values_form = ValuesForm(defn.template, user=user, definition=defn)
+        picker = RequestFormPicker(
+            category,
+            client=client,
+            initial={PICKER: values_form.template.pk if values_form is not None else ""},
+        )
+        if not picker.fields[PICKER].queryset.exists():
+            return None, None
+    if values_form is not None:
+        values_form.kept_recheck = (*values_form.kept_recheck[:2], PICKER)
+    return picker, values_form
 
 
 class Intake:

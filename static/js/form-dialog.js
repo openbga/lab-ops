@@ -151,6 +151,9 @@
       if (window.vrControls) {
         window.vrControls.init(content); // After setBusy: controls must not initialise disabled.
       }
+      // The form's controls are set up and enabled (static/js/kept-typing.js notes how they
+      // were drawn).
+      document.dispatchEvent(new CustomEvent("vr:form-ready"));
       if (window.vrInitTestPickers) {
         window.vrInitTestPickers(content);
       }

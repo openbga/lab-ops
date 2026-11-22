@@ -865,16 +865,24 @@ def _keep_refused(request):
         # As the Sign out view itself would, only for a request from the application's own page.
         if account is not None and _csrf_passes(request):
             discard_all(account)
-        return
+        return False
     if keep_posted(request):
         messages.info(request, KEPT_MESSAGE, fail_silently=True)
+        return True
+    return False
 
 
 def _refusal(request):
     """The answer to a request whose session ended, other than a page opened with GET, after
-    keeping what its form posted (_keep_refused)."""
-    _keep_refused(request)
-    sign_in = sign_in_url(_page_on_screen(request))
+    keeping what its form posted (_keep_refused). Signing in again returns to the page on screen,
+    or, when what a form in the shared form dialog posted was kept, to that form's own page, where
+    it is given back (the dialog's form is posted to its page's address)."""
+    held = _keep_refused(request)
+    if held and request.headers.get("X-VR-Form"):
+        back = request.get_full_path()
+    else:
+        back = _page_on_screen(request)
+    sign_in = sign_in_url(back)
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
     else:

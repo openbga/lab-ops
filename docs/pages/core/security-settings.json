@@ -73,7 +73,7 @@
       "title": "Session limits",
       "paragraphs": [
         "After how long without activity a session is signed out, and how long a session may last at most, for staff accounts and for client portal accounts. Limits never saved show the starting values, 30 minutes and 12 hours. The server checks both on every request; a page warns 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before the longest session ends.",
-        "Opening a page, saving, searching or Stay signed in counts as activity. Reading or typing on a page does not. Signing in again returns to the page. When a limit signs a person out, what they were typing in a ticket's reply, note or logged contact, a portal reply or a new portal ticket is kept for 24 hours, for them in that browser only, and comes back in that form when they sign in again; typing in other forms is lost. The admin console does not warn before signing out."
+        "Opening a page, saving, searching or Stay signed in counts as activity. Reading or typing on a page does not. Signing in again returns to the page. When a limit signs a person out, what they were typing in a ticket's reply, note or logged contact, a new ticket logged by staff, a portal reply or a new portal ticket is kept for 24 hours, for them in that browser only, and comes back in that form when they sign in again; typing in other forms is lost. The admin console does not warn before signing out."
       ],
       "items": [
         {

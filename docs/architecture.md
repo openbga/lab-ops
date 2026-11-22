@@ -146,8 +146,10 @@ What a person was typing is kept across a sign-out by a limit ([accounts/kept.py
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible
 fields a person types in or chooses from, ticked lists and an item list's quantity boxes
-included, never a file, a hidden value such as a revision, a field fetched as one types or one the
-form lists as holding patient information; a form with more than 200 such fields gets no token.
+included, never a file, a hidden value such as a revision or one the form lists as holding patient
+information, and a list fetched as one types only where the form names it in `kept_fetched` (the
+chosen record's id, given back only while the field's own records still hold it); a form with more
+than 200 such fields gets no token.
 Once the page learns that its session has ended it sends what is typed with the token to
 `account/session/keep/`, which needs no session and no CSRF token (the signed token is the proof)
 and is not activity. A form posted after its session ended is kept from its post: when the
@@ -188,6 +190,24 @@ page holds at that moment. Copies have no audit event and are never logged. The 
 refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
 ticket with the list it was opened from, so signing in again from such a page opens the ticket;
 the composer posts to an address that carries its queue.
+
+The desk's new ticket keeps its own fields, the ticket form picker and the chosen ticket form's
+fields as one copy (`accounts.kept.Parts`, key `staff-ticket`). Its marker is drawn in the category
+section, so the htmx request that draws the section again for another category or form issues a
+new token naming that form's fields; a section request never gives a copy back. The ticket form's
+recheck names the picker as its chooser: a copy whose picker value is not the form whose fields the
+token drew (the picker changed and the session ended before the section came back) keeps none of
+that form's fields. The page takes the copy before it draws anything (`take`), draws the ticket's
+own fields from it (`draw`), decides the category, the organization and the ticket form from what
+was drawn, as the section would (`request_forms.intake.slot`), and then works out the marker and
+draws the copy in every part (`prepare` with the copy taken), inside one transaction that a failed
+draw rolls back. The new ticket is a dedicated form page in the shared form dialog. A copy held for
+a form in the dialog makes signing in again open that form's own page: the page sends
+`data-vr-form-url` of the dialog's page as `next` once the keep answer says a copy is held, and a
+dialog form posted after its session ended and kept from its post is answered with a sign-in that
+returns to its own address. The dialog announces when it has set up its form (`vr:form-ready`), and
+the page's script notes how the form was drawn then and after each htmx swap; a page that held
+unsent text when it was drawn counts as unsent after the section is drawn again.
 
 ## Optional modules
 

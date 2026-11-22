@@ -129,6 +129,9 @@ class RequestCreateForm(GroupedForm, StyledForm, forms.Form):
         ),
         ("Routing", (("assign_to", "col-12"),)),
     )
+    # Lists fetched as one types whose chosen record is kept across a sign-out by a session limit
+    # (accounts.kept), and given back only while the field still offers it.
+    kept_fetched = ("client", "site", "contact")
 
     category = CategoryField()
     priority = forms.ChoiceField(
