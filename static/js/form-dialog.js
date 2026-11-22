@@ -642,6 +642,17 @@
         });
       }
       requests.add(event.detail.xhr);
+      // Its end is signalled on the element that asked, which may have left the page by then.
+      var source = event.detail.elt;
+      var xhr = event.detail.xhr;
+      if (source && source !== document && source.addEventListener) {
+        source.addEventListener("htmx:afterRequest", function ended(done) {
+          if (done.detail && done.detail.xhr === xhr) {
+            source.removeEventListener("htmx:afterRequest", ended);
+            requestEnded(done);
+          }
+        });
+      }
       setBusy();
     });
     document.addEventListener("htmx:beforeOnLoad", function (event) {
@@ -696,12 +707,13 @@
         finishReady();
       }
     });
-    document.addEventListener("htmx:afterRequest", function (event) {
+    function requestEnded(event) {
       if (!requests.delete(event.detail.xhr)) {
         return;
       }
       finishReady();
-    });
+    }
+    document.addEventListener("htmx:afterRequest", requestEnded);
     ["htmx:sendError", "htmx:timeout", "htmx:responseError"].forEach(function (name) {
       document.addEventListener(name, function (event) {
         if (isDialogRequest(event)) {

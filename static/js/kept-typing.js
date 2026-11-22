@@ -180,14 +180,16 @@
     sent = [];
     markers().forEach(function (marker) {
       var form = marker.form;
+      if (loading.size && form.closest("#vr-form-content")) {
+        return; // the dialog is loading another page over this form: it is being left
+      }
       var several = list(marker, "data-vr-kept-several");
       var values = {};
       var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
       // While a request of the form dialog is under way it disables the form: what it holds is
-      // still what the person typed (a save, also one cancelled before it was sent), except while
-      // the dialog loads another page over it (Discard, a link).
-      var busy = loading.size ? false : "busy";
+      // still what the person typed (a save, also one cancelled before it was sent).
+      var busy = "busy";
       list(marker, "data-vr-kept-fields").forEach(function (name) {
         var elements = controls(form, name, busy);
         if (!elements.length) {

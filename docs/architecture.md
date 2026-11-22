@@ -237,9 +237,10 @@ held: stored now, or the same answers from the same controls stored before, so a
 never lets this page go),
 and it goes to the sign-in address the server gave when it has no dialog form of its own to return
 to (only this site's sign-in page with a `next` on this site). While the dialog has a form
-disabled for a request, the page collects the controls the dialog disabled, except while the
-dialog loads another page over the form (Discard, a link), when it collects nothing of it; a chosen
-option disabled by itself or its group is not collected, as the form would not send it. The kept notice comes from the request that stored
+disabled for a request (taken as under way when it is sent, with each control's state from when it
+was asked for), the page collects the controls the dialog disabled; while the dialog loads another
+page over the form (Discard, a link) it collects nothing of that form; a chosen option disabled by
+itself or its group is not collected, as the form would not send it. The kept notice comes from the request that stored
 a copy and is not added while it already waits. Not covered: a copy of another form stored after
 the sign-in page has shown the notice is announced again, and a repeated delivery whose first
 answer was lost is not announced. Once a copy is held for the dialog's

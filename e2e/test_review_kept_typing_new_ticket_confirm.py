@@ -58,7 +58,9 @@ def test_busy_collection_excludes_a_control_already_disabled_before_the_request(
     form = page.locator("#vr-form-content form").first
     before = form.evaluate("""form => {
         window.confirmationBusyValues = null;
-        document.addEventListener("htmx:beforeRequest", () => {
+        // Adopted: at htmx:beforeSend, when the dialog now takes the request as under way (a
+        // request cancelled before it is sent no longer leaves the dialog busy).
+        document.addEventListener("htmx:beforeSend", () => {
             if (document.querySelector("#vr-form-content").getAttribute("aria-busy") === "true") {
                 const copy = window.vrKeptTyping.collect({commit:true})[0];
                 window.confirmationBusyValues = copy?.values;
