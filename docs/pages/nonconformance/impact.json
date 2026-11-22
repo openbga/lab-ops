@@ -100,7 +100,7 @@
         },
         {
           "label": "Signed out by a time limit",
-          "description": "When a time limit signs you out, what you typed here is kept for 24 hours, for you in that browser only, and comes back on this page when you sign in again there (a form open in a dialog opens again on its own page). It keeps the version of the record you typed against: if the record changed since, the page says This record changed after you typed it, and saving is refused with your typing on the form. Copy what you need, then select Discard on the notice, or after a refused save open the form again from the record, to see the record as it stands. It comes back even where the form is no longer offered, for example after the record was closed. A person chosen comes back only while their account is still an active staff account."
+          "description": "When a time limit signs you out, what you typed here is kept for 24 hours, for you in that browser only, and comes back on this page when you sign in again there (a form open in a dialog opens again on its own page). It keeps the version of the record you typed against: if the record changed since, the page says This record changed after you typed it, and saving is refused with your typing on the form. Copy what you need, then select Discard on the notice, or after a refused save go back to the record, to see it as it stands. It comes back even where the form is no longer offered, for example after the record was closed. A person chosen comes back only while their account is still an active staff account."
         }
       ]
     }

@@ -255,7 +255,9 @@ def _same_copy(stored, sent):
     (new_values, new_controls, new_dropped, new_revision) = sent
     return (
         bool(dropped) == bool(new_dropped)
-        and revision == new_revision
+        # A copy kept without a revision (the previous release) and one kept with 0 (not known)
+        # are given back alike.
+        and (0 if revision is None else revision) == (0 if new_revision is None else new_revision)
         and answers(values, controls or {}) == answers(new_values, new_controls or {})
     )
 
@@ -434,8 +436,9 @@ def _revision(value):
 
 def drawn_revision(form):
     """The revision a form that names `kept_revision` carries as drawn: what was posted for a
-    bound form, else its initial value (read without drawing the field, which is drawn later);
-    None when it is not a whole number of at least 1 or the form names none."""
+    bound form, else its initial value (read without drawing the field, which is drawn later): a
+    whole number from 0 (not known) to REVISION_MAX, or None when it is not one or the form names
+    none."""
     name = getattr(form, "kept_revision", None)
     field = form.fields.get(name) if name else None
     if field is None:
@@ -1028,15 +1031,23 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
         revision = taken.revision
     if offered:
         given, ended_at, dropped = offered
+        parts = getattr(form, "forms", None) or [form]
+        starts = [dict(part.initial) for part in parts]
         drawn, missed, texts = (
             _put_back(form, given, getattr(request, "vr_kept_controls", {}))
             if given
             else (0, False, [])
         )
+        if not drawn:
+            # Nothing of it is drawn, so the form is drawn as it starts, as the page says: no
+            # emptied answer is put back unannounced.
+            for part, initial in zip(parts, starts, strict=True):
+                part.initial.clear()
+                part.initial.update(initial)
         # A form that posts a revision posts the one the copy was typed against whenever a copy
-        # is given back, also when nothing of it could be drawn (what was drawn may still differ
-        # from the record: an answer emptied), or 0, which no record has, for a copy kept without
-        # one; the page says why its save is refused. Its token, drawn again, carries it.
+        # is given back, also when nothing of it could be drawn, or 0, which no record has, for a
+        # copy kept without one; the page says why its save is refused. Its token, drawn again,
+        # carries it.
         changed = ""
         if getattr(form, "kept_revision", None):
             kept_revision = revision if revision is not None else 0

@@ -259,8 +259,10 @@ and the copy keeps it (`KeptDraft.revision`). A page giving such a copy back dra
 the field instead of the one it read, draws its token again with it, and says when the two differ,
 so the save is checked against the record as it stood when the person typed and is refused as
 changed since, with the typing kept, when the record changed after it. The copy's revision is drawn
-whenever a copy is given back, also when nothing of it fits the form any more (what was drawn, an
-emptied answer, may still differ from the record). A copy that holds no revision (kept by the
+whenever a copy is given back, also when nothing of it fits the form any more; a copy none of whose
+answers can be drawn leaves the whole form as it starts (no emptied answer is put back unannounced).
+Two deliveries of the same answers count as the same copy whether it was stored without a revision
+or with 0. A copy that holds no revision (kept by the
 previous release while both ran during an upgrade) is drawn with 0, which no record has, and its
 token carries 0, so its save is refused, the page says the version is not known, and the typing can
 be kept again. A revision is a whole number up to what the column stores. Each form is kept under a key naming the form and
