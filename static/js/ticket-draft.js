@@ -25,6 +25,9 @@
     }
   });
   window.addEventListener("pageshow", function () { leaving = false; });
+  // The session ended and what was typed is kept (static/js/session.js, accounts/kept.py): the
+  // page goes to the sign-in page without asking (chosen files are never kept).
+  document.addEventListener("vr:typing-kept", function () { leaving = true; });
 
   function nativePost(form) {
     return form.method === "post" && !form.hasAttribute("hx-post");

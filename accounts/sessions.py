@@ -88,6 +88,9 @@ LONGEST_WARNING_SECONDS = 300
 # warning, and asking must not keep an unattended session open.
 STATUS_ROUTE = "account-session"
 CONTINUE_ROUTE = "account-session-continue"
+# Where the page sends what was typed once its session has ended (accounts.kept): not activity,
+# and answered whether or not the browser is still signed in.
+KEEP_ROUTE = "account-session-keep"
 Ending = AccountSession.Ending
 
 
@@ -664,10 +667,16 @@ def start_session(sender, request, user, **kwargs):
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_account_session_end")
 def end_signed_out_session(sender, request, user, **kwargs):
+    from .kept import discard_all
+
     session = getattr(request, "session", None)
     session_id = _valid_id(session.get(SESSION_KEY)) if session is not None else None
     if user is not None and session_id is not None:
         end_sessions(user, Ending.SIGNED_OUT, session_id=session_id)
+    if user is not None:
+        # Signing out leaves nothing typed behind: every copy kept for the account goes, after
+        # the ending above, so a copy sent later from an ended session finds that Sign out.
+        discard_all(user)
 
 
 def _valid_id(value):
@@ -794,19 +803,20 @@ def check(request):
 
 
 def _session_endpoints():
-    """The status and Stay signed in addresses; none under a URL configuration without them."""
+    """The status, Stay signed in and keep addresses; none under a URL configuration without
+    them."""
     try:
-        return {_route_path(STATUS_ROUTE), _route_path(CONTINUE_ROUTE)}
+        return {_route_path(STATUS_ROUTE), _route_path(CONTINUE_ROUTE), _route_path(KEEP_ROUTE)}
     except NoReverseMatch:
         return set()
 
 
 def _is_activity(request):
     """Whether a request that reached its view counts as activity: every one but the status
-    question, and Stay signed in only as the POST it is."""
+    question and keeping what was typed, and Stay signed in only as the POST it is."""
     match = request.resolver_match
     name = match.view_name if match is not None else ""
-    if name == STATUS_ROUTE:
+    if name in (STATUS_ROUTE, KEEP_ROUTE):
         return False
     return name != CONTINUE_ROUTE or request.method == "POST"
 
@@ -820,7 +830,12 @@ def _goes_on(request):
 
 
 def _refusal(request):
-    """The answer to a request whose session ended, other than a page opened with GET."""
+    """The answer to a request whose session ended, other than a page opened with GET. A form
+    posted with its keep token (accounts.kept) is kept first, if its session ended by a limit."""
+    from .kept import KEPT_MESSAGE, keep_posted, remember_browser
+
+    if keep_posted(request):
+        messages.info(request, KEPT_MESSAGE, fail_silently=True)
     sign_in = sign_in_url(_page_on_screen(request))
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
@@ -828,6 +843,7 @@ def _refusal(request):
         response = JsonResponse({"signed_in": False, "sign_in": sign_in}, status=401)
         response["HX-Redirect"] = sign_in
     add_never_cache_headers(response)
+    remember_browser(request, response)
     return response
 
 
@@ -907,6 +923,7 @@ class SessionLimitMiddleware:
                 # as for a session that ended, with the cookies the answer replaced set.
                 cookies = response.cookies
                 response = _refusal(request)
+                cookies.update(response.cookies)  # the keep cookie, if a copy was kept
                 response.cookies = cookies
         finally:
             _current.reset(tokens[0])

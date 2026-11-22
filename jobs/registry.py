@@ -42,6 +42,13 @@ JOBS = (
         "Sends email notices that are waiting and retries those that could not be sent.",
         "jobs.outbox.deliver_due",
     ),
+    Job(
+        "remove_kept_typing",
+        "Remove kept typing",
+        "Removes what people were typing when a session limit signed them out, 24 hours after "
+        "the sign-out.",
+        "accounts.kept.remove_expired",
+    ),
 )
 JOBS_BY_NAME = {job.name: job for job in JOBS}
 

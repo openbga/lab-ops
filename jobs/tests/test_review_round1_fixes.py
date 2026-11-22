@@ -671,6 +671,7 @@ def fake_jobs(monkeypatch, settings):
     monkeypatch.setattr("desk.jobs.close_resolved_tickets", fake("close_resolved_tickets"))
     monkeypatch.setattr("service_levels.jobs.notice_breaches", fake("service_target_breaches"))
     monkeypatch.setattr("jobs.outbox.deliver_due", fake("send_notices"))
+    monkeypatch.setattr("accounts.kept.remove_expired", fake("remove_kept_typing"))
     return seen
 
 
@@ -689,10 +690,15 @@ def test_a_failure_writing_the_finish_state_fails_that_job_only(monkeypatch, fak
         "failed",
         "OperationalError",
     )
-    assert [r.outcome for r in others] == ["succeeded", "succeeded"]
-    assert fake_jobs == ["close_resolved_tickets", "service_target_breaches", "send_notices"]
+    assert [r.outcome for r in others] == ["succeeded", "succeeded", "succeeded"]
+    assert fake_jobs == [
+        "close_resolved_tickets",
+        "service_target_breaches",
+        "send_notices",
+        "remove_kept_typing",
+    ]
     done = JobState.objects.filter(last_outcome="succeeded").values_list("name", flat=True)
-    assert set(done) == {"service_target_breaches", "send_notices"}
+    assert set(done) == {"service_target_breaches", "send_notices", "remove_kept_typing"}
 
 
 def test_an_unknown_job_name_raises_before_anything_runs(fake_jobs):

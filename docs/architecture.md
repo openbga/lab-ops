@@ -142,6 +142,26 @@ or address. Every other row open when the change is saved ends, including rows t
 after the page was drawn; the confirmation counts those by their sign-in time against the
 database's clock when the page read the rows.
 
+What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
+A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
+account, its session row, the form's key and the names of the fields that may be kept: visible
+fields a person types in or chooses from, never a file, a hidden value such as a revision, a field
+fetched as one types or one the form lists as holding patient information. Once the page learns
+that its session has ended it sends what is typed with the token to `account/session/keep/`,
+which needs no session and no CSRF token (the signed token is the proof) and is not activity; a
+form posted after its session ended is kept from its post as the middleware refuses it. A copy is
+inserted, in one statement, only when the token's row ended by a limit less than 24 hours earlier,
+the account is active, it has not used Sign out since, and a typed field holds text; the first
+copy for a row and form stands. Each copy is bound to the browser that sent it by the digest of a
+random value in a cookie of its own (`lab_ops_kept`), so a shared account never hands one
+person's typing to another. The same form drawn for the same account in that browser on a page
+opened with GET gives the newest copy back, filtered to the fields the form keeps as drawn now,
+and takes every copy for that form once the page's reading ends; a refused save drawn again
+gives nothing back. Sign out removes the account's copies after taking a per-account advisory
+lock that keeping takes shared, so no copy is inserted after the Sign out that removed the others.
+The scheduled job removes copies 24 hours after their session ended. Copies have no audit event
+and are never logged.
+
 ## Optional modules
 
 An optional module's switch lives in `core.modules`. Its pages and reads start from selectors

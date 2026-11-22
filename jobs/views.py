@@ -45,6 +45,7 @@ COUNT_WORDS = {
     "retrying": ("notice to retry", "notices to retry"),
     "failed": ("notice failed", "notices failed"),
     "not_sent": ("notice not sent", "notices not sent"),
+    "kept_removed": ("kept copy of typing removed", "kept copies of typing removed"),
     "busy": ("left for the next run", "left for the next run"),
     "left_for_next_run": (
         "notice left for the next run (the mail server failed three times in a row)",

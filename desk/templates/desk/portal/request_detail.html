@@ -71,7 +71,7 @@ when the request was raised with a request form, and "Request again" while the f
 {% endhistory_panel %}
 {% if can_reply %}
 {% panel title="Reply" heading_id="reply-heading" class="mb-3" %}
-  {% form_page form=reply_form action=reply_url submit_label="Send reply" no_required_note=True multipart=True %}
+  {% form_page form=reply_form action=reply_url submit_label="Send reply" no_required_note=True multipart=True keep="portal-reply" keep_id=service_request.pk %}
     <fieldset class="vr-form-section">
       {{ reply_form.body.as_field_group }}
       {{ reply_form.files.as_field_group }}

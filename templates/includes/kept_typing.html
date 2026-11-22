@@ -1,0 +1,13 @@
+{% comment %}
+A form's part in keeping what was typed (accounts/kept.py), rendered by {% kept_typing %} from
+includes/form_page.html when the form is drawn with keep=...: the hidden token (posted with the
+form, so a form sent after its session ended is kept) carrying the names of the fields that may be
+kept, and, when this person's typing in this form was kept from an earlier session that ended by a
+limit, a hidden notice and the values as JSON. static/js/kept-typing.js puts the values back, then
+shows the notice; Discard returns the form to how the page drew it.
+{% endcomment %}
+{% load ui %}{% if token %}<input type="hidden" name="{{ field }}" value="{{ token }}" data-vr-kept data-vr-kept-fields="{{ names }}"{% if values %} data-vr-kept-values="{{ script_id }}"{% endif %}>
+{% if values %}{% notice tone="info" label="Put back" hidden=True hook="vr-kept-notice" class="vr-kept-notice" %}<p class="mb-2">What you were typing here when you were signed out at <time datetime="{{ ended_at|date:'c' }}">{{ ended_at|date:"Y-m-d H:i" }}</time> is back in the form. Check it before you send it.{% if has_files %} Files you had chosen were not kept.{% endif %}</p>
+<p class="mb-2" data-vr-kept-missed hidden>Some of your choices are no longer offered, so those fields start as the form does. Check each field.</p>
+<button type="button" class="btn btn-sm btn-outline-secondary" data-vr-kept-discard>Discard</button>{% endnotice %}
+{{ values|json_script:script_id }}{% endif %}{% endif %}

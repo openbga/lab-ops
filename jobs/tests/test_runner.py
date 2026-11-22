@@ -41,11 +41,17 @@ def calls(monkeypatch):
     monkeypatch.setattr("desk.jobs.close_resolved_tickets", fake("close_resolved_tickets"))
     monkeypatch.setattr("service_levels.jobs.notice_breaches", fake("service_target_breaches"))
     monkeypatch.setattr("jobs.outbox.deliver_due", fake("send_notices"))
+    monkeypatch.setattr("accounts.kept.remove_expired", fake("remove_kept_typing"))
     return seen
 
 
 def test_jobs_are_registered_in_run_order():
-    assert NAMES == ["close_resolved_tickets", "service_target_breaches", "send_notices"]
+    assert NAMES == [
+        "close_resolved_tickets",
+        "service_target_breaches",
+        "send_notices",
+        "remove_kept_typing",
+    ]
 
 
 def test_run_runs_every_job_in_order_and_records_its_state(calls):
@@ -80,7 +86,7 @@ def test_the_real_jobs_run_and_reset_the_failure_count():
         consecutive_failures=3,
     )
     results = runner.run()
-    assert [r.outcome for r in results] == [JobOutcome.SUCCEEDED] * 3
+    assert [r.outcome for r in results] == [JobOutcome.SUCCEEDED] * len(NAMES)
     state = JobState.objects.get(name="send_notices")
     assert state.consecutive_failures == 0
     assert state.last_error == ""
@@ -104,7 +110,7 @@ def test_a_failing_job_is_recorded_and_the_others_still_run(calls, broken):
         JobOutcome.FAILED,
         "ValueError",
     )
-    assert [r.outcome for r in others] == [JobOutcome.SUCCEEDED] * 2
+    assert [r.outcome for r in others] == [JobOutcome.SUCCEEDED] * (len(NAMES) - 1)
     assert [name for name, _ in calls] == NAMES[1:]
     state = JobState.objects.get(name="close_resolved_tickets")
     assert state.last_outcome == JobOutcome.FAILED
@@ -217,4 +223,4 @@ def test_a_run_goes_ahead_once_the_other_session_lets_go(other_session_holds_the
     with pytest.raises(runner.Busy):
         runner.run()
     other_session_holds_the_lock()
-    assert len(runner.run()) == 3
+    assert len(runner.run()) == len(NAMES)

@@ -182,6 +182,10 @@
         {
           "label": "Your reply, not sent",
           "description": "Shown under Reply not sent: the text of a reply the closed ticket refused, read only so you can select and copy it. It is not stored: opening the ticket again no longer shows it. Reloading this response sends the refused reply again, which is refused the same way and shows the text again."
+        },
+        {
+          "label": "Kept across a sign-out",
+          "description": "If you are signed out for no activity, or because your session reached its longest length, while typing a reply, what you typed is kept for 24 hours. Sign in again in the same browser and open this page: it is back in the form with a Put back notice. Check it before you send it; Discard empties the form. Chosen files are not kept. It is given back once, only to you and only in that browser. Pressing Send after the sign-out keeps it too. Sign out discards it."
         }
       ]
     },
@@ -208,6 +212,9 @@
     "request_forms/selectors.py",
     "request_forms/templates/request_forms/_details.html",
     "request_forms/templatetags/request_forms.py",
-    "desk/tests/test_decisions_read_before_a_wait.py"
+    "desk/tests/test_decisions_read_before_a_wait.py",
+    "accounts/kept.py",
+    "static/js/kept-typing.js",
+    "templates/includes/kept_typing.html"
   ]
 }

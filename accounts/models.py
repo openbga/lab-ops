@@ -158,3 +158,45 @@ class AccountSession(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class KeptDraft(models.Model):
+    """What a person had typed in a form when their session ended because it passed a limit
+    (accounts.kept): kept for that account in that browser only, offered once on the same form
+    in a later session and removed 24 hours after the session ended. Not history and never
+    audited: the person's own unsent text, which may hold anything they typed, so it is never
+    logged, listed or shown to anyone else. Only the fields the page named when it was drawn
+    are kept (no files, hidden values or patient-information fields)."""
+
+    session = models.ForeignKey(AccountSession, on_delete=models.CASCADE, related_name="drafts")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="kept_drafts")
+    # The form on its page, as the page named it ("ticket-entry-12"): no content of the record.
+    form = models.CharField(max_length=80)
+    # The SHA-256 of the random value in the keeping browser's own cookie: given back only there.
+    browser = models.CharField(max_length=64)
+    # Field name -> value (a string, or a list for a field with several values). Emptied when the
+    # draft is taken back, so that nothing typed outlives its use.
+    values = models.JSONField(null=True)
+    kept_at = models.DateTimeField(db_default=Now())
+    # When a page offered it back (the row then blocks a later copy for the same session and form).
+    taken_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["session", "form"], name="kept_draft_once"),
+            models.CheckConstraint(
+                condition=models.Q(taken_at__isnull=True, values__isnull=False)
+                | models.Q(taken_at__isnull=False, values__isnull=True),
+                name="kept_draft_taken",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["user", "form"],
+                condition=models.Q(taken_at__isnull=True),
+                name="kept_draft_offered",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.form}"

@@ -64,6 +64,10 @@
         {
           "label": "Urgent",
           "description": "Optional checkbox. Asks the laboratory to treat the ticket as urgent. The laboratory confirms the priority, and the portal never shows the priority."
+        },
+        {
+          "label": "Kept across a sign-out",
+          "description": "If you are signed out for no activity, or because your session reached its longest length, while typing a new ticket, what you typed is kept for 24 hours. Sign in again in the same browser and open this page: it is back in the form with a Put back notice. Check it before you send it; Discard empties the form. Chosen files are not kept. It is given back once, only to you and only in that browser. Pressing Send after the sign-out keeps it too. Sign out discards it."
         }
       ]
     },
@@ -104,6 +108,9 @@
     "desk/templates/desk/portal/request_form.html",
     "desk/tests/test_portal.py",
     "docs/product.md",
-    "docs/workflows.md"
+    "docs/workflows.md",
+    "accounts/kept.py",
+    "static/js/kept-typing.js",
+    "templates/includes/kept_typing.html"
   ]
 }

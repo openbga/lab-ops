@@ -219,8 +219,8 @@ when a change is saved, its notices are recorded as not sent and are never sent 
 ### Scheduled jobs
 
 One command, `manage.py run_scheduled_jobs`, run by the deployment's scheduler every few minutes,
-retries notices, sends service target notices and closes resolved tickets after the laboratory's
-period. Without a scheduler, notices are still sent right after each change, but nothing is
+retries notices, sends service target notices, closes resolved tickets after the laboratory's
+period and removes typing kept across a sign-out once its 24 hours have passed. Without a scheduler, notices are still sent right after each change, but nothing is
 retried, no target notice is sent and nothing closes automatically. The Scheduled jobs page shows
 administrators when each job last ran, warns when no run happened in the last 30 minutes, and
 lists notices that failed or wait to be retried. Changes the jobs make are recorded under a
@@ -251,8 +251,13 @@ and after. The laboratory chooses the periods; the application does not.
 
 Pages warn 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before
 the longest session ends; the admin console does not warn. Opening a page, saving, searching or Stay signed in counts as
-activity; reading or typing on a page does not, so typing that is not saved before the sign-out
-is lost. Signing in again returns to the page. Deactivating an account ends its sessions at once,
+activity; reading or typing on a page does not. Signing in again returns to the page. When a limit
+signs the person out, what they were typing in a ticket's reply, note or logged contact, in a reply
+in the portal, or in a new portal ticket is kept for 24 hours, in the database and for that
+account in that browser only: it comes back in the same form the next time they sign in there and
+open the page, with a notice and a Discard button, and also when they press Send after the
+sign-out. Files they had chosen, fields that hold patient information and typing in any other
+form are not kept. Sign out discards whatever was kept. Deactivating an account ends its sessions at once,
 and a new password ends the account's other sessions. Pages shown to a signed-in person are
 marked not to be stored by the browser.
 

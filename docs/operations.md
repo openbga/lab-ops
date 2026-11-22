@@ -155,9 +155,11 @@ rest for the next run.
 
 Run `python manage.py run_scheduled_jobs` every five minutes from the host's scheduler, with the
 same image, settings and database as the web service. One run retries waiting notices, sends
-service target notices and closes resolved tickets after the period an administrator sets (none
-by default). Without it, notices are still sent once right after each change, but nothing else
-happens.
+service target notices, closes resolved tickets after the period an administrator sets (none
+by default) and removes typing kept across a sign-out once 24 hours have passed since that
+sign-out. Without it, notices are still sent once right after each change, nothing else happens,
+and kept typing is no longer given back after its 24 hours but stays in the database until a run
+removes it.
 
 - Overlap is safe: a run that starts while another holds the lock prints that nothing was done and
   exits normally.

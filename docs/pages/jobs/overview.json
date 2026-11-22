@@ -79,6 +79,10 @@
           "description": "Sends notices that are waiting and retries those that could not be sent: after 5, 15 and 30 minutes, then 1, 2, 4 and 8 hours. After the eighth failed attempt a notice is marked failed."
         },
         {
+          "label": "Remove kept typing",
+          "description": "Removes what people were typing when a session limit signed them out, once 24 hours have passed since that sign-out. Until then a person gets it back in the form they were typing in when they sign in again in the same browser; after that it is no longer given back, and this job removes it from the database."
+        },
+        {
           "label": "Last run",
           "description": "The date and time the job's last run started, in the laboratory's time zone, or Never."
         },
@@ -186,6 +190,7 @@
     "desk/timeline.py",
     "desk/notifications.py",
     "service_levels/jobs.py",
-    "docs/product.md"
+    "docs/product.md",
+    "accounts/kept.py"
   ]
 }

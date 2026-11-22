@@ -213,6 +213,10 @@
         {
           "label": "Which accounts see a reply",
           "description": "What a client can see is one rule: a reply that has not been withdrawn. Nothing else reaches a client. A supervisor can withdraw a reply later; see Withdraw reply."
+        },
+        {
+          "label": "Kept across a sign-out",
+          "description": "If a session limit signs you out while you are typing here, what you typed (the kind of entry, the message, the contact fields and the status choice) is kept for 24 hours. Sign in again in the same browser and open the ticket: it is back in the form with a Put back notice saying when you were signed out. Check it before you send it; Discard empties the form. Chosen files are not kept. It is given back once, only to you and only in that browser. Pressing Send after the sign-out keeps it too. Sign out discards it. A choice the form no longer offers (Reply on a ticket closed meanwhile) is left as the form starts, and the notice says so."
         }
       ]
     },
@@ -368,6 +372,9 @@
     "static/js/ticket-draft.js",
     "desk/jobs.py",
     "nonconformance/selectors.py",
-    "nonconformance/views.py"
+    "nonconformance/views.py",
+    "accounts/kept.py",
+    "static/js/kept-typing.js",
+    "templates/includes/kept_typing.html"
   ]
 }

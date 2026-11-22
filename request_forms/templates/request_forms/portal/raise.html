@@ -19,7 +19,7 @@ else empty). Staff-only fields are never on it. The send button ends the one-col
 {% notice tone="neutral" label="No patient details" %}Please do not enter patient names, dates of birth or other personal health details. Use an order, accession or sample number instead.{% endnotice %}
 {% endif %}
 {% url 'portal_forms:choose' as cancel_url %}
-{% form_page form=form cancel_url=cancel_url submit_label="Send ticket" class="vr-narrow" multipart=form.is_multipart %}
+{% form_page form=form cancel_url=cancel_url submit_label="Send ticket" class="vr-narrow" multipart=form.is_multipart keep="portal-raise" keep_id=template.pk %}
   <fieldset class="vr-form-section">
     <legend>{{ template.portal_label }}</legend>
     {% for field in form.site_fields %}{{ field.as_field_group }}{% endfor %}
