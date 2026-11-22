@@ -92,12 +92,14 @@ class RaiseRequestForm(StyledForm, forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = raisable_categories()
         sites = portal_sites(user)
-        site_ids = list(sites.values_list("pk", flat=True)[:2])
+        # The sites read once: whether one is required and the sites offered come from the same
+        # moment, also when the page is drawn later (a site added meanwhile is offered next time).
+        site_ids = list(sites.values_list("pk", flat=True))
         if not site_ids:
             del self.fields["site"]
         else:
-            self.fields["site"].queryset = sites
-            self.fields["site"].required = site_required(user)
+            self.fields["site"].queryset = sites.filter(pk__in=site_ids)
+            self.fields["site"].required = site_required(user, site_count=len(site_ids))
             if self.fields["site"].required and len(site_ids) == 1:
                 self.initial.setdefault("site", site_ids[0])
             if not self.fields["site"].required:

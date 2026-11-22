@@ -573,7 +573,8 @@
     this.max = native.getAttribute("max") || "";
     this.format = format;
 
-    var value = native.value;
+    // A date given back as it was being typed (accounts/kept.py), which the date input cannot hold.
+    var value = native.value || native.getAttribute("data-vr-date-text") || "";
     var hidden = document.createElement("input");
     hidden.type = "hidden";
     hidden.name = native.name;

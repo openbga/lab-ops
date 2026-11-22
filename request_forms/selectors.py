@@ -374,12 +374,13 @@ def revealable_value(user, value_id):
     return row
 
 
-def kept_patient_fields(template_id):
-    """The exact form field names of the template's fields that hold patient information as they
-    stand, an item list's quantity boxes (`<name>_<item id>`) included, for keeping what was typed
-    across a sign-out (accounts.kept): the template row is held FOR SHARE first, as a change of
-    one of its fields locks it first (services.update_field), so a change under way finishes
-    before this reads. None when there is no such template."""
+def kept_eligible_fields(template_id):
+    """For keeping what was typed across a sign-out (accounts.kept): the form field names of the
+    template's fields that may be kept as the template stands now, its value fields that hold no
+    patient information, an item list by the names of its catalog's quantity boxes
+    (`<name>_<item id>`). The template row is held FOR SHARE first, as a change of one of its fields
+    locks it first (services.update_field), so a change under way finishes before this reads.
+    None when there is no such template."""
     from django.db import connection
 
     from .forms import field_name
@@ -391,12 +392,16 @@ def kept_patient_fields(template_id):
         if cursor.fetchone() is None:
             return None
     names = []
-    rows = TemplateField.objects.filter(
-        template_id=template_id, holds_patient_information=True
-    ).values_list("key", "kind", "catalog_id")
+    rows = (
+        TemplateField.objects.filter(template_id=template_id, holds_patient_information=False)
+        .exclude(kind__in=NO_VALUE_KINDS)
+        .values_list("key", "kind", "catalog_id")
+    )
     for key, kind, catalog_id in rows:
-        names.append(field_name(key))
-        if kind == FieldKind.ITEMS and catalog_id is not None:
-            items = CatalogItem.objects.filter(catalog_id=catalog_id).values_list("pk", flat=True)
-            names.extend(f"{field_name(key)}_{pk}" for pk in items)
+        if kind == FieldKind.ITEMS:
+            if catalog_id is not None:
+                items = CatalogItem.objects.filter(catalog_id=catalog_id)
+                names.extend(f"{field_name(key)}_{pk}" for pk in items.values_list("pk", flat=True))
+        else:
+            names.append(field_name(key))
     return names

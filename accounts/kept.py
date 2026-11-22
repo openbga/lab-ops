@@ -56,6 +56,7 @@ audited, listed or shown to anyone but the account that typed them.
 import base64
 import hashlib
 import json
+import re
 import secrets
 import uuid
 from datetime import timedelta
@@ -114,10 +115,29 @@ TYPED_WIDGETS = (
 )
 CHOSEN_WIDGETS = (forms.Select, forms.RadioSelect, forms.CheckboxInput)
 SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
-# What a form names to have its fields that hold patient information read again when a copy is
-# kept (its `kept_recheck`, (name, id)): the function returns their html names as they stand,
-# holding what a change of them locks first so that one under way finishes before.
-RECHECKS = {"request_form": "request_forms.selectors.kept_patient_fields"}
+# What a form names to have its own fields read again when a copy is kept (its `kept_recheck`,
+# (name, id)): (the function, the prefix of the names it decides). The function returns the names
+# with that prefix that may be kept as the form stands now (none that hold patient information),
+# holding what a change of them locks first so that one under way finishes before; a name with the
+# prefix that it does not return is dropped.
+RECHECKS = {"request_form": ("request_forms.selectors.kept_eligible_fields", "field-")}
+# The kinds of control a value can come from: a value goes back only into a control of the same
+# kind (or between one choice and several, one answer), so a field that changed kind since never
+# shows an answer given to another question (a "no" as a ticked confirmation).
+FAMILIES = {
+    forms.TextInput: "text",
+    forms.Textarea: "text",
+    forms.EmailInput: "text",
+    forms.URLInput: "text",
+    forms.NumberInput: "number",
+    forms.DateInput: "date",
+    forms.DateTimeInput: "datetime",
+    forms.TimeInput: "time",
+    forms.Select: "choice",
+    forms.RadioSelect: "choice",
+    forms.CheckboxSelectMultiple: "choices",
+    forms.CheckboxInput: "box",
+}
 # Requests a browser makes without the person opening the page.
 PREFETCH_HEADERS = ("Sec-Purpose", "Purpose", "X-Purpose", "X-Moz")
 
@@ -216,6 +236,20 @@ def keepable(form):
     return names, typed, several
 
 
+def controls_of(form):
+    """Field name -> the kind of control (FAMILIES) of each name keepable() gives."""
+    out = {}
+    for bound in form.visible_fields():
+        widget = bound.field.widget
+        if isinstance(widget, forms.MultiWidget) and type(widget) not in FAMILIES:
+            for suffix, part in zip(widget.widgets_names, widget.widgets, strict=True):
+                if type(part) in FAMILIES:
+                    out[bound.html_name + suffix] = FAMILIES[type(part)]
+        elif type(widget) in FAMILIES:
+            out[bound.html_name] = FAMILIES[type(widget)]
+    return out
+
+
 def token(request, key, form):
     """The form's token for a page drawn for a signed-in session, or "" when there is nothing to
     keep, too much, or no session row (a page drawn for a visitor)."""
@@ -226,7 +260,15 @@ def token(request, key, form):
         return ""
     if len(names) > MAX_FIELDS:
         return ""
-    data = {"u": user.pk, "s": str(state.id), "k": str(key)[:MAX_KEY], "f": names, "t": typed}
+    families = controls_of(form)
+    data = {
+        "u": user.pk,
+        "s": str(state.id),
+        "k": str(key)[:MAX_KEY],
+        "f": names,
+        "t": typed,
+        "w": {name: families[name] for name in names if name in families},
+    }
     if several:
         data["m"] = several
     recheck = getattr(form, "kept_recheck", None)
@@ -251,7 +293,7 @@ def _read(value):
         return None
     account, session, key = data.get("u"), data.get("s"), data.get("k")
     names, typed, several = data.get("f"), data.get("t"), data.get("m", [])
-    recheck = data.get("r")
+    recheck, families = data.get("r"), data.get("w", {})
     if not isinstance(account, int) or not isinstance(key, str) or not key:
         return None
     try:
@@ -262,6 +304,10 @@ def _read(value):
         return None
     if not (set(typed) | set(several)) <= set(names):
         return None
+    if not isinstance(families, dict) or not all(
+        isinstance(value, str) and name in names for name, value in families.items()
+    ):
+        return None
     if recheck is not None and not (
         isinstance(recheck, list)
         and len(recheck) == 2
@@ -270,7 +316,7 @@ def _read(value):
     ):
         return None
     return {"u": account, "s": session, "k": key, "f": names, "t": typed, "m": several,
-            "r": recheck}  # fmt: skip
+            "r": recheck, "w": families}  # fmt: skip
 
 
 def _clean(values, names, typed, several):
@@ -309,17 +355,19 @@ def _lock(account_id, *, shared):
 
 
 def _without_patient_fields(data):
-    """The token's names less the fields that hold patient information as the form stands now
-    (its recheck, which names an item list's quantity boxes too)."""
+    """The token's names less those of the form's own fields that may not be kept as the form
+    stands now (its recheck): fields that hold patient information, removed, or changed so that a
+    drawn name (an item list's old quantity box) no longer exists."""
     if not data["r"]:
         return data
-    patient = import_string(RECHECKS[data["r"][0]])(data["r"][1])
-    if patient is None:  # the form is gone: what it holds cannot be known
+    function, prefix = RECHECKS[data["r"][0]]
+    eligible = import_string(function)(data["r"][1])
+    if eligible is None:  # the form is gone: what it holds cannot be known
         return None
-    patient = set(patient)
+    eligible = set(eligible)
 
     def allowed(name):
-        return name not in patient
+        return not name.startswith(prefix) or name in eligible
 
     return {
         **data,
@@ -343,18 +391,25 @@ def keep(value, values, browser):
     cutoffs = connection.ops.quote_name(KeptDraftCutoff._meta.db_table)
     with transaction.atomic(), connection.cursor() as cursor:
         _lock(data["u"], shared=True)
-        # The form's patient fields as they stand, after a change of them under way.
-        data = _without_patient_fields(data)
-        cleaned = data and _clean(values, data["f"], data["t"], data["m"])
-        if cleaned is None or data is None:
-            return False
+        held = _eligible(data["u"], data["k"], browser).filter(
+            session_id=data["s"], user__is_active=True
+        )
+        # The form's own fields as they stand, after a change of them under way.
+        checked = _without_patient_fields(data)
+        cleaned = checked and _clean(values, checked["f"], checked["t"], checked["m"])
+        if cleaned is None or checked is None:
+            # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
+            return held.exists()
+        data = checked
+        controls = {name: data["w"][name] for name in cleaned if name in data["w"]}
         # One statement decides and inserts, by the clock when it runs: the session's ending and
         # its time never change once recorded; the account's state, a later Sign out (recorded as
         # an ending by any release, or as the account's discard moment) are read as they stand,
         # under the lock Sign out takes before it removes copies.
         cursor.execute(
-            f'INSERT INTO {table} (session_id, user_id, form, browser, "values", kept_at) '
-            f"SELECT s.id, s.user_id, %s, %s, %s::jsonb, clock_timestamp() FROM {sessions} s "
+            f'INSERT INTO {table} (session_id, user_id, form, browser, "values", controls, '
+            f"kept_at) SELECT s.id, s.user_id, %s, %s, %s::jsonb, %s::jsonb, clock_timestamp() "
+            f"FROM {sessions} s "
             f"JOIN {users} u ON u.id = s.user_id "
             f"WHERE s.id = %s AND s.user_id = %s AND u.is_active "
             f"AND s.ending = ANY(%s) AND s.ended_at > clock_timestamp() - %s "
@@ -370,6 +425,7 @@ def keep(value, values, browser):
                 data["k"],
                 browser,
                 json.dumps(cleaned),
+                json.dumps(controls),
                 data["s"],
                 data["u"],
                 list(LIMIT_ENDINGS),
@@ -383,11 +439,7 @@ def keep(value, values, browser):
             return True
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
         # of the same page, whose answer was lost). Held only while it may still be given back.
-        return (
-            _eligible(data["u"], data["k"], browser)
-            .filter(session_id=data["s"], user__is_active=True)
-            .exists()
-        )
+        return held.exists()
 
 
 def keep_posted(request):
@@ -450,6 +502,10 @@ def _eligible(user_id, key, digest):
     )
 
 
+def _filled(value):
+    return bool(value.strip()) if isinstance(value, str) else bool(value)
+
+
 def _serialization_refusal(error):
     """Whether a database error is PostgreSQL refusing to lock a row changed since this
     transaction's snapshot (SQLSTATE 40001)."""
@@ -480,7 +536,7 @@ def offer(request, key, names):
         with transaction.atomic():
             rows = list(
                 candidates.order_by("-session__ended_at", "-id").values_list(
-                    "id", "values", "session__ended_at"
+                    "id", "values", "session__ended_at", "controls"
                 )
             )
             if not rows:
@@ -499,16 +555,13 @@ def offer(request, key, names):
         # Taken by a page whose change committed after this page's reading began (REPEATABLE
         # READ refuses to lock it): that page gave it back.
         return None
-    _, values, ended_at = rows[0]
+    _, values, ended_at, controls = rows[0]
     allowed = set(names)
     values = values or {}
     given = {name: value for name, value in values.items() if name in allowed}
-
-    def filled(value):
-        return bool(value.strip()) if isinstance(value, str) else bool(value)
-
-    dropped = any(filled(value) for name, value in values.items() if name not in allowed)
-    if not any(filled(value) for value in given.values()):
+    request.vr_kept_controls = controls or {}  # for _put_back, as the copy was drawn
+    dropped = any(_filled(value) for name, value in values.items() if name not in allowed)
+    if not any(_filled(value) for value in given.values()):
         return ({}, ended_at, True) if dropped else None
     return given, ended_at, dropped
 
@@ -561,33 +614,62 @@ def _flat_choices(field):
             yield key, label
 
 
-def _put_back(form, given):
+# What a browser's date and date-time inputs take (anything else it empties before the date
+# editor reads it).
+DATE_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATETIME_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$")
+
+
+def _carries(drawn, now):
+    """Whether a value from a control of kind `drawn` may go into one of kind `now`: a ticked box
+    only from a ticked box (a box is an affirmation: an answer to another question, a "no" or an
+    "on" chosen from a list, must not tick it); any other control takes the value as it is, its
+    own checks deciding (a choice still offered, a date's form). A copy kept before kinds were
+    recorded (no `drawn`) is taken as drawn like the control now."""
+    return now != "box" or drawn in (None, "box")
+
+
+def _put_back(form, given, controls):
     """Draw the copy's values in the unbound form: its initial values, field by field, as the
-    widgets read them. A field that changed between one choice and several takes one answer over;
-    a value of the wrong shape for the field as it stands now (several answers for one choice,
-    anything but a ticked box's own value for a box: the field changed kind since) or a choice no
-    longer offered is left as the form starts. Returns whether something could not be put back."""
-    missed = False
+    widgets read them. A ticked box takes a value only from a ticked box (`controls`, FAMILIES, as
+    the copy was drawn) and only the value a ticked box posts; one answer carries between one
+    choice and several; a choice goes back only while offered; a date its input cannot hold (still
+    being typed) is handed to the date editor as text (data-vr-date-text, static/js/controls.js);
+    anything else is left as the form starts. Returns (how many values were drawn, whether
+    something could not be put back)."""
+    missed, drawn = False, 0
     names, _typed, several = keepable(form)
     allowed = set(names)
+    now = controls_of(form)
+
+    def fits(name, value):
+        nonlocal missed
+        ok = _carries(controls.get(name), now.get(name))
+        if not ok and _filled(value):
+            missed = True
+        return ok
+
     for bound in form.visible_fields():
         field, widget, name = bound.field, bound.field.widget, bound.html_name
         if isinstance(widget, forms.MultiWidget) and type(widget) not in TYPED_WIDGETS:
-            parts = {
-                suffix[1:]: given[name + suffix]
-                for suffix in widget.widgets_names
-                if name + suffix in allowed and isinstance(given.get(name + suffix), str)
-            }
-            missed = missed or any(
-                name + suffix in given and not isinstance(given[name + suffix], str)
-                for suffix in widget.widgets_names
-            )
+            parts = {}
+            for suffix in widget.widgets_names:
+                value = given.get(name + suffix)
+                if name + suffix not in allowed or value is None:
+                    continue
+                if not isinstance(value, str):
+                    missed = True
+                elif fits(name + suffix, value):
+                    parts[suffix[1:]] = value
+                    drawn += bool(value.strip())
             if parts:
                 form.initial[bound.name] = parts
             continue
         if name not in allowed or name not in given:
             continue
         value = given[name]
+        if not fits(name, value):
+            continue
         # A field that changed between one choice and several since: one answer carries over.
         if name in several and isinstance(value, str):
             value = [value] if value else []
@@ -600,21 +682,37 @@ def _put_back(form, given):
             offered = [item for item in value if _offered(field, item)]
             missed = missed or len(offered) < len(value)
             form.initial[bound.name] = offered
+            drawn += bool(offered)
         elif isinstance(widget, forms.CheckboxInput):
-            # What a ticked box posts: its value attribute, "on" without one.
+            # What a ticked box posts: its value attribute, "on" without one; "" is unticked.
             ticked = str(widget.attrs.get("value", "on"))
-            if value in ("", ticked):
-                form.initial[bound.name] = value == ticked
+            if value == "":
+                form.initial[bound.name] = False
+            elif value == ticked:
+                form.initial[bound.name] = True
+                drawn += 1
             else:
                 missed = True
         elif isinstance(field, forms.ChoiceField) or hasattr(field, "queryset"):
             if _offered(field, value):
                 form.initial[bound.name] = value
+                drawn += _filled(value)
             else:
                 missed = True
+        elif getattr(widget, "input_type", "") in ("date", "datetime-local") and value.strip():
+            pattern = DATE_VALUE if widget.input_type == "date" else DATETIME_VALUE
+            if pattern.match(value.strip()):
+                form.initial[bound.name] = value.strip().replace(" ", "T", 1)
+            else:
+                # Still being typed: the browser's date input would show nothing, so the date
+                # editor starts from the text instead.
+                form.initial[bound.name] = value
+                widget.attrs["data-vr-date-text"] = value
+            drawn += 1
         else:
             form.initial[bound.name] = value
-    return missed
+            drawn += _filled(value)
+    return drawn, missed
 
 
 def prepare(request, form, key):
@@ -641,7 +739,11 @@ def prepare(request, form, key):
     offered = None if form.is_bound else offer(request, key, names)
     if offered:
         given, ended_at, dropped = offered
-        missed = _put_back(form, given) if given else False
+        drawn, missed = (
+            _put_back(form, given, getattr(request, "vr_kept_controls", {}))
+            if given
+            else (0, False)
+        )
         # What a page gave back, for its tests to read.
         request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
         filled = [
@@ -651,8 +753,8 @@ def prepare(request, form, key):
         ]
         contents.update(
             restored=True,
-            # Nothing of it is on the form any more: the page says so instead.
-            nothing=not given,
+            # Nothing of it could be drawn: the page says so instead.
+            nothing=not drawn,
             ended_at=ended_at,
             missed=dropped or missed,
             # The names given back with a value: a template may leave a field of the form out of

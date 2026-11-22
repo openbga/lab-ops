@@ -156,18 +156,24 @@ CSRF check fails because the person signed in again in another tab. A copy is in
 statement by the clock when it runs, only when the token's row ended by a limit less than 24 hours
 earlier, the account is active, no Sign out came after (an ending recorded by any release, or the
 account's discard moment), no copy for that form already given back in that browser came from a
-later session, and a typed field holds text; the fields of a request form that hold patient
-information are read again first, under a share lock on the form that a change of its fields
-takes first. The first copy for a row and form stands. Each copy is bound to the browser by the
+later session, and a typed field holds text; the request form's own fields are read again first,
+under a share lock on the form that a change of its fields takes first, and only names that still
+exist and hold no patient information are kept. Each copy records the kind of control each value
+came from. The first copy for a row and form stands. Each copy is bound to the browser by the
 digest of a value in a cookie of its own (`lab_ops_kept`), set with every page that draws such a
 form and with every answer that held a copy; a page drawn for a browser without it derives the
 value from its session row with a keyed hash, so every answer of that session sets the same value
-in whatever order they arrive, and a shared account never hands one person's typing to another. The same form drawn for the same account in that browser on a page opened
+in whatever order they arrive, and a shared account never hands one person's typing to another.
+One case is not covered: in a browser that has no cookie yet, a page of an earlier sign-in arriving
+after a later sign-in's page leaves the earlier value, and a copy kept under the later one is not
+given back (nothing on the server can tell which answer the browser kept, and the cookie is
+HttpOnly). The same form drawn for the same account in that browser on a page opened
 with GET (not a prefetch) is drawn with the newest eligible copy as its initial values, before
-its fields render, so nothing depends on scripts; a field that changed between one choice and
-several takes one answer over, and a value of the wrong shape for the field as it stands, a choice
-no longer offered or a field no longer on the form is left as drawn, and the page says so (also
-when nothing could be put back). The copies for that form are locked `FOR UPDATE SKIP LOCKED` and
+its fields render, so nothing depends on scripts; a ticked box takes a value only from a ticked
+box and only the value a ticked box posts, one answer carries between one choice and several, a
+date still being typed is handed to the date editor as text, and a choice no longer offered or a
+field no longer on the form is left as drawn, and the page says so (also when nothing could be put
+back). The copies for that form are locked `FOR UPDATE SKIP LOCKED` and
 emptied in a savepoint of the page's reading, so the opted-in pages draw inside a reading and a
 page that fails rolls the take back: a page that finds the newest copy held by another page gives
 nothing back (never an older copy), and one whose reading began before another committed the take
@@ -178,7 +184,8 @@ advisory lock that keeping takes shared, so no copy from an earlier session is i
 afterwards. The scheduled job removes copies 24 hours after their session ended, skipping one a
 page holds at that moment. Copies have no audit event and are never logged. The two addresses a
 refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
-ticket with the list it was opened from, so signing in again from such a page opens the ticket.
+ticket with the list it was opened from (the queue's own parameters only), so signing in again
+from such a page opens the ticket; the composer posts to an address that carries its queue.
 
 ## Optional modules
 

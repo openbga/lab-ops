@@ -105,6 +105,29 @@ def _record_url(request_obj, list_query=""):
     return f"{url}?{urlencode({'list': list_query})}" if list_query else url
 
 
+def _entry_url(request_obj, list_query=""):
+    url = reverse("desk:request-entry", args=[request_obj.pk])
+    return f"{url}?{urlencode({'list': list_query})}" if list_query else url
+
+
+# What a queue's address may carry back to it (desk.lists.RequestFilter and the list's own).
+QUEUE_PARAMETERS = frozenset({"view", "saved", "page", "per_page", "sort", "order"})
+
+
+def _queue_only(list_query):
+    """A `list` value with only the parameters a queue takes, "" when nothing is left."""
+    from .lists import RequestFilter
+
+    query = _list_params(list_query)
+    if query is None:
+        return ""
+    allowed = QUEUE_PARAMETERS | set(RequestFilter.base_fields)
+    for name in list(query):
+        if name not in allowed:
+            del query[name]
+    return query.urlencode()
+
+
 # A request page carries the queue it was opened from up to this length (a long search typed in
 # another script); a longer value is not carried at all, because a cut one would name another list.
 LIST_LIMIT = 4000
@@ -650,10 +673,11 @@ def _detail_context(request, request_obj, composer=None):
                 "expected_revision": request_obj.revision,
             },
         )
-        if closed or request_obj.status == Status.RESOLVED:
-            # The page offers no status change then (desk/request_detail.html), so typing kept
-            # across a sign-out with one says it could not be put back (accounts.kept).
-            composer.fields.pop("new_status", None)
+    if closed or request_obj.status == Status.RESOLVED:
+        # The page offers no status change then (desk/request_detail.html), also when it draws a
+        # refused entry again, so typing kept across a sign-out with one says it could not be put
+        # back and the form's keep marker does not name it (accounts.kept).
+        composer.fields.pop("new_status", None)
     supervisor = is_supervisor(user)
     return {
         **_nonconformance_context(request, request_obj),
@@ -676,6 +700,9 @@ def _detail_context(request, request_obj, composer=None):
         "is_member": request_obj.team.memberships.filter(user=user).exists(),
         "is_closed": closed,
         "composer_title": "Add an internal note" if closed else "Reply or add a note",
+        # Carries the queue in its address too: a refused entry is drawn at it, and signing in
+        # again from there returns to it (request_entry sends a GET on to the ticket).
+        "composer_action": _entry_url(request_obj, list_query),
         "list_query": list_query,
         "list_url": _queue_url(list_query),
         "previous_url": _record_url(ServiceRequest(pk=previous), list_query) if previous else "",
@@ -738,7 +765,7 @@ def request_entry(request, pk):
         # A refused entry is drawn at this address; signing in again from it (the sign-in page
         # returns to the address on screen) opens the ticket, which checks its own access, with
         # the queue it was opened from.
-        return redirect(_record_url(ServiceRequest(pk=pk), _back(request)))
+        return redirect(_record_url(ServiceRequest(pk=pk), _queue_only(_back(request))))
     request_obj = _request_or_404(request.user, pk)
     form = EntryForm(request.POST, request.FILES, closed=request_obj.status == Status.CLOSED)
     if form.is_valid():

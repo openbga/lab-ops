@@ -177,6 +177,9 @@ class KeptDraft(models.Model):
     # Field name -> value (a string, or a list for a field with several values). Emptied when the
     # draft is taken back, so that nothing typed outlives its use.
     values = models.JSONField(null=True)
+    # Field name -> the kind of control the value came from (accounts.kept.FAMILIES), as the page
+    # was drawn: a value goes back only into a control of the same kind.
+    controls = models.JSONField(default=dict)
     kept_at = models.DateTimeField(db_default=Now())
     # When a page offered it back (the row then blocks a later copy for the same session and form).
     taken_at = models.DateTimeField(null=True, blank=True)
