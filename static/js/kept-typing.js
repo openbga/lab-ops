@@ -65,7 +65,18 @@
   }
   document.addEventListener("htmx:beforeSend", function (event) {
     if (dialogLoad(event)) {
-      loading.add(event.detail.xhr);
+      var xhr = event.detail.xhr;
+      loading.add(xhr);
+      // Its end is signalled on the element that asked, which may have left the page by then.
+      var element = event.detail.elt;
+      if (element && element.addEventListener) {
+        element.addEventListener("htmx:afterRequest", function done(ended) {
+          if (ended.detail && ended.detail.xhr === xhr) {
+            loading.delete(xhr);
+            element.removeEventListener("htmx:afterRequest", done);
+          }
+        });
+      }
     }
   });
   document.addEventListener("htmx:afterRequest", function (event) {
@@ -124,7 +135,7 @@
       // A chosen option that is disabled itself or by its group is not sent with the form (not
       // `:disabled`, which also matches the options of a select the dialog disabled for a request).
       var option = first.options[first.selectedIndex];
-      var group = option.parentElement && option.parentElement.tagName === "OPTGROUP" ? option.parentElement : null;
+      var group = option.closest("optgroup");
       return option.disabled || (group && group.disabled) ? "" : first.value;
     }
     return first.value;

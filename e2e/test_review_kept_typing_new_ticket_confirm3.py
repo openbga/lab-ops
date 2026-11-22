@@ -93,8 +93,11 @@ def test_cancelled_post_does_not_count_against_a_later_dialog_load(page, demo):
     expect(subject).to_be_enabled()
     # The form has finished its one actual POST. A subsequent load over it is a GET.
     page.route("**/requests/new/?phase=load*", lambda route: route.fulfill(status=204))
+    # Adopted: collected once the load is sent (htmx:beforeSend). The dialog now takes a request
+    # as under way when it is sent (static/js/form-dialog.js), so a request cancelled before never
+    # freezes it; at beforeRequest the form is still the live form, and collecting it is right.
     form.evaluate("""form => {
-        document.addEventListener("htmx:beforeRequest", () => {
+        document.addEventListener("htmx:beforeSend", () => {
             window.loadCopies = window.vrKeptTyping.collect().map(item => item.values.subject);
         }, {once:true});
         htmx.ajax("GET", form.action + "?phase=load", {source:form, target:"#vr-form-content"});

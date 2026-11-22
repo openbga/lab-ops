@@ -122,11 +122,20 @@ def chosen_template(category, raw, client=None, templates=None):
 READINGS = 3
 
 
-def _revision(category):
-    """The category's revision as it stands (None for none)."""
+def _shown(category, *, read=True):
+    """What the page shows of `category` besides the form (its revision, and the name of the team
+    it sends tickets to): as it stands (`read`), or as the object holds it."""
     if category is None:
         return None
-    return RequestCategory.objects.filter(pk=category.pk).values_list("revision", flat=True).first()
+    if not read:
+        team = category.default_team
+        return (category.revision, category.default_team_id, team.name if team else None)
+    row = (
+        RequestCategory.objects.filter(pk=category.pk)
+        .values_list("revision", "default_team_id", "default_team__name")
+        .first()
+    )
+    return tuple(row) if row else None
 
 
 def _listing(templates):
@@ -252,8 +261,6 @@ class Intake:
         # The organization the request will have, once the desk's form has read it (check_offer).
         self.client = ANY_ORGANIZATION
         self.category, self.user = category, user
-        # The forms the page listed: those offered to the organization the page named, if any.
-        self.listed_for = whole_number(data.get("client")) if hasattr(data, "get") else None
         self.picker, self.template = None, None
 
         def choose(category):
@@ -270,7 +277,7 @@ class Intake:
         self.category = category
         self.values_form = None
         if not stable:
-            if self.template is not None:
+            if self.template is not None or data.get(PICKER):
                 self.withdraw(FORM_CHANGED)  # still changing: not drawn, the picker says why
         elif self.template is not None and defn is None:
             self.withdraw(NO_LONGER)
@@ -301,7 +308,7 @@ class Intake:
                     self.templates = []
                     return category, None, True
                 category = fresh
-            before = (getattr(category, "revision", None), _listing(self._list(category)))
+            before = (_shown(category, read=False), _listing(self._list(category)))
             template = choose(category)
             defn = None
             if template is not None:
@@ -310,15 +317,15 @@ class Intake:
                 except ObjectDoesNotExist:
                     defn = None  # removed since it was chosen
             self.templates = self._list(category)
-            after = (_revision(category), _listing(self.templates))
+            after = (_shown(category), _listing(self.templates))
             listed = defn is not None and defn.template.pk in {t.pk for t in self.templates}
             if before == after and (not listed or _describes(self.templates, defn)):
                 return category, defn, True
         return category, None, False
 
     def _list(self, category):
-        """The forms of `category` the page listed (those offered to its organization)."""
-        return list(staff_templates(category, self.listed_for))
+        """The forms of `category` (a submission is read against every form of the category)."""
+        return list(staff_templates(category))
 
     def check_offer(self, client):
         """Refuse, on the picker, a form not offered to `client`, the organization the request

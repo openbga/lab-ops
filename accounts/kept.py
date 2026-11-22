@@ -229,10 +229,12 @@ def _same_copy(stored, sent):
     the same answers (empty ones aside) from the same kinds of control, and the same omission."""
 
     def answers(values, controls):
+        # An empty answer is no answer, except from a list of choices, where "" (chosen nothing,
+        # such as No form) differs from a list the page did not show (its default applies).
         return {
             name: (_typed(value), controls.get(name))
             for name, value in (values or {}).items()
-            if _filled(value)
+            if value not in ("", []) or controls.get(name) == "choice"
         }
 
     (values, controls, dropped), (new_values, new_controls, new_dropped) = stored, sent
@@ -454,13 +456,15 @@ def _clean(values, names, typed, several, *, sent_typed=None):
             value = values.get(name, [])
             if not _strings(value) or len(value) > MAX_CHOICES:
                 return None
-            value = [item.replace("\x00", "") for item in value]
+            value = [item.replace("\x00", "").replace("\r\n", "\n") for item in value]
             size = sum(len(item) for item in value)
         else:
             value = values.get(name, "")
             if not isinstance(value, str):
                 return None
-            value = value.replace("\x00", "")  # PostgreSQL's JSON refuses it
+            # PostgreSQL's JSON refuses NUL; line endings as a page's script sends them (a form
+            # posts CRLF), so one text is one size and one copy whichever way it came.
+            value = value.replace("\x00", "").replace("\r\n", "\n")
             size = len(value)
         if size > MAX_VALUE:
             return None

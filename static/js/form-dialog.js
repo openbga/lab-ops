@@ -611,7 +611,9 @@
     function isDialogRequest(event) {
       return event.detail.target === content;
     }
-    document.addEventListener("htmx:beforeRequest", function (event) {
+    // When the request is sent: one cancelled before (a question declined, a page's own check)
+    // never ends, so it must not leave the dialog busy.
+    document.addEventListener("htmx:beforeSend", function (event) {
       if (!isDialogRequest(event)) {
         return;
       }

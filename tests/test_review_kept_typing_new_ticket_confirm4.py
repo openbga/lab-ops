@@ -379,6 +379,12 @@ def test_failed_atomic_request_get_leaves_the_taken_draft_for_the_next_get(
     assert KeptDraft.objects.get().taken_at is not None
 
 
+# Adopted as a strict xfail: documented in docs/architecture.md. A refused save lists every
+# form of the category, those for selected organizations marked, as before this change; the
+# offer to the ticket's organization is checked when it is saved. (Listing only the forms
+# offered to the organization the page named lost answers when that organization was
+# refused: the fifth confirmation's High.)
+@pytest.mark.xfail(strict=True, reason="a refused save lists every form of the category")
 def test_refused_form_preserves_the_options_of_the_preselected_organization(
     agent, pickup, clinic, other_org
 ):
