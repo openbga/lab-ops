@@ -482,7 +482,9 @@ def _drawn_in_one_reading(request, draw):
     raise AssertionError("not reached: the second attempt returns or raises")
 
 
-@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
+# Not non_atomic_requests: with ATOMIC_REQUESTS a refused save stays in the request's transaction
+# (what the page records, such as the first What's new visit), and the page drawn by GET is then
+# drawn in it too (one_reading adds nothing there; the savepoint still rolls a failed take back).
 @login_required
 def request_create(request):
     require_staff(request.user)
