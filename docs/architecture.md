@@ -213,7 +213,11 @@ definition, as read between two equal lists). A submission reads the list before
 picker and form in the same way, and a refused save is drawn again from that moment (the list, the
 form and its category as read then, nothing read again), less a form removed since or not offered
 to the request's organization, which the picker then names as the reason for No form. "Some
-required details are not known yet" is kept only while the form would draw it. A copy taken for a form grown past 200 fields since is still
+required details are not known yet" is kept only while the form would draw it. Not covered: a
+setup change and its reversal both committed between two reads of one page (a form retired and
+restored with other instructions) look like no change, so that page can show the list of one
+moment with the instructions of the other; the next submit is checked against the current
+definition as always. A copy taken for a form grown past 200 fields since is still
 drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
 dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the
 keep address answers, for each form sent, whether a copy is held, and the page sends

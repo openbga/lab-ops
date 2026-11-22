@@ -217,14 +217,14 @@ KEPT_MESSAGE = (
 
 
 def notify(request):
-    """Tell the sign-in page that what was typed is kept, once: not when the notice already waits
-    (a refused post and the page's keep request can both hold a copy). What waits is looked at
-    without using it up or changing it (the storage's loaded and queued messages); a request
-    without message storage says nothing."""
+    """Tell the sign-in page that what was typed is kept, once: only by the request that stored a
+    copy (a refused post and the page's keep request can both hold one), and not when the notice
+    already waits. What waits is looked at without using it up or changing it (the storage's
+    loaded and queued messages); a request without message storage says nothing."""
     from django.contrib import messages
 
     storage = getattr(request, "_messages", None)
-    if storage is None:
+    if storage is None or not getattr(request, "vr_kept_inserted", False):
         return
     waiting = [
         *(getattr(storage, "_loaded_messages", None) or []),  # loads what waits, uses nothing up
@@ -285,12 +285,15 @@ def keep_for(request, value, values):
     """keep() for this request's browser (one cookie value for the whole request), set or renewed
     on the answer only when a copy is held."""
     choice, digest = _browser(request, create=True)
-    held, inserted = _keep(value, values, digest)
+    held, own, inserted = _keep(value, values, digest)
     if held:
         request.vr_kept_browser = choice
-    # Whether this request's own copy was kept (not one kept before for the session and form,
-    # perhaps from another tab with other text): accounts.sessions._refusal says so.
-    request.vr_kept_inserted = inserted
+    # Whether what this request sent is the copy held (stored now, or the same text stored by an
+    # earlier delivery), not one kept before for the session and form from other text (another
+    # tab): the guards of the page that sent it rely on it (accounts.sessions._refusal, the keep
+    # address's `held`). Whether this request stored it: the sign-in page's notice.
+    request.vr_kept_own = own
+    request.vr_kept_inserted = getattr(request, "vr_kept_inserted", False) or inserted
     return held
 
 
@@ -491,10 +494,11 @@ def keep(value, values, browser):
 
 
 def _keep(value, values, browser):
-    """keep(): (held, whether this call inserted the copy)."""
+    """keep(): (held, whether the copy held is what this call sent: stored now or the same text
+    stored before, whether this call stored it)."""
     data = _read(value)
     if data is None or not browser:
-        return False, False
+        return False, False, False
     table = connection.ops.quote_name(KeptDraft._meta.db_table)
     sessions = connection.ops.quote_name(AccountSession._meta.db_table)
     users = connection.ops.quote_name(User._meta.db_table)
@@ -507,11 +511,11 @@ def _keep(value, values, browser):
         # The form's own fields as they stand, after a change of them under way.
         checked = _without_patient_fields(data, values)
         if checked is None:
-            return False, False  # the form is gone: nothing of it can be given back
+            return False, False, False  # the form is gone: nothing of it can be given back
         cleaned = _clean(values, checked["f"], checked["t"], checked["m"], sent_typed=data["t"])
         if cleaned is None:
             # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
-            return held.exists(), False
+            return held.exists(), False, False
         dropped = isinstance(values, dict) and any(
             _filled(values.get(name, "")) for name in data["f"] if name not in checked["f"]
         )
@@ -552,10 +556,14 @@ def _keep(value, values, browser):
             ],
         )
         if cursor.fetchone() is not None:
-            return True, True
+            return True, True, True
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
-        # of the same page, whose answer was lost). Held only while it may still be given back.
-        return held.exists(), False
+        # of the same page, whose answer was lost, or another tab). Held only while it may still
+        # be given back; this delivery's own only when it holds the same text.
+        stored = held.values_list("values", flat=True).first()
+        if stored is None:
+            return held.exists(), False, False
+        return True, stored == json.loads(json.dumps(cleaned)), False
 
 
 def keep_posted(request):

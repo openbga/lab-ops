@@ -65,7 +65,8 @@
     }
     return element.tagName === "FORM" ? element : element.form || element.closest("form");
   }
-  document.addEventListener("htmx:beforeRequest", function (event) {
+  // Counted when sent (a request cancelled before that never ends).
+  document.addEventListener("htmx:beforeSend", function (event) {
     var form = postedForm(event);
     if (form) {
       posting.set(form, (posting.get(form) || 0) + 1);
@@ -128,6 +129,10 @@
     if (first.type === "radio" || first.type === "checkbox") {
       var checked = elements.find(function (element) { return element.checked; });
       return checked ? checked.value : "";
+    }
+    if (first.tagName === "SELECT" && first.selectedIndex >= 0) {
+      // A chosen option that is disabled (or in a disabled group) is not sent with the form.
+      return first.options[first.selectedIndex].matches(":disabled") ? "" : first.value;
     }
     return first.value;
   }
