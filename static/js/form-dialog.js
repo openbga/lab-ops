@@ -632,13 +632,7 @@
       if (!isDialogRequest(event)) {
         return;
       }
-      var config = event.detail.requestConfig;
-      if (config && String(config.verb).toLowerCase() !== "get") {
-        // A save: Try again is offered only for a failed load, never to repeat an earlier one
-        // over what the save kept on the form.
-        retryUrl = null;
-        retrySource = null;
-      }
+
       var states = new Map();
       content.querySelectorAll("button, input, select, textarea").forEach(function (control) {
         states.set(control, { own: control.disabled, off: control.matches(":disabled") });
@@ -648,6 +642,14 @@
     document.addEventListener("htmx:beforeSend", function (event) {
       if (!isDialogRequest(event)) {
         return;
+      }
+      var config = event.detail.requestConfig;
+      if (config && String(config.verb).toLowerCase() !== "get") {
+        // A save sent: Try again is offered only for a failed load, never to repeat an earlier
+        // one over what the save kept on the form. (A save cancelled before it is sent leaves
+        // the failed load's Try again in place.)
+        retryUrl = null;
+        retrySource = null;
       }
       errorRegion.hidden = true;
       var states = asked.get(event.detail.xhr);

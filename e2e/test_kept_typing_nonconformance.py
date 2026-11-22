@@ -198,3 +198,33 @@ def test_an_action_added_after_the_limit_passed_comes_back_with_its_person(page:
     expect(page.get_by_text("Action added.")).to_be_visible()
     assert CorrectiveAction.objects.filter(nonconformance=nc).count() == actions_before + 1
     assert [error for error in page.console_errors if error != REFUSED] == []
+
+
+def test_a_refused_save_after_a_failed_discard_keeps_the_dialogs_own_focus(page: Page, demo):
+    """Discard's rule (the focus in the first text box) belongs to the form Discard loads. After
+    a failed Discard, a save refused because the record changed meanwhile is drawn with the
+    dialog's own focus (its first control), not pulled to the Reason box."""
+    import test_review_kept_typing_nonconformance_confirm as confirm
+    from test_review_kept_typing_nonconformance_confirm2 import interrupt_discard
+
+    from accounts.models import User
+    from nonconformance import services
+    from nonconformance.models import Status
+
+    address = confirm.returned_status.__wrapped__(page, demo)
+    interrupt_discard(page, address)
+    nc = record()
+    services.change_status(
+        actor=User.objects.get(username="demo_supervisor"),
+        nc=nc,
+        expected_revision=nc.revision,
+        status=Status.INVESTIGATING,
+    )
+    page.locator("#vr-form-content").get_by_role("button", name="Change status").click()
+    expect(page.get_by_text(STALE).first).to_be_visible()
+    reason = field(page, "Reason (optional)")
+    expect(reason).not_to_have_value("")  # the typing is still there to copy
+    first = page.locator("#vr-form-content").get_by_role("radio").first
+    expect(first).to_be_focused()
+    page.wait_for_timeout(300)  # Discard's rule would move the focus in a later task
+    expect(reason).not_to_be_focused()

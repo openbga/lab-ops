@@ -253,6 +253,11 @@
   // handling, which runs first); once it is set up, the focus goes to its first text box. Noted
   // on the window, whose capture listeners run before the document's.
   var discardedInDialog = false;
+  // A link, a submit button (a button without a type submits too) or the dialog's close.
+  function leavesForm(target) {
+    var control = target && target.closest("a[href], button, input[type=submit], [data-vr-form-close], [data-bs-dismiss]");
+    return Boolean(control) && (control.matches("a[href], [data-vr-form-close], [data-bs-dismiss]") || control.type === "submit");
+  }
   var drawnSince = false; // the dialog has drawn a form since that Discard (a failed load has not)
   window.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : null;
@@ -260,9 +265,10 @@
     if (discard) {
       discardedInDialog = Boolean(discard.closest("#vr-form-content"));
       drawnSince = false;
-    } else if (!(target && target.closest("#vr-form-discard, [data-vr-form-retry]"))) {
-      // Anything but the dialog's question about unsaved changes, or Try again (which repeats
-      // the Discard's load when it failed).
+    } else if (leavesForm(target) && !target.closest("#vr-form-discard, [data-vr-form-retry]")) {
+      // Another page asked for, a save, or the dialog closed: what comes next is not Discard's
+      // form. A click in the form, on Maximize, on the question about unsaved changes or on Try
+      // again (which repeats the Discard's load when it failed) leaves the rule in place.
       discardedInDialog = false;
     }
   }, true);
