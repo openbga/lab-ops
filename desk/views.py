@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import OperationalError, transaction
+from django.db import OperationalError, connection, transaction
 from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseBadRequest, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -482,9 +482,7 @@ def _drawn_in_one_reading(request, draw):
     raise AssertionError("not reached: the second attempt returns or raises")
 
 
-# Not non_atomic_requests: with ATOMIC_REQUESTS a refused save stays in the request's transaction
-# (what the page records, such as the first What's new visit), and the page drawn by GET is then
-# drawn in it too (one_reading adds nothing there; the savepoint still rolls a failed take back).
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def request_create(request):
     require_staff(request.user)
@@ -500,6 +498,16 @@ def request_create(request):
 
     if request.method != "POST" or not (request.POST or request.FILES):
         return _drawn_in_one_reading(request, draw)
+    if connection.settings_dict.get("ATOMIC_REQUESTS"):
+        # A save keeps the request's transaction the deployment asked for (the view is not
+        # atomic so that the page drawn by GET has a reading of its own).
+        with transaction.atomic():
+            return _create_posted(request, initial)
+    return _create_posted(request, initial)
+
+
+def _create_posted(request, initial):
+    """request_create for a submitted form: created, or drawn again with what was posted."""
     form = RequestCreateForm(request.POST, request.FILES, initial=initial)
     # A request form's own fields (request_forms): validated with the form, saved in the
     # creation's transaction through on_created. Imported here: desk models never import it.

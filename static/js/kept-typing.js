@@ -53,34 +53,24 @@
     });
   }
 
-  // Forms whose own save is under way, with how many of their posts are (htmx posts them; the form
-  // dialog disables them meanwhile).
-  var posting = new Map();
-  function postedForm(event) {
+  // Loads of another page into the form dialog under way (a GET into #vr-form-content: Discard,
+  // a link): the form shown until it arrives is being left, so nothing of it is collected while
+  // the dialog has it disabled. Counted when sent (a request cancelled before never ends).
+  var loading = new Set();
+  function dialogLoad(event) {
     var detail = event.detail || {};
-    var element = detail.elt;
     var verb = detail.requestConfig && detail.requestConfig.verb;
-    if (!element || String(verb).toLowerCase() !== "post") {
-      return null;
-    }
-    return element.tagName === "FORM" ? element : element.form || element.closest("form");
+    var target = detail.target;
+    return Boolean(detail.xhr && target && target.id === "vr-form-content" && String(verb).toLowerCase() === "get");
   }
-  // Counted when sent (a request cancelled before that never ends).
   document.addEventListener("htmx:beforeSend", function (event) {
-    var form = postedForm(event);
-    if (form) {
-      posting.set(form, (posting.get(form) || 0) + 1);
+    if (dialogLoad(event)) {
+      loading.add(event.detail.xhr);
     }
   });
   document.addEventListener("htmx:afterRequest", function (event) {
-    var form = postedForm(event);
-    if (form && posting.has(form)) {
-      var left = posting.get(form) - 1;
-      if (left > 0) {
-        posting.set(form, left);
-      } else {
-        posting.delete(form);
-      }
+    if (event.detail && event.detail.xhr) {
+      loading.delete(event.detail.xhr);
     }
   });
 
@@ -131,8 +121,11 @@
       return checked ? checked.value : "";
     }
     if (first.tagName === "SELECT" && first.selectedIndex >= 0) {
-      // A chosen option that is disabled (or in a disabled group) is not sent with the form.
-      return first.options[first.selectedIndex].matches(":disabled") ? "" : first.value;
+      // A chosen option that is disabled itself or by its group is not sent with the form (not
+      // `:disabled`, which also matches the options of a select the dialog disabled for a request).
+      var option = first.options[first.selectedIndex];
+      var group = option.parentElement && option.parentElement.tagName === "OPTGROUP" ? option.parentElement : null;
+      return option.disabled || (group && group.disabled) ? "" : first.value;
     }
     return first.value;
   }
@@ -180,9 +173,10 @@
       var values = {};
       var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
-      // While the form's own save is under way the form dialog disables it: what it holds is
-      // still what the person typed (not while the dialog loads another form over it, Discard).
-      var busy = posting.has(form) ? "busy" : false;
+      // While a request of the form dialog is under way it disables the form: what it holds is
+      // still what the person typed (a save, also one cancelled before it was sent), except while
+      // the dialog loads another page over it (Discard, a link).
+      var busy = loading.size ? false : "busy";
       list(marker, "data-vr-kept-fields").forEach(function (name) {
         var elements = controls(form, name, busy);
         if (!elements.length) {

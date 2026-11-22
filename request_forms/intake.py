@@ -252,19 +252,11 @@ class Intake:
         # The organization the request will have, once the desk's form has read it (check_offer).
         self.client = ANY_ORGANIZATION
         self.category, self.user = category, user
-        # The category's list read before and after the picker and the chosen form's definition,
-        # again while the two differ (a setup change committed between them), so that a page
-        # drawn again after a refusal shows one moment: the list as read then (`templates`, not
-        # read again), the form and its category as its definition reads them.
-        defn = None
-        for _reading in range(READINGS):
-            if category is not None:
-                # The category as it stands at the start of this reading (its guidance and
-                # protection go with the form's definition), compared again at its end.
-                category = RequestCategory.objects.select_related("default_team", "parent").get(
-                    pk=category.pk
-                )
-            before = (_revision(category), _listing(staff_templates(category)))
+        # The forms the page listed: those offered to the organization the page named, if any.
+        self.listed_for = whole_number(data.get("client")) if hasattr(data, "get") else None
+        self.picker, self.template = None, None
+
+        def choose(category):
             self.picker = RequestFormPicker(category, data)
             self.template = None
             if self.picker.is_valid():
@@ -272,23 +264,15 @@ class Intake:
                     self.picker.add_error(PICKER, CHOOSE)
                 else:
                     self.template = self.picker.cleaned_data[PICKER]
-            defn = None
-            if self.template is not None:
-                try:
-                    defn = definition.read(self.template, category=category)
-                except ObjectDoesNotExist:
-                    defn = None  # removed since the picker read it
-            self.templates = list(staff_templates(category))
-            after = (_revision(category), _listing(self.templates))
-            if before == after and (defn is None or _describes(self.templates, defn)):
-                break
-        else:
-            defn = None  # still changing: the form is not drawn, the picker at No form says why
-            if self.template is not None:
-                self.withdraw(FORM_CHANGED)
+            return self.template
+
+        category, defn, stable = self._bracketed(category, choose)
         self.category = category
         self.values_form = None
-        if self.template is not None and defn is None:
+        if not stable:
+            if self.template is not None:
+                self.withdraw(FORM_CHANGED)  # still changing: not drawn, the picker says why
+        elif self.template is not None and defn is None:
             self.withdraw(NO_LONGER)
         elif self.template is not None:
             self.values_form = ValuesForm(self.template, data, user=user, definition=defn)
@@ -296,6 +280,45 @@ class Intake:
             # A posted choice refused (no longer offered): No form, with the reason, never the
             # choice shown without its fields.
             self.withdraw(self.picker.errors[PICKER][0])
+
+    def _bracketed(self, category, choose):
+        """Read the category, the list of forms (`templates`, kept: a page drawn again after a
+        refusal shows it as read) and the chosen form's definition as one moment: the category
+        and the list before and after the choice (`choose(category)`, the template or None) and
+        its definition, again while they differ (a setup change committed between them).
+        (category, definition or None, whether a reading was stable). A category removed since
+        stays as it was read (the desk's form refuses it)."""
+        defn = None
+        for _reading in range(READINGS):
+            if category is not None:
+                fresh = (
+                    RequestCategory.objects.select_related("default_team", "parent")
+                    .filter(pk=category.pk)
+                    .first()
+                )
+                if fresh is None:
+                    choose(category)  # the picker as posted, over no forms
+                    self.templates = []
+                    return category, None, True
+                category = fresh
+            before = (getattr(category, "revision", None), _listing(self._list(category)))
+            template = choose(category)
+            defn = None
+            if template is not None:
+                try:
+                    defn = definition.read(template, category=category)
+                except ObjectDoesNotExist:
+                    defn = None  # removed since it was chosen
+            self.templates = self._list(category)
+            after = (_revision(category), _listing(self.templates))
+            listed = defn is not None and defn.template.pk in {t.pk for t in self.templates}
+            if before == after and (not listed or _describes(self.templates, defn)):
+                return category, defn, True
+        return category, None, False
+
+    def _list(self, category):
+        """The forms of `category` the page listed (those offered to its organization)."""
+        return list(staff_templates(category, self.listed_for))
 
     def check_offer(self, client):
         """Refuse, on the picker, a form not offered to `client`, the organization the request
@@ -318,30 +341,25 @@ class Intake:
         another category since, or not offered to the request's organization once the desk's
         form has read it (none: forms offered to every organization only), is not drawn again:
         the picker is set to No form and says why, and nothing of the form or of what was typed
-        in it is on the page (reviews 7 and 8)."""
-        self.category = RequestCategory.objects.select_related("default_team", "parent").get(
-            pk=self.category.pk
-        )
-        if self.template is None:
-            self.templates = list(staff_templates(self.category))
+        in it is on the page (reviews 7 and 8). Read as one moment, as a submission is
+        (_bracketed)."""
+        chosen = self.template
+        category, fresh, stable = self._bracketed(self.category, lambda _category: chosen)
+        self.category = category
+        if chosen is None:
             return
-        removed = self.template.pk
-        try:
-            fresh = definition.read(self.template, category=self.category)
-        except ObjectDoesNotExist:
-            fresh = None  # removed since
-        # The list read after the definition, so that it lists the form as the definition reads
-        # it (a form removed meanwhile is not listed).
-        self.templates = list(staff_templates(self.category))
-        if fresh is not None and drawable(fresh, self.category, self.client):
-            if _describes(self.templates, fresh):
-                self.values_form = ValuesForm(self.template, user=self.user, definition=fresh)
-                return
-            self.withdraw(FORM_CHANGED)
+        listed = {t.pk for t in self.templates}
+        if stable and fresh is not None and drawable(fresh, self.category, self.client):
+            self.values_form = ValuesForm(chosen, user=self.user, definition=fresh)
             return
-        reason = NOT_OFFERED if fresh is not None and drawable(fresh, self.category) else NO_LONGER
-        if reason == NOT_OFFERED:
-            self.templates = [t for t in self.templates if t.pk != removed]
+        if not stable:
+            reason = FORM_CHANGED
+        elif fresh is not None and drawable(fresh, self.category):
+            reason = NOT_OFFERED
+        else:
+            reason = NO_LONGER
+        if reason == NOT_OFFERED or chosen.pk not in listed:
+            self.templates = [t for t in self.templates if t.pk != chosen.pk]
         self.withdraw(reason)
 
     def withdraw(self, reason):

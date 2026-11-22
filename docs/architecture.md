@@ -203,7 +203,8 @@ of a form that is gone is not kept. The page takes the copy before it draws anyt
 the ticket's own fields from it (`draw`), decides the category, the organization and the ticket form
 from what was drawn, as the section would (`request_forms.intake.slot`), and then works out the
 marker and draws the copy in every part (`prepare` with the copy taken). The page is drawn in one
-reading with the account read in it; when PostgreSQL refuses one of the ticket form's share locks
+reading with the account read in it (the view is not atomic for the request; a save keeps the
+request's transaction where the deployment sets ATOMIC_REQUESTS); when PostgreSQL refuses one of the ticket form's share locks
 because the row changed after the reading began, the reading is rolled back, the take with it, and
 drawn once more. The section is not drawn in one reading (nor in a request's transaction), so that
 a change of a ticket form never waits for it: the slot reads the list of forms once, chooses from it,
@@ -226,11 +227,17 @@ ended and kept from its post, from the dialog or from a page the browser does no
 with a sign-in that returns to the address it was posted to. An htmx request that finds the session
 ended (401 `{"signed_in": false}`) no longer goes to sign in at once: the page sends what is typed
 first, as at the end of its countdown, also when the element that asked has left the page by then
-(the refusal says whether what that form posted is the copy kept, so its guard lets the page go),
+(the refusal, like the keep address for each form, says whether what that form sent is the copy
+held: stored now, or the same answers from the same controls stored before, so another tab's copy
+never lets this page go),
 and it goes to the sign-in address the server gave when it has no dialog form of its own to return
-to (only this site's sign-in page with a `next` on this site). While a form's own post is under
-way, the page collects the controls the dialog disabled for it; a dialog load over the form
-(Discard, another page) collects nothing of it. The kept notice is added once per sign-out. Once a copy is held for the dialog's
+to (only this site's sign-in page with a `next` on this site). While the dialog has a form
+disabled for a request, the page collects the controls the dialog disabled, except while the
+dialog loads another page over the form (Discard, a link), when it collects nothing of it; a chosen
+option disabled by itself or its group is not collected, as the form would not send it. The kept notice comes from the request that stored
+a copy and is not added while it already waits. Not covered: a copy of another form stored after
+the sign-in page has shown the notice is announced again, and a repeated delivery whose first
+answer was lost is not announced. Once a copy is held for the dialog's
 form the dialog lets the page go without asking, and the composer only for its own copy; a refusal
 leaves the dialog's question in place until then. An answer without `held` (an earlier release)
 counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the

@@ -216,15 +216,42 @@ KEPT_MESSAGE = (
 )
 
 
+def _typed(value):
+    """A value as the person typed or chose it, for comparing two deliveries of one form: line
+    endings as one, a list in any order."""
+    if isinstance(value, list):
+        return sorted(item.replace("\r\n", "\n") for item in value)
+    return value.replace("\r\n", "\n") if isinstance(value, str) else value
+
+
+def _same_copy(stored, sent):
+    """Whether a stored copy, (values, controls, dropped), gives back exactly what `sent` would:
+    the same answers (empty ones aside) from the same kinds of control, and the same omission."""
+
+    def answers(values, controls):
+        return {
+            name: (_typed(value), controls.get(name))
+            for name, value in (values or {}).items()
+            if _filled(value)
+        }
+
+    (values, controls, dropped), (new_values, new_controls, new_dropped) = stored, sent
+    return bool(dropped) == bool(new_dropped) and answers(values, controls or {}) == answers(
+        new_values, new_controls or {}
+    )
+
+
 def notify(request):
-    """Tell the sign-in page that what was typed is kept, once: only by the request that stored a
-    copy (a refused post and the page's keep request can both hold one), and not when the notice
+    """Tell the sign-in page that what was typed is kept, once: by the request that stored a copy
+    (a refused post and the page's keep request can both hold one), and not when the notice
     already waits. What waits is looked at without using it up or changing it (the storage's
-    loaded and queued messages); a request without message storage says nothing."""
+    loaded and queued messages); a request without message storage says nothing. Not covered
+    (docs/architecture.md): a copy of another form stored after the sign-in page has shown the
+    notice is announced again, and a repeated delivery whose first answer was lost is not."""
     from django.contrib import messages
 
     storage = getattr(request, "_messages", None)
-    if storage is None or not getattr(request, "vr_kept_inserted", False):
+    if storage is None or not getattr(request, "vr_kept_announce", False):
         return
     waiting = [
         *(getattr(storage, "_loaded_messages", None) or []),  # loads what waits, uses nothing up
@@ -293,7 +320,7 @@ def keep_for(request, value, values):
     # tab): the guards of the page that sent it rely on it (accounts.sessions._refusal, the keep
     # address's `held`). Whether this request stored it: the sign-in page's notice.
     request.vr_kept_own = own
-    request.vr_kept_inserted = getattr(request, "vr_kept_inserted", False) or inserted
+    request.vr_kept_announce = getattr(request, "vr_kept_announce", False) or inserted
     return held
 
 
@@ -560,10 +587,11 @@ def _keep(value, values, browser):
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
         # of the same page, whose answer was lost, or another tab). Held only while it may still
         # be given back; this delivery's own only when it holds the same text.
-        stored = held.values_list("values", flat=True).first()
-        if stored is None:
+        stored = held.values_list("values", "controls", "dropped").first()
+        if stored is None or stored[0] is None:
             return held.exists(), False, False
-        return True, stored == json.loads(json.dumps(cleaned)), False
+        mine = (cleaned, controls, dropped)
+        return True, _same_copy(stored, mine), False
 
 
 def keep_posted(request):
