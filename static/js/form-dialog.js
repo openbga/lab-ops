@@ -562,6 +562,15 @@
         setBusy();
       }
     });
+    // What was typed in the dialog's form is kept (static/js/session.js, a session limit): the page
+    // goes to sign in without asking about it.
+    document.addEventListener("vr:typing-kept", function (event) {
+      var forms = (event.detail && event.detail.forms) || [];
+      if (active && forms.some(function (form) { return content.contains(form); })) {
+        nativeLeaving = true;
+        dirty = false;
+      }
+    });
     window.addEventListener("beforeunload", function (event) {
       if (active && !nativeLeaving && (dirty || requests.size)) {
         event.preventDefault();

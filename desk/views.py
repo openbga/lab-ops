@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import OperationalError, transaction
 from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseBadRequest, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -464,6 +464,25 @@ def request_find(request):
 KEEP_NEW_TICKET = "staff-ticket"
 
 
+def _drawn_in_one_reading(request, draw):
+    """Draw a page in one reading (core.concurrency.one_reading), with the account read in it, so
+    that everything it shows comes from one moment; once more in a new reading when PostgreSQL
+    refuses a lock the drawing takes on a row changed since the reading began (a ticket form's
+    definition is read with share locks). The first attempt's work, a copy of kept typing taken
+    included, is rolled back with it."""
+    for attempt in (1, 2):
+        try:
+            # The savepoint rolls the take back also inside a transaction already (a test).
+            with one_reading(), transaction.atomic():
+                require_staff(reading_account(request))
+                return draw()
+        except OperationalError as error:
+            if attempt == 2 or not kept._serialization_refusal(error):
+                raise
+    raise AssertionError("not reached: the second attempt returns or raises")
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def request_create(request):
     require_staff(request.user)
@@ -563,10 +582,13 @@ def request_create(request):
             messages.error(request, FORM_CHANGED)
     if form.is_bound:
         return _new_ticket_page(request, form, intake)
-    # Drawn in the transaction that takes what a session limit kept of this page, so that a page
-    # that fails to draw leaves it to the next one.
-    with transaction.atomic():
-        return _new_ticket_page(request, form, intake)
+
+    # Drawn in one reading with the take of what a session limit kept of this page, so that the
+    # page tells one story and a page that fails to draw leaves the copy to the next one.
+    def draw():
+        return _new_ticket_page(request, RequestCreateForm(initial=initial), None)
+
+    return _drawn_in_one_reading(request, draw)
 
 
 def _new_ticket_page(request, form, intake):
@@ -628,8 +650,13 @@ def _new_ticket_page(request, form, intake):
 @require_GET
 def category_guidance(request):
     """HTMX partial: the section after the category on the new-request form (its guidance and
-    the request type's own fields), for the chosen category."""
+    the request type's own fields), for the chosen category. Not drawn in one reading: a ticket
+    form's definition is read under share locks that a change of the form waits for, so they are
+    released once it is read; the picker lists the forms as read after it
+    (request_forms.intake.slot), so the picker and the fields agree."""
     require_staff(request.user)
+    from request_forms.intake import slot
+
     raw = request.GET.get("category", "")
     category = (
         RequestCategory.objects.filter(
@@ -638,8 +665,6 @@ def category_guidance(request):
         .select_related("default_team")
         .first()
     )
-    from request_forms.intake import slot
-
     drawn = slot(category, request.user, query=request.GET)
     # The section carries the page's keep marker, drawn again with the ticket form's fields; a
     # section never gives a copy back (accounts.kept).

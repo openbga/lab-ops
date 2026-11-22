@@ -17,9 +17,11 @@
 //     are compared with how they were drawn then, and a form that held unsent text when the page
 //     was drawn (data-vr-kept-bound) still counts as unsent.
 //   - A form in the shared form dialog (static/js/form-dialog.js) is noted as drawn once the dialog
-//     has set it up (vr:form-ready); returnTo() gives the address of its page when it is among the
-//     forms collected, so that signing in again opens that page, where the copy is given back
-//     (static/js/session.js).
+//     has set it up (vr:form-ready); returnTo(held) gives the address of its page when a copy is
+//     held for it (`held`: the keep answer's list, one per form collected), so that signing in
+//     again opens that page, where the copy is given back (static/js/session.js); heldForms(held)
+//     the forms a copy is held for. Discard inside the dialog loads the form again in place; the
+//     focus then goes to its first text box.
 (function () {
   "use strict";
 
@@ -99,12 +101,19 @@
     });
   }
 
-  var returnAddress = null; // the form dialog's page of a form collected last
+  var sent = []; // the forms collect() gave last, in order: {form, page}
 
-  // The address of the form dialog's page (data-vr-form-url, this site's) holding a form that
-  // collect() gave last, or null.
-  function returnTo() {
-    return returnAddress;
+  // The address of the form dialog's page (data-vr-form-url, this site's) of the first form
+  // collect() gave last that a copy is held for (`held`, in the same order), or null.
+  function returnTo(held) {
+    var found = sent.find(function (item, index) { return item.page && held && held[index]; });
+    return found ? found.page : null;
+  }
+
+  function heldForms(held) {
+    return sent.filter(function (item, index) { return held && held[index]; }).map(function (item) {
+      return item.form;
+    });
   }
 
   function dialogPage(form) {
@@ -122,7 +131,7 @@
   function collect(options) {
     var commit = Boolean(options && options.commit);
     var out = [];
-    returnAddress = null;
+    sent = [];
     markers().forEach(function (marker) {
       var form = marker.form;
       var several = list(marker, "data-vr-kept-several");
@@ -149,7 +158,7 @@
       });
       if (dirty && text) {
         out.push({ token: marker.value, values: values });
-        returnAddress = returnAddress || dialogPage(form);
+        sent.push({ form: form, page: dialogPage(form) });
       }
     });
     return out;
@@ -186,7 +195,28 @@
     window.location.reload();
   });
 
-  window.vrKeptTyping = { collect: collect, returnTo: returnTo };
+  window.vrKeptTyping = { collect: collect, returnTo: returnTo, heldForms: heldForms };
+
+  // Discard inside the form dialog: the dialog loads the form again in place (its own link
+  // handling, which runs first); once it is set up, the focus goes to its first text box. Noted
+  // on the window, whose capture listeners run before the document's.
+  var discardedInDialog = false;
+  window.addEventListener("click", function (event) {
+    var discard = event.target.closest && event.target.closest("a[data-vr-kept-discard]");
+    discardedInDialog = Boolean(discard && discard.closest("#vr-form-content"));
+  }, true);
+  document.addEventListener("vr:form-ready", function () {
+    if (!discardedInDialog) {
+      return;
+    }
+    discardedInDialog = false;
+    setTimeout(function () {
+      var marker = markers().find(function (item) { return item.closest("#vr-form-content"); });
+      if (marker) {
+        focusForm(marker);
+      }
+    }, 0);
+  });
 
   // How each kept control was drawn, for those not seen yet (the page's, then those htmx draws).
   function baseline() {

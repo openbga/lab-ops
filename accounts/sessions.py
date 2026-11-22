@@ -875,13 +875,13 @@ def _keep_refused(request):
 def _refusal(request):
     """The answer to a request whose session ended, other than a page opened with GET, after
     keeping what its form posted (_keep_refused). Signing in again returns to the page on screen,
-    or, when what a form in the shared form dialog posted was kept, to that form's own page, where
-    it is given back (the dialog's form is posted to its page's address)."""
+    or, when what the form posted was kept and it was sent from the shared form dialog or from a
+    page the browser does not name, to the address it was posted to, where it is given back (a
+    form is posted to its page's address; the reply addresses send a GET on to their ticket)."""
     held = _keep_refused(request)
-    if held and request.headers.get("X-VR-Form"):
+    back = _page_on_screen(request)
+    if held and (request.headers.get("X-VR-Form") or back is None):
         back = request.get_full_path()
-    else:
-        back = _page_on_screen(request)
     sign_in = sign_in_url(back)
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)

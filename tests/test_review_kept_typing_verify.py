@@ -326,7 +326,9 @@ def test_an_open_session_keep_refusal_leaves_the_existing_cookie_alone(case):
         {"forms": [{"token": token, "values": {"subject": "Still signed in"}}]},
         content_type="application/json",
     )
-    assert result.json() == {"kept": 0} and not KeptDraft.objects.filter(taken_at=None).exists()
+    # The keep answer also says, for each form sent, whether a copy is held (new-ticket batch).
+    assert result.json() == {"kept": 0, "held": [False]}
+    assert not KeptDraft.objects.filter(taken_at=None).exists()
     assert kept.BROWSER_COOKIE not in result.cookies
 
 

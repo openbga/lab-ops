@@ -154,3 +154,32 @@ def test_a_new_ticket_typed_in_the_dialog_opens_again_after_signing_in(page: Pag
     expect(field(page, "What the client asked")).to_have_value(ASKED)
     expect(page.locator("#category-section")).to_contain_text("Ticket form")
     assert not page.console_errors, page.console_errors
+
+
+def test_log_ticket_pressed_in_the_dialog_after_the_limit_passed_comes_back(page: Page, demo):
+    from accounts.models import KeptDraft
+    from desk.models import ServiceRequest
+
+    page.clock.install()
+    sign_in(page, STAFF, demo.password)
+    page.goto("/requests/?view=all")
+    page.get_by_role("link", name="New ticket", exact=True).first.click()
+    dialog = page.locator("#vr-form-dialog")
+    expect(dialog.locator("#vr-form-title")).to_have_text("New ticket")
+    pick(field(dialog, "Category"), label="Pickup or missed pickup")
+    expect(dialog.locator("#category-section")).to_contain_text("Ticket form")
+    field(dialog, "Subject").fill(SUBJECT)
+    field(dialog, "What the client asked").fill(ASKED)
+    # The server's limit passes while the page still believes it has time (a laptop asleep).
+    assert open_session(STAFF).update(last_active_at=Now() - INACTIVITY - timedelta(seconds=5))
+    dialog.get_by_role("button", name="Log ticket").click()
+    expect(page).to_have_url(re.compile(r"/accounts/login/\?next=%2Frequests%2Fnew%2F"))
+    expect(page.get_by_text(KEPT)).to_be_visible()
+    assert not ServiceRequest.objects.filter(subject=SUBJECT).exists()
+    assert KeptDraft.objects.get().values["subject"] == SUBJECT
+
+    sign_in(page, STAFF, demo.password, visit=False)
+    expect(page).to_have_url(re.compile(re.escape(ADDRESS) + "$"))
+    expect(field(page, "Subject")).to_have_value(SUBJECT)
+    expect(field(page, "What the client asked")).to_have_value(ASKED)
+    assert not page.console_errors, page.console_errors

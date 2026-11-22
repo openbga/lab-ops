@@ -90,7 +90,8 @@ def test_each_form_acknowledged_in_one_keep_can_be_reopened_in_that_browser(revi
     # request for two forms from a browser without one is what is tested.
     del browser.cookies[kept.BROWSER_COOKIE]
     response = browser.post(reverse("account-session-keep"), {"forms": batch}, "application/json")
-    assert response.json() == {"kept": 2}
+    # The keep answer also says, for each form sent, whether a copy is held (new-ticket batch).
+    assert response.json() == {"kept": 2, "held": [True, True]}
     browser.force_login(case.portal)
     restored = [review_pages.given_back(browser.get(page)) or {} for page in pages]
     assert all(
@@ -116,7 +117,8 @@ def test_keep_cookie_is_renewed_and_normal_round_trip_leaves_no_content_in_side_
             {"forms": [{"token": token, "values": {"body": phrase}}]},
             content_type="application/json",
         )
-        assert keep.status_code == 200 and keep.json() == {"kept": 1}
+        # The keep answer also says, for each form sent, whether a copy is held (new-ticket batch).
+        assert keep.status_code == 200 and keep.json() == {"kept": 1, "held": [True]}
         cookie = keep.cookies[kept.BROWSER_COOKIE]
         assert cookie.value != "invalid" and cookie["path"] == "/"
         assert (
@@ -1025,7 +1027,8 @@ def test_keep_processes_at_most_the_advertised_number_of_forms(review_form_cases
         batch.append({"token": review_pages.marker(page)[0], "values": {"description": str(index)}})
     review_pages.end_open(case.portal)
     answer = browser.post(reverse("account-session-keep"), {"forms": batch}, "application/json")
-    assert answer.json() == {"kept": kept.MAX_FORMS}
+    # The keep answer also says, for each form sent, whether a copy is held (new-ticket batch).
+    assert answer.json() == {"kept": kept.MAX_FORMS, "held": [True] * kept.MAX_FORMS}
     assert set(KeptDraft.objects.values_list("values__description", flat=True)) == {
         str(index) for index in range(kept.MAX_FORMS)
     }

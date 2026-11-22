@@ -196,18 +196,30 @@ fields as one copy (`accounts.kept.Parts`, key `staff-ticket`). Its marker is dr
 section, so the htmx request that draws the section again for another category or form issues a
 new token naming that form's fields; a section request never gives a copy back. The ticket form's
 recheck names the picker as its chooser: a copy whose picker value is not the form whose fields the
-token drew (the picker changed and the session ended before the section came back) keeps none of
-that form's fields. The page takes the copy before it draws anything (`take`), draws the ticket's
-own fields from it (`draw`), decides the category, the organization and the ticket form from what
-was drawn, as the section would (`request_forms.intake.slot`), and then works out the marker and
-draws the copy in every part (`prepare` with the copy taken), inside one transaction that a failed
-draw rolls back. The new ticket is a dedicated form page in the shared form dialog. A copy held for
-a form in the dialog makes signing in again open that form's own page: the page sends
-`data-vr-form-url` of the dialog's page as `next` once the keep answer says a copy is held, and a
-dialog form posted after its session ended and kept from its post is answered with a sign-in that
-returns to its own address. The dialog announces when it has set up its form (`vr:form-ready`), and
-the page's script notes how the form was drawn then and after each htmx swap; a page that held
-unsent text when it was drawn counts as unsent after the section is drawn again.
+token drew (the picker changed and the session ended before the section came back), or whose form
+is gone, keeps none of that form's fields (Some required details are not known yet included) and
+keeps the rest; without a chooser (the portal's request form page, which is the form's own) a copy
+of a form that is gone is not kept. The page takes the copy before it draws anything (`take`), draws
+the ticket's own fields from it (`draw`), decides the category, the organization and the ticket form
+from what was drawn, as the section would (`request_forms.intake.slot`), and then works out the
+marker and draws the copy in every part (`prepare` with the copy taken). The page is drawn in one
+reading with the account read in it; when PostgreSQL refuses one of the ticket form's share locks
+because the row changed after the reading began, the reading is rolled back, the take with it, and
+drawn once more. The section is not drawn in one reading, so that a change of a ticket form never
+waits for it: its picker lists the forms as read once after the chosen form's definition, and a
+form missing from that list is not drawn. A copy taken for a form grown past 200 fields since is still
+drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
+dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the
+keep address answers, for each form sent, whether a copy is held, and the page sends
+`data-vr-form-url` of the dialog's page as `next` for a form held; a form posted after its session
+ended and kept from its post, from the dialog or from a page the browser does not name, is answered
+with a sign-in that returns to the address it was posted to. An htmx request that finds the session
+ended (401 `{"signed_in": false}`) no longer goes to sign in at once: the page sends what is typed
+first, as at the end of its countdown. Once a copy is held for the dialog's form the dialog lets the
+page go without asking. The dialog announces when it has set up its form (`vr:form-ready`), and the
+page's script notes how the form was drawn then and after each htmx swap; a page that held unsent
+text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
+loads the form again in place and puts the focus in its first text box.
 
 ## Optional modules
 

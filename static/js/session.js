@@ -143,9 +143,14 @@
       }).then(function (answer) {
         clearTimeout(timeout);
         if (answer && answer.kept > 0) {
-          // Kept from a form in the form dialog: signing in again opens that form's page.
-          returnTo = window.vrKeptTyping ? window.vrKeptTyping.returnTo() : null;
-          document.dispatchEvent(new CustomEvent("vr:typing-kept", { detail: { kept: answer.kept } }));
+          // One answer per form sent (an earlier release answers with the count only).
+          var held = Array.isArray(answer.held) ? answer.held : forms.map(function () { return true; });
+          var typing = window.vrKeptTyping;
+          // Held for a form in the form dialog: signing in again opens that form's page.
+          returnTo = typing ? typing.returnTo(held) : null;
+          document.dispatchEvent(new CustomEvent("vr:typing-kept", {
+            detail: { kept: answer.kept, forms: typing ? typing.heldForms(held) : [] },
+          }));
         }
       }).catch(function () {
         clearTimeout(timeout);
@@ -153,13 +158,31 @@
       return keeping;
     }
 
-    function leave() {
+    // The server's sign-in address from a refusal (accounts.sessions: it returns to the form a post
+    // was kept from), when it is this site's sign-in page; else null.
+    function serverSignIn(address) {
+      if (typeof address !== "string" || !address) {
+        return null;
+      }
+      var url = new URL(address, window.location.href);
+      var own = new URL(settings.signInUrl, window.location.href);
+      return url.origin === own.origin && url.pathname === own.pathname ? url.pathname + url.search : null;
+    }
+
+    // `signIn`: the sign-in address the server gave with a refusal, used unless a form dialog's
+    // copy decides where to return.
+    function leave(signIn) {
       clearTimeout(timer);
       clearTimeout(ticker);
       stopPoller();
       // Again on a later call: a page that asked before unloading (unsaved form) may still be here.
       leaving = true;
       keep().then(function () {
+        var fallback = serverSignIn(signIn);
+        if (!returnTo && fallback) {
+          window.location.replace(fallback);
+          return;
+        }
         var next = returnTo || window.location.pathname + window.location.search;
         window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(next));
       });
@@ -500,6 +523,27 @@
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible" && !leaving) {
         recheck();
+      }
+    });
+    // A dialog, a partial update or a save that finds the session ended (accounts.sessions'
+    // refusal: 401 {"signed_in": false} with HX-Redirect) leaves as the page does at zero, sending
+    // what is typed first, instead of letting htmx go to sign in at once.
+    document.addEventListener("htmx:beforeOnLoad", function (event) {
+      var xhr = event.detail.xhr;
+      if (!xhr || xhr.status !== 401) {
+        return;
+      }
+      var answer = null;
+      try {
+        answer = JSON.parse(xhr.responseText);
+      } catch (error) {
+        return;
+      }
+      if (answer && answer.signed_in === false) {
+        event.preventDefault();
+        if (!leaving) {
+          leave(answer.sign_in);
+        }
       }
     });
     // A dialog, a partial update or a save sent from this page is activity under the limits as

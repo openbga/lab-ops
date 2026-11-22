@@ -128,10 +128,19 @@ SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
 # function, given the id and the account, returns the names with that prefix that the form would
 # draw for the account as it stands now (none that hold patient information), holding what a change
 # of them locks first so that one under way finishes before; a name with the prefix that it does not
-# return is dropped. `chooser` is the html name of the field that chose that form on the page (the
-# desk's ticket form picker): when the copy says another was chosen, its fields belong to the form
-# drawn before the choice, so every name with the prefix is dropped.
-RECHECKS = {"request_form": ("request_forms.selectors.kept_eligible_fields", "field-")}
+# return is dropped. Its third element names the form's own fields outside the prefix (a box of
+# the form's). `chooser` is the html name of the field that chose that form on a larger page (the
+# desk's ticket form picker): when the copy says another was chosen, the form's fields belong to
+# the form drawn before the choice, and when the form is gone the rest of the page still stands,
+# so in both cases every field of the form's is dropped and the rest kept. Without a chooser the
+# page is the form's own, and a copy of a form that is gone is not kept at all.
+RECHECKS = {
+    "request_form": (
+        "request_forms.selectors.kept_eligible_fields",
+        "field-",
+        ("details_not_known",),
+    )
+}
 # The kinds of control a value can come from: a value goes back only into a control of the same
 # kind (or between one choice and several, one answer), so a field that changed kind since never
 # shows an answer given to another question (a "no" as a ticked confirmation).
@@ -422,23 +431,27 @@ def _lock(account_id, *, shared):
 def _without_patient_fields(data, values=None):
     """The token's names less those of the form's own fields that may not be kept as the form
     stands now (its recheck): fields that hold patient information, removed, or changed so that a
-    drawn name (an item list's old quantity box) no longer exists; and all of them when `values`
-    say that another form was chosen on the page than the one whose fields it drew (the recheck's
-    chooser)."""
+    drawn name (an item list's old quantity box) no longer exists. With a chooser (the form is part
+    of a larger page), all of the form's fields when `values` say that another form was chosen than
+    the one whose fields it drew, or when the form is gone; without one, None when the form is
+    gone (the page is the form's own: nothing of it can be given back)."""
     if not data["r"]:
         return data
-    function, prefix = RECHECKS[data["r"][0]]
+    function, prefix, extra = RECHECKS[data["r"][0]]
     chooser = data["r"][2] if len(data["r"]) == 3 else None
     if chooser and (not isinstance(values, dict) or values.get(chooser) != str(data["r"][1])):
-        eligible = set()  # another form chosen since its fields were drawn: none of them
+        eligible = None  # another form chosen since its fields were drawn
     else:
         eligible = import_string(function)(data["r"][1], data["u"])
-        if eligible is None:  # the form is gone: what it holds cannot be known
+        if eligible is None and not chooser:
             return None
-        eligible = set(eligible)
+    form_stands = eligible is not None
+    eligible = set(eligible or ())
 
     def allowed(name):
-        return not name.startswith(prefix) or name in eligible
+        if name.startswith(prefix):
+            return name in eligible
+        return form_stands or name not in extra
 
     return {
         **data,
@@ -866,8 +879,10 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
     if request is None or not key or not form:
         return None
     value = token(request, key, form)
-    if not value:
+    if not value and not isinstance(taken, Taken):
         return None
+    # A copy taken already is drawn all the same, with the notice, when the form can no longer be
+    # marked (it has grown past MAX_FIELDS since): the page then keeps nothing more.
     ensure_browser(request)
     names, _typed, several = keepable(form)
     contents = {

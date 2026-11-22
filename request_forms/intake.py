@@ -141,13 +141,20 @@ def slot(category, user, *, intake=None, query=None):
             defn = definition.read(chosen, category=category)
             if drawable(defn, category, ANY_ORGANIZATION if client is None else client):
                 values_form = ValuesForm(defn.template, user=user, definition=defn)
-        picker = RequestFormPicker(
-            category,
-            client=client,
-            initial={PICKER: values_form.template.pk if values_form is not None else ""},
-        )
-        if not picker.fields[PICKER].queryset.exists():
+        picker = RequestFormPicker(category, client=client)
+        # The list read once, after the chosen form's definition, and drawn as read: a form
+        # retired, moved or withdrawn after its definition was read is not in it, and is then not
+        # drawn either, so the picker and the fields always agree.
+        field = picker.fields[PICKER]
+        offered = list(field.queryset)
+        if not offered:
             return None, None
+        if values_form is not None and values_form.template.pk not in {t.pk for t in offered}:
+            values_form = None
+        field.choices = [("", field.empty_label)] + [
+            (template.pk, field.label_from_instance(template)) for template in offered
+        ]
+        picker.initial[PICKER] = values_form.template.pk if values_form is not None else ""
     if values_form is not None:
         values_form.kept_recheck = (*values_form.kept_recheck[:2], PICKER)
     return picker, values_form
