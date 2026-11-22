@@ -8,3 +8,10 @@ class AccountsConfig(AppConfig):
         from . import acting, sessions, signin_log  # noqa: F401
 
         acting.connect()  # removals that take access away take the access gate
+        # The sign-in's time is saved by accounts.sessions.start_session, after the account's
+        # session-ending lock, not by Django's own receiver before it (with a transaction around
+        # the request, that receiver's hold on the account's row would come first).
+        from django.contrib.auth.models import update_last_login
+        from django.contrib.auth.signals import user_logged_in
+
+        user_logged_in.disconnect(update_last_login, dispatch_uid="update_last_login")

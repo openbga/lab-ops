@@ -217,13 +217,15 @@ page, takes their gates one at a time in id order: a member it has not reached y
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
 Updates that take no access away, such as a sign-in, the email notice preference or a capability
-added to a role, do not wait for the gate (an update of the account's row still waits a moment for
+added to a role, do not wait for the gate (a sign-in that upgrades the stored password hash saves
+a new password, and waits as a password change does; an update of the account's row still waits a moment for
 a change that holds that row, such as an assignment of a ticket to the person or a notice being
 sent to them; `setup_lab`, giving an existing account a role it lacks, takes the gate as the account
 page does, so each records only its own additions); a save on the account's page and every save of a portal account's
 access take the gate and wait for the person's change under way. A password change, by the
 person or on the account's password page, saves the password only: a full save of the account
-as read when the request began would put back a deactivation committed meanwhile. A save that names only other columns (a sign-in's time) leaves the organization as stored
+as read when the request began would put back a deactivation committed meanwhile. It takes the
+gate shared, so it waits for an access change under way but not for the person's own change. A save that names only other columns (a sign-in's time) leaves the organization as stored
 and never compares it with the copy of the account it read earlier
 ([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
 drawn (a fingerprint of the values it draws: names, email, organization, flags, the roles and

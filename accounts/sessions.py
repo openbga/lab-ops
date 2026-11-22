@@ -635,16 +635,21 @@ def reported_by(request):
 
 @receiver(user_logged_in, dispatch_uid="lab_ops_account_session_start")
 def start_session(sender, request, user, **kwargs):
-    session = getattr(request, "session", None)
-    if session is None:
-        return
-    agent, address = reported_by(request)
-    with transaction.atomic():
-        # The account's session-ending lock first, as the person's own endings take it (they
-        # hold their acting session before the others), so the two take turns.
-        from .session_list import lock_endings
+    from django.contrib.auth.models import update_last_login
 
+    from .session_list import lock_endings
+
+    session = getattr(request, "session", None)
+    agent, address = reported_by(request) if session is not None else ("", None)
+    with transaction.atomic():
+        # The account's session-ending lock first, as the person's own endings and a new
+        # password saved alone take it, so they take turns; then the sign-in's time, which
+        # writes the account's row (Django's own receiver, disconnected in accounts.apps so that
+        # its hold on the row comes after this lock, also with a transaction around the request).
         lock_endings(user.pk)
+        update_last_login(sender, user)
+        if session is None:
+            return
         previous = _valid_id(session.get(SESSION_KEY))
         if previous is not None:
             # Signed in again over an open session in the same browser (Django keeps the
