@@ -98,6 +98,18 @@ def close_access(user_ids):
     _gate(user_ids, shared=False)
 
 
+def share_access(user_ids):
+    """Take these accounts' access gates shared, in key order, until the transaction ends: for a
+    change that takes no access away but must not overlap one that does, such as a new password
+    saved alone, which ends the sessions an access change also ends and locks them in the other
+    order (sessions, then the account). It waits for an access change under way, and one that
+    starts afterwards waits for it; the person's own changes, which hold their gate shared too,
+    do not wait for it, nor it for them."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("An access gate is held for a transaction; open one first.")
+    _gate(user_ids, shared=True)
+
+
 def try_hold_access(user_ids):
     """For work that must never wait, such as a scheduled job deciding whom to tell: take these
     accounts' access gates shared, in key order, without waiting, until the transaction ends.

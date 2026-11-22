@@ -499,8 +499,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             {
                 "fields": ("open_sessions",),
                 "description": "Sessions open now, counted when this page opened. End sessions "
-                "signs every browser of the account out at its next request, with a reason. "
-                "Deactivating the account or setting a new password also ends them.",
+                "signs every browser of the account out at its next request, with a reason (on "
+                "your own account, every one but the browser you are using). Deactivating the "
+                "account or setting a new password also ends them.",
             },
         ),
     )

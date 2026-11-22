@@ -87,13 +87,19 @@ class User(AbstractUser):
             end_sessions(self, Ending.DEACTIVATED)
         elif new_password:
             if not _may_change_access(update_fields):
-                # A save of the password alone takes no access gate, so the person's own
-                # endings (Where you are signed in), which hold their acting session before the
-                # others, could be under way: take the account's session-ending lock first, as
-                # they do, so the two take turns instead of each holding a row the other needs.
+                # A save of the password alone takes no access gate exclusively, so it locks the
+                # sessions before the account's row (written below), the other way round from
+                # an access change. Take, in the order the person's own endings take them (Where
+                # you are signed in, which hold their acting session before the others): the
+                # account's session-ending lock, so the two take turns; then its access gate
+                # shared, so an access change under way finishes first and one that starts
+                # afterwards waits. The person's own changes under way, which hold the gate
+                # shared too, are not waited for here.
+                from .acting import share_access
                 from .session_list import lock_endings
 
                 lock_endings(self.pk)
+                share_access([self.pk])
             end_sessions(self, Ending.NEW_PASSWORD, keep=kept_on_password_change(self))
 
     class Meta(AbstractUser.Meta):

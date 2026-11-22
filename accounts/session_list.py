@@ -75,9 +75,10 @@ class OpenSession:
 
 def lock_endings(*account_ids):
     """Take the session-ending locks of these accounts, in key order, until the transaction ends.
-    Taken before anything else by every ending that holds a session of the account first (the
-    actions here hold the acting session; a new password saved without the access gate,
-    accounts.models.User._end_sessions, takes it before ending the rows)."""
+    Taken before anything else by the endings that can lock an account's sessions while another
+    holds one of them out of order: the actions here (they hold the acting session first),
+    signing in again in the same browser (accounts.sessions.start_session) and a new password
+    saved alone (accounts.models.User._end_sessions, which then takes the access gate shared)."""
     keys = sorted({pk % INT4 for pk in account_ids if pk is not None})
     with connection.cursor() as cursor:
         for key in keys:

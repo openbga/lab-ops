@@ -499,6 +499,10 @@ def end_session_rows(user, ending, *, keep=None, session_id=None, cleanup=False)
     are locked with it and ended as expired (close_expired), so that the two are not locked out of
     order."""
     everything = session_id is None
+    if not everything:
+        session_id = _valid_id(session_id)  # one spelling: the database returns the dashed form
+        if session_id is None:
+            return []
     with transaction.atomic(savepoint=False):
         locked = _lock_open(
             user,
@@ -636,6 +640,11 @@ def start_session(sender, request, user, **kwargs):
         return
     agent, address = reported_by(request)
     with transaction.atomic():
+        # The account's session-ending lock first, as the person's own endings take it (they
+        # hold their acting session before the others), so the two take turns.
+        from .session_list import lock_endings
+
+        lock_endings(user.pk)
         previous = _valid_id(session.get(SESSION_KEY))
         if previous is not None:
             # Signed in again over an open session in the same browser (Django keeps the

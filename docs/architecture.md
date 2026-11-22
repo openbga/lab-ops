@@ -127,9 +127,12 @@ every row but the one in use). Each of these endings takes, before anything else
 session-ending advisory lock for the account whose rows it ends and for the acting account, in key
 order, then holds the acting account (`hold_actor`, which holds the acting session `FOR SHARE`).
 Two sessions ending each other therefore take turns, and the second is refused because its own row
-has ended, instead of each holding its own row and waiting for the other's. A save of a new
-password alone, which takes no access gate, takes the account's session-ending lock too before it
-ends the rows. Every ending of rows (these, a deactivation, a new password, signing in again in
+has ended, instead of each holding its own row and waiting for the other's. Signing in again in
+the same browser takes the account's session-ending lock too. A save of a new password alone,
+which takes no access gate exclusively and ends the rows before writing the account's row (an
+access change locks the account's row first), takes the session-ending lock and then the access
+gate shared, so it takes turns with the person's own endings and with an access change, but not
+with the person's other changes. Every ending of rows (these, a deactivation, a new password, signing in again in
 the same browser, Sign out, the cleanup of expired rows) locks all its rows in one statement, in
 id order, waiting for a change under way that holds one, then decides each in a new statement of
 the same transaction, so that what committed during the wait counts: a row that has passed a limit
