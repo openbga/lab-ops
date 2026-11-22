@@ -13,6 +13,13 @@ and draws its forms from it (draw) before the marker is worked out (prepare with
 token is no secret of the account: it names a session row, not the browser's session, and proves
 only that the server drew that form for that account and session.
 
+The revision typed against. A form that posts the revision of the record it was drawn from names
+that hidden field in `kept_revision` (the nonconformance forms' expected_revision). The token then
+carries the revision as drawn, the copy keeps it, and a page giving the copy back draws it in that
+field instead of the record's revision as read now, so the save is checked against the record as
+it stood when the person typed: refused as changed since, with the typing kept, when the record
+changed after it (prepare's `changed`). A form whose revision cannot be read gets no token.
+
 Kept. Once the page learns that its session has ended, before it goes to the sign-in page
 (static/js/session.js), it sends what is typed in those forms with their tokens to the keep
 address (accounts.session_views.keep_typing), which needs no signed-in session: the browser's
@@ -78,6 +85,7 @@ from django.http.multipartparser import MultiPartParserError
 from django.utils.crypto import salted_hmac
 from django.utils.module_loading import import_string
 
+from core.ids import whole_number
 from core.lookups import RemoteSelect
 
 from .acting import INT4
@@ -105,6 +113,8 @@ MAX_CHOICES = 100  # values of one field of several values
 MAX_VALUE = 50_000  # characters in one field
 MAX_TOTAL = 100_000  # characters in one copy
 MAX_KEY = KeptDraft._meta.get_field("form").max_length
+# The largest revision a copy stores (KeptDraft.revision, a PostgreSQL integer).
+REVISION_MAX = 2_147_483_647
 # The advisory lock namespace (PostgreSQL's two-key form; see accounts.acting and
 # accounts.session_list for the others): the second key is the account. Keeping takes it shared
 # and Sign out exclusively, so a copy is never kept after the Sign out that removed the others.
@@ -229,8 +239,9 @@ def _typed(value):
 
 
 def _same_copy(stored, sent):
-    """Whether a stored copy, (values, controls, dropped), gives back exactly what `sent` would:
-    the same answers (empty ones aside) from the same kinds of control, and the same omission."""
+    """Whether a stored copy, (values, controls, dropped, revision), gives back exactly what `sent`
+    would: the same answers (empty ones aside) from the same kinds of control, the same omission
+    and the same revision typed against."""
 
     def answers(values, controls):
         # An empty answer is no answer, except from a field that chooses a form (CHOOSERS).
@@ -240,9 +251,14 @@ def _same_copy(stored, sent):
             if value not in ("", []) or name in CHOOSERS
         }
 
-    (values, controls, dropped), (new_values, new_controls, new_dropped) = stored, sent
-    return bool(dropped) == bool(new_dropped) and answers(values, controls or {}) == answers(
-        new_values, new_controls or {}
+    (values, controls, dropped, revision) = stored
+    (new_values, new_controls, new_dropped, new_revision) = sent
+    return (
+        bool(dropped) == bool(new_dropped)
+        # A copy kept without a revision (the previous release) and one kept with 0 (not known)
+        # are given back alike.
+        and (0 if revision is None else revision) == (0 if new_revision is None else new_revision)
+        and answers(values, controls or {}) == answers(new_values, new_controls or {})
     )
 
 
@@ -400,7 +416,38 @@ def token(request, key, form):
     recheck = getattr(form, "kept_recheck", None)
     if recheck:
         data["r"] = list(recheck)
+    if getattr(form, "kept_revision", None):
+        revision = drawn_revision(form)
+        if revision is None:
+            return ""  # what a save would be checked against is not known: nothing is kept
+        data["v"] = revision
     return signing.dumps(data, salt=SALT, compress=True)
+
+
+def _revision(value):
+    """A revision as a form carries it: a whole number up to what a copy can store (REVISION_MAX),
+    or None. 0 is no record's revision: a form given back from a copy kept without one (by an
+    earlier release) carries it, so that its save is refused and its typing can be kept again."""
+    if isinstance(value, bool):
+        return None
+    number = value if isinstance(value, int) else whole_number(str(value or ""))
+    return number if number is not None and 0 <= number <= REVISION_MAX else None
+
+
+def drawn_revision(form):
+    """The revision a form that names `kept_revision` carries as drawn: what was posted for a
+    bound form, else its initial value (read without drawing the field, which is drawn later): a
+    whole number from 0 (not known) to REVISION_MAX, or None when it is not one or the form names
+    none."""
+    name = getattr(form, "kept_revision", None)
+    field = form.fields.get(name) if name else None
+    if field is None:
+        return None
+    if form.is_bound:
+        return _revision(
+            field.widget.value_from_datadict(form.data, form.files, form.add_prefix(name))
+        )
+    return _revision(form.get_initial_for_field(field, name))
 
 
 def _strings(value):
@@ -420,6 +467,7 @@ def _read(value):
     account, session, key = data.get("u"), data.get("s"), data.get("k")
     names, typed, several = data.get("f"), data.get("t"), data.get("m", [])
     recheck, families = data.get("r"), data.get("w", {})
+    revision = data.get("v")
     if not isinstance(account, int) or not isinstance(key, str) or not key:
         return None
     try:
@@ -442,8 +490,10 @@ def _read(value):
         and (len(recheck) == 2 or (isinstance(recheck[2], str) and recheck[2]))
     ):
         return None
+    if revision is not None and _revision(revision) != revision:
+        return None
     return {"u": account, "s": session, "k": key, "f": names, "t": typed, "m": several,
-            "r": recheck, "w": families}  # fmt: skip
+            "r": recheck, "w": families, "v": revision}  # fmt: skip
 
 
 def _clean(values, names, typed, several, *, sent_typed=None):
@@ -561,8 +611,8 @@ def _keep(value, values, browser):
         # under the lock Sign out takes before it removes copies.
         cursor.execute(
             f'INSERT INTO {table} (session_id, user_id, form, browser, "values", controls, '
-            f"dropped, kept_at) SELECT s.id, s.user_id, %s, %s, %s::jsonb, %s::jsonb, %s, "
-            f"clock_timestamp() FROM {sessions} s "
+            f"dropped, revision, kept_at) SELECT s.id, s.user_id, %s, %s, %s::jsonb, %s::jsonb, "
+            f"%s, %s, clock_timestamp() FROM {sessions} s "
             f"JOIN {users} u ON u.id = s.user_id "
             f"WHERE s.id = %s AND s.user_id = %s AND u.is_active "
             f"AND s.ending = ANY(%s) AND s.ended_at > clock_timestamp() - %s "
@@ -580,6 +630,7 @@ def _keep(value, values, browser):
                 json.dumps(cleaned),
                 json.dumps(controls),
                 dropped,
+                data["v"],
                 data["s"],
                 data["u"],
                 list(LIMIT_ENDINGS),
@@ -594,10 +645,10 @@ def _keep(value, values, browser):
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
         # of the same page, whose answer was lost, or another tab). Held only while it may still
         # be given back; this delivery's own only when it holds the same text.
-        stored = held.values_list("values", "controls", "dropped").first()
+        stored = held.values_list("values", "controls", "dropped", "revision").first()
         if stored is None or stored[0] is None:
             return held.exists(), False, False
-        return True, _same_copy(stored, (cleaned, controls, dropped)), False
+        return True, _same_copy(stored, (cleaned, controls, dropped, data["v"])), False
 
 
 def keep_posted(request):
@@ -673,12 +724,14 @@ def _serialization_refusal(error):
 
 class Taken(NamedTuple):
     """A copy taken for a page (take): every value it holds, its session's end, the kind of
-    control each value came from, and whether something was dropped when it was kept."""
+    control each value came from, whether something was dropped when it was kept, and the
+    revision its form was drawn with (None for a form that names no `kept_revision`)."""
 
     values: dict
     ended_at: datetime.datetime
     controls: dict
     dropped: bool
+    revision: int | None = None
 
 
 def offer(request, key, names):
@@ -690,6 +743,7 @@ def offer(request, key, names):
     if taken is None:
         return None
     request.vr_kept_controls = taken.controls  # for _put_back, as the copy was drawn
+    request.vr_kept_revision = taken.revision  # for prepare: the revision typed against
     return _given(taken, names)
 
 
@@ -729,7 +783,7 @@ def take(request, key):
         with transaction.atomic():
             rows = list(
                 candidates.order_by("-session__ended_at", "-id").values_list(
-                    "id", "values", "session__ended_at", "controls", "dropped"
+                    "id", "values", "session__ended_at", "controls", "dropped", "revision"
                 )
             )
             if not rows:
@@ -748,14 +802,16 @@ def take(request, key):
         # Taken by a page whose change committed after this page's reading began (REPEATABLE
         # READ refuses to lock it): that page gave it back.
         return None
-    _, values, ended_at, controls, dropped_at_keep = rows[0]
-    return Taken(values or {}, ended_at, controls or {}, bool(dropped_at_keep))
+    _, values, ended_at, controls, dropped_at_keep, revision = rows[0]
+    return Taken(values or {}, ended_at, controls or {}, bool(dropped_at_keep), revision)
 
 
 def draw(form, taken):
     """Draw a taken copy's values in the unbound `form` as _put_back does, for a page that decides
     what else it draws from them (the category and the ticket form chosen); prepare then draws the
-    whole page's forms."""
+    whole page's forms. The form's initial values before it are noted, so that prepare draws the
+    form as it started when nothing of the copy is drawn."""
+    form.vr_kept_start = dict(form.initial)
     _put_back(form, taken.values, taken.controls)
 
 
@@ -940,10 +996,12 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
     contents of its marker (includes/kept_typing.html), or None when the form keeps nothing for
     this request. When a copy is given back (offer), its values are drawn in the form, the page
     says when its session ended and whether something could not be put back, and Discard opens
-    the page again (the copy is taken by then). Drawing the marker sets the browser's cookie.
-    `taken`: the copy the page took already (take; None when it found none), instead of taking
-    it now. `give`: False for a part of a page drawn again in place (the desk's category section),
-    which never gives a copy back."""
+    the page again (the copy is taken by then). A form that names `kept_revision` is drawn with
+    the revision the copy was typed against, and `changed` says when that is not the one the page
+    read ("changed"; "unknown" for a copy kept without one). Drawing the marker sets the browser's
+    cookie. `taken`: the copy the page took already
+    (take; None when it found none), instead of taking it now. `give`: False for a part of a page
+    drawn again in place (the desk's category section), which never gives a copy back."""
     if request is None or not key or not form:
         return None
     value = token(request, key, form)
@@ -961,22 +1019,46 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
         "key": key,
         "bound": form.is_bound,
     }
+    revision = None
     if form.is_bound or not give:
         offered = None
     elif taken is _OFFER:
         offered = offer(request, key, names)
+        revision = getattr(request, "vr_kept_revision", None)
     elif taken is None:
         offered = None
     else:
         request.vr_kept_controls = taken.controls
         offered = _given(taken, names)
+        revision = taken.revision
     if offered:
         given, ended_at, dropped = offered
+        parts = getattr(form, "forms", None) or [form]
+        starts = [dict(getattr(part, "vr_kept_start", part.initial)) for part in parts]
         drawn, missed, texts = (
             _put_back(form, given, getattr(request, "vr_kept_controls", {}))
             if given
             else (0, False, [])
         )
+        if not drawn:
+            # Nothing of it is drawn, so the form is drawn as it starts, as the page says: no
+            # emptied answer is put back unannounced.
+            for part, initial in zip(parts, starts, strict=True):
+                part.initial.clear()
+                part.initial.update(initial)
+                # Fields the page read while it decided what to draw are read again.
+                part._bound_fields_cache.clear()
+        # A form that posts a revision posts the one the copy was typed against whenever a copy
+        # is given back, also when nothing of it could be drawn, or 0, which no record has, for a
+        # copy kept without one; the page says why its save is refused. Its token, drawn again,
+        # carries it.
+        changed = ""
+        if getattr(form, "kept_revision", None):
+            kept_revision = revision if revision is not None else 0
+            if kept_revision != drawn_revision(form):
+                changed = "unknown" if kept_revision == 0 else "changed"
+            form.initial[form.kept_revision] = kept_revision
+            contents["token"] = token(request, key, form)
         # What a page gave back, for its tests to read.
         request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
         filled = [
@@ -988,6 +1070,9 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
             restored=True,
             # Nothing of it could be drawn: the page says so instead.
             nothing=not drawn,
+            # The record changed after the copy was typed ("changed"), or the copy does not say
+            # which revision it was typed against ("unknown"): a save is refused.
+            changed=changed,
             ended_at=ended_at,
             missed=dropped or missed or bool(texts),
             # Only dates handed to the date editor as text were not drawn in their inputs: the

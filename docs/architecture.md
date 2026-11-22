@@ -249,7 +249,36 @@ leaves the dialog's question in place until then. An answer without `held` (an e
 counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the
 page's script notes how the form was drawn then and after each htmx swap; a page that held unsent
 text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
-loads the form again in place and puts the focus in its first text box.
+loads the form again in place and puts the focus in its first text box. A Discard load that fails offers Try
+again, which repeats it, asking first when the form was edited since; one that answers with no form
+(Not found, or the record because the form is no longer offered) opens its address as a page. Not
+covered: after a Discard load failed, a Close or a save that is then abandoned (Keep editing, a save
+cancelled before it is sent) drops the focus rule, so Try again's form takes the dialog's own focus.
+
+The nonconformance forms keep the revision they post
+([nonconformance/views.py](../nonconformance/views.py)). A form that posts the revision of the
+record it was drawn from names that hidden field in `kept_revision`; its token carries the revision
+as drawn (on a refused save, as posted; a form whose revision is not a whole number gets no token),
+and the copy keeps it (`KeptDraft.revision`). A page giving such a copy back draws that revision in
+the field instead of the one it read, draws its token again with it, and says when the two differ,
+so the save is checked against the record as it stood when the person typed and is refused as
+changed since, with the typing kept, when the record changed after it. The copy's revision is drawn
+whenever a copy is given back, also when nothing of it fits the form any more; a copy none of whose
+answers can be drawn leaves the whole form as it starts (no emptied answer is put back unannounced).
+Two deliveries of the same answers count as the same copy whether it was stored without a revision
+or with 0. A copy that holds no revision (kept by the
+previous release while both ran during an upgrade) is drawn with 0, which no record has, and its
+token carries 0, so its save is refused, the page says the version is not known, and the typing can
+be kept again. A revision is a whole number up to what the column stores. Each form is kept under a key naming the form and
+its record (`nc-12-edit`, `nc-12-action-4-done`, `nc-12-link-3-remove`, `nc-from-ticket-7` with the
+ticket's revision, `nc-new` with none). A form page opened with GET is drawn in one reading with the
+account read in it and takes its copy before it decides what to draw: a copy typed against an
+earlier revision is drawn like a form posted from an earlier reading, also where this reading no
+longer allows the change or offers the form (a closed record, a finished action, a removed link, a
+complaint whose record was opened or reviewed meanwhile), and the service answers its save; any
+other copy is given back only where the form is drawn anyway. A page not drawn after all (a
+redirect or a refusal) rolls the take back, so the copy waits for a later visit. A POST is not drawn
+in a reading: its service takes its own locks.
 
 ## Optional modules
 

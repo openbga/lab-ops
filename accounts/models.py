@@ -183,6 +183,10 @@ class KeptDraft(models.Model):
     # Something typed was left out when the copy was kept (a field no longer on the form): the
     # page that gives it back says so.
     dropped = models.BooleanField(default=False)
+    # The revision of the record the form was drawn with, for a form that posts one
+    # (accounts.kept: kept_revision): a page giving the copy back posts it, so a save is checked
+    # against the record as it stood when the person typed. None for other forms.
+    revision = models.PositiveIntegerField(null=True, blank=True)
     kept_at = models.DateTimeField(db_default=Now())
     # When a page offered it back (the row then blocks a later copy for the same session and form).
     taken_at = models.DateTimeField(null=True, blank=True)

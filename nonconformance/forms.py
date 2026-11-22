@@ -42,9 +42,12 @@ def _reason(label="Reason", help_text=REASON_HELP):
 
 
 class RevisionForm(StyledForm, forms.Form):
-    """Every change carries the record's revision the page showed (a stale save is refused)."""
+    """Every change carries the record's revision the page showed (a stale save is refused). What
+    a session limit keeps of the form keeps that revision too (accounts.kept), so the form given
+    back posts the revision it was typed against."""
 
     expected_revision = forms.IntegerField(widget=forms.HiddenInput)
+    kept_revision = "expected_revision"
 
 
 # ------------------------------------------------------------------------------ list filters
@@ -102,6 +105,8 @@ class DetailsFields(StyledForm, forms.Form):
 
 
 class NonconformanceCreateForm(DetailsFields):
+    kept_fetched = ("owner",)  # kept by id, given back while still an active staff account
+
     containment = _text(
         "Containment",
         required=False,
@@ -127,6 +132,8 @@ class DetailsForm(DetailsFields, RevisionForm):
 
 
 class OwnerForm(RevisionForm):
+    kept_fetched = ("owner",)
+
     owner = StaffChoiceField(label="Owner", empty_label="Choose a person")
     reason = _optional_reason()
 
@@ -167,6 +174,8 @@ class InvestigationForm(RevisionForm):
 
 
 class ImpactForm(RevisionForm):
+    kept_fetched = ("client_told_by",)
+
     impact = forms.ChoiceField(
         label="Decision on reported results", choices=Impact.choices, widget=forms.RadioSelect
     )
@@ -199,6 +208,8 @@ class ImpactForm(RevisionForm):
 
 
 class ActionForm(RevisionForm):
+    kept_fetched = ("assignee",)
+
     description = _text("Action", max_length=2000, help_text="What is to be done.")
     assignee = StaffChoiceField(label="Person", empty_label="Choose a person")
     due_on = forms.DateField(

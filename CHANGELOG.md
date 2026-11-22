@@ -90,6 +90,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
+- **Added:** Get back nonconformance typing after a sign-out (2026-11-22, Quality)
+
+  When a session limit signs you out while you work a nonconformance or its actions, what you typed comes back on that form when you sign in again. If the record changed meanwhile, saving is refused.
+
+  <details><summary>Technical notes</summary>
+
+  Migration `accounts.0006_kept_draft_revision` adds a nullable `revision` column to the kept-typing table; a release still running while it applies goes on inserting rows without it. Each nonconformance form keeps its copy under a key naming the form and the record, with the revision the form posts: the page that gives it back posts that revision, so a save is checked against the record as it stood when the person typed. A form page opened with GET is drawn in one reading and leaves the copy in place when it is not drawn after all.
+
+  </details>
+
 - **Fixed:** Saves check what changed while they waited (2026-11-20)
 
   Saves now decide from records as they stand: an account page opened earlier cannot undo a newer change, and a portal reply refused on a closed ticket is shown again.

@@ -78,6 +78,15 @@
           "description": "Returns to the Nonconformances list without raising anything."
         }
       ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Signed out by a time limit",
+          "description": "When a time limit signs you out, what you typed here is kept for 24 hours, for you in that browser only, and comes back on this page when you sign in again there (the dialog opens again on its own page). The owner chosen comes back only while their account is still an active staff account, and only for a supervisor."
+        }
+      ]
     }
   ],
   "sources": [
@@ -89,6 +98,8 @@
     "nonconformance/templates/nonconformance/nonconformance_form.html",
     "core/forms.py",
     "core/form_surfaces.py",
-    "core/modules.py"
+    "core/modules.py",
+    "accounts/kept.py",
+    "templates/includes/kept_notice.html"
   ]
 }

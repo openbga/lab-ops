@@ -41,6 +41,11 @@
     var directDestination = null;
     var currentUrl = "";
     var retryUrl = null;
+    // The address a kept copy's Discard loads in place (static/js/kept-typing.js): when it does not
+    // answer with a form (Not found, or sent back to the record because the form is no longer
+    // offered), the window opens it as a page instead, so the discarded typing leaves the screen.
+    var discardUrl = null;
+    var retrySource = null; // what asked for the load Try again repeats (a Discard link included)
     var localForm = null;
     var requests = new Set();
     var disabledControls = new Map();
@@ -316,7 +321,9 @@
       begin(source);
       dirty = false;
       retryUrl = url;
+      retrySource = source || null;
       currentUrl = url;
+      discardUrl = source && source.hasAttribute && source.hasAttribute("data-vr-kept-discard") ? url : null;
       clearPageActions();
       var route = routeFor(new URL(url, window.location.href));
       setSize(route && route.size);
@@ -490,7 +497,13 @@
         target.setAttribute("aria-pressed", full ? "true" : "false");
         modal.handleUpdate();
       } else if (target.hasAttribute("data-vr-form-retry") && retryUrl) {
-        load(retryUrl);
+        // Typing since the failure is asked about first, as for any other way out of the form.
+        var url = retryUrl;
+        var source = retrySource;
+        confirmLeave(function () {
+          dirty = false;
+          load(url, source);
+        });
       }
     });
 
@@ -619,6 +632,7 @@
       if (!isDialogRequest(event)) {
         return;
       }
+
       var states = new Map();
       content.querySelectorAll("button, input, select, textarea").forEach(function (control) {
         states.set(control, { own: control.disabled, off: control.matches(":disabled") });
@@ -628,6 +642,14 @@
     document.addEventListener("htmx:beforeSend", function (event) {
       if (!isDialogRequest(event)) {
         return;
+      }
+      var config = event.detail.requestConfig;
+      if (config && String(config.verb).toLowerCase() !== "get") {
+        // A save sent: Try again is offered only for a failed load, never to repeat an earlier
+        // one over what the save kept on the form. (A save cancelled before it is sent leaves
+        // the failed load's Try again in place.)
+        retryUrl = null;
+        retrySource = null;
       }
       errorRegion.hidden = true;
       var states = asked.get(event.detail.xhr);
@@ -682,11 +704,20 @@
       }
       var response = new DOMParser().parseFromString(detail.serverResponse, "text/html");
       var page = response.querySelector("[data-vr-form-page]");
+      // Only the Discard load's own answer: never a later request's (a save after it failed).
+      var verb = detail.requestConfig && String(detail.requestConfig.verb).toLowerCase();
+      var discarded = verb === "get" ? discardUrl : null;
+      discardUrl = null;
       if (page && (status < 400 || status === 409 || status === 422)) {
         settling = true;
         needsFocus = true;
         detail.shouldSwap = true;
         detail.isError = false;
+      } else if (discarded && status !== 401) { // 401: static/js/session.js signs in
+        detail.shouldSwap = false;
+        detail.isError = false;
+        nativeLeaving = true; // the load under way is this navigation's own
+        window.location.assign(discarded);
       } else {
         detail.shouldSwap = false;
         showError(status === 403 ? "You do not have permission for this action. Your input was kept." :
@@ -717,6 +748,9 @@
     ["htmx:sendError", "htmx:timeout", "htmx:responseError"].forEach(function (name) {
       document.addEventListener(name, function (event) {
         if (isDialogRequest(event)) {
+          discardUrl = null; // a Discard load that failed is ended: Try again asks for it again
+        }
+        if (isDialogRequest(event) && !nativeLeaving) {
           showError(name === "htmx:responseError" && event.detail.xhr.status === 403 ?
             "You do not have permission for this action. Your input was kept." :
             "The request could not be completed. Your input was kept; check the connection and try again.", Boolean(retryUrl));

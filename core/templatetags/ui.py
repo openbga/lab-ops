@@ -154,6 +154,8 @@ def form_page_kept(values, context):
     before the fields are drawn, so that what is given back is drawn in them."""
     from accounts import kept
 
+    if values["kept"]:
+        return {"kept": values["kept"]}  # worked out by the view (a page that took its copy first)
     if not values["keep"] or values["method"] == "get" or values["local"]:
         return {"kept": None}
     key = (
@@ -270,7 +272,7 @@ COMPONENTS = {
         I + "form_page.html",
         ("form", "formset", "formset_label", "action", "multipart", "note", "times",
          "no_required_note", "cancel_url", "submit_label", "destructive", "secondary",
-         "no_submit", "local", "title", "method", "id", "class", "keep", "keep_id"),
+         "no_submit", "local", "title", "method", "id", "class", "keep", "keep_id", "kept"),
         body="block",
         before=form_page_kept,
     ),
