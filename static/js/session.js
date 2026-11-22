@@ -112,8 +112,8 @@
       return next;
     }
 
-    function typed() {
-      return window.vrKeptTyping ? window.vrKeptTyping.collect() : [];
+    function typed(options) {
+      return window.vrKeptTyping ? window.vrKeptTyping.collect(options) : [];
     }
 
     // Send what is typed in forms that keep it, once; resolves when answered or given up. The
@@ -123,7 +123,7 @@
       if (keeping) {
         return keeping;
       }
-      var forms = typed();
+      var forms = typed({ commit: true });
       if (!forms.length || !settings.keepUrl) {
         keeping = Promise.resolve();
         return keeping;

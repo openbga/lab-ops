@@ -375,20 +375,28 @@ def revealable_value(user, value_id):
 
 
 def kept_patient_fields(template_id):
-    """The form field names of the template's fields that hold patient information as they stand,
-    for keeping what was typed across a sign-out (accounts.kept): the template row is held FOR
-    SHARE first, as a change of one of its fields locks it first (services.update_field), so a
-    change under way finishes before this reads. None when there is no such template."""
+    """The exact form field names of the template's fields that hold patient information as they
+    stand, an item list's quantity boxes (`<name>_<item id>`) included, for keeping what was typed
+    across a sign-out (accounts.kept): the template row is held FOR SHARE first, as a change of
+    one of its fields locks it first (services.update_field), so a change under way finishes
+    before this reads. None when there is no such template."""
     from django.db import connection
 
     from .forms import field_name
+    from .models import CatalogItem
 
     table = connection.ops.quote_name(RequestTemplate._meta.db_table)
     with connection.cursor() as cursor:
         cursor.execute(f"SELECT 1 FROM {table} WHERE id = %s FOR SHARE", [template_id])
         if cursor.fetchone() is None:
             return None
-    keys = TemplateField.objects.filter(
+    names = []
+    rows = TemplateField.objects.filter(
         template_id=template_id, holds_patient_information=True
-    ).values_list("key", flat=True)
-    return [field_name(key) for key in keys]
+    ).values_list("key", "kind", "catalog_id")
+    for key, kind, catalog_id in rows:
+        names.append(field_name(key))
+        if kind == FieldKind.ITEMS and catalog_id is not None:
+            items = CatalogItem.objects.filter(catalog_id=catalog_id).values_list("pk", flat=True)
+            names.extend(f"{field_name(key)}_{pk}" for pk in items)
+    return names

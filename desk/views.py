@@ -650,6 +650,10 @@ def _detail_context(request, request_obj, composer=None):
                 "expected_revision": request_obj.revision,
             },
         )
+        if closed or request_obj.status == Status.RESOLVED:
+            # The page offers no status change then (desk/request_detail.html), so typing kept
+            # across a sign-out with one says it could not be put back (accounts.kept).
+            composer.fields.pop("new_status", None)
     supervisor = is_supervisor(user)
     return {
         **_nonconformance_context(request, request_obj),
@@ -732,8 +736,9 @@ def request_detail(request, pk):
 def request_entry(request, pk):
     if request.method != "POST":
         # A refused entry is drawn at this address; signing in again from it (the sign-in page
-        # returns to the address on screen) opens the ticket, which checks its own access.
-        return redirect("desk:request-detail", pk=pk)
+        # returns to the address on screen) opens the ticket, which checks its own access, with
+        # the queue it was opened from.
+        return redirect(_record_url(ServiceRequest(pk=pk), _back(request)))
     request_obj = _request_or_404(request.user, pk)
     form = EntryForm(request.POST, request.FILES, closed=request_obj.status == Status.CLOSED)
     if form.is_valid():

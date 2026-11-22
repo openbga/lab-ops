@@ -1,13 +1,13 @@
 """What a person was typing, kept when their session ends because it passed a limit.
 
-A page drawn for a signed-in session marks each form that keeps typing ({% form_page keep=... %},
-rendered by accounts/templatetags/kept.py) with a signed token naming the account, the session
-row, the form and the fields that may be kept: the visible fields a person types in or chooses
-from (lists of choices and the quantity boxes of an item list included), never a file, a hidden
-value (a revision, a definition token), a password, a field fetched as one types or a field that
-holds patient information. A form with more than MAX_FIELDS such fields gets no token. The token
-is no secret of the account: it names a session row, not the browser's session, and proves only
-that the server drew that form for that account and session.
+A full-page form drawn with {% form_page keep=... %} (core.templatetags.ui.form_page_kept, which
+calls prepare before the fields are drawn; includes/kept_typing.html) carries a signed token
+naming the account, the session row, the form and the fields that may be kept: the visible fields
+a person types in or chooses from (lists of choices and the quantity boxes of an item list
+included), never a file, a hidden value (a revision, a definition token), a password, a field
+fetched as one types or a field that holds patient information. A form with more than MAX_FIELDS
+such fields gets no token. The token is no secret of the account: it names a session row, not the
+browser's session, and proves only that the server drew that form for that account and session.
 
 Kept. Once the page learns that its session has ended, before it goes to the sign-in page
 (static/js/session.js), it sends what is typed in those forms with their tokens to the keep
@@ -21,34 +21,39 @@ signed out with Sign out since that session ended, no copy for that form already
 that browser came from a session that ended later, and some field that is typed in holds text.
 Fields of a request form that hold patient information as the form stands at that moment are
 dropped first (`recheck`), whatever the page was drawn with. The first copy for a session and form
-stands; later ones for the same session and form change nothing.
+stands; later ones for the same session and form change nothing, and are answered as held only
+while that copy may still be given back.
 
-In this browser only. A copy records the digest of a random value the browser holds in a cookie
-of its own (BROWSER_COOKIE: HttpOnly, nothing typed in it), set or renewed with every page that
-draws a form that keeps typing, so every tab of the browser keeps under the same value. A copy is
-given back only to a request carrying that cookie, so an account several people share (the public
-demonstration's) never gives one person's typing to another, and a copy never follows the account
-to another browser.
+In this browser only. A copy records the digest of a value the browser holds in a cookie of its
+own (BROWSER_COOKIE: HttpOnly, nothing typed in it), set or renewed with every page that draws a
+form that keeps typing and with every answer that held a copy. A page drawn for a browser without
+one gets a value derived from its signed-in session row (a keyed hash: unguessable without the
+server's secret), so every answer of that session sets the same value whatever order they arrive
+in. A
+copy is given back only to a request carrying that cookie, so an account several people share
+(the public demonstration's) never gives one person's typing to another, and a copy never follows
+the account to another browser.
 
 Given back. The same form, drawn for the same account in the same browser on a page opened in the
-window with GET (not a prefetch) within KEPT_FOR of the session's end, carries the newest copy not
-yet given back, unless a copy for that form already given back in that browser came from a session
-that ended later or a Sign out came after it, with the time its session ended; the page puts the
-values back (static/js/kept-typing.js), or shows the text to copy where scripts do not run, and
-says so. Only the names the form keeps as drawn now are given back, so a field this person may no
-longer fill stays empty, and the page says when something could not be put back. The copies for
-that form are taken as they are read: locked (FOR UPDATE SKIP LOCKED) and emptied in a savepoint of
-the page's reading, so two pages drawn at once give a copy back once (the second gives nothing,
-also when the first committed while it was drawn), and a page that fails to draw leaves it to the
-next one. An emptied copy stays as a marker until it is removed.
+window with GET (not a prefetch) within KEPT_FOR of the session's end, is drawn with the newest
+eligible copy (_eligible) as its initial values, before its fields are drawn, so nothing depends
+on scripts; the page says when its session ended, and when something could not be put back (a
+value of the wrong shape for the field as it stands now, a choice no longer offered, a field no
+longer on the form; or all of it). The copies for that form are taken as they are read: locked
+(FOR UPDATE SKIP LOCKED) and emptied in a savepoint of the page's reading. A page finding the
+newest held by another page, or taken by one that committed after its reading began, gives
+nothing back, never an older copy; a page that fails to draw rolls the take back, so the forms
+that keep typing are drawn inside a reading (core.concurrency.one_reading). An emptied copy stays
+as a marker until it is removed. Discard opens the page again.
 
-Removed. All of an account's copies at Sign out, and also when Sign out arrives just after the
-session passed a limit (discard_all), which records the moment so that a copy sent later from a
-session that ended before it is refused; the rest by the scheduled job (remove_expired) once
-KEPT_FOR has passed since their session ended. Copies are never logged, audited, listed or shown
-to anyone but the account that typed them.
+Removed. All of an account's copies at Sign out, and also when Sign out (its CSRF check passed)
+arrives just after the session passed a limit (discard_all), which records the moment so that a
+copy sent later from a session that ended before it is refused; the rest by the scheduled job
+(remove_expired) once KEPT_FOR has passed since their session ended. Copies are never logged,
+audited, listed or shown to anyone but the account that typed them.
 """
 
+import base64
 import hashlib
 import json
 import secrets
@@ -63,6 +68,7 @@ from django.db import OperationalError, connection, transaction
 from django.db.models import Exists, OuterRef
 from django.db.models.functions import Now
 from django.http.multipartparser import MultiPartParserError
+from django.utils.crypto import salted_hmac
 from django.utils.module_loading import import_string
 
 from .acting import INT4
@@ -125,23 +131,35 @@ KEPT_MESSAGE = (
 )
 
 
+def _valid_browser(value):
+    return isinstance(value, str) and 40 <= len(value) <= 64 and set(value) <= BROWSER_ALPHABET
+
+
 def _browser(request, *, create):
     """(value, digest) of this browser's keep cookie: the value already chosen for this request,
-    else the cookie it carries; a new value when it carries none (or one not of this kind) and
-    `create`, else None. The value chosen is set on the answer (remember_browser)."""
-    value = getattr(request, "vr_kept_browser", None) or request.COOKIES.get(BROWSER_COOKIE, "")
-    if not (isinstance(value, str) and 40 <= len(value) <= 64 and set(value) <= BROWSER_ALPHABET):
+    else the cookie it carries; when it carries none (or one not of this kind) and `create`, a
+    value derived from this request's signed-in session row, so that every answer of one session
+    to a browser without the cookie sets the same value whatever order they arrive in (a request
+    without a session, such as the keep address, gets a random one: a token never leads to a
+    browser's value); else None."""
+    value = getattr(request, "vr_kept_choice", None) or request.COOKIES.get(BROWSER_COOKIE, "")
+    if not _valid_browser(value):
         if not create:
             return None
-        value = secrets.token_urlsafe(32)
-    request.vr_kept_browser = value
+        state = getattr(request, "account_session", None)
+        if state is not None:
+            digest = salted_hmac("accounts.kept.browser", str(state.id), algorithm="sha256")
+            value = base64.urlsafe_b64encode(digest.digest()).decode().rstrip("=")
+        else:
+            value = secrets.token_urlsafe(32)
+    request.vr_kept_choice = value
     return value, hashlib.sha256(value.encode()).hexdigest()
 
 
 def ensure_browser(request):
     """For a page that draws a form keeping typing: the browser's cookie, created now if missing,
     set (renewed) on the page's answer, so that every tab keeps under one value."""
-    _browser(request, create=True)
+    request.vr_kept_browser = _browser(request, create=True)[0]
 
 
 def remember_browser(request, response):
@@ -160,9 +178,13 @@ def remember_browser(request, response):
 
 
 def keep_for(request, value, values):
-    """keep() for this request's browser (one cookie value for the whole request)."""
-    _browser_value, digest = _browser(request, create=True)
-    return keep(value, values, digest)
+    """keep() for this request's browser (one cookie value for the whole request), set or renewed
+    on the answer only when a copy is held."""
+    choice, digest = _browser(request, create=True)
+    held = keep(value, values, digest)
+    if held:
+        request.vr_kept_browser = choice
+    return held
 
 
 def keepable(form):
@@ -288,7 +310,7 @@ def _lock(account_id, *, shared):
 
 def _without_patient_fields(data):
     """The token's names less the fields that hold patient information as the form stands now
-    (its recheck), a field's quantity boxes included."""
+    (its recheck, which names an item list's quantity boxes too)."""
     if not data["r"]:
         return data
     patient = import_string(RECHECKS[data["r"][0]])(data["r"][1])
@@ -297,7 +319,7 @@ def _without_patient_fields(data):
     patient = set(patient)
 
     def allowed(name):
-        return name not in patient and not any(name.startswith(f"{p}_") for p in patient)
+        return name not in patient
 
     return {
         **data,
@@ -342,7 +364,7 @@ def keep(value, values, browser):
             f"AND c.discarded_at >= s.ended_at) "
             f"AND NOT EXISTS (SELECT 1 FROM {table} t JOIN {sessions} ts ON ts.id = t.session_id "
             f"WHERE t.user_id = s.user_id AND t.form = %s AND t.browser = %s "
-            f"AND t.taken_at IS NOT NULL AND ts.ended_at >= s.ended_at) "
+            f"AND t.taken_at IS NOT NULL AND ts.ended_at > s.ended_at) "
             f"ON CONFLICT (session_id, form) DO NOTHING RETURNING id",
             [
                 data["k"],
@@ -360,15 +382,12 @@ def keep(value, values, browser):
         if cursor.fetchone() is not None:
             return True
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
-        # of the same page, whose answer was lost). Held only while it has not been given back.
-        return KeptDraft.objects.filter(
-            session_id=data["s"],
-            user_id=data["u"],
-            form=data["k"],
-            browser=browser,
-            taken_at__isnull=True,
-            session__ended_at__gt=Now() - KEPT_FOR,
-        ).exists()
+        # of the same page, whose answer was lost). Held only while it may still be given back.
+        return (
+            _eligible(data["u"], data["k"], browser)
+            .filter(session_id=data["s"], user__is_active=True)
+            .exists()
+        )
 
 
 def keep_posted(request):
@@ -394,13 +413,57 @@ def _prefetch(request):
     return any("prefetch" in request.headers.get(name, "").lower() for name in PREFETCH_HEADERS)
 
 
+def _eligible(user_id, key, digest):
+    """The copies of this account for this form and browser that may still be given back: not
+    given back yet, ended by a limit less than KEPT_FOR ago, with no Sign out after their session
+    ended (an ending recorded by any release, or the account's discard moment) and no copy for
+    the form already given back in this browser from a session that ended later."""
+    ended = OuterRef("session__ended_at")
+    return (
+        KeptDraft.objects.filter(
+            user_id=user_id,
+            form=key,
+            browser=digest,
+            taken_at__isnull=True,
+            session__ending__in=LIMIT_ENDINGS,
+            session__ended_at__gt=Now() - KEPT_FOR,
+        )
+        .exclude(
+            Exists(
+                KeptDraft.objects.filter(
+                    user_id=user_id,
+                    form=key,
+                    browser=digest,
+                    taken_at__isnull=False,
+                    session__ended_at__gt=ended,
+                )
+            )
+        )
+        .exclude(
+            Exists(
+                AccountSession.objects.filter(
+                    user_id=user_id, ending=Ending.SIGNED_OUT, ended_at__gte=ended
+                )
+            )
+        )
+        .exclude(Exists(KeptDraftCutoff.objects.filter(user_id=user_id, discarded_at__gte=ended)))
+    )
+
+
+def _serialization_refusal(error):
+    """Whether a database error is PostgreSQL refusing to lock a row changed since this
+    transaction's snapshot (SQLSTATE 40001)."""
+    cause = error.__cause__
+    return getattr(cause, "sqlstate", None) == "40001" or getattr(cause, "pgcode", None) == "40001"
+
+
 def offer(request, key, names):
     """For a form drawn on a page opened in the window with GET by a signed-in session: (values,
-    ended_at, dropped) of the newest copy of this account's for the form, kept in this browser and
-    not yet given back (see the module for what else it must not be older than), within KEPT_FOR
-    of its session's end, holding only `names`, and whether it held something else that cannot be
-    put back now; or None. The copies are taken as they are read, in a savepoint, so no other page
-    gives them back."""
+    ended_at, dropped) of the newest eligible copy of this account's for the form in this browser
+    (_eligible) holding only `names`, and whether it held something else that cannot be put back
+    now (values may then be empty); or None. The copies are taken as they are read, in a
+    savepoint: when another page holds the newest at that moment, or took it after this page's
+    reading began, nothing is given back (never an older copy instead)."""
     from .sessions import _is_navigation
 
     user = getattr(request, "user", None)
@@ -412,54 +475,29 @@ def offer(request, key, names):
     browser = _browser(request, create=False)
     if browser is None:
         return None
-    digest = browser[1]
-    ended = OuterRef("session__ended_at")
-    candidates = (
-        KeptDraft.objects.filter(
-            user=user,
-            form=key,
-            browser=digest,
-            taken_at__isnull=True,
-            session__ending__in=LIMIT_ENDINGS,
-            session__ended_at__gt=Now() - KEPT_FOR,
-        )
-        .exclude(session_id=state.id)
-        .exclude(
-            Exists(
-                KeptDraft.objects.filter(
-                    user=user,
-                    form=key,
-                    browser=digest,
-                    taken_at__isnull=False,
-                    session__ended_at__gte=ended,
-                )
-            )
-        )
-        .exclude(
-            Exists(
-                AccountSession.objects.filter(
-                    user=user, ending=Ending.SIGNED_OUT, ended_at__gte=ended
-                )
-            )
-        )
-        .exclude(Exists(KeptDraftCutoff.objects.filter(user=user, discarded_at__gte=ended)))
-    )
+    candidates = _eligible(user.pk, key, browser[1]).exclude(session_id=state.id)
     try:
         with transaction.atomic():
             rows = list(
-                candidates.select_for_update(skip_locked=True, of=("self",))
-                .order_by("-session__ended_at", "-id")
-                .values_list("id", "values", "session__ended_at")
-            )
-            if rows:
-                KeptDraft.objects.filter(id__in=[row[0] for row in rows]).update(
-                    values=None, taken_at=Now()
+                candidates.order_by("-session__ended_at", "-id").values_list(
+                    "id", "values", "session__ended_at"
                 )
-    except OperationalError:
+            )
+            if not rows:
+                return None
+            locked = set(
+                candidates.filter(id__in=[row[0] for row in rows])
+                .select_for_update(skip_locked=True, of=("self",))
+                .values_list("id", flat=True)
+            )
+            if rows[0][0] not in locked:
+                return None  # another page is giving the newest back
+            KeptDraft.objects.filter(id__in=locked).update(values=None, taken_at=Now())
+    except OperationalError as error:
+        if not _serialization_refusal(error):
+            raise
         # Taken by a page whose change committed after this page's reading began (REPEATABLE
         # READ refuses to lock it): that page gave it back.
-        return None
-    if not rows:
         return None
     _, values, ended_at = rows[0]
     allowed = set(names)
@@ -469,9 +507,9 @@ def offer(request, key, names):
     def filled(value):
         return bool(value.strip()) if isinstance(value, str) else bool(value)
 
-    if not any(filled(value) for value in given.values()):
-        return None
     dropped = any(filled(value) for name, value in values.items() if name not in allowed)
+    if not any(filled(value) for value in given.values()):
+        return ({}, ended_at, True) if dropped else None
     return given, ended_at, dropped
 
 
@@ -525,8 +563,10 @@ def _flat_choices(field):
 
 def _put_back(form, given):
     """Draw the copy's values in the unbound form: its initial values, field by field, as the
-    widgets read them. A choice no longer offered is left as the form starts. Returns whether
-    something could not be put back."""
+    widgets read them. A field that changed between one choice and several takes one answer over;
+    a value of the wrong shape for the field as it stands now (several answers for one choice,
+    anything but a ticked box's own value for a box: the field changed kind since) or a choice no
+    longer offered is left as the form starts. Returns whether something could not be put back."""
     missed = False
     names, _typed, several = keepable(form)
     allowed = set(names)
@@ -536,20 +576,37 @@ def _put_back(form, given):
             parts = {
                 suffix[1:]: given[name + suffix]
                 for suffix in widget.widgets_names
-                if name + suffix in allowed and name + suffix in given
+                if name + suffix in allowed and isinstance(given.get(name + suffix), str)
             }
+            missed = missed or any(
+                name + suffix in given and not isinstance(given[name + suffix], str)
+                for suffix in widget.widgets_names
+            )
             if parts:
                 form.initial[bound.name] = parts
             continue
         if name not in allowed or name not in given:
             continue
         value = given[name]
+        # A field that changed between one choice and several since: one answer carries over.
+        if name in several and isinstance(value, str):
+            value = [value] if value else []
+        elif name not in several and isinstance(value, list):
+            if len(value) > 1:
+                missed = True
+                continue
+            value = value[0] if value else ""
         if name in several:
             offered = [item for item in value if _offered(field, item)]
             missed = missed or len(offered) < len(value)
             form.initial[bound.name] = offered
         elif isinstance(widget, forms.CheckboxInput):
-            form.initial[bound.name] = value != ""
+            # What a ticked box posts: its value attribute, "on" without one.
+            ticked = str(widget.attrs.get("value", "on"))
+            if value in ("", ticked):
+                form.initial[bound.name] = value == ticked
+            else:
+                missed = True
         elif isinstance(field, forms.ChoiceField) or hasattr(field, "queryset"):
             if _offered(field, value):
                 form.initial[bound.name] = value
@@ -584,7 +641,7 @@ def prepare(request, form, key):
     offered = None if form.is_bound else offer(request, key, names)
     if offered:
         given, ended_at, dropped = offered
-        missed = _put_back(form, given)
+        missed = _put_back(form, given) if given else False
         # What a page gave back, for its tests to read.
         request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
         filled = [
@@ -594,6 +651,8 @@ def prepare(request, form, key):
         ]
         contents.update(
             restored=True,
+            # Nothing of it is on the form any more: the page says so instead.
+            nothing=not given,
             ended_at=ended_at,
             missed=dropped or missed,
             # The names given back with a value: a template may leave a field of the form out of

@@ -432,7 +432,9 @@ def test_a_closed_ticket_gives_the_note_back_with_only_note_offered(agent, ticke
     page = browser.get(ticket_page(ticket))
     # Given back as kept; the page offers only a note now, so the kind is left as drawn (Note)
     # and the page says something could not be put back.
-    assert given_back(page) == composer(kind="reply", body=TYPED)
+    # The closed ticket offers no status change, so the form no longer has that field.
+    expected = {k: v for k, v in composer(kind="reply", body=TYPED).items() if k != "new_status"}
+    assert given_back(page) == expected
     text = page.content.decode()
     assert 'value="reply"' not in text and "data-vr-kept-missed>" in text  # shown, not hidden
     assert page.context["composer"]["kind"].value() == "note"

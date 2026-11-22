@@ -842,6 +842,18 @@ def _is_sign_out(request):
     return request.method == "POST" and request.path_info in paths
 
 
+def _csrf_probe(request):
+    """Stands in for a view in _csrf_passes."""
+
+
+def _csrf_passes(request):
+    """Whether the request passes Django's CSRF check (as the view it was refused before would
+    have checked it)."""
+    from django.middleware.csrf import CsrfViewMiddleware
+
+    return CsrfViewMiddleware(_csrf_probe).process_view(request, _csrf_probe, (), {}) is None
+
+
 def _keep_refused(request):
     """For a form or Sign out refused because the browser's session ended: a form posted with
     its keep token (accounts.kept) is kept, if its session ended by a limit; Sign out from a
@@ -850,7 +862,8 @@ def _keep_refused(request):
 
     account = getattr(request, "vr_ended_account", None)
     if _is_sign_out(request):
-        if account is not None:
+        # As the Sign out view itself would, only for a request from the application's own page.
+        if account is not None and _csrf_passes(request):
             discard_all(account)
         return
     if keep_posted(request):

@@ -2,8 +2,8 @@
 // includes/kept_typing.html). A form drawn with keep=... carries a hidden input[data-vr-kept]: its
 // value is the form's token, data-vr-kept-fields the names that may be kept, data-vr-kept-several
 // those that hold a list of values (ticked boxes).
-//   - collect(): what is typed in those forms, for static/js/session.js to send once the session
-//     has ended. A form is sent when a field one types in holds text and either something in it
+//   - collect({commit}): what is typed in those forms, for static/js/session.js to send once the
+//     session has ended (with commit: a date editor writes what it shows to its field first). A form is sent when a field one types in holds text and either something in it
 //     differs from how the page drew it or what the page drew is itself unsent (data-vr-kept-bound:
 //     drawn again after a refused save, or with a copy given back). Nothing is written to the
 //     browser's storage.
@@ -88,7 +88,10 @@
     });
   }
 
-  function collect() {
+  // `commit`: before sending, a date editor still being typed in writes what it shows to its
+  // field first (static/js/controls.js), as it would on leaving the field.
+  function collect(options) {
+    var commit = Boolean(options && options.commit);
     var out = [];
     markers().forEach(function (marker) {
       var form = marker.form;
@@ -101,7 +104,15 @@
         if (!elements.length) {
           return;
         }
+        var editor = dateEditor(elements[0]);
+        if (editor && commit) {
+          editor.vrDateField.commit();
+        }
         var value = valueOf(elements, several.indexOf(name) !== -1);
+        if (editor && !commit && !value && editor.value.trim()) {
+          value = editor.value; // shown but not yet written to the field: still typing
+          dirty = true;
+        }
         dirty = dirty || elements.some(changed);
         values[name] = value;
         text = text || (typedIn(elements[0]) && typeof value === "string" && value.trim() !== "");
