@@ -12,11 +12,22 @@
 //     opens the page again (the
 //     copy is taken by then); this script lets it go without the composer's question about unsent
 //     text (static/js/ticket-draft.js) and then puts the focus in the form's first text box.
+//   - A marker drawn again with part of its form (the desk's new ticket draws it in the category
+//     section, which htmx draws again with the ticket form's fields): the controls drawn with it
+//     are compared with how they were drawn then, and a form that held unsent text when the page
+//     was drawn (data-vr-kept-bound) still counts as unsent.
+//   - A form in the shared form dialog (static/js/form-dialog.js) is noted as drawn once the dialog
+//     has set it up (vr:form-ready); returnTo(held) gives the address of its page when a copy is
+//     held for it (`held`: the keep answer's list, one per form collected), so that signing in
+//     again opens that page, where the copy is given back (static/js/session.js); heldForms(held)
+//     the forms a copy is held for. Discard inside the dialog loads the form again in place; the
+//     focus then goes to its first text box.
 (function () {
   "use strict";
 
   var DISCARDED = "#vr-kept-discarded";
-  var drawn = new Map(); // each kept control's state as the page drew it
+  var drawn = new WeakMap(); // each kept control's state as the page (or htmx) drew it
+  var unsent = new WeakSet(); // forms whose marker was drawn with unsent text
 
   function list(marker, name) {
     try {
@@ -27,11 +38,52 @@
     }
   }
 
-  function controls(form, name) {
+  // The form's controls named `name` that it would send; with `all` "busy", also those the form
+  // dialog has disabled for a request (data-vr-busy-disabled); with `all` true, every one (how the
+  // page drew them, while the dialog opens its form).
+  function controls(form, name, all) {
     return Array.from(form.elements).filter(function (element) {
-      return element.name === name && !element.disabled;
+      if (element.name !== name) {
+        return false;
+      }
+      if (!element.matches(":disabled") || all === true) {
+        return true;
+      }
+      return all === "busy" && element.hasAttribute("data-vr-busy-disabled");
     });
   }
+
+  // Loads of another page into the form dialog under way (a GET into #vr-form-content: Discard,
+  // a link): the form shown until it arrives is being left, so nothing of it is collected while
+  // the dialog has it disabled. Counted when sent (a request cancelled before never ends).
+  var loading = new Set();
+  function dialogLoad(event) {
+    var detail = event.detail || {};
+    var verb = detail.requestConfig && detail.requestConfig.verb;
+    var target = detail.target;
+    return Boolean(detail.xhr && target && target.id === "vr-form-content" && String(verb).toLowerCase() === "get");
+  }
+  document.addEventListener("htmx:beforeSend", function (event) {
+    if (dialogLoad(event)) {
+      var xhr = event.detail.xhr;
+      loading.add(xhr);
+      // Its end is signalled on the element that asked, which may have left the page by then.
+      var element = event.detail.elt;
+      if (element && element.addEventListener) {
+        element.addEventListener("htmx:afterRequest", function done(ended) {
+          if (ended.detail && ended.detail.xhr === xhr) {
+            loading.delete(xhr);
+            element.removeEventListener("htmx:afterRequest", done);
+          }
+        });
+      }
+    }
+  });
+  document.addEventListener("htmx:afterRequest", function (event) {
+    if (event.detail && event.detail.xhr) {
+      loading.delete(event.detail.xhr);
+    }
+  });
 
   function state(element) {
     if (element.type === "checkbox" || element.type === "radio") {
@@ -79,6 +131,13 @@
       var checked = elements.find(function (element) { return element.checked; });
       return checked ? checked.value : "";
     }
+    if (first.tagName === "SELECT" && first.selectedIndex >= 0) {
+      // A chosen option that is disabled itself or by its group is not sent with the form (not
+      // `:disabled`, which also matches the options of a select the dialog disabled for a request).
+      var option = first.options[first.selectedIndex];
+      var group = option.closest("optgroup");
+      return option.disabled || (group && group.disabled) ? "" : first.value;
+    }
     return first.value;
   }
 
@@ -88,19 +147,51 @@
     });
   }
 
+  var sent = []; // the forms collect() gave last, in order: {form, page}
+
+  // The address of the form dialog's page (data-vr-form-url, this site's) of the first form
+  // collect() gave last that a copy is held for (`held`, in the same order), or null.
+  function returnTo(held) {
+    var found = sent.find(function (item, index) { return item.page && held && held[index]; });
+    return found ? found.page : null;
+  }
+
+  function heldForms(held) {
+    return sent.filter(function (item, index) { return held && held[index]; }).map(function (item) {
+      return item.form;
+    });
+  }
+
+  function dialogPage(form) {
+    var page = form.closest("#vr-form-content [data-vr-form-page]");
+    var address = page && page.getAttribute("data-vr-form-url");
+    if (!address) {
+      return null;
+    }
+    var url = new URL(address, window.location.href);
+    return url.origin === window.location.origin ? url.pathname + url.search : null;
+  }
+
   // `commit`: before sending, a date editor still being typed in writes what it shows to its
   // field first (static/js/controls.js), as it would on leaving the field.
   function collect(options) {
     var commit = Boolean(options && options.commit);
     var out = [];
+    sent = [];
     markers().forEach(function (marker) {
       var form = marker.form;
+      if (loading.size && form.closest("#vr-form-content")) {
+        return; // the dialog is loading another page over this form: it is being left
+      }
       var several = list(marker, "data-vr-kept-several");
       var values = {};
-      var dirty = marker.hasAttribute("data-vr-kept-bound");
+      var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
+      // While a request of the form dialog is under way it disables the form: what it holds is
+      // still what the person typed (a save, also one cancelled before it was sent).
+      var busy = "busy";
       list(marker, "data-vr-kept-fields").forEach(function (name) {
-        var elements = controls(form, name);
+        var elements = controls(form, name, busy);
         if (!elements.length) {
           return;
         }
@@ -119,6 +210,7 @@
       });
       if (dirty && text) {
         out.push({ token: marker.value, values: values });
+        sent.push({ form: form, page: dialogPage(form) });
       }
     });
     return out;
@@ -155,18 +247,66 @@
     window.location.reload();
   });
 
-  window.vrKeptTyping = { collect: collect };
+  window.vrKeptTyping = { collect: collect, returnTo: returnTo, heldForms: heldForms };
+
+  // Discard inside the form dialog: the dialog loads the form again in place (its own link
+  // handling, which runs first); once it is set up, the focus goes to its first text box. Noted
+  // on the window, whose capture listeners run before the document's.
+  var discardedInDialog = false;
+  window.addEventListener("click", function (event) {
+    var target = event.target.closest ? event.target : null;
+    var discard = target && target.closest("a[data-vr-kept-discard]");
+    if (discard) {
+      discardedInDialog = Boolean(discard.closest("#vr-form-content"));
+    } else if (!(target && target.closest("#vr-form-discard"))) {
+      discardedInDialog = false; // anything but the dialog's question about unsaved changes
+    }
+  }, true);
+  document.addEventListener("vr:form-ready", function () {
+    if (!discardedInDialog) {
+      return;
+    }
+    discardedInDialog = false;
+    setTimeout(function () {
+      var marker = markers().find(function (item) { return item.closest("#vr-form-content"); });
+      if (marker) {
+        focusForm(marker);
+      }
+    }, 0);
+  });
+
+  // How each kept control was drawn, for those not seen yet (the page's, then those htmx draws).
+  function baseline() {
+    // A form drawn with unsent text, also one whose marker has no token (a copy given back into
+    // a form that can no longer be marked).
+    document.querySelectorAll("input[data-vr-kept][data-vr-kept-bound]").forEach(function (marker) {
+      if (marker.form) {
+        unsent.add(marker.form);
+      }
+    });
+    markers().forEach(function (marker) {
+      list(marker, "data-vr-kept-fields").forEach(function (name) {
+        controls(marker.form, name, true).forEach(function (element) {
+          if (!drawn.has(element)) {
+            drawn.set(element, state(element));
+          }
+        });
+      });
+    });
+  }
+
+  // After htmx has drawn part of a form again, or the form dialog has set up its form, and the
+  // page's scripts have set up its controls.
+  ["htmx:afterSettle", "vr:form-ready"].forEach(function (name) {
+    document.addEventListener(name, function () {
+      setTimeout(baseline, 0);
+    });
+  });
 
   // After the other scripts of the page have set up their controls (selects, dates, the composer).
   function start() {
     setTimeout(function () {
-      markers().forEach(function (marker) {
-        list(marker, "data-vr-kept-fields").forEach(function (name) {
-          controls(marker.form, name).forEach(function (element) {
-            drawn.set(element, state(element));
-          });
-        });
-      });
+      baseline();
       // A field given back with a value that this page does not show: say it was not put back.
       // A sentence drawn only for dates handed to the date editor as text goes once the editor
       // shows them (static/js/controls.js reads data-vr-date-text).
@@ -176,7 +316,7 @@
           return;
         }
         var absent = list(marker, "data-vr-kept-given").some(function (name) {
-          return !controls(marker.form, name).length;
+          return !controls(marker.form, name, true).length;
         });
         if (absent) {
           missed.hidden = false;

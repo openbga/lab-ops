@@ -313,7 +313,8 @@ def test_a_dialog_or_partial_update_after_the_limit_loads_the_sign_in_page(agent
         assert response.status_code == 401
         sign_in = reverse("account_login") + "?next=/requests/%3Fview%3Dall"
         assert response["HX-Redirect"] == sign_in
-        assert response.json() == {"signed_in": False, "sign_in": sign_in}
+        # The refusal also says whether what this form posted is the copy kept (new-ticket batch).
+        assert response.json() == {"signed_in": False, "sign_in": sign_in, "kept": False}
         browser.force_login(agent)
         age(agent, idle=timedelta(minutes=31))
 

@@ -62,8 +62,10 @@ def session_continue(request):
 @require_POST
 def keep_typing(request):
     """Keep what was typed in the page's forms, sent as JSON {"forms": [{"token": ..., "values":
-    {name: text}}]} once the page's session has ended. Answers {"kept": n}, the forms a copy is
-    held for; then the sign-in page says so."""
+    {name: text}}]} once the page's session has ended. Answers {"kept": n, "held": [...]}: how many
+    forms a copy is held for, and for each form sent (in order, up to MAX_FORMS) whether what it
+    sent is the copy held (static/js/session.js lets its guards go and returns to a form dialog's
+    page only then); then the sign-in page says so."""
     length = request.META.get("CONTENT_LENGTH", "")
     if not (length.isascii() and length.isdigit()) or int(length) > KEEP_BODY_BYTES:
         return JsonResponse({"kept": 0}, status=413)
@@ -74,14 +76,17 @@ def keep_typing(request):
     items = data.get("forms") if isinstance(data, dict) else None
     if not isinstance(items, list):
         return JsonResponse({"kept": 0}, status=400)
-    count = sum(
-        1
-        for item in items[: kept.MAX_FORMS]
-        if isinstance(item, dict) and kept.keep_for(request, item.get("token"), item.get("values"))
-    )
+    count, own = 0, []
+    for item in items[: kept.MAX_FORMS]:
+        request.vr_kept_own = False
+        if isinstance(item, dict) and kept.keep_for(request, item.get("token"), item.get("values")):
+            count += 1
+        own.append(request.vr_kept_own)
     if count:
-        messages.info(request, kept.KEPT_MESSAGE, fail_silently=True)
-    return JsonResponse({"kept": count})  # the middleware sets the browser's cookie
+        kept.notify(request)
+    # `held`: for each form sent, whether what it sent is the copy held (not another tab's), so
+    # its page may go without asking. The middleware sets the browser's cookie.
+    return JsonResponse({"kept": count, "held": own})
 
 
 def _current_id(request):

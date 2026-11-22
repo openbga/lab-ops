@@ -858,27 +858,40 @@ def _keep_refused(request):
     """For a form or Sign out refused because the browser's session ended: a form posted with
     its keep token (accounts.kept) is kept, if its session ended by a limit; Sign out from a
     session this request found past its limit still discards what was kept for the account."""
-    from .kept import KEPT_MESSAGE, discard_all, keep_posted
+    from .kept import discard_all, keep_posted, notify
 
     account = getattr(request, "vr_ended_account", None)
     if _is_sign_out(request):
         # As the Sign out view itself would, only for a request from the application's own page.
         if account is not None and _csrf_passes(request):
             discard_all(account)
-        return
+        return False
     if keep_posted(request):
-        messages.info(request, KEPT_MESSAGE, fail_silently=True)
+        notify(request)
+        return True
+    return False
 
 
 def _refusal(request):
     """The answer to a request whose session ended, other than a page opened with GET, after
-    keeping what its form posted (_keep_refused)."""
-    _keep_refused(request)
-    sign_in = sign_in_url(_page_on_screen(request))
+    keeping what its form posted (_keep_refused). Signing in again returns to the page on screen,
+    or, when what the form posted was kept and it was sent from the shared form dialog or from a
+    page the browser does not name, to the address it was posted to, where it is given back (a
+    form is posted to its page's address; the reply addresses send a GET on to their ticket)."""
+    held = _keep_refused(request)
+    back = _page_on_screen(request)
+    if held and (request.headers.get("X-VR-Form") or back is None):
+        back = request.get_full_path()
+    sign_in = sign_in_url(back)
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
     else:
-        response = JsonResponse({"signed_in": False, "sign_in": sign_in}, status=401)
+        # `kept`: what this form posted is the copy held (static/js/session.js lets its page go);
+        # not when a copy of other text kept before for the session and form stands instead.
+        kept_now = held and getattr(request, "vr_kept_own", False)
+        response = JsonResponse(
+            {"signed_in": False, "sign_in": sign_in, "kept": kept_now}, status=401
+        )
         response["HX-Redirect"] = sign_in
     add_never_cache_headers(response)
     return response

@@ -54,6 +54,7 @@
     var errorRegion = element.querySelector("[data-vr-session-error]");
     var keptLines = Array.from(element.querySelectorAll("[data-vr-session-kept]"));
     var keeping = null; // what was typed, on its way to be kept (sent once)
+    var returnTo = null; // the form dialog's page whose typing was kept, to open after signing in
     var times = null; // the two endings and the two leads, in ms on this page's Date.now() clock
     var variant = null; // the warning wanted on screen: "inactivity", "maximum" or null
     var state = "hidden"; // Bootstrap's: hidden, showing, shown or hiding
@@ -142,7 +143,16 @@
       }).then(function (answer) {
         clearTimeout(timeout);
         if (answer && answer.kept > 0) {
-          document.dispatchEvent(new CustomEvent("vr:typing-kept", { detail: { kept: answer.kept } }));
+          // One answer per form sent. An earlier release answers with the count only: every form
+          // is known held only when the count covers them all.
+          var all = answer.kept >= forms.length;
+          var held = Array.isArray(answer.held) ? answer.held : forms.map(function () { return all; });
+          var typing = window.vrKeptTyping;
+          // Held for a form in the form dialog: signing in again opens that form's page.
+          returnTo = typing ? typing.returnTo(held) : null;
+          document.dispatchEvent(new CustomEvent("vr:typing-kept", {
+            detail: { kept: answer.kept, forms: typing ? typing.heldForms(held) : [] },
+          }));
         }
       }).catch(function () {
         clearTimeout(timeout);
@@ -150,14 +160,44 @@
       return keeping;
     }
 
-    function leave() {
+    // The server's sign-in address from a refusal (accounts.sessions: it returns to the form a post
+    // was kept from), rebuilt on this site's sign-in page with its `next` when that is a path on
+    // this site; else null (an address that cannot be read included).
+    function serverSignIn(address) {
+      if (typeof address !== "string" || !address) {
+        return null;
+      }
+      var url;
+      var own;
+      try {
+        url = new URL(address, window.location.href);
+        own = new URL(settings.signInUrl, window.location.href);
+      } catch (error) {
+        return null;
+      }
+      var next = url.searchParams.get("next") || "";
+      if (url.origin !== own.origin || url.pathname !== own.pathname || !/^\/(?![\/\\])/.test(next)) {
+        return null;
+      }
+      return settings.signInUrl + "?next=" + encodeURIComponent(next);
+    }
+
+    // `signIn`: the sign-in address the server gave with a refusal, used unless a form dialog's
+    // copy decides where to return.
+    function leave(signIn) {
       clearTimeout(timer);
       clearTimeout(ticker);
       stopPoller();
       // Again on a later call: a page that asked before unloading (unsaved form) may still be here.
       leaving = true;
       keep().then(function () {
-        window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(window.location.pathname + window.location.search));
+        var fallback = serverSignIn(signIn);
+        if (!returnTo && fallback) {
+          window.location.replace(fallback);
+          return;
+        }
+        var next = returnTo || window.location.pathname + window.location.search;
+        window.location.replace(settings.signInUrl + "?next=" + encodeURIComponent(next));
       });
     }
 
@@ -497,6 +537,52 @@
       if (document.visibilityState === "visible" && !leaving) {
         recheck();
       }
+    });
+    // A dialog, a partial update or a save that finds the session ended (accounts.sessions'
+    // refusal: 401 {"signed_in": false} with HX-Redirect) leaves as the page does at zero, sending
+    // what is typed first, instead of letting htmx go to sign in at once.
+    function refused(event) {
+      var xhr = event.detail && event.detail.xhr;
+      if (!xhr || xhr.status !== 401 || !xhr.getResponseHeader("HX-Redirect")) {
+        return;
+      }
+      var answer = null;
+      try {
+        answer = JSON.parse(xhr.responseText);
+      } catch (error) {
+        return;
+      }
+      if (answer && answer.signed_in === false) {
+        event.preventDefault();
+        if (answer.kept === true) {
+          // The refused post was kept from what it sent (accounts.sessions._refusal): its form's
+          // guard may let the page go, whatever the keep request below answers.
+          var element = event.detail.elt;
+          var form = element && (element.tagName === "FORM" ? element : element.form || element.closest("form"));
+          document.dispatchEvent(new CustomEvent("vr:typing-kept", {
+            detail: { kept: 1, forms: form ? [form] : [] },
+          }));
+        }
+        if (!leaving) {
+          leave(answer.sign_in);
+        }
+      }
+    }
+    document.addEventListener("htmx:beforeOnLoad", refused);
+    // htmx signals the answer on the element that asked; one that has left the page by then (a
+    // dialog closed or drawn again meanwhile) no longer passes it on to the document.
+    var asking = new WeakSet();
+    document.addEventListener("htmx:beforeRequest", function (event) {
+      var element = event.detail && event.detail.elt;
+      if (!element || asking.has(element)) {
+        return;
+      }
+      asking.add(element);
+      element.addEventListener("htmx:beforeOnLoad", function (answer) {
+        if (!document.contains(element)) {
+          refused(answer);
+        }
+      });
     });
     // A dialog, a partial update or a save sent from this page is activity under the limits as
     // they stand: ask again, so the page plans from the server's numbers, not its own.

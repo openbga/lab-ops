@@ -1,0 +1,7 @@
+{% comment %}
+The hidden part of a form's keeping what was typed (accounts/kept.py): the token and the names
+kept, for static/js/kept-typing.js. Included by includes/kept_typing.html with its notice, and on
+its own where the marker is drawn apart from the notice (the desk's new ticket draws it in the
+category section, drawn again with the ticket form's fields). Context: kept
+(accounts.kept.prepare).
+{% endcomment %}<input type="hidden" name="{{ kept.field }}" value="{{ kept.token }}" data-vr-kept data-vr-kept-key="{{ kept.key }}" data-vr-kept-fields="{{ kept.names }}" data-vr-kept-several="{{ kept.several }}"{% if kept.bound or kept.restored and not kept.nothing %} data-vr-kept-bound{% endif %}{% if kept.restored %} data-vr-kept-restored data-vr-kept-given="{{ kept.given }}"{% endif %}>

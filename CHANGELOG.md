@@ -80,6 +80,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### Medium impact
 
+- **Added:** Get back a new ticket you were typing after a sign-out (2026-11-22, Tickets)
+
+  When a session limit signs you out while you log a ticket, what you typed comes back on New ticket when you sign in again in the same browser, with its category, organization, site, contact and ticket form. This works when you were typing in the dialog over the ticket list too.
+
+  <details><summary>Technical notes</summary>
+
+  No migration. The new ticket keeps its own fields, the ticket form chosen and that form's fields as one copy under the form key `staff-ticket`, in the table and with the cookie added by the previous release. The organization, site and contact are kept by id and given back only while still active. Files and fields that hold patient information are never kept. When a copy is held for a form in the shared form dialog, signing in again returns to that form's own address instead of the page behind the dialog.
+
+  </details>
+
 - **Fixed:** Saves check what changed while they waited (2026-11-20)
 
   Saves now decide from records as they stand: an account page opened earlier cannot undo a newer change, and a portal reply refused on a closed ticket is shown again.

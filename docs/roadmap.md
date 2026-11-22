@@ -56,7 +56,7 @@ ships, move it to Built in the same change.
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
 | Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites; a reply refused because the laboratory closed the ticket meanwhile is shown again to copy into a follow-up; a ticket's page is read at one moment, so its reply form always matches the conversation it shows |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
-| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; sign-out after a period without activity and after a longest session, set by an administrator for staff and for portal accounts, with a warning and Stay signed in; what a person was typing in a ticket's reply, note or logged contact, a portal reply or a new portal ticket kept for 24 hours when a limit signs them out, and given back in that form when they sign in again in the same browser; deactivation and a new password end sessions at once; a page where each person sees where they are signed in, with the browser and address each session reported, and signs out the others; a superuser ends a person's sessions from the account administration, with a reason; signed-in pages marked not to be stored by the browser; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
+| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; optional authenticator sign-in with recovery codes; limits on failed sign-ins; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; sign-out after a period without activity and after a longest session, set by an administrator for staff and for portal accounts, with a warning and Stay signed in; what a person was typing in a ticket's reply, note or logged contact, a new ticket logged by staff (with its category, organization and ticket form), a portal reply or a new portal ticket kept for 24 hours when a limit signs them out, and given back in that form when they sign in again in the same browser, a new ticket typed in the form dialog on its own page; deactivation and a new password end sessions at once; a page where each person sees where they are signed in, with the browser and address each session reported, and signs out the others; a superuser ends a person's sessions from the account administration, with a reason; signed-in pages marked not to be stored by the browser; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration; each person's list layouts, page sizes, sidebar state and What's new visits are saved for their account and read for each page, so a change in one tab or on one workstation shows on the next page in the others, and the limit of 300 saved preferences holds when two are added at the same moment |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible, as they stand when it decides, when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The jobs act as an account of their own, named with a random suffix nobody can know in advance, so a person's account registered at the same moment under its old name, in any letter case, neither delays its first use nor ends up differing from it only in case. The public demonstration has no scheduler and keeps email off |
@@ -68,8 +68,8 @@ A follow-up to an independent review fixes something already built, so it comes 
 
 The items on sign-in, sessions, access records, review and emergency access come before anything
 else, because a laboratory that handles patient-linked tickets needs them before real use. Today a
-second sign-in factor cannot be required, what was typed in a staff member's new ticket or in a
-dialog is lost at an automatic sign-out, opening a ticket or downloading a file leaves no record,
+second sign-in factor cannot be required, what was typed in a nonconformance record or action is
+lost at an automatic sign-out, opening a ticket or downloading a file leaves no record,
 failed sign-ins are kept only in the server log, and nobody can review activity across records. Each of these answers a safeguard the
 HIPAA Security Rule names, and none needs anything unbuilt.
 
@@ -99,15 +99,18 @@ page; deactivating an account or changing its password ends its sessions at once
 page is marked not to be stored by the browser; a page where each person sees where they are signed
 in, with the browser and the address each session reported at sign-in, and signs out the others; a
 superuser ends a person's sessions from the account administration, with a reason; what the person
-was typing in a ticket's reply, note or logged contact, a reply in the portal and a new portal
-ticket, with or without a request form, kept in the database for 24 hours when a limit ends the
-session, for that account in that browser only, and given back once in the same form at the next
-sign-in, without files or patient-information fields. What remains:
+was typing in a ticket's reply, note or logged contact, a new ticket logged by staff, a reply in
+the portal and a new portal ticket, with or without a request form, kept in the database for 24
+hours when a limit ends the session, for that account in that browser only, and given back once in
+the same form at the next sign-in, without files or patient-information fields; a new ticket comes
+back with its category, its organization, site and contact while they are still active, and the
+ticket form chosen with its fields; signing in again after a form in the form dialog was kept opens
+that form's own page. What remains:
 
-- **Delivers:** the same for a new ticket logged by staff, whose client, site and contact come from
-  lists the page fetches as one types and whose request type's fields load after the category is
-  chosen, and for forms opened in a dialog, such as a nonconformance record and its actions, which
-  would have to open again by themselves to give the typing back.
+- **Delivers:** the same for the nonconformance record and its actions, opened in the form dialog.
+  A form that edits a record would give typing back over the record as it stands when it is opened
+  again, so the copy must keep the revision it was typed against and the save must be refused, with
+  the typing kept, when the record changed after it.
 - **Basis:** 45 CFR §164.312(a)(2)(iii) (automatic logoff, addressable; the rule sets no period);
   §164.308(a)(3)(ii)(C) (termination procedures, addressable); NIST SP 800-63B-4 §2.2.3 (a
   recommendation).

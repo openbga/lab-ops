@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import OperationalError, connection, transaction
 from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseBadRequest, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +22,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from accounts import kept
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
 from attachments.models import Attachment
@@ -456,14 +457,58 @@ def request_find(request):
 
 # ------------------------------------------------------------------------------ new request
 
+# What a new ticket keeps across a sign-out by a session limit (accounts.kept), as one copy: the
+# ticket's own fields (the organization, site and contact by id), the ticket form chosen and that
+# form's fields. Its marker is drawn in the category section, so that it is drawn again with the
+# ticket form's fields whenever the category or the form changes (desk/_category_section.html).
+KEEP_NEW_TICKET = "staff-ticket"
 
+
+def _drawn_in_one_reading(request, draw):
+    """Draw a page in one reading (core.concurrency.one_reading), with the account read in it, so
+    that everything it shows comes from one moment; once more in a new reading when PostgreSQL
+    refuses a lock the drawing takes on a row changed since the reading began (a ticket form's
+    definition is read with share locks). The first attempt's work, a copy of kept typing taken
+    included, is rolled back with it."""
+    for attempt in (1, 2):
+        try:
+            # The savepoint rolls the take back also inside a transaction already (a test).
+            with one_reading(), transaction.atomic():
+                require_staff(reading_account(request))
+                return draw()
+        except OperationalError as error:
+            if attempt == 2 or not kept._serialization_refusal(error):
+                raise
+    raise AssertionError("not reached: the second attempt returns or raises")
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 def request_create(request):
     require_staff(request.user)
     initial = {}
     if client_id := request.GET.get("client"):
         initial["client"] = client_id
-    form = RequestCreateForm(request.POST or None, request.FILES or None, initial=initial)
+
+    # Drawn in one reading with the take of what a session limit kept of this page, so that the
+    # page tells one story and a page that fails to draw leaves the copy to the next one. The form
+    # is built in the reading (its assignment choices are read there).
+    def draw():
+        return _new_ticket_page(request, RequestCreateForm(initial=initial), None)
+
+    if request.method != "POST" or not (request.POST or request.FILES):
+        return _drawn_in_one_reading(request, draw)
+    if connection.settings_dict.get("ATOMIC_REQUESTS"):
+        # A save keeps the request's transaction the deployment asked for (the view is not
+        # atomic so that the page drawn by GET has a reading of its own).
+        with transaction.atomic():
+            return _create_posted(request, initial)
+    return _create_posted(request, initial)
+
+
+def _create_posted(request, initial):
+    """request_create for a submitted form: created, or drawn again with what was posted."""
+    form = RequestCreateForm(request.POST, request.FILES, initial=initial)
     # A request form's own fields (request_forms): validated with the form, saved in the
     # creation's transaction through on_created. Imported here: desk models never import it.
     from request_forms.intake import bound_intake, saver
@@ -554,6 +599,25 @@ def request_create(request):
             form.add_error("category", terms.CHANGED)
         elif intake.values_form is not None:
             messages.error(request, FORM_CHANGED)
+    return _new_ticket_page(request, form, intake)
+
+
+def _new_ticket_page(request, form, intake):
+    """The New ticket page: `form` as posted, or unbound with what a session limit kept of the
+    page given back (accounts.kept): taken first, because its category, organization and ticket
+    form decide what else the page draws, then drawn in every part of the form."""
+    from request_forms.intake import PICKER, slot
+
+    taken = None
+    query = request.GET if request.method == "GET" else {}
+    if not form.is_bound:
+        taken = kept.take(request, KEEP_NEW_TICKET)
+        if taken is not None:
+            kept.draw(form, taken)  # the category and organization, as still offered
+            picked = taken.values.get(PICKER)
+            query = {"client": form["client"].value() or ""}
+            if isinstance(picked, str):
+                query[PICKER] = picked
     chosen = form["category"].value()
     category = (
         RequestCategory.objects.filter(pk=chosen, parent__isnull=False)
@@ -566,6 +630,9 @@ def request_create(request):
         # One object for the guidance, the category terms and the request form's token, so the
         # page tells one story and a second submit is accepted.
         category = intake.category
+    # The ticket form slot as drawn (request_forms.intake.slot), kept as part of the ticket.
+    drawn = slot(category, request.user, intake=intake, query=query)
+    contents = kept.prepare(request, kept.Parts(form, *drawn), KEEP_NEW_TICKET, taken=taken)
     response = render(
         request,
         "desk/request_form.html",
@@ -576,6 +643,8 @@ def request_create(request):
             "category_terms": terms.drawn([category]),
             "data": request.POST if request.method == "POST" else QueryDict(),
             "intake_values": intake,
+            "intake_drawn": drawn,
+            "kept": contents,
             "submit_label": "Log ticket",
             "cancel_url": reverse("desk:request-list"),
             "crumbs": [("Tickets", reverse("desk:request-list")), ("New ticket", None)],
@@ -587,13 +656,19 @@ def request_create(request):
     return response
 
 
+@transaction.non_atomic_requests  # its definition locks end with the read (ATOMIC_REQUESTS)
 @never_cache  # it carries a request form's controls and token, drawn from one reading
 @login_required
 @require_GET
 def category_guidance(request):
     """HTMX partial: the section after the category on the new-request form (its guidance and
-    the request type's own fields), for the chosen category."""
+    the request type's own fields), for the chosen category. Not drawn in one reading: a ticket
+    form's definition is read under share locks that a change of the form waits for, so they are
+    released once it is read; the picker lists the forms as read after it
+    (request_forms.intake.slot), so the picker and the fields agree."""
     require_staff(request.user)
+    from request_forms.intake import slot
+
     raw = request.GET.get("category", "")
     category = (
         RequestCategory.objects.filter(
@@ -602,10 +677,22 @@ def category_guidance(request):
         .select_related("default_team")
         .first()
     )
+    drawn = slot(category, request.user, query=request.GET)
+    # The section carries the page's keep marker, drawn again with the ticket form's fields; a
+    # section never gives a copy back (accounts.kept).
+    contents = kept.prepare(
+        request, kept.Parts(RequestCreateForm(), *drawn), KEEP_NEW_TICKET, give=False
+    )
     return render(
         request,
         "desk/_category_section.html",
-        {"category": category, "category_terms": terms.drawn([category]), "data": QueryDict()},
+        {
+            "category": category,
+            "category_terms": terms.drawn([category]),
+            "data": QueryDict(),
+            "intake_drawn": drawn,
+            "kept": contents,
+        },
     )
 
 

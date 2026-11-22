@@ -4,10 +4,14 @@ A full-page form drawn with {% form_page keep=... %} (core.templatetags.ui.form_
 calls prepare before the fields are drawn; includes/kept_typing.html) carries a signed token
 naming the account, the session row, the form and the fields that may be kept: the visible fields
 a person types in or chooses from (lists of choices and the quantity boxes of an item list
-included), never a file, a hidden value (a revision, a definition token), a password, a field
-fetched as one types or a field that holds patient information. A form with more than MAX_FIELDS
-such fields gets no token. The token is no secret of the account: it names a session row, not the
-browser's session, and proves only that the server drew that form for that account and session.
+included), never a file, a hidden value (a revision, a definition token), a password or a field
+that holds patient information, and a list fetched as one types only where the form names it in
+`kept_fetched` (its chosen record, by id, given back only while the field still offers it). A
+form with more than MAX_FIELDS such fields gets no token. Several forms drawn as one HTML form
+(Parts) keep as one; a page whose forms depend on what is given back takes the copy first (take)
+and draws its forms from it (draw) before the marker is worked out (prepare with taken=). The
+token is no secret of the account: it names a session row, not the browser's session, and proves
+only that the server drew that form for that account and session.
 
 Kept. Once the page learns that its session has ended, before it goes to the sign-in page
 (static/js/session.js), it sends what is typed in those forms with their tokens to the keep
@@ -61,6 +65,7 @@ import re
 import secrets
 import uuid
 from datetime import timedelta
+from typing import NamedTuple
 
 from django import forms
 from django.conf import settings
@@ -72,6 +77,8 @@ from django.db.models.functions import Now
 from django.http.multipartparser import MultiPartParserError
 from django.utils.crypto import salted_hmac
 from django.utils.module_loading import import_string
+
+from core.lookups import RemoteSelect
 
 from .acting import INT4
 from .models import AccountSession, KeptDraft, KeptDraftCutoff, User
@@ -117,11 +124,28 @@ TYPED_WIDGETS = (
 CHOSEN_WIDGETS = (forms.Select, forms.RadioSelect, forms.CheckboxInput)
 SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
 # What a form names to have its own fields read again when a copy is kept (its `kept_recheck`,
-# (name, id)): (the function, the prefix of the names it decides). The function, given the id and
-# the account, returns the names with that prefix that the form would draw for the account as it
-# stands now (none that hold patient information), holding what a change of them locks first so
-# that one under way finishes before; a name with the prefix that it does not return is dropped.
-RECHECKS = {"request_form": ("request_forms.selectors.kept_eligible_fields", "field-")}
+# (name, id) or (name, id, chooser)): (the function, the prefix of the names it decides). The
+# function, given the id and the account, returns the names with that prefix that the form would
+# draw for the account as it stands now (none that hold patient information), holding what a change
+# of them locks first so that one under way finishes before; a name with the prefix that it does not
+# return is dropped. Its third element names the form's own fields outside the prefix (a box of
+# the form's), decided by the function in the same way. `chooser` is the html name of the field
+# that chose that form on a larger page (the desk's ticket form picker): when the copy says another
+# was chosen, the form's fields belong to the form drawn before the choice, and when the form is
+# gone the rest of the page still stands, so in both cases every field of the form's is dropped
+# and the rest kept. Without a chooser the page is the form's own, and a copy of a form that is
+# gone is not kept at all.
+RECHECKS = {
+    "request_form": (
+        "request_forms.selectors.kept_eligible_fields",
+        "field-",
+        ("details_not_known",),
+    )
+}
+# The html names of the fields that choose such a form on a larger page (the desk's ticket form
+# picker, request_forms.intake.PICKER): "" there (No form) is an answer, unlike a picker the page
+# did not show, where the category's only form is chosen when a copy is given back (_same_copy).
+CHOOSERS = frozenset({"request_form"})
 # The kinds of control a value can come from: a value goes back only into a control of the same
 # kind (or between one choice and several, one answer), so a field that changed kind since never
 # shows an answer given to another question (a "no" as a ticked confirmation).
@@ -146,10 +170,100 @@ PREFETCH_HEADERS = ("Sec-Purpose", "Purpose", "X-Purpose", "X-Moz")
 BROWSER_COOKIE = "lab_ops_kept"
 BROWSER_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
 
+
+class Parts:
+    """Several forms drawn as one HTML form (the desk's new ticket: the ticket's own fields, the
+    ticket form picker and the chosen ticket form's fields), kept as one: their fields in order,
+    each drawn back into its own form. Their html names must differ. Parts that are None (not
+    drawn) are left out."""
+
+    def __init__(self, *forms):
+        self.forms = [form for form in forms if form is not None]
+
+    def visible_fields(self):
+        return [bound for form in self.forms for bound in form.visible_fields()]
+
+    @property
+    def is_bound(self):
+        return any(form.is_bound for form in self.forms)
+
+    @property
+    def patient_information_fields(self):
+        return [
+            name
+            for form in self.forms
+            for name in (getattr(form, "patient_information_fields", ()) or ())
+        ]
+
+    @property
+    def kept_recheck(self):
+        return next(
+            (form.kept_recheck for form in self.forms if getattr(form, "kept_recheck", None)),
+            None,
+        )
+
+
+def _fetched(bound):
+    """Whether `bound` is a list fetched as one types (one record) that its form names in
+    `kept_fetched`: kept as the chosen record's id."""
+    widget = bound.field.widget
+    return (
+        type(widget) is RemoteSelect
+        and not widget.allow_multiple_selected
+        and bound.name in (getattr(bound.form, "kept_fetched", ()) or ())
+    )
+
+
 KEPT_MESSAGE = (
     "What you were typing is kept for 24 hours. Sign in again and open the same page to get it "
     "back."
 )
+
+
+def _typed(value):
+    """A value as the person typed or chose it, for comparing two deliveries of one form: line
+    endings as one, a list in any order."""
+    if isinstance(value, list):
+        return sorted(item.replace("\r\n", "\n") for item in value)
+    return value.replace("\r\n", "\n") if isinstance(value, str) else value
+
+
+def _same_copy(stored, sent):
+    """Whether a stored copy, (values, controls, dropped), gives back exactly what `sent` would:
+    the same answers (empty ones aside) from the same kinds of control, and the same omission."""
+
+    def answers(values, controls):
+        # An empty answer is no answer, except from a field that chooses a form (CHOOSERS).
+        return {
+            name: (_typed(value), controls.get(name))
+            for name, value in (values or {}).items()
+            if value not in ("", []) or name in CHOOSERS
+        }
+
+    (values, controls, dropped), (new_values, new_controls, new_dropped) = stored, sent
+    return bool(dropped) == bool(new_dropped) and answers(values, controls or {}) == answers(
+        new_values, new_controls or {}
+    )
+
+
+def notify(request):
+    """Tell the sign-in page that what was typed is kept, once: by the request that stored a copy
+    (a refused post and the page's keep request can both hold one), and not when the notice
+    already waits. What waits is looked at without using it up or changing it (the storage's
+    loaded and queued messages); a request without message storage says nothing. Not covered
+    (docs/architecture.md): a copy of another form stored after the sign-in page has shown the
+    notice is announced again, and a repeated delivery whose first answer was lost is not."""
+    from django.contrib import messages
+
+    storage = getattr(request, "_messages", None)
+    if storage is None or not getattr(request, "vr_kept_announce", False):
+        return
+    waiting = [
+        *(getattr(storage, "_loaded_messages", None) or []),  # loads what waits, uses nothing up
+        *(getattr(storage, "_queued_messages", None) or []),
+    ]
+    if not any(getattr(message, "message", None) == KEPT_MESSAGE for message in waiting):
+        messages.info(request, KEPT_MESSAGE, fail_silently=True)
 
 
 def _valid_browser(value):
@@ -203,9 +317,15 @@ def keep_for(request, value, values):
     """keep() for this request's browser (one cookie value for the whole request), set or renewed
     on the answer only when a copy is held."""
     choice, digest = _browser(request, create=True)
-    held = keep(value, values, digest)
+    held, own, inserted = _keep(value, values, digest)
     if held:
         request.vr_kept_browser = choice
+    # Whether what this request sent is the copy held (stored now, or the same text stored by an
+    # earlier delivery), not one kept before for the session and form from other text (another
+    # tab): the guards of the page that sent it rely on it (accounts.sessions._refusal, the keep
+    # address's `held`). Whether this request stored it: the sign-in page's notice.
+    request.vr_kept_own = own
+    request.vr_kept_announce = getattr(request, "vr_kept_announce", False) or inserted
     return held
 
 
@@ -221,7 +341,9 @@ def keepable(form):
         kind, name = type(widget), bound.html_name
         if field.disabled or bound.name in patient or name in patient:
             continue
-        if kind in TYPED_WIDGETS:
+        if _fetched(bound):
+            pass  # its chosen record, by id
+        elif kind in TYPED_WIDGETS:
             typed.append(name)
         elif kind in SEVERAL_WIDGETS:
             several.append(name)
@@ -243,7 +365,9 @@ def controls_of(form):
     out = {}
     for bound in form.visible_fields():
         widget = bound.field.widget
-        if isinstance(widget, forms.MultiWidget) and type(widget) not in FAMILIES:
+        if _fetched(bound):
+            out[bound.html_name] = "choice"
+        elif isinstance(widget, forms.MultiWidget) and type(widget) not in FAMILIES:
             for suffix, part in zip(widget.widgets_names, widget.widgets, strict=True):
                 if type(part) in FAMILIES:
                     out[bound.html_name + suffix] = FAMILIES[type(part)]
@@ -312,9 +436,10 @@ def _read(value):
         return None
     if recheck is not None and not (
         isinstance(recheck, list)
-        and len(recheck) == 2
+        and len(recheck) in (2, 3)
         and recheck[0] in RECHECKS
         and isinstance(recheck[1], int)
+        and (len(recheck) == 2 or (isinstance(recheck[2], str) and recheck[2]))
     ):
         return None
     return {"u": account, "s": session, "k": key, "f": names, "t": typed, "m": several,
@@ -334,13 +459,15 @@ def _clean(values, names, typed, several, *, sent_typed=None):
             value = values.get(name, [])
             if not _strings(value) or len(value) > MAX_CHOICES:
                 return None
-            value = [item.replace("\x00", "") for item in value]
+            value = [item.replace("\x00", "").replace("\r\n", "\n") for item in value]
             size = sum(len(item) for item in value)
         else:
             value = values.get(name, "")
             if not isinstance(value, str):
                 return None
-            value = value.replace("\x00", "")  # PostgreSQL's JSON refuses it
+            # PostgreSQL's JSON refuses NUL; line endings as a page's script sends them (a form
+            # posts CRLF), so one text is one size and one copy whichever way it came.
+            value = value.replace("\x00", "").replace("\r\n", "\n")
             size = len(value)
         if size > MAX_VALUE:
             return None
@@ -360,20 +487,29 @@ def _lock(account_id, *, shared):
         cursor.execute(f"SELECT {function}(%s, %s)", [KEPT_LOCK, account_id % INT4])
 
 
-def _without_patient_fields(data):
+def _without_patient_fields(data, values=None):
     """The token's names less those of the form's own fields that may not be kept as the form
     stands now (its recheck): fields that hold patient information, removed, or changed so that a
-    drawn name (an item list's old quantity box) no longer exists."""
+    drawn name (an item list's old quantity box) no longer exists. With a chooser (the form is part
+    of a larger page), all of the form's fields when `values` say that another form was chosen than
+    the one whose fields it drew, or when the form is gone; without one, None when the form is
+    gone (the page is the form's own: nothing of it can be given back)."""
     if not data["r"]:
         return data
-    function, prefix = RECHECKS[data["r"][0]]
-    eligible = import_string(function)(data["r"][1], data["u"])
-    if eligible is None:  # the form is gone: what it holds cannot be known
-        return None
-    eligible = set(eligible)
+    function, prefix, extra = RECHECKS[data["r"][0]]
+    chooser = data["r"][2] if len(data["r"]) == 3 else None
+    if chooser and (not isinstance(values, dict) or values.get(chooser) != str(data["r"][1])):
+        eligible = None  # another form chosen since its fields were drawn
+    else:
+        eligible = import_string(function)(data["r"][1], data["u"])
+        if eligible is None and not chooser:
+            return None
+    eligible = set(eligible or ())
 
     def allowed(name):
-        return not name.startswith(prefix) or name in eligible
+        if name.startswith(prefix) or name in extra:
+            return name in eligible  # empty when the form does not stand
+        return True
 
     return {
         **data,
@@ -388,9 +524,15 @@ def keep(value, values, browser):
     cookie has the digest `browser`, if that session ended because it passed a limit (see the
     module). True when a copy for that session and form is held for that browser after this (kept
     now, or by an earlier request), False otherwise."""
+    return _keep(value, values, browser)[0]
+
+
+def _keep(value, values, browser):
+    """keep(): (held, whether the copy held is what this call sent: stored now or the same text
+    stored before, whether this call stored it)."""
     data = _read(value)
     if data is None or not browser:
-        return False
+        return False, False, False
     table = connection.ops.quote_name(KeptDraft._meta.db_table)
     sessions = connection.ops.quote_name(AccountSession._meta.db_table)
     users = connection.ops.quote_name(User._meta.db_table)
@@ -401,13 +543,13 @@ def keep(value, values, browser):
             session_id=data["s"], user__is_active=True
         )
         # The form's own fields as they stand, after a change of them under way.
-        checked = _without_patient_fields(data)
+        checked = _without_patient_fields(data, values)
         if checked is None:
-            return False  # the form is gone: nothing of it can be given back
+            return False, False, False  # the form is gone: nothing of it can be given back
         cleaned = _clean(values, checked["f"], checked["t"], checked["m"], sent_typed=data["t"])
         if cleaned is None:
             # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
-            return held.exists()
+            return held.exists(), False, False
         dropped = isinstance(values, dict) and any(
             _filled(values.get(name, "")) for name in data["f"] if name not in checked["f"]
         )
@@ -448,10 +590,14 @@ def keep(value, values, browser):
             ],
         )
         if cursor.fetchone() is not None:
-            return True
+            return True, True, True
         # Not inserted: refused, or a copy for this session and form exists (an earlier request
-        # of the same page, whose answer was lost). Held only while it may still be given back.
-        return held.exists()
+        # of the same page, whose answer was lost, or another tab). Held only while it may still
+        # be given back; this delivery's own only when it holds the same text.
+        stored = held.values_list("values", "controls", "dropped").first()
+        if stored is None or stored[0] is None:
+            return held.exists(), False, False
+        return True, _same_copy(stored, (cleaned, controls, dropped)), False
 
 
 def keep_posted(request):
@@ -525,13 +671,48 @@ def _serialization_refusal(error):
     return getattr(cause, "sqlstate", None) == "40001" or getattr(cause, "pgcode", None) == "40001"
 
 
+class Taken(NamedTuple):
+    """A copy taken for a page (take): every value it holds, its session's end, the kind of
+    control each value came from, and whether something was dropped when it was kept."""
+
+    values: dict
+    ended_at: datetime.datetime
+    controls: dict
+    dropped: bool
+
+
 def offer(request, key, names):
     """For a form drawn on a page opened in the window with GET by a signed-in session: (values,
     ended_at, dropped) of the newest eligible copy of this account's for the form in this browser
     (_eligible) holding only `names`, and whether it held something else that cannot be put back
-    now (values may then be empty); or None. The copies are taken as they are read, in a
-    savepoint: when another page holds the newest at that moment, or took it after this page's
-    reading began, nothing is given back (never an older copy instead)."""
+    now (values may then be empty); or None. The copies are taken as they are read (take)."""
+    taken = take(request, key)
+    if taken is None:
+        return None
+    request.vr_kept_controls = taken.controls  # for _put_back, as the copy was drawn
+    return _given(taken, names)
+
+
+def _given(taken, names):
+    """offer()'s answer from a copy taken already, for a form drawing `names`."""
+    allowed = set(names)
+    values = taken.values
+    given = {name: value for name, value in values.items() if name in allowed}
+    dropped = taken.dropped or any(
+        _filled(value) for name, value in values.items() if name not in allowed
+    )
+    if not any(_filled(value) for value in given.values()):
+        return ({}, taken.ended_at, True) if dropped else None
+    return given, taken.ended_at, dropped
+
+
+def take(request, key):
+    """For a page opened in the window with GET by a signed-in session: the newest eligible copy
+    of this account's for the form `key` in this browser (_eligible), taken (Taken), or None. The
+    copies are taken as they are read, in a savepoint: when another page holds the newest at that
+    moment, or took it after this page's reading began, nothing is given back (never an older copy
+    instead). A page whose forms depend on what it gives back (the desk's new ticket) takes the
+    copy first, draws its forms from it (draw), then passes it to prepare."""
     from .sessions import _is_navigation
 
     user = getattr(request, "user", None)
@@ -568,16 +749,14 @@ def offer(request, key, names):
         # READ refuses to lock it): that page gave it back.
         return None
     _, values, ended_at, controls, dropped_at_keep = rows[0]
-    allowed = set(names)
-    values = values or {}
-    given = {name: value for name, value in values.items() if name in allowed}
-    request.vr_kept_controls = controls or {}  # for _put_back, as the copy was drawn
-    dropped = dropped_at_keep or any(
-        _filled(value) for name, value in values.items() if name not in allowed
-    )
-    if not any(_filled(value) for value in given.values()):
-        return ({}, ended_at, True) if dropped else None
-    return given, ended_at, dropped
+    return Taken(values or {}, ended_at, controls or {}, bool(dropped_at_keep))
+
+
+def draw(form, taken):
+    """Draw a taken copy's values in the unbound `form` as _put_back does, for a page that decides
+    what else it draws from them (the category and the ticket form chosen); prepare then draws the
+    whole page's forms."""
+    _put_back(form, taken.values, taken.controls)
 
 
 def discard_all(user_id):
@@ -616,8 +795,16 @@ def remove_expired(now=None):
 
 
 def _offered(field, value):
-    """Whether a choice field offers `value` (a string) as drawn now."""
-    return value == "" or any(str(key) == value for key, _label in _flat_choices(field))
+    """Whether a choice field offers `value` (a string) as drawn now. A list fetched as one types
+    offers what its field's own records hold (one query, not every choice)."""
+    if value == "":
+        return True
+    if type(field.widget) is RemoteSelect:
+        try:
+            return field.to_python(value) is not None
+        except forms.ValidationError:
+            return False
+    return any(str(key) == value for key, _label in _flat_choices(field))
 
 
 def _flat_choices(field):
@@ -664,8 +851,9 @@ def _put_back(form, given, controls):
     the copy was drawn) and only the value a ticked box posts; one answer carries between one
     choice and several; a choice goes back only while offered; a date its input cannot hold (still
     being typed) is handed to the date editor as text (data-vr-date-text, static/js/controls.js);
-    anything else is left as the form starts. Returns (how many values were drawn, whether
-    something could not be put back, the (label, text) of each date handed to the editor)."""
+    anything else is left as the form starts. Each value goes into its own field's form (Parts).
+    Returns (how many values were drawn, whether something could not be put back, the (label,
+    text) of each date handed to the editor)."""
     missed, drawn, texts = False, 0, []
     names, _typed, several = keepable(form)
     allowed = set(names)
@@ -692,7 +880,7 @@ def _put_back(form, given, controls):
                     parts[suffix[1:]] = value
                     drawn += bool(value.strip())
             if parts:
-                form.initial[bound.name] = parts
+                bound.form.initial[bound.name] = parts
             continue
         if name not in allowed or name not in given:
             continue
@@ -710,51 +898,59 @@ def _put_back(form, given, controls):
         if name in several:
             offered = [item for item in value if _offered(field, item)]
             missed = missed or len(offered) < len(value)
-            form.initial[bound.name] = offered
+            bound.form.initial[bound.name] = offered
             drawn += bool(offered)
         elif isinstance(widget, forms.CheckboxInput):
             # What a ticked box posts: its value attribute, "on" without one; "" is unticked.
             ticked = str(widget.attrs.get("value", "on"))
             if value == "":
-                form.initial[bound.name] = False
+                bound.form.initial[bound.name] = False
             elif value == ticked:
-                form.initial[bound.name] = True
+                bound.form.initial[bound.name] = True
                 drawn += 1
             else:
                 missed = True
         elif isinstance(field, forms.ChoiceField) or hasattr(field, "queryset"):
             if _offered(field, value):
-                form.initial[bound.name] = value
+                bound.form.initial[bound.name] = value
                 drawn += _filled(value)
             else:
                 missed = True
         elif getattr(widget, "input_type", "") in ("date", "datetime-local") and value.strip():
             if _holds_date(widget.input_type, value.strip()):
-                form.initial[bound.name] = value.strip().replace(" ", "T", 1)
+                bound.form.initial[bound.name] = value.strip().replace(" ", "T", 1)
             else:
                 # Still being typed: the browser's date input would show nothing, so the date
                 # editor starts from the text instead.
-                form.initial[bound.name] = value
+                bound.form.initial[bound.name] = value
                 widget.attrs["data-vr-date-text"] = value
                 texts.append((bound.label, value))
             drawn += 1
         else:
-            form.initial[bound.name] = value
+            bound.form.initial[bound.name] = value
             drawn += _filled(value)
     return drawn, missed, texts
 
 
-def prepare(request, form, key):
+_OFFER = object()  # prepare: take the copy now
+
+
+def prepare(request, form, key, *, taken=_OFFER, give=True):
     """For a full-page form drawn with {% form_page keep=... %}, before its fields are drawn: the
     contents of its marker (includes/kept_typing.html), or None when the form keeps nothing for
     this request. When a copy is given back (offer), its values are drawn in the form, the page
     says when its session ended and whether something could not be put back, and Discard opens
-    the page again (the copy is taken by then). Drawing the marker sets the browser's cookie."""
+    the page again (the copy is taken by then). Drawing the marker sets the browser's cookie.
+    `taken`: the copy the page took already (take; None when it found none), instead of taking
+    it now. `give`: False for a part of a page drawn again in place (the desk's category section),
+    which never gives a copy back."""
     if request is None or not key or not form:
         return None
     value = token(request, key, form)
-    if not value:
+    if not value and not isinstance(taken, Taken):
         return None
+    # A copy taken already is drawn all the same, with the notice, when the form can no longer be
+    # marked (it has grown past MAX_FIELDS since): the page then keeps nothing more.
     ensure_browser(request)
     names, _typed, several = keepable(form)
     contents = {
@@ -765,7 +961,15 @@ def prepare(request, form, key):
         "key": key,
         "bound": form.is_bound,
     }
-    offered = None if form.is_bound else offer(request, key, names)
+    if form.is_bound or not give:
+        offered = None
+    elif taken is _OFFER:
+        offered = offer(request, key, names)
+    elif taken is None:
+        offered = None
+    else:
+        request.vr_kept_controls = taken.controls
+        offered = _given(taken, names)
     if offered:
         given, ended_at, dropped = offered
         drawn, missed, texts = (

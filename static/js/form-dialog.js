@@ -131,11 +131,17 @@
         content.querySelectorAll("button, input, select, textarea").forEach(function (button) {
           if (!disabledControls.has(button)) {
             disabledControls.set(button, button.disabled);
+            if (!button.matches(":disabled")) { // not disabled already, also by a fieldset
+              button.setAttribute("data-vr-busy-disabled", ""); // static/js/kept-typing.js
+            }
           }
           button.disabled = true;
         });
       } else {
-        disabledControls.forEach(function (disabled, button) { button.disabled = disabled; });
+        disabledControls.forEach(function (disabled, button) {
+          button.disabled = disabled;
+          button.removeAttribute("data-vr-busy-disabled");
+        });
         disabledControls.clear();
       }
       element.querySelectorAll("[data-vr-form-close], [data-vr-form-discard]").forEach(function (button) {
@@ -151,6 +157,9 @@
       if (window.vrControls) {
         window.vrControls.init(content); // After setBusy: controls must not initialise disabled.
       }
+      // The form's controls are set up and enabled (static/js/kept-typing.js notes how they
+      // were drawn).
+      document.dispatchEvent(new CustomEvent("vr:form-ready"));
       if (window.vrInitTestPickers) {
         window.vrInitTestPickers(content);
       }
@@ -559,6 +568,15 @@
         setBusy();
       }
     });
+    // What was typed in the dialog's form is kept (static/js/session.js, a session limit): the page
+    // goes to sign in without asking about it.
+    document.addEventListener("vr:typing-kept", function (event) {
+      var forms = (event.detail && event.detail.forms) || [];
+      if (active && forms.some(function (form) { return content.contains(form); })) {
+        nativeLeaving = true;
+        dirty = false;
+      }
+    });
     window.addEventListener("beforeunload", function (event) {
       if (active && !nativeLeaving && (dirty || requests.size)) {
         event.preventDefault();
@@ -593,16 +611,57 @@
     function isDialogRequest(event) {
       return event.detail.target === content;
     }
+    // How the form's controls stood when the request was asked for (before htmx disables any for
+    // it), applied when it is sent: one cancelled before then (a question declined, a page's own
+    // check) never ends, so it must not leave the dialog busy.
+    var asked = new WeakMap();
     document.addEventListener("htmx:beforeRequest", function (event) {
       if (!isDialogRequest(event)) {
         return;
       }
+      var states = new Map();
+      content.querySelectorAll("button, input, select, textarea").forEach(function (control) {
+        states.set(control, { own: control.disabled, off: control.matches(":disabled") });
+      });
+      asked.set(event.detail.xhr, states);
+    });
+    document.addEventListener("htmx:beforeSend", function (event) {
+      if (!isDialogRequest(event)) {
+        return;
+      }
       errorRegion.hidden = true;
+      var states = asked.get(event.detail.xhr);
+      if (states) {
+        states.forEach(function (state, control) {
+          if (!disabledControls.has(control)) {
+            disabledControls.set(control, state.own);
+            if (!state.off) {
+              control.setAttribute("data-vr-busy-disabled", ""); // static/js/kept-typing.js
+            }
+          }
+        });
+      }
       requests.add(event.detail.xhr);
+      // Its end is signalled on the element that asked, which may have left the page by then.
+      var source = event.detail.elt;
+      var xhr = event.detail.xhr;
+      if (source && source !== document && source.addEventListener) {
+        source.addEventListener("htmx:afterRequest", function ended(done) {
+          if (done.detail && done.detail.xhr === xhr) {
+            source.removeEventListener("htmx:afterRequest", ended);
+            requestEnded(done);
+          }
+        });
+      }
       setBusy();
     });
     document.addEventListener("htmx:beforeOnLoad", function (event) {
       if (!isDialogRequest(event)) {
+        return;
+      }
+      // A refusal because the session ended: static/js/session.js keeps what was typed and goes to
+      // sign in; the form's guard is released only once its copy is held (vr:typing-kept).
+      if (event.detail.xhr.status === 401) {
         return;
       }
       if (event.detail.xhr.getResponseHeader("HX-Redirect")) {
@@ -648,12 +707,13 @@
         finishReady();
       }
     });
-    document.addEventListener("htmx:afterRequest", function (event) {
+    function requestEnded(event) {
       if (!requests.delete(event.detail.xhr)) {
         return;
       }
       finishReady();
-    });
+    }
+    document.addEventListener("htmx:afterRequest", requestEnded);
     ["htmx:sendError", "htmx:timeout", "htmx:responseError"].forEach(function (name) {
       document.addEventListener(name, function (event) {
         if (isDialogRequest(event)) {

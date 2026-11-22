@@ -3,6 +3,7 @@ composer (D2, D3), the action forms (D4 to D6, D9), the list with its system vie
 bulk actions and query budget (D10), Find (D12), the dashboard queues (D14) and the history
 page (D15). D7 and D8 are in test_restricted_and_complaints."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -209,7 +210,10 @@ class TestNewRequest:
         body = client.get(url, {"category": sample_category.pk}).content.decode()
         assert "Ask for the accession number and the collection date." in body
         assert "Goes to Accessioning" in body and "high priority" in body
-        assert client.get(url, {"category": group.pk}).content.strip() == b""  # a group has none
+        # A group has no guidance and no ticket form: only the page's keep marker, drawn again with
+        # the section so that what was typed stays kept (accounts.kept, desk.views.KEEP_NEW_TICKET).
+        only = client.get(url, {"category": group.pk}).content.decode().strip()
+        assert re.fullmatch(r'<input type="hidden" name="_vr_kept" [^>]*>', only)
         login(client, clinic_portal)
         assert client.get(url, {"category": sample_category.pk}).status_code == 403
 

@@ -6,7 +6,10 @@ values, a QueryDict, empty on a first load), category_terms (taxonomy.terms.draw
 It holds the category's intake guidance, then the slot for fields that belong to the request type
 (desk/_intake_fields.html), so those fields change with the category. The hidden category_terms
 input carries the protection and routing the guidance showed; the write refuses if they changed.
-{% endcomment %}
+With kept (accounts.kept.prepare over the ticket's fields, the picker and the chosen ticket form,
+desk.views.KEEP_NEW_TICKET), the page's keep marker: drawn here, so that it names the ticket form's
+fields drawn with it; intake_drawn is the slot as the view drew it.
+{% endcomment %}{% if kept %}{% include "includes/kept_marker.html" with kept=kept only %}{% endif %}
 {% if category_terms %}<input type="hidden" name="category_terms" value="{{ category_terms }}">{% endif %}
 {% include "desk/_category_guidance.html" %}
 {% include "desk/_intake_fields.html" %}

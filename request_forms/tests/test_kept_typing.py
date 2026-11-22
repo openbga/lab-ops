@@ -63,7 +63,7 @@ def test_a_request_form_keeps_typed_fields_but_never_patient_information(portal_
         data=json.dumps({"forms": [{"token": token, "values": sent}]}),
         content_type="application/json",
     )
-    assert response.json() == {"kept": 1}
+    assert response.json() == {"kept": 1, "held": [True]}
     assert PATIENT_SENTINEL not in json.dumps(KeptDraft.objects.get().values)
     browser.force_login(portal_user)
     again = browser.get(page).content.decode()

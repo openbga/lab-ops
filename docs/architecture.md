@@ -146,8 +146,10 @@ What a person was typing is kept across a sign-out by a limit ([accounts/kept.py
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible
 fields a person types in or chooses from, ticked lists and an item list's quantity boxes
-included, never a file, a hidden value such as a revision, a field fetched as one types or one the
-form lists as holding patient information; a form with more than 200 such fields gets no token.
+included, never a file, a hidden value such as a revision or one the form lists as holding patient
+information, and a list fetched as one types only where the form names it in `kept_fetched` (the
+chosen record's id, given back only while the field's own records still hold it); a form with more
+than 200 such fields gets no token.
 Once the page learns that its session has ended it sends what is typed with the token to
 `account/session/keep/`, which needs no session and no CSRF token (the signed token is the proof)
 and is not activity. A form posted after its session ended is kept from its post: when the
@@ -188,6 +190,66 @@ page holds at that moment. Copies have no audit event and are never logged. The 
 refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
 ticket with the list it was opened from, so signing in again from such a page opens the ticket;
 the composer posts to an address that carries its queue.
+
+The desk's new ticket keeps its own fields, the ticket form picker and the chosen ticket form's
+fields as one copy (`accounts.kept.Parts`, key `staff-ticket`). Its marker is drawn in the category
+section, so the htmx request that draws the section again for another category or form issues a
+new token naming that form's fields; a section request never gives a copy back. The ticket form's
+recheck names the picker as its chooser: a copy whose picker value is not the form whose fields the
+token drew (the picker changed and the session ended before the section came back), or whose form
+is gone, keeps none of that form's fields (Some required details are not known yet included) and
+keeps the rest; without a chooser (the portal's request form page, which is the form's own) a copy
+of a form that is gone is not kept. The page takes the copy before it draws anything (`take`), draws
+the ticket's own fields from it (`draw`), decides the category, the organization and the ticket form
+from what was drawn, as the section would (`request_forms.intake.slot`), and then works out the
+marker and draws the copy in every part (`prepare` with the copy taken). The page is drawn in one
+reading with the account read in it (the view is not atomic for the request; a save keeps the
+request's transaction where the deployment sets ATOMIC_REQUESTS); when PostgreSQL refuses one of the ticket form's share locks
+because the row changed after the reading began, the reading is rolled back, the take with it, and
+drawn once more. The section is not drawn in one reading (nor in a request's transaction), so that
+a change of a ticket form never waits for it: the slot reads the list of forms once, chooses from it,
+reads the chosen form's definition after it, and draws that list (a form the definition shows
+retired, moved or withdrawn is neither drawn nor listed, and the chosen form is labelled from its
+definition, as read between two equal lists). A submission reads the list before and after its
+picker and form in the same way, and a refused save is drawn again from that moment (the list, the
+form and its category as read then, nothing read again), less a form removed since or not offered
+to the request's organization, which the picker then names as the reason for No form. "Some
+required details are not known yet" is kept only while the form would draw it. Not covered: a
+setup change and its reversal both committed between two reads of one page (a form retired and
+restored with other instructions) look like no change, so that page can show the list of one
+moment with the instructions of the other; the next submit is checked against the current
+definition as always. A refused save lists every form of the category (those for selected
+organizations marked), as it did before; the offer to the ticket's organization is checked when it
+is saved. When three readings in a row each see a setup change, the form is not drawn and the page
+shows the last reading's list with the category as read at its start. A page drawn in its own
+reading makes its small writes (the first What's new visit) once
+the reading has ended, so a failure of such a write comes after a copy of kept typing was taken. A copy taken for a form grown past 200 fields since is still
+drawn, with its notice, without a token. The new ticket is a dedicated form page in the shared form
+dialog. A copy held for a form in the dialog makes signing in again open that form's own page: the
+keep address answers, for each form sent, whether a copy is held, and the page sends
+`data-vr-form-url` of the dialog's page as `next` for a form held; a form posted after its session
+ended and kept from its post, from the dialog or from a page the browser does not name, is answered
+with a sign-in that returns to the address it was posted to. An htmx request that finds the session
+ended (401 `{"signed_in": false}`) no longer goes to sign in at once: the page sends what is typed
+first, as at the end of its countdown, also when the element that asked has left the page by then
+(the refusal, like the keep address for each form, says whether what that form sent is the copy
+held: stored now, or the same answers from the same controls stored before, so another tab's copy
+never lets this page go),
+and it goes to the sign-in address the server gave when it has no dialog form of its own to return
+to (only this site's sign-in page with a `next` on this site). While the dialog has a form
+disabled for a request (taken as under way when it is sent, with each control's state from when it
+was asked for), the page collects the controls the dialog disabled; while the dialog loads another
+page over the form (Discard, a link) it collects nothing of that form; a chosen option disabled by
+itself or its group is not collected, as the form would not send it. The kept notice comes from the request that stored
+a copy and is not added while it already waits. Not covered: a copy of another form stored after
+the sign-in page has shown the notice is announced again, and a repeated delivery whose first
+answer was lost is not announced. Once a copy is held for the dialog's
+form the dialog lets the page go without asking, and the composer only for its own copy; a refusal
+leaves the dialog's question in place until then. An answer without `held` (an earlier release)
+counts every form held only when its count covers them all. The dialog announces when it has set up its form (`vr:form-ready`), and the
+page's script notes how the form was drawn then and after each htmx swap; a page that held unsent
+text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
+loads the form again in place and puts the focus in its first text box.
 
 ## Optional modules
 
