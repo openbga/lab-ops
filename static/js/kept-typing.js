@@ -168,13 +168,25 @@
         });
       });
       // A field given back with a value that this page does not show: say it was not put back.
+      // A sentence drawn only for dates handed to the date editor as text goes once the editor
+      // shows them (static/js/controls.js reads data-vr-date-text).
       markers().forEach(function (marker) {
         var missed = marker.form.querySelector("[data-vr-kept-missed]");
+        if (!missed) {
+          return;
+        }
         var absent = list(marker, "data-vr-kept-given").some(function (name) {
           return !controls(marker.form, name).length;
         });
-        if (missed && absent) {
+        if (absent) {
           missed.hidden = false;
+        } else if (missed.hasAttribute("data-vr-kept-dates-only")) {
+          var shown = Array.from(marker.form.querySelectorAll("[data-vr-date-text]")).every(function (input) {
+            return input.vrDateField && input.value.trim() !== "";
+          });
+          if (shown) {
+            missed.hidden = true;
+          }
         }
       });
       if (window.location.hash === DISCARDED) {

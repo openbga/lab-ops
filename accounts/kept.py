@@ -54,6 +54,7 @@ audited, listed or shown to anyone but the account that typed them.
 """
 
 import base64
+import datetime
 import hashlib
 import json
 import re
@@ -116,10 +117,10 @@ TYPED_WIDGETS = (
 CHOSEN_WIDGETS = (forms.Select, forms.RadioSelect, forms.CheckboxInput)
 SEVERAL_WIDGETS = (forms.CheckboxSelectMultiple,)  # a list of values
 # What a form names to have its own fields read again when a copy is kept (its `kept_recheck`,
-# (name, id)): (the function, the prefix of the names it decides). The function returns the names
-# with that prefix that may be kept as the form stands now (none that hold patient information),
-# holding what a change of them locks first so that one under way finishes before; a name with the
-# prefix that it does not return is dropped.
+# (name, id)): (the function, the prefix of the names it decides). The function, given the id and
+# the account, returns the names with that prefix that the form would draw for the account as it
+# stands now (none that hold patient information), holding what a change of them locks first so
+# that one under way finishes before; a name with the prefix that it does not return is dropped.
 RECHECKS = {"request_form": ("request_forms.selectors.kept_eligible_fields", "field-")}
 # The kinds of control a value can come from: a value goes back only into a control of the same
 # kind (or between one choice and several, one answer), so a field that changed kind since never
@@ -190,7 +191,8 @@ def remember_browser(request, response):
         response.set_cookie(
             BROWSER_COOKIE,
             value,
-            max_age=int(KEPT_FOR.total_seconds()),
+            # As long as a page's token: a page's typing can be kept with the cookie it set.
+            max_age=int(TOKEN_AGE.total_seconds()),
             secure=settings.SESSION_COOKIE_SECURE,
             httponly=True,
             samesite="Lax",
@@ -361,7 +363,7 @@ def _without_patient_fields(data):
     if not data["r"]:
         return data
     function, prefix = RECHECKS[data["r"][0]]
-    eligible = import_string(function)(data["r"][1])
+    eligible = import_string(function)(data["r"][1], data["u"])
     if eligible is None:  # the form is gone: what it holds cannot be known
         return None
     eligible = set(eligible)
@@ -396,10 +398,15 @@ def keep(value, values, browser):
         )
         # The form's own fields as they stand, after a change of them under way.
         checked = _without_patient_fields(data)
-        cleaned = checked and _clean(values, checked["f"], checked["t"], checked["m"])
-        if cleaned is None or checked is None:
+        if checked is None:
+            return False  # the form is gone: nothing of it can be given back
+        cleaned = _clean(values, checked["f"], checked["t"], checked["m"])
+        if cleaned is None:
             # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
             return held.exists()
+        dropped = isinstance(values, dict) and any(
+            _filled(values.get(name, "")) for name in data["f"] if name not in checked["f"]
+        )
         data = checked
         controls = {name: data["w"][name] for name in cleaned if name in data["w"]}
         # One statement decides and inserts, by the clock when it runs: the session's ending and
@@ -408,8 +415,8 @@ def keep(value, values, browser):
         # under the lock Sign out takes before it removes copies.
         cursor.execute(
             f'INSERT INTO {table} (session_id, user_id, form, browser, "values", controls, '
-            f"kept_at) SELECT s.id, s.user_id, %s, %s, %s::jsonb, %s::jsonb, clock_timestamp() "
-            f"FROM {sessions} s "
+            f"dropped, kept_at) SELECT s.id, s.user_id, %s, %s, %s::jsonb, %s::jsonb, %s, "
+            f"clock_timestamp() FROM {sessions} s "
             f"JOIN {users} u ON u.id = s.user_id "
             f"WHERE s.id = %s AND s.user_id = %s AND u.is_active "
             f"AND s.ending = ANY(%s) AND s.ended_at > clock_timestamp() - %s "
@@ -426,6 +433,7 @@ def keep(value, values, browser):
                 browser,
                 json.dumps(cleaned),
                 json.dumps(controls),
+                dropped,
                 data["s"],
                 data["u"],
                 list(LIMIT_ENDINGS),
@@ -536,7 +544,7 @@ def offer(request, key, names):
         with transaction.atomic():
             rows = list(
                 candidates.order_by("-session__ended_at", "-id").values_list(
-                    "id", "values", "session__ended_at", "controls"
+                    "id", "values", "session__ended_at", "controls", "dropped"
                 )
             )
             if not rows:
@@ -555,12 +563,14 @@ def offer(request, key, names):
         # Taken by a page whose change committed after this page's reading began (REPEATABLE
         # READ refuses to lock it): that page gave it back.
         return None
-    _, values, ended_at, controls = rows[0]
+    _, values, ended_at, controls, dropped_at_keep = rows[0]
     allowed = set(names)
     values = values or {}
     given = {name: value for name, value in values.items() if name in allowed}
     request.vr_kept_controls = controls or {}  # for _put_back, as the copy was drawn
-    dropped = any(_filled(value) for name, value in values.items() if name not in allowed)
+    dropped = dropped_at_keep or any(
+        _filled(value) for name, value in values.items() if name not in allowed
+    )
     if not any(_filled(value) for value in given.values()):
         return ({}, ended_at, True) if dropped else None
     return given, ended_at, dropped
@@ -620,13 +630,28 @@ DATE_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DATETIME_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$")
 
 
+def _holds_date(input_type, text):
+    """Whether a browser's date or date-time input can hold `text` (a real date, in its form)."""
+    pattern = DATE_VALUE if input_type == "date" else DATETIME_VALUE
+    if not pattern.match(text):
+        return False
+    try:
+        if input_type == "date":
+            datetime.date.fromisoformat(text)
+        else:
+            datetime.datetime.fromisoformat(text.replace(" ", "T", 1))
+    except ValueError:
+        return False
+    return True
+
+
 def _carries(drawn, now):
     """Whether a value from a control of kind `drawn` may go into one of kind `now`: a ticked box
     only from a ticked box (a box is an affirmation: an answer to another question, a "no" or an
     "on" chosen from a list, must not tick it); any other control takes the value as it is, its
-    own checks deciding (a choice still offered, a date's form). A copy kept before kinds were
-    recorded (no `drawn`) is taken as drawn like the control now."""
-    return now != "box" or drawn in (None, "box")
+    own checks deciding (a choice still offered, a date's form). A value whose kind is not known
+    never ticks a box."""
+    return now != "box" or drawn == "box"
 
 
 def _put_back(form, given, controls):
@@ -636,8 +661,8 @@ def _put_back(form, given, controls):
     choice and several; a choice goes back only while offered; a date its input cannot hold (still
     being typed) is handed to the date editor as text (data-vr-date-text, static/js/controls.js);
     anything else is left as the form starts. Returns (how many values were drawn, whether
-    something could not be put back)."""
-    missed, drawn = False, 0
+    something could not be put back, the (label, text) of each date handed to the editor)."""
+    missed, drawn, texts = False, 0, []
     names, _typed, several = keepable(form)
     allowed = set(names)
     now = controls_of(form)
@@ -700,19 +725,19 @@ def _put_back(form, given, controls):
             else:
                 missed = True
         elif getattr(widget, "input_type", "") in ("date", "datetime-local") and value.strip():
-            pattern = DATE_VALUE if widget.input_type == "date" else DATETIME_VALUE
-            if pattern.match(value.strip()):
+            if _holds_date(widget.input_type, value.strip()):
                 form.initial[bound.name] = value.strip().replace(" ", "T", 1)
             else:
                 # Still being typed: the browser's date input would show nothing, so the date
                 # editor starts from the text instead.
                 form.initial[bound.name] = value
                 widget.attrs["data-vr-date-text"] = value
+                texts.append((bound.label, value))
             drawn += 1
         else:
             form.initial[bound.name] = value
             drawn += _filled(value)
-    return drawn, missed
+    return drawn, missed, texts
 
 
 def prepare(request, form, key):
@@ -739,10 +764,10 @@ def prepare(request, form, key):
     offered = None if form.is_bound else offer(request, key, names)
     if offered:
         given, ended_at, dropped = offered
-        drawn, missed = (
+        drawn, missed, texts = (
             _put_back(form, given, getattr(request, "vr_kept_controls", {}))
             if given
-            else (0, False)
+            else (0, False, [])
         )
         # What a page gave back, for its tests to read.
         request.vr_kept_given = {**getattr(request, "vr_kept_given", {}), key: given}
@@ -756,7 +781,12 @@ def prepare(request, form, key):
             # Nothing of it could be drawn: the page says so instead.
             nothing=not drawn,
             ended_at=ended_at,
-            missed=dropped or missed,
+            missed=dropped or missed or bool(texts),
+            # Only dates handed to the date editor as text were not drawn in their inputs: the
+            # script hides the sentence once the editor shows them (none without scripts).
+            dates_only=bool(texts) and not (dropped or missed),
+            # Shown where scripts do not run, so the text typed is not lost from sight.
+            date_texts=texts,
             # The names given back with a value: a template may leave a field of the form out of
             # the page (kept-typing.js then shows the sentence on what was not put back).
             given=json.dumps(filled),

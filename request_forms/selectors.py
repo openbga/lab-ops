@@ -374,34 +374,31 @@ def revealable_value(user, value_id):
     return row
 
 
-def kept_eligible_fields(template_id):
-    """For keeping what was typed across a sign-out (accounts.kept): the form field names of the
-    template's fields that may be kept as the template stands now, its value fields that hold no
-    patient information, an item list by the names of its catalog's quantity boxes
-    (`<name>_<item id>`). The template row is held FOR SHARE first, as a change of one of its fields
-    locks it first (services.update_field), so a change under way finishes before this reads.
-    None when there is no such template."""
-    from django.db import connection
+def kept_eligible_fields(template_id, user_id):
+    """For keeping what was typed across a sign-out (accounts.kept): the form field names a new
+    request form of this template would draw for this account as it stands now (definition.read,
+    its fillable fields and an item list's orderable items, as the portal page draws them), less
+    those that hold patient information. Read with the definition's own share locks, which a
+    change of the form takes first, so a change under way finishes before this reads. None when
+    there is no such template or account."""
+    from django.contrib.auth import get_user_model
 
+    from . import definition
     from .forms import field_name
-    from .models import CatalogItem
 
-    table = connection.ops.quote_name(RequestTemplate._meta.db_table)
-    with connection.cursor() as cursor:
-        cursor.execute(f"SELECT 1 FROM {table} WHERE id = %s FOR SHARE", [template_id])
-        if cursor.fetchone() is None:
-            return None
+    template = RequestTemplate.objects.filter(pk=template_id).first()
+    user = get_user_model().objects.filter(pk=user_id).first()
+    if template is None or user is None:
+        return None
+    defn = definition.read(template)
     names = []
-    rows = (
-        TemplateField.objects.filter(template_id=template_id, holds_patient_information=False)
-        .exclude(kind__in=NO_VALUE_KINDS)
-        .values_list("key", "kind", "catalog_id")
-    )
-    for key, kind, catalog_id in rows:
-        if kind == FieldKind.ITEMS:
-            if catalog_id is not None:
-                items = CatalogItem.objects.filter(catalog_id=catalog_id)
-                names.extend(f"{field_name(key)}_{pk}" for pk in items.values_list("pk", flat=True))
+    for template_field in defn.fillable(user, new_request=True):
+        if template_field.kind in NO_VALUE_KINDS or template_field.holds_patient_information:
+            continue
+        name = field_name(template_field.key)
+        if template_field.kind == FieldKind.ITEMS:
+            items = defn.orderable_items(template_field)
+            names.extend(f"{name}_{item.pk}" for item in items)
         else:
-            names.append(field_name(key))
+            names.append(name)
     return names

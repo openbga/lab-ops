@@ -567,7 +567,8 @@ def test_cookie_on_pages_tracks_presence_of_a_signed_form(case, settings, kind):
     if marker:
         cookie = page.cookies[kept.BROWSER_COOKIE]
         assert cookie["secure"] and cookie["httponly"] and cookie["samesite"] == "Lax"
-        assert cookie["path"] == "/" and int(cookie["max-age"]) == 86400
+        # Adopted: the cookie lasts as long as a page's token (kept.TOKEN_AGE, 48 hours).
+        assert cookie["path"] == "/" and int(cookie["max-age"]) == 172800
 
 
 @pytest.mark.parametrize("header", ["X-Purpose", "X-Moz"])

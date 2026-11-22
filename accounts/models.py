@@ -180,6 +180,9 @@ class KeptDraft(models.Model):
     # Field name -> the kind of control the value came from (accounts.kept.FAMILIES), as the page
     # was drawn: a value goes back only into a control of the same kind.
     controls = models.JSONField(default=dict)
+    # Something typed was left out when the copy was kept (a field no longer on the form): the
+    # page that gives it back says so.
+    dropped = models.BooleanField(default=False)
     kept_at = models.DateTimeField(db_default=Now())
     # When a page offered it back (the row then blocks a later copy for the same session and form).
     taken_at = models.DateTimeField(null=True, blank=True)

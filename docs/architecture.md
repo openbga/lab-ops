@@ -164,16 +164,18 @@ digest of a value in a cookie of its own (`lab_ops_kept`), set with every page t
 form and with every answer that held a copy; a page drawn for a browser without it derives the
 value from its session row with a keyed hash, so every answer of that session sets the same value
 in whatever order they arrive, and a shared account never hands one person's typing to another.
-One case is not covered: in a browser that has no cookie yet, a page of an earlier sign-in arriving
-after a later sign-in's page leaves the earlier value, and a copy kept under the later one is not
-given back (nothing on the server can tell which answer the browser kept, and the cookie is
-HttpOnly). The same form drawn for the same account in that browser on a page opened
+The cookie lasts as long as a page's token (48 hours). Not covered: in a browser that has no
+cookie yet, answers of two different sign-ins arriving in either order leave one sign-in's value,
+and a copy kept under the other is not given back; and if the cookie is deleted while two pages of
+an ended session send their typing, each gets its own value and only one copy comes back (nothing
+on the server can tell which answer the browser kept, and the cookie is HttpOnly). The same form drawn for the same account in that browser on a page opened
 with GET (not a prefetch) is drawn with the newest eligible copy as its initial values, before
 its fields render, so nothing depends on scripts; a ticked box takes a value only from a ticked
 box and only the value a ticked box posts, one answer carries between one choice and several, a
-date still being typed is handed to the date editor as text, and a choice no longer offered or a
-field no longer on the form is left as drawn, and the page says so (also when nothing could be put
-back). The copies for that form are locked `FOR UPDATE SKIP LOCKED` and
+date its input cannot hold (still being typed, or impossible) is handed to the date editor as text
+(without scripts the page says it was not put back), and a choice no longer offered or a field no
+longer on the form, also one left out when the copy was kept, is left as drawn, and the page says
+so (also when nothing could be put back). The copies for that form are locked `FOR UPDATE SKIP LOCKED` and
 emptied in a savepoint of the page's reading, so the opted-in pages draw inside a reading and a
 page that fails rolls the take back: a page that finds the newest copy held by another page gives
 nothing back (never an older copy), and one whose reading began before another committed the take
@@ -184,8 +186,8 @@ advisory lock that keeping takes shared, so no copy from an earlier session is i
 afterwards. The scheduled job removes copies 24 hours after their session ended, skipping one a
 page holds at that moment. Copies have no audit event and are never logged. The two addresses a
 refused reply is drawn at (`desk:request-entry`, `portal:request-reply`) send a GET on to their
-ticket with the list it was opened from (the queue's own parameters only), so signing in again
-from such a page opens the ticket; the composer posts to an address that carries its queue.
+ticket with the list it was opened from, so signing in again from such a page opens the ticket;
+the composer posts to an address that carries its queue.
 
 ## Optional modules
 

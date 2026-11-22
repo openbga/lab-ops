@@ -66,10 +66,14 @@ def link(page, path):
 
 
 def fields(page, *, action=None):
+    # Adapted (kept typing, 2026-11-22): the composer's action now also carries the queue in its
+    # address (a refused entry drawn there returns to it after signing in), so forms are matched by
+    # the action's path.
     return next(
         dict(f["hidden"])
         for f in controls(page).forms
-        if "list" in dict(f["hidden"]) and (action is None or f["attrs"].get("action") == action)
+        if "list" in dict(f["hidden"])
+        and (action is None or urlsplit(f["attrs"].get("action", "")).path == action)
     )
 
 

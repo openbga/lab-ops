@@ -4,6 +4,7 @@ signed-in account's own scope (desk.portal_scope); desk.services checks every va
 from django import forms
 
 from attachments.forms import AttachmentsField
+from clients.models import ClientSite
 from core.forms import SearchFilter, StyledForm
 
 from .models import CLIENT_STATUS_LABELS, Status
@@ -92,19 +93,30 @@ class RaiseRequestForm(StyledForm, forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = raisable_categories()
         sites = portal_sites(user)
-        # The sites read once: whether one is required and the sites offered come from the same
-        # moment, also when the page is drawn later (a site added meanwhile is offered next time).
+        # The sites read once: whether one is required and the sites offered are the same reading,
+        # also when the page is drawn later (a site added or deactivated meanwhile shows next
+        # time; a deactivated one chosen is refused when the ticket is saved, check_portal_site).
         site_ids = list(sites.values_list("pk", flat=True))
         if not site_ids:
             del self.fields["site"]
         else:
-            self.fields["site"].queryset = sites.filter(pk__in=site_ids)
+            self.fields["site"].queryset = ClientSite.objects.filter(pk__in=site_ids).order_by(
+                "name", "pk"
+            )
             self.fields["site"].required = site_required(user, site_count=len(site_ids))
             if self.fields["site"].required and len(site_ids) == 1:
                 self.initial.setdefault("site", site_ids[0])
             if not self.fields["site"].required:
                 self.fields["site"].empty_label = "Not about one site"
                 self.fields["site"].help_text = "Leave it if the ticket is not about one site."
+
+    def clean(self):
+        cleaned = super().clean()
+        if "site" not in self.fields and self.data.get(self.add_prefix("site")):
+            # The page offered a site and none can be chosen now (deactivated meanwhile): refused,
+            # never saved as a ticket about no site.
+            self.add_error(None, "The site you chose is no longer available. Choose again.")
+        return cleaned
 
 
 class ReplyForm(StyledForm, forms.Form):

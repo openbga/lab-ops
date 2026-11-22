@@ -426,7 +426,12 @@ def test_reply_redirect_carries_only_recognized_list_parameters(case, surface):
     response = browser.get(action, {"list": "q=courier&page=2&display_hint=compact"})
     assert response.status_code == 302
     nested = parse_qs(urlsplit(response.url).query)["list"][0]
-    assert parse_qs(nested) == {"q": ["courier"], "page": ["2"]}
+    # Adopted: the staff ticket page carries the queue's address as the person chose it
+    # (desk.views._queue_address); the portal keeps the list's own parameters (core.lists).
+    expected = {"q": ["courier"], "page": ["2"]}
+    if surface == "desk":
+        expected["display_hint"] = ["compact"]
+    assert parse_qs(nested) == expected
 
 
 def test_signin_return_from_the_staff_composers_actual_post_keeps_the_queue(case):

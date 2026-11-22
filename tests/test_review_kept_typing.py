@@ -122,7 +122,7 @@ def test_keep_cookie_is_renewed_and_normal_round_trip_leaves_no_content_in_side_
         assert (
             bool(cookie["secure"]) == secure and cookie["httponly"] and cookie["samesite"] == "Lax"
         )
-        assert int(cookie["max-age"]) == 24 * 60 * 60
+        assert int(cookie["max-age"]) == 48 * 60 * 60  # Adopted: as long as a page's token
         assert KeptDraft.objects.get().browser == hashlib.sha256(cookie.value.encode()).hexdigest()
         assert not browser.get(reverse("account-session")).json()["signed_in"]
         browser.force_login(case.agent)
@@ -147,7 +147,7 @@ def test_keep_cookie_is_renewed_and_normal_round_trip_leaves_no_content_in_side_
         content_type="application/json",
     )
     renewed = second.cookies[kept.BROWSER_COOKIE]
-    assert renewed.value == cookie.value and int(renewed["max-age"]) == 86_400
+    assert renewed.value == cookie.value and int(renewed["max-age"]) == 172_800  # Adopted
 
 
 @pytest.mark.parametrize("has_referer", [True, False], ids=["with-referrer", "without-referrer"])
