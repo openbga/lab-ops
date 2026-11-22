@@ -8,6 +8,7 @@ back on the server and the page's clock forward by as much.
 
 import re
 from datetime import timedelta
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from django.db.models.functions import Now
@@ -173,7 +174,8 @@ def test_log_ticket_pressed_in_the_dialog_after_the_limit_passed_comes_back(page
     # The server's limit passes while the page still believes it has time (a laptop asleep).
     assert open_session(STAFF).update(last_active_at=Now() - INACTIVITY - timedelta(seconds=5))
     dialog.get_by_role("button", name="Log ticket").click()
-    expect(page).to_have_url(re.compile(r"/accounts/login/\?next=%2Frequests%2Fnew%2F"))
+    expect(page).to_have_url(re.compile(r"/accounts/login/\?next="))
+    assert parse_qs(urlsplit(page.url).query)["next"] == [ADDRESS]
     expect(page.get_by_text(KEPT)).to_be_visible()
     assert not ServiceRequest.objects.filter(subject=SUBJECT).exists()
     assert KeptDraft.objects.get().values["subject"] == SUBJECT
@@ -182,4 +184,7 @@ def test_log_ticket_pressed_in_the_dialog_after_the_limit_passed_comes_back(page
     expect(page).to_have_url(re.compile(re.escape(ADDRESS) + "$"))
     expect(field(page, "Subject")).to_have_value(SUBJECT)
     expect(field(page, "What the client asked")).to_have_value(ASKED)
-    assert not page.console_errors, page.console_errors
+    # The refused post's answer is a 401 by design (accounts.sessions._refusal); the browser logs
+    # every such answer. Nothing else may be logged.
+    refused = "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    assert [error for error in page.console_errors if error != refused] == []
