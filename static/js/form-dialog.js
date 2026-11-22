@@ -131,11 +131,17 @@
         content.querySelectorAll("button, input, select, textarea").forEach(function (button) {
           if (!disabledControls.has(button)) {
             disabledControls.set(button, button.disabled);
+            if (!button.disabled) {
+              button.setAttribute("data-vr-busy-disabled", ""); // static/js/kept-typing.js
+            }
           }
           button.disabled = true;
         });
       } else {
-        disabledControls.forEach(function (disabled, button) { button.disabled = disabled; });
+        disabledControls.forEach(function (disabled, button) {
+          button.disabled = disabled;
+          button.removeAttribute("data-vr-busy-disabled");
+        });
         disabledControls.clear();
       }
       element.querySelectorAll("[data-vr-form-close], [data-vr-form-discard]").forEach(function (button) {

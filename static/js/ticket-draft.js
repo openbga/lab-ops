@@ -30,7 +30,7 @@
   // Only when the composer's own typing is among what was kept.
   document.addEventListener("vr:typing-kept", function (event) {
     var forms = event.detail && event.detail.forms;
-    if (!Array.isArray(forms) || forms.indexOf(composer) !== -1) {
+    if (Array.isArray(forms) && forms.indexOf(composer) !== -1) {
       leaving = true;
     }
   });

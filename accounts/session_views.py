@@ -81,19 +81,10 @@ def keep_typing(request):
         for item in items[: kept.MAX_FORMS]
     ]
     count = sum(held)
-    if count and not _waiting(request, kept.KEPT_MESSAGE):
-        messages.info(request, kept.KEPT_MESSAGE, fail_silently=True)
+    if count:
+        kept.notify(request)
     # The middleware sets the browser's cookie.
     return JsonResponse({"kept": count, "held": held})
-
-
-def _waiting(request, text):
-    """Whether the notice `text` already waits for the next page (a refused post kept its form
-    just before), read without using up what waits."""
-    storage = messages.get_messages(request)
-    found = any(message.message == text for message in storage)
-    storage.used = False
-    return found
 
 
 def _current_id(request):

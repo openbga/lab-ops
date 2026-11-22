@@ -858,7 +858,7 @@ def _keep_refused(request):
     """For a form or Sign out refused because the browser's session ended: a form posted with
     its keep token (accounts.kept) is kept, if its session ended by a limit; Sign out from a
     session this request found past its limit still discards what was kept for the account."""
-    from .kept import KEPT_MESSAGE, discard_all, keep_posted
+    from .kept import discard_all, keep_posted, notify
 
     account = getattr(request, "vr_ended_account", None)
     if _is_sign_out(request):
@@ -867,7 +867,7 @@ def _keep_refused(request):
             discard_all(account)
         return False
     if keep_posted(request):
-        messages.info(request, KEPT_MESSAGE, fail_silently=True)
+        notify(request)
         return True
     return False
 
@@ -886,7 +886,8 @@ def _refusal(request):
     if _is_navigation(request):
         response = HttpResponseRedirect(sign_in)
     else:
-        response = JsonResponse({"signed_in": False, "sign_in": sign_in}, status=401)
+        # `kept`: what the form posted is kept (static/js/session.js lets its page go).
+        response = JsonResponse({"signed_in": False, "sign_in": sign_in, "kept": held}, status=401)
         response["HX-Redirect"] = sign_in
     add_never_cache_headers(response)
     return response

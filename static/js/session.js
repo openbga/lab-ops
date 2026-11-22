@@ -554,6 +554,15 @@
       }
       if (answer && answer.signed_in === false) {
         event.preventDefault();
+        if (answer.kept === true) {
+          // The refused post was kept from what it sent (accounts.sessions._refusal): its form's
+          // guard may let the page go, whatever the keep request below answers.
+          var element = event.detail.elt;
+          var form = element && (element.tagName === "FORM" ? element : element.form || element.closest("form"));
+          document.dispatchEvent(new CustomEvent("vr:typing-kept", {
+            detail: { kept: 1, forms: form ? [form] : [] },
+          }));
+        }
         if (!leaving) {
           leave(answer.sign_in);
         }

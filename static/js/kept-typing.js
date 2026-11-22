@@ -38,13 +38,44 @@
     }
   }
 
-  // The form's controls named `name` that it would send; with `all`, also those disabled for now
-  // (the form dialog disables its form while it opens).
+  // The form's controls named `name` that it would send; with `all` "busy", also those the form
+  // dialog has disabled for a request (data-vr-busy-disabled); with `all` true, every one (how the
+  // page drew them, while the dialog opens its form).
   function controls(form, name, all) {
     return Array.from(form.elements).filter(function (element) {
-      return element.name === name && (all || !element.disabled);
+      if (element.name !== name) {
+        return false;
+      }
+      if (!element.disabled || all === true) {
+        return true;
+      }
+      return all === "busy" && element.hasAttribute("data-vr-busy-disabled");
     });
   }
+
+  // Forms whose own save is under way (htmx posts them; the form dialog disables them meanwhile).
+  var posting = new Set();
+  function postedForm(event) {
+    var detail = event.detail || {};
+    var element = detail.elt;
+    var verb = detail.requestConfig && detail.requestConfig.verb;
+    if (!element || String(verb).toLowerCase() !== "post") {
+      return null;
+    }
+    return element.tagName === "FORM" ? element : element.form || element.closest("form");
+  }
+  document.addEventListener("htmx:beforeRequest", function (event) {
+    var form = postedForm(event);
+    if (form) {
+      posting.add(form);
+    }
+  });
+  document.addEventListener("htmx:afterRequest", function (event) {
+    var form = postedForm(event);
+    if (form) {
+      posting.delete(form);
+    }
+  });
 
   function state(element) {
     if (element.type === "checkbox" || element.type === "radio") {
@@ -138,9 +169,9 @@
       var values = {};
       var dirty = marker.hasAttribute("data-vr-kept-bound") || unsent.has(form);
       var text = false;
-      // The form dialog disables its form while a request of it is under way: what it holds is
-      // still what the person typed.
-      var busy = Boolean(form.closest("#vr-form-content[aria-busy='true']"));
+      // While the form's own save is under way the form dialog disables it: what it holds is
+      // still what the person typed (not while the dialog loads another form over it, Discard).
+      var busy = posting.has(form) ? "busy" : false;
       list(marker, "data-vr-kept-fields").forEach(function (name) {
         var elements = controls(form, name, busy);
         if (!elements.length) {

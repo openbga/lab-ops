@@ -216,6 +216,19 @@ KEPT_MESSAGE = (
 )
 
 
+def notify(request):
+    """Tell the sign-in page that what was typed is kept, once: not when the notice already waits
+    (a refused post and the page's keep request can both hold a copy), read without using up the
+    notices that wait."""
+    from django.contrib import messages
+
+    storage = messages.get_messages(request)
+    waiting = any(message.message == KEPT_MESSAGE for message in storage)
+    storage.used = False
+    if not waiting:
+        messages.info(request, KEPT_MESSAGE, fail_silently=True)
+
+
 def _valid_browser(value):
     return isinstance(value, str) and 40 <= len(value) <= 64 and set(value) <= BROWSER_ALPHABET
 
