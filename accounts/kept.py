@@ -321,10 +321,11 @@ def _read(value):
             "r": recheck, "w": families}  # fmt: skip
 
 
-def _clean(values, names, typed, several):
+def _clean(values, names, typed, several, *, sent_typed=None):
     """The values to keep, by name in the token's order (a string, or a list of strings for a
-    field of several values), or None when there is nothing typed to keep or the copy is too
-    large."""
+    field of several values), or None when nothing was typed or the copy is too large. What was
+    typed is looked for in `sent_typed` (the names the page drew) when given, so a copy whose only
+    text was in a field left out since is still kept, with that left out."""
     if not isinstance(values, dict):
         return None
     out, total = {}, 0
@@ -345,7 +346,10 @@ def _clean(values, names, typed, several):
             return None
         total += size
         out[name] = value
-    if total > MAX_TOTAL or not any(out.get(name, "").strip() for name in typed):
+    if total > MAX_TOTAL:
+        return None
+    looked = typed if sent_typed is None else sent_typed
+    if not any(isinstance(values.get(name), str) and values[name].strip() for name in looked):
         return None
     return out
 
@@ -400,7 +404,7 @@ def keep(value, values, browser):
         checked = _without_patient_fields(data)
         if checked is None:
             return False  # the form is gone: nothing of it can be given back
-        cleaned = _clean(values, checked["f"], checked["t"], checked["m"])
+        cleaned = _clean(values, checked["f"], checked["t"], checked["m"], sent_typed=data["t"])
         if cleaned is None:
             # Nothing to keep from this delivery; a copy kept by an earlier one may still stand.
             return held.exists()
@@ -627,7 +631,7 @@ def _flat_choices(field):
 # What a browser's date and date-time inputs take (anything else it empties before the date
 # editor reads it).
 DATE_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-DATETIME_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$")
+DATETIME_VALUE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$")
 
 
 def _holds_date(input_type, text):

@@ -12,7 +12,7 @@ Visibility of a stored value is the stricter of its copy and the current field:
 
 from dataclasses import dataclass, field
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db.models import Exists, OuterRef, Q
 
 from accounts.roles import ROLES, has_capability, has_role
@@ -390,7 +390,10 @@ def kept_eligible_fields(template_id, user_id):
     user = get_user_model().objects.filter(pk=user_id).first()
     if template is None or user is None:
         return None
-    defn = definition.read(template)
+    try:
+        defn = definition.read(template)
+    except ObjectDoesNotExist:
+        return None  # removed while this waited for its lock
     names = []
     for template_field in defn.fillable(user, new_request=True):
         if template_field.kind in NO_VALUE_KINDS or template_field.holds_patient_information:
