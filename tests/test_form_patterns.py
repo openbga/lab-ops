@@ -11,7 +11,9 @@ A page template may write its own <form> only for a different, named pattern, de
   menu            a dropdown menu's GET form (the label download)
   button-target   an empty form that buttons elsewhere submit through form="..."
 
-Shared includes (templates/includes/), allauth elements and Django form widgets own their markup.
+Shared includes (templates/includes/), allauth elements and Django form widgets own their markup,
+and so do the admin console's pages (templates/admin/), which keep Django admin's own forms and
+styles, not the application's components.
 """
 
 import re
@@ -22,7 +24,7 @@ from django.conf import settings
 
 ROOT = Path(settings.BASE_DIR)
 PATTERNS = {"entry-grid", "bulk-selection", "filter", "menu", "button-target"}
-OWNERS = ("templates/includes/", "templates/allauth/", "templates/django/")
+OWNERS = ("templates/includes/", "templates/allauth/", "templates/django/", "templates/admin/")
 MARKER = re.compile(r"\{#\s*form:\s*([a-z-]+)\b[^#]*#\}\s*$")
 
 
