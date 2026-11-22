@@ -809,7 +809,9 @@ def take(request, key):
 def draw(form, taken):
     """Draw a taken copy's values in the unbound `form` as _put_back does, for a page that decides
     what else it draws from them (the category and the ticket form chosen); prepare then draws the
-    whole page's forms."""
+    whole page's forms. The form's initial values before it are noted, so that prepare draws the
+    form as it started when nothing of the copy is drawn."""
+    form.vr_kept_start = dict(form.initial)
     _put_back(form, taken.values, taken.controls)
 
 
@@ -1032,7 +1034,7 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
     if offered:
         given, ended_at, dropped = offered
         parts = getattr(form, "forms", None) or [form]
-        starts = [dict(part.initial) for part in parts]
+        starts = [dict(getattr(part, "vr_kept_start", part.initial)) for part in parts]
         drawn, missed, texts = (
             _put_back(form, given, getattr(request, "vr_kept_controls", {}))
             if given
@@ -1044,6 +1046,8 @@ def prepare(request, form, key, *, taken=_OFFER, give=True):
             for part, initial in zip(parts, starts, strict=True):
                 part.initial.clear()
                 part.initial.update(initial)
+                # Fields the page read while it decided what to draw are read again.
+                part._bound_fields_cache.clear()
         # A form that posts a revision posts the one the copy was typed against whenever a copy
         # is given back, also when nothing of it could be drawn, or 0, which no record has, for a
         # copy kept without one; the page says why its save is refused. Its token, drawn again,

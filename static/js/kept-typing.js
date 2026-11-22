@@ -253,17 +253,26 @@
   // handling, which runs first); once it is set up, the focus goes to its first text box. Noted
   // on the window, whose capture listeners run before the document's.
   var discardedInDialog = false;
+  var drawnSince = false; // the dialog has drawn a form since that Discard (a failed load has not)
   window.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : null;
     var discard = target && target.closest("a[data-vr-kept-discard]");
     if (discard) {
       discardedInDialog = Boolean(discard.closest("#vr-form-content"));
-    } else if (!(target && target.closest("#vr-form-discard"))) {
-      discardedInDialog = false; // anything but the dialog's question about unsaved changes
+      drawnSince = false;
+    } else if (!(target && target.closest("#vr-form-discard, [data-vr-form-retry]"))) {
+      // Anything but the dialog's question about unsaved changes, or Try again (which repeats
+      // the Discard's load when it failed).
+      discardedInDialog = false;
     }
   }, true);
+  document.addEventListener("htmx:afterSwap", function (event) {
+    if (event.detail && event.detail.target && event.detail.target.id === "vr-form-content") {
+      drawnSince = true;
+    }
+  });
   document.addEventListener("vr:form-ready", function () {
-    if (!discardedInDialog) {
+    if (!discardedInDialog || !drawnSince) {
       return;
     }
     discardedInDialog = false;
@@ -299,6 +308,11 @@
   // page's scripts have set up its controls.
   ["htmx:afterSettle", "vr:form-ready"].forEach(function (name) {
     document.addEventListener(name, function () {
+      if (name === "vr:form-ready") {
+        // The dialog set its controls up and enabled them in this same task: noted now, before
+        // anything typed can reach them (an edit noted as drawn would never be sent).
+        baseline();
+      }
       setTimeout(baseline, 0);
     });
   });
