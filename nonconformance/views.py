@@ -10,11 +10,21 @@ desk.selectors.staff_requests, so a ticket the reader may not open is never show
 Messages are fixed text, and saving redirects to the record's address only: nothing typed into a
 record reaches a message or a redirect. The words typed into a list's search go into its address,
 as on every list (docs/product.md, "Nonconformance and corrective action").
+
+What a person types in a form is kept when a session limit signs them out (accounts.kept), under
+a key naming the form and its record (_key), with the revision the form posts. A form page opened
+with GET is drawn in one reading (_drawn_in_reading) and takes that copy before it decides what to
+draw: a copy typed against an earlier revision is drawn with that revision like a form posted from
+an earlier reading, also where the form is no longer offered, so its save is refused as changed
+since with the typing kept. A page that is not drawn after all leaves the copy for a later visit.
 """
+
+from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection, transaction
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -22,6 +32,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.cache import add_never_cache_headers
 
+from accounts import kept
+from core.concurrency import one_reading, reading_account
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AuditEvent
@@ -136,6 +148,62 @@ def _crumbs(nc, title):
 WORK_REFUSAL = "The owner or a supervisor works this nonconformance."
 
 
+def _key(*parts):
+    """The key what a session limit keeps of a form is kept under (accounts.kept): the form and
+    the records it belongs to, by id ("nc-12-edit", "nc-12-action-4-done"). No record content."""
+    return "-".join(["nc", *(str(part) for part in parts)])
+
+
+class _NotDrawn(Exception):
+    """A form page opened with GET that is not drawn after all (it sends the reader back to the
+    record): its reading ends with the take of kept typing rolled back (_drawn_in_reading)."""
+
+    def __init__(self, response):
+        super().__init__()
+        self.response = response
+
+
+def _drawn_in_reading(view):
+    """A form page opened with GET is drawn in one reading (core.concurrency.one_reading) with the
+    account read in it: the record, the reader's access and the copy of kept typing the form takes
+    (accounts.kept.take) come from one moment, and a page that is not drawn after all (a refusal,
+    or _NotDrawn's redirect) rolls the take back, so the copy waits for a later visit. A POST is
+    handled as before: the service opens its own transaction, inside the request's where the
+    deployment asks for one (ATOMIC_REQUESTS)."""
+
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if request.method == "POST":
+            if connection.settings_dict.get("ATOMIC_REQUESTS"):
+                with transaction.atomic():
+                    return view(request, *args, **kwargs)
+            return view(request, *args, **kwargs)
+        try:
+            # The savepoint rolls the take back also inside a transaction already (a test).
+            with one_reading(), transaction.atomic():
+                reading_account(request)
+                return view(request, *args, **kwargs)
+        except _NotDrawn as left:
+            return left.response
+
+    return transaction.non_atomic_requests(wrapped)
+
+
+def _take(request, key):
+    """The copy of what a session limit kept of the form `key`, taken for a page opened with GET
+    (accounts.kept.take; None for a POST, a dialog's load, or when none is held)."""
+    return kept.take(request, key) if key and request.method == "GET" else None
+
+
+def _typed_earlier(taken, current):
+    """Whether a taken copy was typed against an earlier revision than `current`."""
+    revision = taken.revision if taken is not None else None
+    return revision is not None and 1 <= revision < current
+
+
+_TAKE = object()  # _form_response: take the form's copy now
+
+
 def _form_response(
     request,
     nc,
@@ -153,6 +221,8 @@ def _form_response(
     allowed=True,
     refusal="",
     gone="",
+    keep="",
+    taken=_TAKE,
 ):
     """Render and handle one action form of the record page (the shared form dialog; a page
     without script). `nc` is the one reading the form was drawn from; a refused save shows the
@@ -169,7 +239,17 @@ def _form_response(
     reach): the form is shown again with that message and nothing of it. `extra` may be a
     callable, evaluated when the form is drawn, so a refusal draws only what the reader may still
     read. A service refusing the reader as a staff member (deactivated, no role left) answers 403;
-    the module switched off answers 404."""
+    the module switched off answers 404.
+
+    `keep` is the form's key for what a session limit keeps of it (_key). A page opened with GET
+    takes that copy first (`taken`, when the view took it already): one typed against an earlier
+    revision is drawn with that revision, like a form posted from an earlier reading, also where
+    this reading no longer allows or offers the change; any other copy only where the form is
+    drawn anyway. A page not drawn leaves the copy (_drawn_in_reading)."""
+    if taken is _TAKE:
+        taken = _take(request, keep)
+    earlier = _typed_earlier(taken, nc.revision)
+    extra = _with_kept(request, form, keep, taken, extra)
     if not allowed:
         if _posted_earlier(request, nc.revision):
             form.is_valid()
@@ -177,10 +257,14 @@ def _form_response(
             return _render_form(
                 request, nc, form, title, submit_label, destructive, notes, template, extra
             )
+        if earlier:
+            return _render_form(
+                request, nc, form, title, submit_label, destructive, notes, template, extra
+            )
         raise PermissionDenied(refusal)
-    if unavailable and request.method != "POST":
+    if unavailable and request.method != "POST" and not earlier:
         messages.info(request, unavailable)
-        return redirect(_record_url(nc))
+        raise _NotDrawn(redirect(_record_url(nc)))
     if request.method == "POST" and form.is_valid():
         try:
             apply(form.cleaned_data)
@@ -198,7 +282,7 @@ def _form_response(
             # What the form concerned is out of the reader's reach now: say so, keep the input,
             # and draw nothing of it again.
             form.add_error(None, gone)
-            extra = {}
+            extra = _with_kept(request, form, keep, None, {})
         else:
             messages.success(request, success)
             return redirect(_record_url(nc))
@@ -224,6 +308,19 @@ def _still_staff(user):
 
     current = User.objects.filter(pk=user.pk, is_active=True, client__isnull=True).first()
     return current is not None and has_role(current, *ROLES)
+
+
+def _with_kept(request, form, keep, taken, extra):
+    """`extra` (a dict or a callable), evaluated when the form is drawn, with `kept`: what a
+    session limit keeps of the form (accounts.kept.prepare), worked out before its fields are
+    drawn, so that a copy given back is drawn in them with the revision it was typed against."""
+
+    def drawn():
+        values = extra() if callable(extra) else extra
+        contents = kept.prepare(request, form, keep, taken=taken) if keep else None
+        return {**(values or {}), "kept": contents}
+
+    return drawn
 
 
 def _render_form(request, nc, form, title, submit_label, destructive, notes, template, extra):
@@ -561,6 +658,7 @@ def nonconformance_detail(request, pk):
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_create(request):
     user = request.user
     selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
@@ -591,12 +689,15 @@ def nonconformance_create(request):
         else:
             messages.success(request, f"Nonconformance {nc.number} raised.")
             return redirect(_record_url(nc))
+    # What a session limit kept of the form, given back on a page opened with GET (accounts.kept).
+    contents = kept.prepare(request, form, _key("new"))
     response = render(
         request,
         "nonconformance/nonconformance_form.html",
         {
             "page_title": "New nonconformance",
             "form": form,
+            "kept": contents,
             "submit_label": "Raise nonconformance",
             "cancel_url": list_url,
             "crumbs": [(LIST_TITLE, list_url), ("New nonconformance", None)],
@@ -607,6 +708,7 @@ def nonconformance_create(request):
 
 
 @login_required
+@_drawn_in_reading
 def from_ticket(request, pk):
     """Open the nonconformance of a complaint ticket (its assignee or a supervisor). Nothing of the
     ticket is copied: the record is readable by every staff role, the ticket may not be."""
@@ -614,27 +716,33 @@ def from_ticket(request, pk):
     records = selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
     ticket = staff_requests(user).filter(pk=pk).first()
     posted = request.method == "POST"
+    # What a session limit kept of this form (accounts.kept), with the ticket's revision it was
+    # typed against: taken first, as it decides what is drawn; a page not drawn leaves it.
+    key = _key("from-ticket", pk)
+    taken = _take(request, key) if ticket is not None else None
+    earlier = ticket is not None and _typed_earlier(taken, ticket.revision)
     # A form posted from an earlier reading of the ticket (a lower revision) is answered by the
     # service (stale, already opened, no longer a complaint, no longer yours) with the input kept,
-    # while the reader may still open the ticket; this reading decides only the rest.
-    stale = ticket is not None and _posted_earlier(request, ticket.revision)
+    # while the reader may still open the ticket; this reading decides only the rest. A copy kept
+    # from such a form is drawn with that revision in the same way, its save answered alike.
+    stale = ticket is not None and (_posted_earlier(request, ticket.revision) or earlier)
     if ticket is None or not (ticket.is_complaint or stale):
         raise Http404("No such complaint.")
     if not (is_supervisor(user) or user.pk == ticket.assignee_id or stale):
         raise PermissionDenied("The assignee or a supervisor records the complaint.")
     ticket_url = reverse("desk:request-detail", args=[ticket.pk])
     existing = records.filter(source_request=ticket).first()
-    if existing is not None and not posted:
+    if existing is not None and not posted and not earlier:
         messages.info(request, "This complaint already has a nonconformance.")
-        return redirect(_record_url(existing))
+        raise _NotDrawn(redirect(_record_url(existing)))
     review = ComplaintReview.objects.filter(request=ticket).first()
-    if request.method != "POST" and desk_services.review_counts(ticket, review):
+    if request.method != "POST" and not earlier and desk_services.review_counts(ticket, review):
         messages.info(
             request,
             "This complaint has been reviewed; its record no longer changes. Raise a "
             "nonconformance and link the ticket instead.",
         )
-        return redirect(ticket_url)
+        raise _NotDrawn(redirect(ticket_url))
     form = OpenFromComplaintForm(
         request.POST or None, initial={"expected_revision": ticket.revision}
     )
@@ -665,12 +773,14 @@ def from_ticket(request, pk):
             messages.success(request, f"Nonconformance {nc.number} opened.")
             return redirect(_record_url(nc))
     title = "Open nonconformance"
+    contents = kept.prepare(request, form, key, taken=taken)
     response = render(
         request,
         "nonconformance/nonconformance_form.html",
         {
             "page_title": title,
             "form": form,
+            "kept": contents,
             "ticket": ticket,
             "submit_label": title,
             "cancel_url": ticket_url,
@@ -689,6 +799,7 @@ def from_ticket(request, pk):
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_edit(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -717,12 +828,14 @@ def nonconformance_edit(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Details saved.",
+        keep=_key(nc.pk, "edit"),
         notes=(NO_PATIENT_DATA,),
         unavailable=_closed(nc),
     )
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_owner(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -742,12 +855,14 @@ def nonconformance_owner(request, pk):
         allowed=is_supervisor(user),
         refusal="A supervisor chooses the owner.",
         success="Owner saved.",
+        keep=_key(nc.pk, "owner"),
         notes=("The owner works the record with the supervisors and cannot close it.",),
         unavailable=_closed(nc),
     )
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_status(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -766,12 +881,14 @@ def nonconformance_status(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Status changed.",
+        keep=_key(nc.pk, "status"),
         extra={"current_status": nc.get_status_display()},
         unavailable=_closed(nc),
     )
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_investigation(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -798,12 +915,14 @@ def nonconformance_investigation(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Investigation saved.",
+        keep=_key(nc.pk, "investigation"),
         notes=(NO_PATIENT_DATA,),
         unavailable=_closed(nc),
     )
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_impact(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -833,6 +952,7 @@ def nonconformance_impact(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Impact on reported results saved.",
+        keep=_key(nc.pk, "impact"),
         notes=(NO_PATIENT_DATA,),
         template="nonconformance/impact_form.html",
         unavailable=_closed(nc),
@@ -840,6 +960,7 @@ def nonconformance_impact(request, pk):
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_effectiveness(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -858,6 +979,7 @@ def nonconformance_effectiveness(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Effectiveness check recorded.",
+        keep=_key(nc.pk, "effectiveness"),
         notes=(
             "Effective needs every action done or cancelled. Not effective keeps the record "
             "open: add actions or move it back.",
@@ -872,6 +994,7 @@ def nonconformance_effectiveness(request, pk):
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_close(request, pk):
     user = request.user
     # What the supervisor closes is shown on the form, from the reading whose revision it posts:
@@ -893,12 +1016,14 @@ def nonconformance_close(request, pk):
         allowed=is_supervisor(user),
         refusal="A supervisor closes a nonconformance.",
         success="Nonconformance closed.",
+        keep=_key(nc.pk, "close"),
         extra={"closing": True},
         unavailable=services.close_refusal(user, nc, open_actions),
     )
 
 
 @login_required
+@_drawn_in_reading
 def nonconformance_reopen(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -917,6 +1042,7 @@ def nonconformance_reopen(request, pk):
         allowed=is_supervisor(user),
         refusal="A supervisor reopens a nonconformance.",
         success="Nonconformance reopened.",
+        keep=_key(nc.pk, "reopen"),
         notes=(
             "It returns to Investigating. Its closing and effectiveness check stay in the history.",
         ),
@@ -928,6 +1054,7 @@ def nonconformance_reopen(request, pk):
 
 
 @login_required
+@_drawn_in_reading
 def action_add(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -946,6 +1073,7 @@ def action_add(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Action added.",
+        keep=_key(nc.pk, "action-add"),
         unavailable=_closed(nc),
     )
 
@@ -967,6 +1095,7 @@ def _record_and_action(user, pk, action_pk):
 
 
 @login_required
+@_drawn_in_reading
 def action_edit(request, pk, action_pk):
     user = request.user
     nc, action = _record_and_action(user, pk, action_pk)
@@ -994,6 +1123,7 @@ def action_edit(request, pk, action_pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Action saved.",
+        keep=_key(nc.pk, "action", action.pk, "edit"),
         notes=(
             "A due date already past may stay as it is; a new one is today or later. Changing "
             "an action clears a recorded effectiveness check.",
@@ -1027,6 +1157,7 @@ def _finish(request, pk, action_pk, *, done):
             else "The owner or a supervisor cancels an action."
         ),
         success="Action marked done." if done else "Action cancelled.",
+        keep=_key(nc.pk, "action", action.pk, "done" if done else "cancel"),
         destructive=not done,
         extra={"action": action},
         unavailable=_finished(nc, action),
@@ -1034,11 +1165,13 @@ def _finish(request, pk, action_pk, *, done):
 
 
 @login_required
+@_drawn_in_reading
 def action_done(request, pk, action_pk):
     return _finish(request, pk, action_pk, done=True)
 
 
 @login_required
+@_drawn_in_reading
 def action_cancel(request, pk, action_pk):
     return _finish(request, pk, action_pk, done=False)
 
@@ -1054,6 +1187,7 @@ def _ticket_number(raw):
 
 
 @login_required
+@_drawn_in_reading
 def ticket_link(request, pk):
     user = request.user
     nc = _record_or_404(user, pk)
@@ -1084,26 +1218,35 @@ def ticket_link(request, pk):
         allowed=services.can_work(user, nc),
         refusal=WORK_REFUSAL,
         success="Ticket linked.",
+        keep=_key(nc.pk, "ticket-link"),
         notes=("The ticket's timeline records the link.",),
         unavailable=_closed(nc),
     )
 
 
 @login_required
+@_drawn_in_reading
 def ticket_unlink(request, pk, link_pk):
     user = request.user
     selectors.staff_nonconformances(user)  # staff only; 404 while the module is off
+    # What a session limit kept of this form (accounts.kept), taken first: a copy typed before the
+    # link was removed is drawn like that form's POST.
+    key = _key(pk, "link", link_pk, "remove")
+    taken = _take(request, key)
     # The link and its record in one statement: the form's revision and the ticket it names come
     # from the same moment, and only a ticket the reader may open now. A link removed since a
     # form was drawn is still found for that form's POST, so its reason is kept with a message.
-    links = selectors.linked_tickets(user, pk, include_removed=request.method == "POST")
+    links = selectors.linked_tickets(
+        user, pk, include_removed=request.method == "POST" or taken is not None
+    )
     link = (
         links.filter(pk=link_pk).select_related("nonconformance", "nonconformance__owner").first()
     )
     if link is None:
         raise Http404("No such linked ticket.")
     nc = link.nonconformance
-    if link.removed_at is not None and not _posted_earlier(request, nc.revision):
+    drawn_before = _posted_earlier(request, nc.revision) or _typed_earlier(taken, nc.revision)
+    if link.removed_at is not None and not drawn_before:
         raise Http404("No such linked ticket.")  # only a form drawn before its removal
     form = ReasonForm(request.POST or None, initial=_revision(nc))
 
@@ -1131,6 +1274,8 @@ def ticket_unlink(request, pk, link_pk):
         destructive=True,
         notes=("The link stays in the history with your reason.",),
         extra=preview,
+        keep=key,
+        taken=taken,
         unavailable=_closed(nc)
         or (
             "The complaint it was opened from stays linked."

@@ -90,6 +90,10 @@
         {
           "label": "On the ticket",
           "description": "Once the record exists, the ticket's Complaint section shows it as the corrective action, for example NC-000123 · Open, and the Open nonconformance button is no longer offered."
+        },
+        {
+          "label": "Signed out by a time limit",
+          "description": "When a time limit signs you out, what you typed here is kept for 24 hours, for you in that browser only, and comes back on this page when you sign in again there (a form open in a dialog opens again on its own page). It keeps the version of the ticket you typed against: if the ticket changed since, the page says This record changed after you typed it, and saving is refused with your typing on the form, also when the complaint's record was opened meanwhile. Copy what you need, then select Discard."
         }
       ]
     }
@@ -104,6 +108,8 @@
     "desk/views.py",
     "desk/services.py",
     "desk/timeline.py",
-    "desk/templates/desk/request_detail.html"
+    "desk/templates/desk/request_detail.html",
+    "accounts/kept.py",
+    "templates/includes/kept_notice.html"
   ]
 }

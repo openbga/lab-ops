@@ -253,14 +253,21 @@ Pages warn 2 minutes before signing out for no activity, with Stay signed in, an
 the longest session ends; the admin console does not warn. Opening a page, saving, searching or Stay signed in counts as
 activity; reading or typing on a page does not. Signing in again returns to the page. When a limit
 signs the person out, what they were typing in a ticket's reply, note or logged contact, in a new
-ticket, in a reply in the portal, or in a new portal ticket is kept for 24 hours, in the database
+ticket, in a reply in the portal, in a new portal ticket, or in a nonconformance form (the record,
+its investigation, impact, status, owner, effectiveness check, closing and reopening, its actions
+and linked tickets) is kept for 24 hours, in the database
 and for that account in that browser only: it comes back in the same form the next time they sign
 in there and open the page, with a notice and Discard, and also when they press Send after the
 sign-out. Ticked choices and quantities come back with the text. A new ticket comes back with its
 category and that category's intake guidance, the ticket form chosen with its fields, and its
 organization, site and contact while they are still active; one deactivated since, or a ticket form
 no longer offered, is left out and the notice says that something was not put back. A new ticket
-typed in the form dialog over the ticket list opens again on its own page when they sign in again. Files they had chosen, fields that hold
+typed in the form dialog over the ticket list opens again on its own page when they sign in again,
+and so does a nonconformance form typed in the dialog over its record. A nonconformance form keeps
+the version of the record (or, opened from a complaint, of the ticket) it was typed against: when
+the record changed since, the page says so and saving is refused with the typing kept on the form,
+as for any form opened before a change, so nothing typed is saved over a later change; it comes
+back even where the form is no longer offered, such as after the record was closed. Files they had chosen, fields that hold
 patient information and typing in any other form are not kept. Sign out discards whatever was
 kept. Signing in again after a reply was refused opens the ticket. Deactivating an account ends its sessions at once,
 and a new password ends the account's other sessions. Pages shown to a signed-in person are

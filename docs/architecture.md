@@ -251,6 +251,25 @@ page's script notes how the form was drawn then and after each htmx swap; a page
 text when it was drawn counts as unsent after the section is drawn again; Discard inside the dialog
 loads the form again in place and puts the focus in its first text box.
 
+The nonconformance forms keep the revision they post
+([nonconformance/views.py](../nonconformance/views.py)). A form that posts the revision of the
+record it was drawn from names that hidden field in `kept_revision`; its token carries the revision
+as drawn (on a refused save, as posted; a form whose revision is not a whole number gets no token),
+and the copy keeps it (`KeptDraft.revision`). A page giving such a copy back draws that revision in
+the field instead of the one it read, draws its token again with it, and says when the two differ,
+so the save is checked against the record as it stood when the person typed and is refused as
+changed since, with the typing kept, when the record changed after it. A copy that holds no
+revision is drawn with 0, which no record has. Each form is kept under a key naming the form and
+its record (`nc-12-edit`, `nc-12-action-4-done`, `nc-12-link-3-remove`, `nc-from-ticket-7` with the
+ticket's revision, `nc-new` with none). A form page opened with GET is drawn in one reading with the
+account read in it and takes its copy before it decides what to draw: a copy typed against an
+earlier revision is drawn like a form posted from an earlier reading, also where this reading no
+longer allows the change or offers the form (a closed record, a finished action, a removed link, a
+complaint whose record was opened or reviewed meanwhile), and the service answers its save; any
+other copy is given back only where the form is drawn anyway. A page not drawn after all (a
+redirect or a refusal) rolls the take back, so the copy waits for a later visit. A POST is not drawn
+in a reading: its service takes its own locks.
+
 ## Optional modules
 
 An optional module's switch lives in `core.modules`. Its pages and reads start from selectors

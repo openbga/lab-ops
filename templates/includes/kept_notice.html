@@ -1,9 +1,12 @@
 {% comment %}
 What the page says when a copy of what was typed was given back (accounts/kept.py): Put back with
-Discard, or Not put back. Included by includes/kept_typing.html after its marker, and on its own
+Discard, or Not put back. Put back is a warning when the record the form changes has changed
+since the copy was typed (kept.changed): its save is refused, so the person copies what they need
+and Discards. Included by includes/kept_typing.html after its marker, and on its own
 at the top of a form whose marker is drawn elsewhere in it (the desk's new ticket). It must be
 inside the form: static/js/kept-typing.js looks for its sentence there. Context: kept.
 {% endcomment %}{% load ui %}{% if kept.restored and kept.nothing %}{% notice tone="warning" label="Not put back" hook="vr-kept-notice" class="vr-kept-notice" %}<p class="mb-0" data-vr-kept-missed>What you were typing here when you were signed out at <time datetime="{{ kept.ended_at|date:'c' }}">{{ kept.ended_at|date:"Y-m-d H:i" }}</time> was kept, but none of it fits the form as it is now, so it could not be put back.</p>{% endnotice %}
-{% elif kept.restored %}{% notice tone="info" label="Put back" hook="vr-kept-notice" class="vr-kept-notice" %}<p class="mb-2">What you were typing here when you were signed out at <time datetime="{{ kept.ended_at|date:'c' }}">{{ kept.ended_at|date:"Y-m-d H:i" }}</time> is back in the form. Check it before you send it.{% if kept.has_files %} Files you had chosen were not kept.{% endif %}</p>
-<p class="mb-2" data-vr-kept-missed{% if kept.dates_only %} data-vr-kept-dates-only{% endif %}{% if not kept.missed %} hidden{% endif %}>Some of what you typed or chose is no longer on the form, so it was not put back. Check each field.{% if kept.date_texts %}<noscript>{% for label, text in kept.date_texts %}<span class="d-block">{{ label }}: {{ text }}</span>{% endfor %}</noscript>{% endif %}</p>
+{% elif kept.restored %}{% notice tone=kept.changed|yesno:"warning,info" label="Put back" hook="vr-kept-notice" class="vr-kept-notice" %}<p class="mb-2">What you were typing here when you were signed out at <time datetime="{{ kept.ended_at|date:'c' }}">{{ kept.ended_at|date:"Y-m-d H:i" }}</time> is back in the form.{% if not kept.changed %} Check it before you send it.{% endif %}{% if kept.has_files %} Files you had chosen were not kept.{% endif %}</p>
+{% if kept.changed %}<p class="mb-2" data-vr-kept-changed>This record changed after you typed it, so saving this form is refused. Copy what you need, then choose Discard to open the form as the record stands now.</p>
+{% endif %}<p class="mb-2" data-vr-kept-missed{% if kept.dates_only %} data-vr-kept-dates-only{% endif %}{% if not kept.missed %} hidden{% endif %}>Some of what you typed or chose is no longer on the form, so it was not put back. Check each field.{% if kept.date_texts %}<noscript>{% for label, text in kept.date_texts %}<span class="d-block">{{ label }}: {{ text }}</span>{% endfor %}</noscript>{% endif %}</p>
 <a class="btn btn-sm btn-outline-secondary" href="{{ kept.discard_url }}" data-vr-kept-discard>Discard</a>{% endnotice %}{% endif %}

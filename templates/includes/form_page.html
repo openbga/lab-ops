@@ -25,6 +25,10 @@ Parameters:
                   put it back when the person signs in again (accounts/kept.py,
                   includes/kept_typing.html): keep names the form, keep_id the record it belongs
                   to (with keep, the key of what is kept). Not for a form in a dialog (local)
+  kept            instead of keep: the contents accounts.kept.prepare worked out in the view, for
+                  a page that takes its copy before it decides what to draw (the nonconformance
+                  forms: a copy typed against an earlier revision is drawn even where the form is
+                  no longer offered)
 Parts ({% fill name %} ... {% endfill %}):
   note            the note's extra sentences when they need tags or values (instead of note=)
   actions         further buttons in the action row, shown before the primary

@@ -724,12 +724,13 @@ def _sessions(facts):
                 "Kept for 24 hours when a session limit signs the person out",
                 "release",
                 "What was typed in a ticket's reply, note or logged contact, a new ticket logged "
-                "by staff, a portal reply or a new portal ticket is kept in the database, for "
-                "that account in that browser "
+                "by staff, a portal reply, a new portal ticket or a nonconformance form is kept "
+                "in the database, for that account in that browser "
                 "only, never in the browser's storage, and given back once in the same form when "
-                "the person signs in again. Files and fields that hold patient information are "
-                "not kept. Sign out discards it; the scheduled job removes it 24 hours after the "
-                "sign-out.",
+                "the person signs in again. A nonconformance form keeps the version of the record "
+                "it was typed against, and its save is refused when the record changed since. "
+                "Files and fields that hold patient information are not kept. Sign out discards "
+                "it; the scheduled job removes it 24 hours after the sign-out.",
             ),
         ),
         _fact(

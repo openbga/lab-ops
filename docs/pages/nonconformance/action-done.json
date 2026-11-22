@@ -65,6 +65,10 @@
         {
           "label": "Stale form",
           "description": "This nonconformance changed after you opened it. Reload it and review the latest details. Any change to the record, its actions or its linked tickets counts."
+        },
+        {
+          "label": "Signed out by a time limit",
+          "description": "When a time limit signs you out, what you typed here is kept for 24 hours, for you in that browser only, and comes back on this page when you sign in again there (a form open in a dialog opens again on its own page). It keeps the version of the record you typed against: if the record changed since, the page says This record changed after you typed it, and saving is refused with your typing on the form. Copy what you need, then select Discard to open the form as the record stands. It comes back even where the form is no longer offered, for example after the record was closed."
         }
       ]
     }
@@ -75,6 +79,8 @@
     "nonconformance/forms.py",
     "nonconformance/services.py",
     "nonconformance/templates/nonconformance/action_form.html",
-    "nonconformance/templates/nonconformance/nonconformance_detail.html"
+    "nonconformance/templates/nonconformance/nonconformance_detail.html",
+    "accounts/kept.py",
+    "templates/includes/kept_notice.html"
   ]
 }
