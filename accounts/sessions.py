@@ -675,43 +675,50 @@ def start_session(sender, request, user, **kwargs):
         refused = refused_at_sign_in(request, user)
         if not refused:
             update_last_login(sender, user)
-        if session is None:
-            if not refused:
-                transaction.on_commit(lambda: _log_sign_in(request, user))
-            return
-        previous = _valid_id(session.get(SESSION_KEY))
-        if previous is not None:
-            # Signed in again over an open session in the same browser (Django keeps the
-            # session's data when the account is the same one), with the sessions abandoned
-            # since and past a limit, locked together in id order.
-            end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
-        else:
-            close_expired(user)  # sessions abandoned since, past a limit
-        # Whether the laboratory's rule requires a second factor of the account as it signs in
-        # (accounts.enrolment holds the session to it while the account has none).
-        from core.second_factor import requires
-
-        ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
-        record = AccountSession.objects.create(
-            user=user,
-            user_agent=agent,
-            address=address,
-            second_factor_required=requires(user),
-            **ended,
+        record = (
+            None if session is None else _record_session(session, user, agent, address, refused)
         )
+    # The sign-in log's line once the session has started (a start that failed did not complete
+    # the sign-in); a refused one is logged as its session's ending once that commits.
     if refused:
-        _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
+        if record is not None:
+            _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
         request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
     else:
-        # The sign-in log's line once the session has started (a start that failed did not
-        # complete the sign-in).
         _log_sign_in(request, user)
+    if session is None:
+        return
     session[SESSION_KEY] = str(record.pk)
     # A new sign-in remembers its own page for Continue after a second factor is added
     # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.
     from .enrolment import NEXT_KEY
 
     session.pop(NEXT_KEY, None)
+
+
+def _record_session(session, user, agent, address, refused):
+    """The sign-in's session row (start_session, in its transaction, after the account's
+    session-ending lock): ended at once when the sign-in is refused."""
+    previous = _valid_id(session.get(SESSION_KEY))
+    if previous is not None:
+        # Signed in again over an open session in the same browser (Django keeps the
+        # session's data when the account is the same one), with the sessions abandoned
+        # since and past a limit, locked together in id order.
+        end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
+    else:
+        close_expired(user)  # sessions abandoned since, past a limit
+    # Whether the laboratory's rule requires a second factor of the account as it signs in
+    # (accounts.enrolment holds the session to it while the account has none).
+    from core.second_factor import requires
+
+    ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
+    return AccountSession.objects.create(
+        user=user,
+        user_agent=agent,
+        address=address,
+        second_factor_required=requires(user),
+        **ended,
+    )
 
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_account_session_end")

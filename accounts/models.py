@@ -33,6 +33,12 @@ class User(AbstractUser):
         "email addresses or two-factor settings.",
     )
 
+    def set_unusable_password(self):
+        # A password set before and not yet written is dropped with it: Django would otherwise tell
+        # the password validators of it at the next save.
+        super().set_unusable_password()
+        self._password = None
+
     def save(self, *args, **kwargs):
         # The names to save, read once and passed on as a list (an iterable can be read only
         # once), also in Django 5.2's deprecated positional form (force_insert, force_update,
