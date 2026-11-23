@@ -398,7 +398,7 @@ def test_the_page_lists_only_the_persons_own_entries_newest_first(make_user):
     assert entries[0].this_session and not entries[1].this_session
     assert entries[0].browser == "Firefox on Windows" and entries[0].address == "192.0.2.10"
     body = page.content.decode()
-    assert "This browser" in body and "Check the attempts that failed" in body
+    assert "This browser" in body and "1 attempt listed below was not let through" in body
     assert "history-stranger" not in body and TYPED_SECRET not in body
 
 
@@ -451,9 +451,11 @@ def test_a_shared_account_sees_other_visitors_entries_without_browser_or_address
     assert [entry.this_session for entry in entries] == [True, False, False]
     assert entries[0].address == "203.0.113.5"
     assert [(entry.browser, entry.address) for entry in entries[1:]] == [(None, None)] * 2
-    assert "192.0.2.10" not in body and "198.51.100.7" not in body and "Firefox" not in body
+    assert "192.0.2.10" not in body and "198.51.100.7" not in body
+    table = body.split("<table", 1)[1].split("</table>", 1)[0]
+    assert "Firefox" not in table and table.count("Not shown") == 4
     assert "Shared demonstration account" in body
-    assert "Check the attempts that failed" not in body
+    assert page.context["attention_count"] == 1 and "listed below was not let through" not in body
 
 
 def test_the_page_is_linked_from_the_user_menu_and_where_you_are_signed_in(make_user):
