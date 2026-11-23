@@ -76,11 +76,30 @@ class User(AbstractUser):
             # person's under way that holds it (accounts.sessions.hold_acting_session), and that
             # change may still take the account's row (an assignment to the person) after it.
             self._end_sessions(update_fields, new_password=new_password)
+            if chosen:
+                self._check_chosen_while_marked()
             super().save(*args, **kwargs)
             if chosen:
                 CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
                     lifted_at=Now()
                 )
+
+    def _check_chosen_while_marked(self):
+        """A password chosen for an account whose password is marked as compromised, by a request
+        acting through a session of that same account, needs that session still open: a change
+        started before the mark (its form checked against the old password) and saved after the
+        mark ended the session would otherwise lift the mark for whoever held the session. Read
+        after the locks a mark also takes (the account's session-ending lock for a password saved
+        alone, the account's row for a whole save), so a mark either committed before this reading
+        or waits for this save. Other paths (a reset link, a superuser setting it, a command) act
+        through no session of the account and are not affected; Choose a new password holds its
+        session already (accounts.compromised.choose_new_password)."""
+        if not CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).exists():
+            return
+        from .sessions import SessionEnded, hold_acting_session
+
+        if not hold_acting_session(self.pk):
+            raise SessionEnded
 
     def _end_sessions(self, update_fields, *, new_password):
         """A deactivation ends every session of the account at once, and a new password every

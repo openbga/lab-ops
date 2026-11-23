@@ -614,3 +614,48 @@ def test_a_marked_superuser_is_held_out_of_the_admin_console(owner, make_user):
     assert browser.get(reverse("admin:index"))["Location"] == NEW_PAGE
     assert browser.get(mark_url(owner))["Location"] == NEW_PAGE
     assert not CompromisedPassword.objects.filter(user=owner).exists()
+
+
+def test_a_change_under_way_when_the_mark_ends_its_session_saves_nothing(
+    owner, person, monkeypatch
+):
+    """Change password checked the old password before the mark; the mark ends the session;
+    the save that follows must not lift the mark for whoever held that session."""
+    from accounts.adapter import ClosedSignupAdapter
+
+    browser = signed_in(person)
+    original = ClosedSignupAdapter.set_password
+    marked = []
+
+    def mark_then_save(self, user, password):
+        marked.append(
+            compromised.mark_compromised(
+                actor=owner,
+                account_id=user.pk,
+                reason="Leaked",
+                drawn=compromised.drawn_password(User.objects.get(pk=user.pk)),
+            )
+        )
+        return original(self, user, password)
+
+    monkeypatch.setattr(ClosedSignupAdapter, "set_password", mark_then_save)
+    response = browser.post(
+        reverse("account_change_password"),
+        {"oldpassword": PASSWORD, "password1": NEW_PASSWORD, "password2": NEW_PASSWORD},
+    )
+    assert marked and response.status_code == 302
+    assert response["Location"].startswith(reverse("account_login"))
+    stored = User.objects.get(pk=person.pk)
+    assert stored.check_password(PASSWORD) and not stored.check_password(NEW_PASSWORD)
+    assert CompromisedPassword.objects.get(user=person).lifted_at is None
+
+
+def test_an_own_change_from_an_open_session_of_an_unmarked_account_is_unaffected(person):
+    browser = signed_in(person)
+    response = browser.post(
+        reverse("account_change_password"),
+        {"oldpassword": PASSWORD, "password1": NEW_PASSWORD, "password2": NEW_PASSWORD},
+    )
+    assert response.status_code == 302
+    assert User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
+    assert browser.get("/").status_code == 200

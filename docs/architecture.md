@@ -213,7 +213,10 @@ open row of a marked account has therefore proved more than the password, and
 `PasswordChangeMiddleware` (after `EnrolmentMiddleware`, which goes first) holds it to Choose a new
 password with one indexed `EXISTS` per request. `User.save` lifts the open mark in the same
 transaction when a password is chosen (`set_password`, `_password` set), not when Django upgrades
-a hash at sign-in. `MarkedPasswordValidator` compares a new password with each mark's hash.
+a hash at sign-in. Such a save for a marked account, from a request acting through a session of
+that account, first holds that session (`hold_acting_session`, after the locks a mark takes) and is
+refused when it has ended, so a change checked against the old password before the mark cannot
+lift it. `MarkedPasswordValidator` compares a new password with each mark's hash.
 
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
