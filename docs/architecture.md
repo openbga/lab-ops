@@ -93,8 +93,8 @@ on each request that flag, whether the account has an authenticator of a type th
 (`MFA_SUPPORTED_TYPES`) other than recovery codes, and whether the rule as it stands still covers
 the active account; while the flag is set, there is none and the rule covers it, only the setup
 routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup page: redirected (the
-first GET of a page outside the setup routes opened in the window is remembered for Continue, the
-start page when there is none), told to load it in the whole window
+first GET opened in the window is remembered for Continue: the start page when it is the setup
+page itself, and the next one when it is another setup route), told to load it in the whole window
 (HTMX and the form dialog) or refused with JSON for scripts. The setup page draws whether the
 session waits, why, and the account's recovery codes from one snapshot. Deciding at sign-in keeps open sessions and
 their unsaved forms going when the rule changes; deciding each request from the factor keeps a

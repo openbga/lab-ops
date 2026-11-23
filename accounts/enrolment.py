@@ -5,19 +5,21 @@ account at that moment (AccountSession.second_factor_required, set by
 accounts.sessions.start_session). While the account of such a session has no second factor, the
 session is waiting for one: EnrolmentMiddleware lets its requests reach only the pages that set one
 up (ALLOWED_VIEWS), and answers every other request by sending the browser to Set up a second
-sign-in factor (the setup page). The first page outside ALLOWED_VIEWS opened with GET in the window
-is remembered as the page the sign-in was going to (the start page when none was); once the factor
-is added, Continue goes there and forgets it. Each sign-in starts without one. The browser's
-session is written as a whole, so two tabs choosing Continue at the same moment can both go there.
+sign-in factor (the setup page). The first page opened with GET in the window is remembered as the
+page the sign-in was going to: the start page when it was the setup page itself, and none while it
+is one of the other ALLOWED_VIEWS (the next page counts then); once the factor is added, Continue
+goes there (the start page when nothing was remembered) and forgets it. Each sign-in starts
+without one. The browser's session is written as a whole, so two tabs choosing Continue at the
+same moment can both go there.
 
-Each request decides from the database as it stands then, in one statement: the row's flag and
-whether the account has an authenticator. So adding an authenticator lets the next request through,
-and removing the account's only one (which a person may always do: NIST SP 800-63B-4 §4.5 asks
-that an authenticator be invalidated at its holder's request) sends the same session back to the
-setup page at its next request, as it does every other session of the account the rule covered at
-sign-in. A session waiting for a factor whose account the rule no longer covers (a role removed,
-the rule changed) goes on while that lasts: the rule and the account are read again, in one
-statement, before refusing.
+Each request decides from the database as it stands then, in one statement: the row's flag,
+whether the account has an authenticator and whether the rule still covers the active account. So
+adding an authenticator lets the next request through, and removing the account's only one (which
+a person may always do: NIST SP 800-63B-4 §4.5 asks that an authenticator be invalidated at its
+holder's request) sends the same session back to the setup page at its next request, as it does
+every other session of the account the rule covered at sign-in, while the rule covers the account.
+A session waiting for a factor whose account the rule no longer covers (a role removed, the rule
+changed) goes on while that lasts.
 
 A session the rule did not cover at sign-in is not held, whatever is saved later: the rule applies
 to it from the account's next sign-in. A superuser can end a person's sessions from the admin

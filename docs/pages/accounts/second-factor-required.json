@@ -49,7 +49,7 @@
         },
         {
           "label": "Continue",
-          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the first page outside these setup pages that you opened in the window after signing in, or to the start page when there was none, and then forgets it. Two tabs choosing it at the same moment can both go there; a page drawn while another browser finishes the setup shows it after a reload."
+          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the first page you opened in the window after signing in, and then forgets it. When that first page was this one, Continue goes to the start page; the other two-factor pages are skipped. Two tabs choosing it at the same moment can both go there; a page drawn while another browser finishes the setup shows it after a reload."
         }
       ]
     },
