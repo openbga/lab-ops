@@ -674,11 +674,10 @@ def start_session(sender, request, user, **kwargs):
         # signed out at its next request, and the sign-in is not recorded as the last one.
         refused = refused_at_sign_in(request, user)
         if not refused:
-            from .signin_log import log_sign_in
-
             update_last_login(sender, user)
-            log_sign_in(request, user)  # the sign-in log's line, once this is decided
         if session is None:
+            if not refused:
+                transaction.on_commit(lambda: _log_sign_in(request, user))
             return
         previous = _valid_id(session.get(SESSION_KEY))
         if previous is not None:
@@ -703,6 +702,10 @@ def start_session(sender, request, user, **kwargs):
     if refused:
         _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
         request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
+    else:
+        # The sign-in log's line once the session has started (a start that failed did not
+        # complete the sign-in).
+        _log_sign_in(request, user)
     session[SESSION_KEY] = str(record.pk)
     # A new sign-in remembers its own page for Continue after a second factor is added
     # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.
@@ -723,6 +726,12 @@ def end_signed_out_session(sender, request, user, **kwargs):
         # Signing out leaves nothing typed behind: every copy kept for the account goes, and the
         # moment is recorded, so a copy sent later from an ended session finds that Sign out.
         discard_all(user.pk)
+
+
+def _log_sign_in(request, user):
+    from .signin_log import log_sign_in
+
+    log_sign_in(request, user)
 
 
 def _valid_id(value):

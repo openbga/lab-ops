@@ -283,13 +283,18 @@ def _end_unproved(request):
     """End this request's session (Ending.MARKED_COMPROMISED) and sign its browser out, with
     the notice; a page opened with GET goes on as a signed-out visitor (to the sign-in page, for a
     page that needs one), anything else is answered at once (accounts.sessions)."""
-    from .sessions import Ending, _goes_on, _sign_out, end_sessions
+    from .sessions import Ending, _ended_as_recorded, _goes_on, _sign_out, end_sessions
     from .sessions import _refusal as signed_out
 
     state = request.account_session
     with transaction.atomic():
-        end_sessions(request.user, Ending.MARKED_COMPROMISED, session_id=state.id)
-    _sign_out(request, Ending.MARKED_COMPROMISED)
+        ended = end_sessions(request.user, Ending.MARKED_COMPROMISED, session_id=state.id)
+    if ended:
+        _sign_out(request, Ending.MARKED_COMPROMISED)
+    else:
+        # Ended meanwhile otherwise (an administrator, a limit): the notice names what the row
+        # records.
+        _sign_out(request, *_ended_as_recorded(state.id))
     return None if _goes_on(request) else signed_out(request)
 
 
