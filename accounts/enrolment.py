@@ -158,6 +158,14 @@ class EnrolmentMiddleware:
             return None
         match = request.resolver_match
         if match is not None and match.view_name in ALLOWED_VIEWS:
+            # The first page opened in the window is the one Continue goes back to, an allowed one
+            # too (the setup page itself remembers the start page when nothing is remembered).
+            if (
+                match.view_name != ENROLMENT_ROUTE
+                and request.method == "GET"
+                and _is_navigation(request)
+            ):
+                _remember(request)
             return None
         return _refusal(request)
 
@@ -205,6 +213,8 @@ def enrolment_page(request):
     with one_reading():
         why = reasons(user) if pending(request) else []
         codes = _codes(user) if why else ""
+    # The shell (core.context_processors) follows this reading, not the middleware's earlier one.
+    request.vr_second_factor_pending = bool(why)
     if not why:
         return redirect(_take_next(request) or "dashboard")
     if request.method == "GET" and _is_navigation(request):

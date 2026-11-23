@@ -562,3 +562,45 @@ def test_the_setup_page_words_used_up_codes(client, make_user):
     sign_in(client, user)
     html = client.get(SETUP).content.decode()
     assert "recovery codes are all used" in html and "Generate" in html
+
+
+# --- review confirmation: neighbours of the fixed cases -------------------------------------------
+
+
+def test_only_a_window_navigation_to_an_allowed_page_is_remembered(client, make_user):
+    require(staff=True)
+    sign_in(client, make_user("allowed_first", "technical"), next_page=reverse("mfa_index"))
+    client.get(reverse("mfa_index"), HTTP_SEC_FETCH_DEST="empty")
+    client.get(reverse("mfa_index"), HTTP_HX_REQUEST="true")
+    assert NEXT_KEY not in client.session
+    assert client.get(reverse("mfa_index")).status_code == 200
+    assert client.session[NEXT_KEY] == reverse("mfa_index")
+    client.get(SETUP)
+    assert client.session[NEXT_KEY] == reverse("mfa_index")
+
+
+def test_the_overview_offers_continue_only_once_the_session_is_released(client, make_user):
+    require(staff=True)
+    user = make_user("overview_continue", "technical")
+    sign_in(client, user)
+    assert client.get("/requests/").url == SETUP
+    TOTP.activate(user, generate_totp_secret())
+    require(staff=True, roles=["technical"])  # still covered; the factor releases the session
+    assert f'href="{SETUP}">Continue</a>' in client.get(reverse("mfa_index")).content.decode()
+    Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).delete()
+    TOTP.activate(user, generate_totp_secret())
+    html = client.get(reverse("mfa_index")).content.decode()
+    assert f'href="{SETUP}">Continue</a>' in html
+
+
+def test_a_waiting_overview_does_not_offer_continue(client, make_user):
+    from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+
+    require(staff=True)
+    user = make_user("overview_waiting", "technical")
+    RecoveryCodes.activate(user)
+    sign_in(client, user)
+    assert client.get("/requests/").url == SETUP
+    client.post(reverse("account_reauthenticate"), {"password": PASSWORD})
+    for name in ("mfa_index", "mfa_view_recovery_codes"):
+        assert f'href="{SETUP}">Continue</a>' not in client.get(reverse(name)).content.decode()

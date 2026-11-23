@@ -12,7 +12,7 @@
       "steps": [
         "Select [[Set up authenticator app]] and enter your password again when asked.",
         "Scan the code shown with your authenticator app and type the six-digit code it gives, then select [[Activate]].",
-        "Save the new recovery codes somewhere private, then select [[Continue]]. If you already had codes, they stay and Two-factor authentication opens instead."
+        "Save the new recovery codes somewhere private, then select [[Continue]]. If you already had codes, they are kept and Two-factor authentication opens instead."
       ]
     },
     {
@@ -49,14 +49,14 @@
         },
         {
           "label": "Continue",
-          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the first page you opened in the window after signing in, or to the start page, and then forgets it. Two tabs choosing it at the same moment can both go there."
+          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the first page you opened in the window after signing in, or to the start page when that was this page, and then forgets it. Two tabs choosing it at the same moment can both go there."
         }
       ]
     },
     {
       "title": "What this session can open",
       "paragraphs": [
-        "While your account has no authenticator app, this session opens only this page, Two-factor authentication with the app setup and any recovery codes your account already has, the confirmation the setup asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find, What's new and the other account pages are not shown. Recovery codes alone are not a second factor.",
+        "While your account has no authenticator app, this session opens only this page, Two-factor authentication with the app setup and viewing or downloading any recovery codes your account already has (generating new ones needs the app first), the confirmation the setup asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find, What's new and the other account pages are not shown. Recovery codes alone are not a second factor.",
         "Once the app is set up, everything your roles allow opens again. If the app is removed later, every session of yours the rule covered at sign-in comes back here at its next request while the rule still covers your account. If the rule stops covering your account (a role removed, the rule changed), this session goes on without one for as long as that lasts."
       ]
     }

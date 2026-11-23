@@ -323,9 +323,11 @@ def save_rule(*, actor, new, expected_revision, reason):
             "has been kept; reload and compare the current rule before saving again."
         )
     after = _clean(new)
-    # The row as stored, so that a save clears a role name outside ROLES that a row holds.
+    # The row as stored (its role names as they are, for the audit event): a stored name outside
+    # ROLES makes it differ, so a save clears it; order and repeats of known names do not.
     before = {**values(stored), "roles": list(stored.roles or [])}
-    if after == before:
+    strays = set(before["roles"]) - set(ROLES)
+    if after == values(stored) and not strays:
         return stored, False
     for name, value in after.items():
         setattr(stored, name, value)

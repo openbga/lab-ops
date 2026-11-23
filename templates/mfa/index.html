@@ -2,5 +2,5 @@
 {% load i18n %}
 {% block content %}
   {{ block.super }}
-  {% if second_factor_continue and authenticators.totp %}<p><a class="btn btn-primary" href="{% url 'account-second-factor' %}">Continue</a></p>{% endif %}
+  {% if second_factor_continue and authenticators.totp and not second_factor_pending %}<p><a class="btn btn-primary" href="{% url 'account-second-factor' %}">Continue</a></p>{% endif %}
 {% endblock content %}

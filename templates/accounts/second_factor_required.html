@@ -24,7 +24,7 @@ codes). Drawn from one reading (accounts.enrolment.enrolment_page).
   <ol class="mb-0">
     <li>Install an authenticator app on your phone, if you have none.</li>
     <li>Select Set up authenticator app and enter your password again when asked. Scan the code shown with the app and enter the 6-digit code the app gives.</li>
-    {% if codes == "unused" %}<li>Your account's recovery codes stay as they are. Two-factor authentication opens next; keep the codes somewhere safe.</li>{% elif codes == "used up" %}<li>Your account's recovery codes are all used. Two-factor authentication opens next: select Generate there to get new ones, and keep them somewhere safe.</li>{% else %}<li>Save the recovery codes shown next somewhere safe. Each one signs you in once if you lose your phone.</li>{% endif %}
+    {% if codes == "unused" %}<li>Your account keeps its recovery codes. Two-factor authentication opens next: check how many are left there, and select Generate for new ones if you need them.</li>{% elif codes == "used up" %}<li>Your account's recovery codes are all used. Two-factor authentication opens next: select Generate there to get new ones, and keep them somewhere safe.</li>{% else %}<li>Save the recovery codes shown next somewhere safe. Each one signs you in once if you lose your phone.</li>{% endif %}
     <li>Select Continue to go on to the page you were opening, or to the start page.</li>
   </ol>
 {% endpanel %}

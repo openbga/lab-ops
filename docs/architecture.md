@@ -103,7 +103,9 @@ Continue's page is kept in the browser's session, which Django writes as a whole
 choosing Continue at the same moment can both go there (a strict xfail documents it). Two
 limitations of allauth's own sign-in steps predate this and are documented with strict xfails: a
 stored credential of a type the deployment does not offer (a security key kept from an earlier
-configuration) still makes password sign-in ask for a code the account cannot give, and an account
+configuration), when it is the account's only authenticator, leaves password sign-in asking for a
+code the account cannot give; for an account holding only recovery codes, allauth's overview
+offers Generate, whose submission explains that an app is needed first; and an account
 without a password whose recovery codes are all used is asked for a code to confirm before adding
 an app; a superuser removes the stored credential in the admin console (Authenticators). After a
 re-authentication that resumes a posted setup form, the help shown is the re-authentication page's. allauth's
