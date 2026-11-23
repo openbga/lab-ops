@@ -8,11 +8,12 @@ Three changes to Django's database cache, each for the counts it keeps:
   sign-in or the network address; the table holds an HMAC of each, keyed with the deployment's
   SECRET_KEY, so it holds no name or address and nobody without the key can tell whose attempts
   it counts. Changing SECRET_KEY starts every count afresh.
-- Expired entries are removed whenever an entry is set, added, touched or deleted, by the time
-  now, and a live entry is never removed to make room (SharedCache._cull): Django's database cache
-  otherwise keeps expired entries until their key is read again and, past MAX_ENTRIES, drops a
-  third of the live ones, counts included. Removing them first also means an entry that has
-  expired is never taken for a live one by an add or a touch.
+- Expired entries are removed whenever an entry is set, added, touched or deleted (a read that
+  finds none expired writes nothing), by the time now, and a live entry is never removed to make
+  room (SharedCache._cull): Django's database cache otherwise keeps expired entries until their
+  key is read again and, past MAX_ENTRIES, drops a third of the live ones, counts included.
+  Removing them first also means an entry that has expired is never taken for a live one by an
+  add or a touch.
 - An entry lasts at least as long as asked: the table stores whole seconds, and Django's database
   cache drops the fraction, which would end a minute's count up to a second early
   (SharedCache.get_backend_timeout rounds up instead). A timeout of zero or less, given or the
@@ -63,7 +64,10 @@ class SharedCache(DatabaseCache):
         )
 
     def _base_delete_many(self, keys):
-        db = router.db_for_write(self.cache_model_class)
-        with connections[db].cursor() as cursor:
-            self._cull(db, cursor, None, None)
+        # Django calls this from every read too, with the expired keys it found (often none): a
+        # read that removes nothing writes nothing.
+        if keys:
+            db = router.db_for_write(self.cache_model_class)
+            with connections[db].cursor() as cursor:
+                self._cull(db, cursor, None, None)
         return super()._base_delete_many(keys)

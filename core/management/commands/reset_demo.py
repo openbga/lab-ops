@@ -23,7 +23,7 @@ from accounts.models import User
 from core import demo
 from core.models import Lab
 
-from .seed_demo import DEMO_LAB_NAME
+from .seed_demo import DEMO_LAB_NAME, published_passwords
 
 # This project's sequences that no table column owns (a feature's own numbering), so TRUNCATE
 # does not restart them. Only names starting with one of this project's app labels: anything else
@@ -97,6 +97,8 @@ class Command(BaseCommand):
             demo.hold_seed_lock()
             demo.lock_application_tables()
             self._require_demo_laboratory()
+            # The passwords the seed below will publish, checked before anything is erased.
+            published_passwords()
             tables = self._erase()
             call_command(
                 "seed_demo",

@@ -42,8 +42,10 @@ class PasswordGuidance:
                 self.guided_account(), own=self.guidance_own, minimum=minimum
             )
             # A bound field copies its field's help when the form first builds it (checking the
-            # form builds them all): build it again from this help.
-            self._bound_fields_cache.pop(self.guidance_field, None)
+            # form builds them all), and a page may hold it already: give it this help too.
+            bound = self._bound_fields_cache.get(self.guidance_field)
+            if bound is not None:
+                bound.help_text = field.help_text
 
     def full_clean(self):
         account = self.guided_account()

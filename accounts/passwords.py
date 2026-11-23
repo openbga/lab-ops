@@ -39,6 +39,7 @@ person choosing. 45 CFR §164.308(a)(5)(ii)(D), password management (addressable
 
 import contextvars
 import gzip
+import inspect
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
@@ -62,9 +63,9 @@ SHORTEST_COMMON_LETTERS = 4
 # A repeated text this long or longer, in characters as typed, is a passage, not a pattern: a
 # password that repeats one is accepted.
 LONGEST_REPEATED_UNIT = SINGLE_FACTOR_MINIMUM - 1
-# What people put between the copies of a repeated text: a password followed by one of these is
-# compared too, so "word word" repeats "word ".
-SEPARATORS = (" ", "-", "_", ".", ",", "/", "|", ":", ";", "+", "*", "#", "!")
+# What people put between the copies of a repeated text, besides any kind of space: a password
+# followed by one of these is compared too, so "word word" repeats "word ".
+SEPARATORS = ("-", "_", ".", ",", "/", "|", ":", ";", "+", "*", "#", "!")
 # The alphabet, the letter keys row by row and the digits (wrapping round), each read either way.
 RUNS = ("abcdefghijklmnopqrstuvwxyz", "qwertyuiopasdfghjklzxcvbnm", "1234567890" * 8)
 # Django's list of common passwords, which CommonPasswordValidator reads too.
@@ -112,6 +113,10 @@ def current_account(user):
     """The account as it stands now, for a saved account (read again, so a name corrected after
     the account was read, or after the form was drawn, is the one compared; None when it no
     longer exists); `user` itself for an account not yet saved, or None."""
+    if user is not None and getattr(user, "pk", None) is None:
+        state = getattr(user, "_state", None)
+        if state is not None and not state.adding:
+            return None  # an instance that was saved and then deleted (Django clears its key)
     if not _saved(user):
         return user
     from django.contrib.auth import get_user_model
@@ -208,7 +213,8 @@ def _short_repeat(characters):
     characters typed) repeat a text of fewer than 15 characters at least twice, a last copy
     possibly cut short, with or without one separator after the last copy. At most 14 passes,
     each ending at the first character that breaks the pattern."""
-    marks = [mark for mark in SEPARATORS if mark in characters]
+    present = set(characters)
+    marks = sorted(mark for mark in present if mark in SEPARATORS or mark.isspace())
     for text in (characters, *([*characters, mark] for mark in marks)):
         for unit in range(1, LONGEST_REPEATED_UNIT + 1):
             if 2 * unit > len(text):
@@ -312,21 +318,43 @@ class ExpectedPasswordValidator:
         )
 
 
+# Why the rule refused a password, by the refusal's code, in fixed words: a validator's own message
+# may quote the password.
+REFUSAL_REASONS = {
+    "password_too_short": "it is too short",
+    "password_too_similar": "it is too similar to the account's username, names or email address",
+    "password_too_common": "it is a common password, or one with only digits, symbols, spaces or "
+    "letter case changed",
+    "password_context_name": "it is a name of the laboratory, this application or the account "
+    "with only digits, symbols, spaces or letter case changed",
+    "password_repeated": "it repeats one character or a short text",
+    "password_run": "it is a run of letters, digits or keyboard keys",
+}
+
+
 def check_published_password(password, user, setting):
     """For the demonstration seed: a password it publishes (`setting` names where it comes from)
     must meet the rule for the account `user` (unsaved, as the seed will create it). The error
-    names the setting and the account, or no account when the password contains its username,
-    and never repeats the password: where a validator's message quotes it, it is left out."""
+    names the setting, the account unless one of the two contains the other, and the reasons in
+    fixed words: never the password, nor a validator's message, which may quote it."""
     from django.contrib.auth.password_validation import validate_password
 
     try:
         validate_password(password, user)
     except ValidationError as error:
         username = user.get_username()
-        whose = "one of the accounts it creates" if username in password else username
-        reasons = " ".join(message.replace(password, "…") for message in error.messages)
+        overlap = username.casefold() in password.casefold() or (
+            password.casefold() in username.casefold()
+        )
+        whose = "one of the accounts it creates" if overlap else username
+        reasons = sorted(
+            {
+                REFUSAL_REASONS.get(item.code, "a password check of this deployment refused it")
+                for item in error.error_list
+            }
+        )
         raise ValidationError(
-            f"{setting} does not meet the password rule for {whose}: {reasons}"
+            f"{setting} does not meet the password rule for {whose}: " + "; ".join(reasons) + "."
         ) from None
 
 
@@ -339,6 +367,15 @@ OTHER_ACCOUNT = (
 )
 
 
+def _takes_minimum(hook):
+    """Whether a validator's help_text_for accepts the length a check used (`minimum`)."""
+    parameters = inspect.signature(hook).parameters.values()
+    return any(
+        parameter.name == "minimum" or parameter.kind is parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 def guidance(user, *, own, minimum=None):
     """What a new password of `user` must be, one line per validator, with the length for this
     account (help_text_for; `minimum`, when given, is the length a check of this password used),
@@ -347,12 +384,12 @@ def guidance(user, *, own, minimum=None):
     lines = []
     for validator in get_default_password_validators():
         text_for = getattr(validator, "help_text_for", None)
-        if isinstance(validator, LengthByFactorValidator):
-            text = text_for(user, own=own, minimum=minimum)
-        elif text_for:
-            text = text_for(user, own=own)
-        else:
+        if text_for is None:
             text = str(validator.get_help_text())
+        elif _takes_minimum(text_for):
+            text = text_for(user, own=own, minimum=minimum)
+        else:
+            text = text_for(user, own=own)
         if not own:
             for mine, theirs in OTHER_ACCOUNT:
                 text = text.replace(mine, theirs)

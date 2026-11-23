@@ -17,6 +17,7 @@ from accounts.passwords import (
     laboratory_named,
 )
 from accounts.roles import ROLE_LABELS, ROLES
+from clients.models import Client
 from clients.services import hold_directory
 from core import demo, lab_profile
 from core.announcements import save_announcement
@@ -82,6 +83,27 @@ def staff_account_fields(role):
     }
 
 
+def published_passwords():
+    """(DEMO_PASSWORD, the password demo_admin gets), each setting read once, checked: the length
+    of a password used alone, then the rule for every account the seed creates. Refused with a
+    CommandError that never repeats a password. reset_demo checks them before it erases."""
+    password = os.environ.get("DEMO_PASSWORD")
+    # The length the password rule asks of a password used alone (accounts.passwords).
+    if not password or len(password) < SINGLE_FACTOR_MINIMUM:
+        raise CommandError(
+            f"Set DEMO_PASSWORD to at least {SINGLE_FACTOR_MINIMUM} characters; it is never "
+            "printed."
+        )
+    admin_setting = os.environ.get("DEMO_ADMIN_PASSWORD") or None
+    if admin_setting is not None and len(admin_setting) < SINGLE_FACTOR_MINIMUM:
+        raise CommandError(
+            f"DEMO_ADMIN_PASSWORD needs at least {SINGLE_FACTOR_MINIMUM} characters, or leave "
+            "it unset."
+        )
+    check_published_passwords(password, admin_setting)
+    return password, admin_setting or password
+
+
 def check_published_passwords(password, admin_password):
     """Before anything is locked or written: the passwords the seed publishes meet the password
     rule for every account it creates (accounts.passwords), each checked against the account as
@@ -95,10 +117,13 @@ def check_published_passwords(password, admin_password):
             accounts.append((staff_account_fields(role), admin_password, "DEMO_ADMIN_PASSWORD"))
         else:
             accounts.append((staff_account_fields(role), password, "DEMO_PASSWORD"))
-    for username, last_name, email, *_rest in DEMO_PORTAL_ACCOUNTS:
-        accounts.append(
-            (portal_account_fields(username, last_name, email), password, "DEMO_PASSWORD")
-        )
+    for username, last_name, email, account, *_rest in DEMO_PORTAL_ACCOUNTS:
+        # A portal account, as validators see it: it belongs to its organization (not saved yet).
+        fields = {
+            **portal_account_fields(username, last_name, email),
+            "client": Client(name=last_name, account_number=account),
+        }
+        accounts.append((fields, password, "DEMO_PASSWORD"))
     # The seed's laboratory is the demonstration's (it refuses any other), and the check comes
     # before the seed may read a table: compare with its name rather than reading the saved one.
     with laboratory_named(DEMO_LAB_NAME, read_saved=False):
@@ -123,34 +148,23 @@ class Command(BaseCommand):
             "ends the announcement (for example when a scheduled reset_demo runs).",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
-        password = os.environ.get("DEMO_PASSWORD")
-        # The length the password rule asks of a password used alone (accounts.passwords).
-        if not password or len(password) < SINGLE_FACTOR_MINIMUM:
-            raise CommandError(
-                f"Set DEMO_PASSWORD to at least {SINGLE_FACTOR_MINIMUM} characters; it is never "
-                "printed."
-            )
-        admin_password = os.environ.get("DEMO_ADMIN_PASSWORD") or password
-        if len(admin_password) < SINGLE_FACTOR_MINIMUM:
-            raise CommandError(
-                f"DEMO_ADMIN_PASSWORD needs at least {SINGLE_FACTOR_MINIMUM} characters, or leave "
-                "it unset."
-            )
-        check_published_passwords(password, os.environ.get("DEMO_ADMIN_PASSWORD"))
-        # The settings first, before any lock. Then one seed at a time; then the demonstration
-        # accounts it acts as, in their gates' order (as an access change takes them), held for
-        # the whole seed (accounts.acting.scope: its steps lock those that existed when it began
-        # nothing again; accounts it creates are its own until it commits); then the
-        # organization directory lock, before anything else it locks. No step of the seed then
-        # holds a record an import needs while it waits for the import, and a seed that waited
-        # sees the accounts the one before made.
-        demo.hold_seed_lock()
-        actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
-        with scope(actors):
-            hold_directory()
-            return self._seed(password, admin_password, *args, **options)
+        # The settings first, each read once, outside the transaction: whatever their check reads
+        # is not held while the seed waits for its lock.
+        password, admin_password = published_passwords()
+        with transaction.atomic():
+            # Then one seed at a time; then the demonstration accounts it acts as, in their
+            # gates' order (as an access change takes them), held for the whole seed
+            # (accounts.acting.scope: its steps lock those that existed when it began nothing
+            # again; accounts it creates are its own until it commits); then the organization
+            # directory lock, before anything else it locks. No step of the seed then holds a
+            # record an import needs while it waits for the import, and a seed that waited sees
+            # the accounts the one before made.
+            demo.hold_seed_lock()
+            actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
+            with scope(actors):
+                hold_directory()
+                return self._seed(password, admin_password, *args, **options)
 
     def _seed(self, password, admin_password, *args, **options):
         # Only a seed that starts from an empty database (the test reset_demo applies) may seal
