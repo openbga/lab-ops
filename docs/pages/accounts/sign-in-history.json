@@ -86,7 +86,7 @@
       "title": "Rules and records",
       "paragraphs": [
         "The list shows entries of the last 90 days by the database's clock, at most the 100 most recent, newest first.",
-        "Entries are never changed or deleted: the database refuses it. An account with sign-in history cannot be deleted; accounts are deactivated, not deleted. There is no retention period in the application: entries are kept.",
+        "Entries are never changed or deleted: the database refuses it. Accounts are deactivated, not deleted; the history of an account deleted by other means stays. There is no retention period in the application: entries are kept.",
         "A session's sign-in and sign-out are written by the database in the same step that starts or ends the session. A session that passed a session limit is recorded as signed out at the moment the limit passed, even when that is noticed later, for example when the account next signs in or a page of that session is next opened.",
         "The history starts at the release that added it. A session already open then shows only its sign-out. The deployment's sign-in log is kept as before."
       ]

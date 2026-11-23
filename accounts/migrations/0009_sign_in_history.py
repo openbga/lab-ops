@@ -146,7 +146,8 @@ class Migration(migrations.Migration):
                 (
                     "user",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
+                        db_constraint=False,
+                        on_delete=django.db.models.deletion.DO_NOTHING,
                         related_name="sign_in_events",
                         to=settings.AUTH_USER_MODEL,
                     ),

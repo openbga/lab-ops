@@ -259,8 +259,16 @@ class SignInEvent(models.Model):
         REAUTHENTICATION_FAILED = "reauth_failed", "Re-authentication failed"
         SIGNED_OUT = "signed_out", "Signed out"
 
-    # Accounts are deactivated, never deleted, and this is their history.
-    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="sign_in_events")
+    # The account, by id. Not a constraint in the database: an entry outlives its account (accounts
+    # are deactivated, never deleted, by the application; a deletion by other means leaves its
+    # history in place, since the database refuses to delete an entry), and writing one, inside a
+    # session's start or end, takes no lock on the account's row.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="sign_in_events",
+    )
     # When it happened, by the database's clock: a session's sign-in, or its end (for a session
     # that passed a limit, the moment the limit passed, which can be before the row is written).
     occurred_at = models.DateTimeField(db_default=Now())

@@ -265,7 +265,9 @@ it signs out). The factor is read by `ClosedSignupAdapter.login` before Django s
 in; a Django `login()` called otherwise records none, and `accounts.compromised` then reads the
 browser's session with the same reader. A third trigger refuses `UPDATE` and `DELETE`
 on `accounts_signinevent`; `reset_demo` empties it with `TRUNCATE`, which row triggers do not see,
-and the account foreign key is `PROTECT`. The table has no model permissions and no admin; the
+and the account reference has no database constraint (`db_constraint=False`, `DO_NOTHING`): an
+entry outlives its account, and writing one inside a session's start or end takes no lock on the
+account's row. The table has no model permissions and no admin; the
 page (`accounts.session_views.sign_in_history_page`) reads the account's own rows of the last 90
 days by the database's clock, at most 100, newest first, with whether the account is a shared
 demonstration account in the same statement (`signin_history.recent`), and hides the browser and

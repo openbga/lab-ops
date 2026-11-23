@@ -375,13 +375,17 @@ def test_the_database_refuses_to_change_or_delete_an_entry(make_user, statement)
     assert events(user) == [(Kind.SIGNED_IN, "", "")]
 
 
-def test_an_account_with_history_cannot_be_deleted(make_user):
-    from django.db.models import ProtectedError
-
-    user = make_user("history-protected", "technical")
+def test_deleting_an_account_keeps_its_history(make_user):
+    """The application never deletes an account (it is deactivated); a deletion by other means
+    leaves the history in place, and the entry keeps the account's id."""
+    user = make_user("history-kept", "technical")
     BrowserClient().force_login(user)
-    with pytest.raises(ProtectedError):
-        user.delete()
+    pk = user.pk
+    user.delete()
+    assert not User.objects.filter(pk=pk).exists()
+    assert list(SignInEvent.objects.filter(user_id=pk).values_list("kind", flat=True)) == [
+        Kind.SIGNED_IN
+    ]
 
 
 # --- The page ----------------------------------------------------------------------------------
