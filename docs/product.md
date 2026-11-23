@@ -256,8 +256,9 @@ and client portal accounts. Nothing is required until the rule is first saved, w
 each change is kept in the page's history. Whether the rule covers an account is decided when it
 signs in: an account it covers that has no authenticator app is taken to Set up a second sign-in
 factor and opens nothing else until it adds one (recovery codes alone do not count), then goes on
-to the page it was opening. Sessions already open when the rule changes are not interrupted.
-Removing the app in a session the rule covered sends that session back to setting one up. A
+to the page it was opening. Sessions the rule did not cover when they signed in are not interrupted
+when it changes. A session it covered is sent to set up a factor whenever its account has none while
+the rule still covers it, for example after the app is removed. A
 shared demonstration account cannot add one. The panel counts the active accounts the rule covers
 and how many have no second factor yet.
 

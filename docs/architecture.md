@@ -95,9 +95,14 @@ setup routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup
 (a GET remembers its address once, for Continue), told to load it in the whole window (HTMX and
 the form dialog) or refused with JSON for scripts. Deciding at sign-in keeps open sessions and
 their unsaved forms going when the rule changes; deciding each request from the factor keeps a
-session that removes its only authenticator held. allauth's refusal to add an authenticator while
-an address is unverified is off (`MFA_ALLOW_UNVERIFIED_EMAIL`): sign-up is closed, and the check
-would leave a required account without email unable to enrol.
+session that removes its only authenticator held. The rule, the account, its groups and its grants are read in one
+statement (`core.second_factor`: the setup page's reasons and the Security settings counts too).
+Continue's page is kept in the browser's session, which Django writes as a whole, so two tabs
+choosing Continue at the same moment can both go there (a strict xfail documents it). allauth's
+refusal to add an authenticator while an address record is unverified is off
+(`MFA_ALLOW_UNVERIFIED_EMAIL`): sign-up is closed, and on a deployment without outgoing email a
+required account holding an unverified address could otherwise never enrol (an account with no
+address record was never refused).
 [Required second factor](../accounts/enrolment.py)
 
 ## Sessions

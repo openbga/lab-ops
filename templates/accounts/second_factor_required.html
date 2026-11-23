@@ -6,7 +6,8 @@ is sent to. It says why the laboratory requires one of this account and leads to
 authenticator app (allauth's mfa_activate_totp); Sign out is the other way out. The shell leaves
 out the navigation while the session waits (second_factor_pending). Context: page_title, reasons
 (core.second_factor.reasons: the parts of the rule that cover the account, in words), locked (a
-shared demonstration account, which cannot add one).
+shared demonstration account, which cannot add one), has_recovery_codes (the account already has
+recovery codes, so adding the app opens Two-factor authentication instead of new codes).
 {% endcomment %}
 {% block page_intro %}<p class="vr-page-intro">Your laboratory requires a second sign-in factor for your account before you continue.</p>{% endblock %}
 {% block page_actions %}{% url 'account_logout' as logout_url %}{% post_button action=logout_url label="Sign out" %}{% if not locked %}<a class="btn btn-primary" href="{% url 'mfa_activate_totp' %}">Set up authenticator app</a>{% endif %}{% endblock %}
@@ -22,8 +23,8 @@ shared demonstration account, which cannot add one).
   <ol class="mb-0">
     <li>Install an authenticator app on your phone, if you have none.</li>
     <li>Select Set up authenticator app and enter your password again when asked. Scan the code shown with the app and enter the 6-digit code the app gives.</li>
-    <li>Save the recovery codes shown next somewhere safe. Each one signs you in once if you lose your phone.</li>
-    <li>Select Continue to go on to the page you were opening.</li>
+    {% if has_recovery_codes %}<li>Your account's recovery codes stay as they are. Two-factor authentication opens next; keep the codes somewhere safe.</li>{% else %}<li>Save the recovery codes shown next somewhere safe. Each one signs you in once if you lose your phone.</li>{% endif %}
+    <li>Select Continue to go on to the page you were opening, or to the start page.</li>
   </ol>
 {% endpanel %}
 {% endif %}

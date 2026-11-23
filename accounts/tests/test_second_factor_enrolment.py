@@ -166,7 +166,7 @@ def test_a_waiting_session_reaches_only_the_setup_pages(client, make_user):
     assert reverse("mfa_activate_totp") in html
     assert 'aria-label="Primary"' not in html  # no staff navigation
     assert 'aria-label="Quick actions"' not in html  # no phone thumb bar
-    assert page["Cache-Control"].startswith("max-age=0") or "no-store" in page["Cache-Control"]
+    assert "no-store" in page["Cache-Control"]
 
     for name in ("mfa_index", "account_reauthenticate", "account-session"):
         assert client.get(reverse(name)).status_code == 200, name
@@ -369,6 +369,7 @@ def test_the_allowed_pages_are_the_setup_ones():
         "mfa_index",
         "mfa_activate_totp",
         "account_reauthenticate",
+        "mfa_reauthenticate",
         "account_login",
         "account_logout",
         "account-session",
@@ -389,3 +390,107 @@ def test_continue_never_leaves_the_site(client, make_user):
     session.save()
     TOTP.activate(user, generate_totp_secret())
     assert client.get(SETUP).url == reverse("dashboard")
+
+
+# --- review round 1: neighbours of the fixed cases ----------------------------------------------
+
+
+def test_each_decision_reads_the_rule_and_the_account_in_one_statement(make_user):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from core import second_factor
+
+    require(roles=["technical"], patient_information=True, portal=True)
+    user = make_user("one_statement", "technical")
+    for read in (
+        lambda: second_factor.requires(user),
+        lambda: second_factor.reasons(user),
+        lambda: second_factor.counts(),
+    ):
+        with CaptureQueriesContext(connection) as queries:
+            read()
+        assert len(queries) == 1, [query["sql"] for query in queries]
+
+
+def test_an_account_without_a_password_confirms_with_a_recovery_code(client, make_user, settings):
+    from allauth.account.models import EmailAddress
+    from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+
+    settings.ACCOUNT_LOGIN_BY_CODE_ENABLED = True
+    require(staff=True)
+    user = make_user("codes_confirm", "technical")
+    user.set_unusable_password()
+    user.save(update_fields=["password"])
+    EmailAddress.objects.create(user=user, email=user.email, verified=True, primary=True)
+    codes = RecoveryCodes.activate(user)
+    request_code(client, user.email)
+    client.post(reverse("account_confirm_login_code"), {"code": mailed_code()})
+    assert client.get("/").url == SETUP
+    prompt = client.get(reverse("mfa_activate_totp"), follow=True)
+    assert prompt.resolver_match.view_name == "mfa_reauthenticate"
+    # Still waiting: the confirmation page opens, nothing else does.
+    assert client.get("/requests/").url == SETUP
+    response = client.post(prompt.request["PATH_INFO"], {"code": codes.get_unused_codes()[0]})
+    assert response.status_code == 302
+    assert client.get(reverse("mfa_activate_totp")).status_code == 200
+
+
+def test_a_page_not_found_keeps_the_shell_of_the_session(client, make_user):
+    require(roles=["technical"])
+    waiting = make_user("missing_waiting", "technical")
+    sign_in(client, waiting)
+    html = client.get("/no-such-page/").content.decode()
+    assert 'aria-label="Primary"' not in html
+    other = make_user("missing_not_waiting", "client_services")
+    second = type(client)()
+    sign_in(second, other)
+    html = second.get("/no-such-page/").content.decode()
+    assert 'aria-label="Primary"' in html
+
+
+def test_the_account_menu_offers_only_two_factor_and_sign_out_while_waiting(client, make_user):
+    require(staff=True)
+    sign_in(client, make_user("menu_waiting", "technical"))
+    html = client.get(SETUP).content.decode()
+    assert reverse("mfa_index") in html and reverse("account_logout") in html
+    for name in ("account_change_password", "account_email", "account-sessions", "email-notices"):
+        assert f'href="{reverse(name)}"' not in html, name
+    TOTP.activate(User := session_row(client).user, generate_totp_secret())  # noqa: N806
+    html = client.get(reverse("mfa_index")).content.decode()
+    for name in ("account_change_password", "account_email", "account-sessions"):
+        assert f'href="{reverse(name)}"' in html, name
+    assert User.username == "menu_waiting"
+
+
+def test_a_credential_type_the_deployment_does_not_offer_is_not_a_second_factor(make_user):
+    from core import second_factor
+
+    require(staff=True)
+    user = make_user("webauthn_only", "technical")
+    Authenticator.objects.create(user=user, type=Authenticator.Type.WEBAUTHN, data={})
+    assert second_factor.has_second_factor(user) is False
+    assert second_factor.counts() == (1, 1)
+
+
+def test_a_head_request_neither_remembers_a_page_nor_takes_one(client, make_user):
+    require(staff=True)
+    user = make_user("head_requests", "technical")
+    sign_in(client, user)
+    assert client.head("/whats-new/").url == SETUP
+    assert NEXT_KEY not in client.session
+    assert client.get("/requests/").url == SETUP
+    TOTP.activate(user, generate_totp_secret())
+    assert client.head(SETUP).url == "/requests/"
+    assert client.session[NEXT_KEY] == "/requests/"
+    assert client.get(SETUP).url == "/requests/"
+
+
+def test_opening_the_setup_page_first_remembers_the_start_page(client, make_user):
+    require(staff=True)
+    user = make_user("setup_first", "technical")
+    sign_in(client, user, next_page=SETUP)
+    assert client.get(SETUP).status_code == 200
+    assert client.session[NEXT_KEY] == reverse("dashboard")
+    assert client.get("/requests/").url == SETUP
+    assert client.session[NEXT_KEY] == reverse("dashboard")  # the first page stays

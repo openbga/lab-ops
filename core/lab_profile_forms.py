@@ -203,8 +203,8 @@ class SecondFactorRuleForm(GroupedForm, forms.Form):
         label="Staff who can view patient information",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        help_text="Staff accounts granted Can view patient information, themselves or through a "
-        "role group.",
+        help_text="Staff accounts granted Can view patient information, themselves or through any "
+        "of their groups, with or without a role.",
     )
     admin_console = forms.BooleanField(
         label="Accounts that can open the admin console",
@@ -226,8 +226,8 @@ class SecondFactorRuleForm(GroupedForm, forms.Form):
     expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
     groups = (
         (
-            "Require a second factor of",
+            "Accounts that must have one",
             ["staff", "roles", "patient_information", "admin_console", "portal"],
         ),
-        (None, ["reason"]),
+        ("Reason for the change", ["reason"]),
     )

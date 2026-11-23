@@ -39,7 +39,7 @@
   "good_to_know": [
     "You change the contacts, the session limits and the second sign-in factor rule here, each in its own form with a reason. Every other value is changed where Set by says.",
     "A shorter limit applies from each session's next request: a session already idle longer is signed out then.",
-    "A second-factor rule applies at each account's next sign-in; open sessions are not interrupted.",
+    "A second-factor rule applies at each account's next sign-in; sessions it did not cover at sign-in are not interrupted.",
     "Values are read from the running application each time the page opens. The page does not rate the deployment or say whether it meets any rule.",
     "Staff see the contacts on the laboratory profile. Client portal accounts do not see them."
   ],
@@ -95,7 +95,7 @@
       "title": "Second sign-in factor",
       "paragraphs": [
         "Which accounts the laboratory requires to have a second sign-in factor (an authenticator app, with recovery codes), as the rule stands when the page opens. Nothing is required until the rule is first saved. Edit opens the rule's form; after saving or cancelling you return to this page.",
-        "Whether the rule covers an account is decided when it signs in. An account it covers without an authenticator app is sent to Set up a second sign-in factor after signing in and opens nothing else first; sessions already open are not interrupted. Recovery codes alone do not count."
+        "Whether the rule covers an account is decided when it signs in. An account it covers without an authenticator app is sent to Set up a second sign-in factor after signing in and opens nothing else first. A session the rule did not cover at sign-in is not interrupted; a session it covered is sent to set one up whenever its account has none while the rule still covers it. Recovery codes alone do not count."
       ],
       "items": [
         {
@@ -131,7 +131,7 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. Session limits, above: you change it on this page. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. Session limits, above, and Second sign-in factor, above: you change it on this page. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",

@@ -24,5 +24,5 @@ core/second_factor_form.html in the form dialog).
       </tbody>
     </table>
   </div>
-  {% fill footer %}<p class="vr-muted small mb-0">{% if second_factor_covered %}Active accounts required to have one: {{ second_factor_covered }}; without one yet: {{ second_factor_missing }}. {% endif %}A required account without one sets it up at its next sign-in and reaches nothing else first; open sessions are not interrupted. Only the admin role changes this, with a reason.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if second_factor_covered %}Active accounts required to have one: {{ second_factor_covered }}; without one yet: {{ second_factor_missing }}. {% endif %}A required account without one sets it up at its next sign-in and reaches nothing else first; sessions the rule did not cover at sign-in are not interrupted. Only the admin role changes this, with a reason.</p>{% endfill %}
 {% endpanel %}

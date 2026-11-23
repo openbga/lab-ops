@@ -48,7 +48,7 @@
         },
         {
           "label": "Confirm",
-          "description": "Checks the code for the pending sign-in. An incorrect code shows a field error; three unsuccessful submissions abandon the attempt and return to the request page. A valid code verifies the account email and continues to an enrolled second factor when applicable, then to the allowed requested destination or dashboard."
+          "description": "Checks the code for the pending sign-in. An incorrect code shows a field error; three unsuccessful submissions abandon the attempt and return to the request page. A valid code verifies the account email and continues to an enrolled second factor when applicable (or, for an account the laboratory requires one of that has none, to Set up a second sign-in factor), then to the allowed requested destination or dashboard."
         },
         {
           "label": "Request new code",
@@ -70,7 +70,7 @@
     {
       "title": "Sign-in activity",
       "paragraphs": [
-        "A rejected code for a known account is recorded as a failed sign-in in the deployment’s application logs. A successful code produces a completed sign-in event only after any required second factor succeeds. Logs name the stored username and never include the email address or code; requesting or resending a code does not record a completed sign-in. These logs follow the deployment’s retention and survive database resets."
+        "A rejected code for a known account is recorded as a failed sign-in in the deployment’s application logs. A successful code produces a completed sign-in event only after the account's enrolled second factor, if it has one, succeeds. For an account the laboratory requires a second factor of that has none yet, the event records the code sign-in; the session then opens only the setup pages until an authenticator app is added. Logs name the stored username and never include the email address or code; requesting or resending a code does not record a completed sign-in. These logs follow the deployment’s retention and survive database resets."
       ]
     }
   ],

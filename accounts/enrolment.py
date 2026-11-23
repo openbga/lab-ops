@@ -5,18 +5,23 @@ account at that moment (AccountSession.second_factor_required, set by
 accounts.sessions.start_session). While the account of such a session has no second factor, the
 session is waiting for one: EnrolmentMiddleware lets its requests reach only the pages that set one
 up (ALLOWED_VIEWS), and answers every other request by sending the browser to Set up a second
-sign-in factor (the setup page). A page opened with GET is remembered, once, as the page the
-sign-in was going to; the setup page offers it again (Continue) once the factor is added.
+sign-in factor (the setup page). The first page opened with GET is remembered as the page the
+sign-in was going to (the start page when the setup page itself was opened first); once the factor
+is added, Continue goes there and forgets it. Each sign-in starts without one. The browser's
+session is written as a whole, so two tabs choosing Continue at the same moment can both go there.
 
 Each request decides from the database as it stands then, in one statement: the row's flag and
 whether the account has an authenticator. So adding an authenticator lets the next request through,
 and removing the account's only one (which a person may always do: NIST SP 800-63B-4 §4.5 asks
 that an authenticator be invalidated at its holder's request) sends the same session back to the
-setup page at its next request. A session waiting for a factor whose account the rule no longer
-covers (a role removed, the rule changed) goes on: the rule is read again before refusing.
+setup page at its next request, as it does every other session of the account the rule covered at
+sign-in. A session waiting for a factor whose account the rule no longer covers (a role removed,
+the rule changed) goes on while that lasts: the rule and the account are read again, in one
+statement, before refusing.
 
-A rule saved while a session is open does not affect that session: it applies from the account's
-next sign-in. A superuser can end a person's sessions from the admin console to apply it at once.
+A session the rule did not cover at sign-in is not held, whatever is saved later: the rule applies
+to it from the account's next sign-in. A superuser can end a person's sessions from the admin
+console to apply it at once.
 
 A shared demonstration account (credentials_locked) cannot add a second factor (accounts.
 middleware): the setup page says so and offers only Sign out.
@@ -38,7 +43,8 @@ ENROLMENT_ROUTE = "account-second-factor"
 # The page the sign-in was going to, kept in the browser's session while it waits for a factor.
 NEXT_KEY = "_second_factor_next"
 # What a session waiting for a second factor may reach: the setup page; the account's two-factor
-# overview and adding an authenticator app (with the re-authentication that asks for first);
+# overview and adding an authenticator app (with the re-authentication that asks for first, by
+# password or, for an account without one, by a recovery code);
 # signing in and out; the session status, Stay signed in and keeping what was typed
 # (accounts.sessions); the laboratory's logo; and the health checks.
 ALLOWED_VIEWS = frozenset(
@@ -47,6 +53,7 @@ ALLOWED_VIEWS = frozenset(
         "mfa_index",
         "mfa_activate_totp",
         "account_reauthenticate",
+        "mfa_reauthenticate",
         "account_login",
         "account_logout",
         "account-session",
@@ -99,11 +106,11 @@ def _is_navigation(request):
     return is_navigation(request)
 
 
-def _remember(request):
-    """Keep the page a GET navigation was opening, once, for Continue on the setup page (checked
+def _remember(request, path=None):
+    """Keep the first page a GET navigation was opening, for Continue on the setup page (checked
     again when it is taken, _take_next)."""
     if NEXT_KEY not in request.session:
-        request.session[NEXT_KEY] = request.get_full_path()
+        request.session[NEXT_KEY] = path or request.get_full_path()
 
 
 def _refusal(request):
@@ -113,7 +120,7 @@ def _refusal(request):
     it in the whole window; a script's request is refused with where to go."""
     target = reverse(ENROLMENT_ROUTE)
     if _is_navigation(request) or request.headers.get("X-VR-Form") == "1":
-        if request.method in ("GET", "HEAD") and _is_navigation(request):
+        if request.method == "GET" and _is_navigation(request):
             _remember(request)
         response = HttpResponseRedirect(target)
     elif request.headers.get("HX-Request"):
@@ -133,13 +140,15 @@ class EnrolmentMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        request.vr_second_factor_pending = False
+        # Decided once a view is reached (process_view); None until then, so that a page drawn
+        # without one (Not found) decides for its shell itself (core.context_processors).
+        request.vr_second_factor_pending = None
         return self.get_response(request)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        if not pending(request):
+        request.vr_second_factor_pending = pending(request)
+        if not request.vr_second_factor_pending:
             return None
-        request.vr_second_factor_pending = True
         match = request.resolver_match
         if match is not None and match.view_name in ALLOWED_VIEWS:
             return None
@@ -147,8 +156,12 @@ class EnrolmentMiddleware:
 
 
 def _take_next(request):
-    """The page the sign-in was going to, taken from the session (once), if it is on this site."""
-    path = request.session.pop(NEXT_KEY, None)
+    """The page the sign-in was going to, taken from the session by a GET (a HEAD leaves it), if
+    it is on this site."""
+    if request.method == "GET":
+        path = request.session.pop(NEXT_KEY, None)
+    else:
+        path = request.session.get(NEXT_KEY)
     if isinstance(path, str) and path.startswith("/") and not path.startswith("//"):
         if url_has_allowed_host_and_scheme(path, allowed_hosts={request.get_host()}):
             return path
@@ -161,18 +174,27 @@ def enrolment_page(request):
     """Set up a second sign-in factor: why the laboratory requires one of this account, and the way
     to add an authenticator app. Once the session is no longer waiting (an authenticator added, or
     the rule no longer covers the account), Continue: it goes on to the page the sign-in was going
-    to, or the start page."""
+    to, or the start page, and forgets it."""
     from core.second_factor import reasons
 
-    if not getattr(request, "vr_second_factor_pending", False):
-        return redirect(_take_next(request) or "dashboard")
     user = request.user
+    # Why, read in one statement with the rule and the account as they stand now: when nothing
+    # covers the account any more (the rule changed since this request was let through), the
+    # session is no longer waiting, and the page goes on as for one that is not.
+    why = reasons(user) if getattr(request, "vr_second_factor_pending", False) else []
+    if not why:
+        return redirect(_take_next(request) or "dashboard")
+    if request.method == "GET":
+        _remember(request, reverse("dashboard"))
     return render(
         request,
         "accounts/second_factor_required.html",
         {
             "page_title": "Set up a second sign-in factor",
-            "reasons": reasons(user),
+            "reasons": why,
             "locked": user.credentials_locked,
+            "has_recovery_codes": Authenticator.objects.filter(
+                user_id=user.pk, type=Authenticator.Type.RECOVERY_CODES
+            ).exists(),
         },
     )

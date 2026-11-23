@@ -52,10 +52,21 @@ def workspace(request):
         "account_session": getattr(request, "account_session", None),
         # The session must add a second sign-in factor before anything else (accounts.enrolment):
         # the shell leaves out the navigation it cannot use yet.
-        "second_factor_pending": getattr(request, "vr_second_factor_pending", False),
+        "second_factor_pending": _second_factor_pending(request),
         # The page that sign-in was opening is still kept for Continue after the factor is added.
         "second_factor_continue": _second_factor_continue(request),
     }
+
+
+def _second_factor_pending(request):
+    """As accounts.enrolment decided when the request reached its view; for a page drawn without
+    one (Not found), decided here."""
+    decided = getattr(request, "vr_second_factor_pending", False)
+    if decided is None:
+        from accounts.enrolment import pending
+
+        decided = request.vr_second_factor_pending = pending(request)
+    return decided
 
 
 def _second_factor_continue(request):

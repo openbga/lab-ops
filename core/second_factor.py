@@ -23,18 +23,15 @@ is part of the proposed changes to the HIPAA Security Rule (90 FR 898, proposed 
 in force. Which accounts must have a second factor is the laboratory's decision.
 """
 
-from functools import reduce
-from operator import or_
-
+from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
-from django.db.models import BooleanField, Count, Exists, ExpressionWrapper, OuterRef, Q
 
 from accounts.acting import hold_actor
-from accounts.roles import OPERATIONAL_ROLES, ROLE_LABELS, ROLES, effective_roles, has_role
+from accounts.roles import OPERATIONAL_ROLES, ROLE_LABELS, ROLES, expand_roles, has_role
 
 from .audit import record_event
 from .models import AuditEvent, SecondFactorRule
@@ -81,93 +78,145 @@ def requires_any(current):
     return any(values(current)[name] for name in FIELDS)
 
 
-def _role_names(roles):
-    """The role group names that give any of `roles` as effective_roles counts them: the roles
-    themselves, and the admin role when an operational role is among them."""
-    names = set(roles)
-    if names & OPERATIONAL_ROLES:
-        names.add("admin")
-    return sorted(names)
+def _tables():
+    from django.contrib.auth.models import Group
+    from django.contrib.contenttypes.models import ContentType
 
-
-def _has_capability():
-    """Exists() of the patient-information grant to the account or to one of its groups."""
-    grant = Permission.objects.filter(
-        codename=PATIENT_CAPABILITY, content_type__app_label="accounts"
-    )
     User = get_user_model()
-    direct = User.user_permissions.through.objects.filter(
-        user_id=OuterRef("pk"), permission__in=grant
-    )
-    through_group = User.groups.through.objects.filter(
-        user_id=OuterRef("pk"), group__permissions__in=grant
-    )
-    return Exists(direct) | Exists(through_group)
-
-
-def _parts(current):
-    """{part: Q of the active accounts it covers} for each part the rule turns on."""
-    User = get_user_model()
-    staff = Q(client_id__isnull=True)
-    chosen = values(current)
-    parts = {}
-    if chosen["staff"]:
-        parts["staff"] = staff
-    if chosen["roles"]:
-        held = User.groups.through.objects.filter(
-            user_id=OuterRef("pk"), group__name__in=_role_names(chosen["roles"])
+    quote = connection.ops.quote_name
+    return {
+        name: quote(model._meta.db_table)
+        for name, model in (
+            ("user", User),
+            ("user_groups", User.groups.through),
+            ("user_permissions", User.user_permissions.through),
+            ("group", Group),
+            ("group_permissions", Group.permissions.through),
+            ("permission", Permission),
+            ("content_type", ContentType),
+            ("authenticator", Authenticator),
+            ("rule", SecondFactorRule),
         )
-        parts["roles"] = staff & Exists(held)
-    if chosen["patient_information"]:
-        parts["patient_information"] = staff & _has_capability()
-    if chosen["admin_console"]:
-        parts["admin_console"] = Q(is_staff=True)
-    if chosen["portal"]:
-        parts["portal"] = Q(client_id__isnull=False)
-    return parts
+    }
 
 
-def covered(current):
-    """Q of the active accounts the rule requires a second factor of, or None when it requires
-    none."""
-    parts = list(_parts(current).values())
-    if not parts:
-        return None
-    return Q(is_active=True) & reduce(or_, parts)
+def _rule_source(current):
+    """(SQL of a one-row relation `r` holding the rule's parts, its parameters): the saved row as
+    the statement reads it, or `current`'s values when given (a rule read earlier in the same
+    snapshot, or one not saved). No saved row: no row, so nothing is covered."""
+    tables = _tables()
+    if current is None:
+        return (
+            "(SELECT staff, roles, patient_information, admin_console, portal "
+            f"FROM {tables['rule']} WHERE id = 1)",
+            [],
+        )
+    chosen = values(current)
+    return (
+        "(SELECT %s::boolean AS staff, %s::varchar[] AS roles, "
+        "%s::boolean AS patient_information, %s::boolean AS admin_console, %s::boolean AS portal)",
+        [
+            chosen["staff"],
+            chosen["roles"],
+            chosen["patient_information"],
+            chosen["admin_console"],
+            chosen["portal"],
+        ],
+    )
+
+
+def _parts_sql():
+    """[(part, SQL condition on account `u` and rule `r`, parameters)] in FIELDS order. Roles as
+    effective_roles counts them (the admin role does the work of the operational ones); the
+    patient-information grant on the account or any of its groups, as has_capability counts it;
+    staff status as the admin console checks it."""
+    t = _tables()
+    held = (
+        f"SELECT 1 FROM {t['user_groups']} ug JOIN {t['group']} g ON g.id = ug.group_id "
+        "WHERE ug.user_id = u.id AND (g.name = ANY(r.roles) "
+        "OR (g.name = 'admin' AND r.roles && %s::varchar[]))"
+    )
+    grant = (
+        f"SELECT 1 FROM {t['permission']} p JOIN {t['content_type']} ct "
+        "ON ct.id = p.content_type_id WHERE p.codename = %s AND ct.app_label = 'accounts' AND ("
+        f"p.id IN (SELECT up.permission_id FROM {t['user_permissions']} up "
+        "WHERE up.user_id = u.id) "
+        f"OR p.id IN (SELECT gp.permission_id FROM {t['group_permissions']} gp "
+        f"JOIN {t['user_groups']} ug2 ON ug2.group_id = gp.group_id WHERE ug2.user_id = u.id))"
+    )
+    return [
+        ("staff", "(r.staff AND u.client_id IS NULL)", []),
+        ("roles", f"(u.client_id IS NULL AND EXISTS ({held}))", [sorted(OPERATIONAL_ROLES)]),
+        (
+            "patient_information",
+            f"(r.patient_information AND u.client_id IS NULL AND EXISTS ({grant}))",
+            [PATIENT_CAPABILITY],
+        ),
+        ("admin_console", "(r.admin_console AND u.is_staff)", []),
+        ("portal", "(r.portal AND u.client_id IS NOT NULL)", []),
+    ]
+
+
+def _covered_sql():
+    """(SQL: the rule `r` covers the account `u`, its parameters)."""
+    parts = _parts_sql()
+    return (
+        "(" + " OR ".join(sql for _name, sql, _params in parts) + ")",
+        [param for _name, _sql, params in parts for param in params],
+    )
 
 
 def requires(user, current=None):
-    """Whether the rule (as it stands, unless one is given) requires a second factor of this
-    account, as the account stands in the database now: one statement."""
-    current = current if current is not None else rule()
-    condition = covered(current)
-    if condition is None or user is None or user.pk is None:
+    """Whether the rule requires a second factor of this active account: the rule as it stands
+    (or `current`'s values) and the account as it stands, read in one statement."""
+    if user is None or user.pk is None:
         return False
-    return get_user_model().objects.filter(condition, pk=user.pk).exists()
+    t = _tables()
+    source, source_params = _rule_source(current)
+    condition, params = _covered_sql()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT EXISTS (SELECT 1 FROM {t['user']} u, {source} r "
+            f"WHERE u.id = %s AND u.is_active AND {condition})",
+            [*source_params, user.pk, *params],
+        )
+        return bool(cursor.fetchone()[0])
 
 
 def reasons(user, current=None):
-    """Which parts of the rule cover this account now, in page order, as the setup page names
-    them ("the Supervisor role", "client portal accounts"): one statement. For the roles part, the
-    chosen roles the account holds as effective_roles counts them."""
-    current = current if current is not None else rule()
-    parts = _parts(current)
-    if not parts or user is None or user.pk is None:
+    """Which parts of the rule cover this active account now, in page order, as the setup page
+    names them ("the Supervisor role", "client portal accounts"): the rule, the account, its roles
+    and grants read in one statement. For the roles part, the chosen roles the account holds as
+    effective_roles counts them."""
+    if user is None or user.pk is None:
         return []
-    covers = {
-        f"covers_{name}": ExpressionWrapper(condition, output_field=BooleanField())
-        for name, condition in parts.items()
-    }
-    row = get_user_model().objects.filter(pk=user.pk, is_active=True).values(**covers).first()
+    t = _tables()
+    parts = _parts_sql()
+    source, source_params = _rule_source(current)
+    columns = ", ".join(sql for _name, sql, _params in parts)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT {columns}, r.roles, ARRAY(SELECT g.name FROM {t['user_groups']} ug "
+            f"JOIN {t['group']} g ON g.id = ug.group_id WHERE ug.user_id = u.id) "
+            f"FROM {t['user']} u, {source} r WHERE u.id = %s AND u.is_active",
+            [
+                *[param for _name, _sql, params in parts for param in params],
+                *source_params,
+                user.pk,
+            ],
+        )
+        row = cursor.fetchone()
     if row is None:
         return []
+    covers = dict(zip([name for name, _sql, _params in parts], row[: len(parts)], strict=True))
+    chosen, group_names = row[len(parts)] or [], row[len(parts) + 1] or []
+    held = expand_roles(group_names)
     found = []
     for name in FIELDS:
-        if not row.get(f"covers_{name}"):
+        if not covers.get(name):
             continue
         if name == "roles":
-            held = effective_roles(user)
-            labels = [ROLE_LABELS[role] for role in values(current)["roles"] if role in held]
+            labels = [ROLE_LABELS[role] for role in ROLES if role in chosen and role in held]
             found.append(f"the {_either(labels)} role" if labels else "staff with chosen roles")
         else:
             found.append(REASON_LABELS[name])
@@ -187,9 +236,13 @@ def _either(names):
 
 
 def second_factor_types():
-    """The authenticator types that are a second factor. Recovery codes come with an authenticator
-    app and stand in for it when it is lost; on their own they are not counted."""
-    return [kind for kind in Authenticator.Type.values if kind != Authenticator.Type.RECOVERY_CODES]
+    """The authenticator types that are a second factor: those this deployment offers
+    (MFA_SUPPORTED_TYPES), less recovery codes, which come with an authenticator app and stand in
+    for it when it is lost; on their own they are not counted. A stored credential of a type the
+    deployment no longer offers is not counted either."""
+    return [
+        kind for kind in mfa_settings.SUPPORTED_TYPES if kind != Authenticator.Type.RECOVERY_CODES
+    ]
 
 
 def has_second_factor(user):
@@ -197,22 +250,20 @@ def has_second_factor(user):
 
 
 def counts(current=None):
-    """(accounts the rule covers, of which without a second factor), in one statement over the
-    active accounts. (0, 0) when the rule requires nothing."""
-    current = current if current is not None else rule()
-    condition = covered(current)
-    if condition is None:
-        return 0, 0
-    enrolled = Exists(
-        Authenticator.objects.filter(user=OuterRef("pk"), type__in=second_factor_types())
-    )
-    totals = (
-        get_user_model()
-        .objects.filter(condition)
-        .annotate(enrolled=enrolled)
-        .aggregate(covered=Count("pk"), missing=Count("pk", filter=Q(enrolled=False)))
-    )
-    return totals["covered"], totals["missing"]
+    """(active accounts the rule covers, of which without a second factor), in one statement: the
+    rule as it stands (or `current`'s values) and the accounts. (0, 0) when it covers none."""
+    t = _tables()
+    source, source_params = _rule_source(current)
+    condition, params = _covered_sql()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*), count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM "
+            f"{t['authenticator']} a WHERE a.user_id = u.id AND a.type = ANY(%s))) "
+            f"FROM {t['user']} u, {source} r WHERE u.is_active AND {condition}",
+            [second_factor_types(), *source_params, *params],
+        )
+        covered, missing = cursor.fetchone()
+    return covered, missing
 
 
 def _clean(new):
@@ -220,6 +271,9 @@ def _clean(new):
     one. Returns them as values() would."""
     errors = {}
     cleaned = {}
+    unknown_parts = sorted(set(new) - set(FIELDS))
+    if unknown_parts:
+        errors["__all__"] = "Unknown parts of the rule: " + ", ".join(unknown_parts) + "."
     for name in FLAGS:
         value = new.get(name, False)
         if not isinstance(value, bool):

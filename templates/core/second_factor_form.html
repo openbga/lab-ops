@@ -10,7 +10,7 @@ Security settings.
 {% block breadcrumbs %}{% url 'security-settings' as security_url %}{% breadcrumbs section="Security settings" section_url=security_url %}{% endblock %}
 {% block content %}
 {% form_page form=form cancel_url=cancel_url submit_label="Save changes" note="Changes are audited with before and after values." %}
-  <p class="vr-form-note">Applies at each account's next sign-in: an account the rule covers that has no second factor then sets up an authenticator app before anything else. Sessions already open are not interrupted.</p>
+  <p class="vr-form-note">Applies at each account's next sign-in: an account the rule covers that has no second factor then sets up an authenticator app before anything else. Sessions it did not cover at sign-in are not interrupted.</p>
   {% form_sections form=form %}
 {% endform_page %}
 {% endblock %}

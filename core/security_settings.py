@@ -330,10 +330,12 @@ def _either(names):
 def _second_factor_counts():
     """(staff with a second factor, active staff, portal with one, active portal), counted in one
     statement so the four numbers describe one reading of the accounts."""
+    from .second_factor import second_factor_types
+
+    # The types this deployment offers, less recovery codes (core.second_factor): a credential of
+    # a type it no longer offers is not counted.
     enrolled = Exists(
-        Authenticator.objects.filter(user=OuterRef("pk")).exclude(
-            type=Authenticator.Type.RECOVERY_CODES
-        )
+        Authenticator.objects.filter(user=OuterRef("pk"), type__in=second_factor_types())
     )
     counts = (
         get_user_model()

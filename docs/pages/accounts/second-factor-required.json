@@ -12,7 +12,7 @@
       "steps": [
         "Select [[Set up authenticator app]] and enter your password again when asked.",
         "Scan the code shown with your authenticator app and type the six-digit code it gives, then select [[Activate]].",
-        "Save the recovery codes shown next somewhere private, then select [[Continue]]."
+        "Save the new recovery codes somewhere private, then select [[Continue]]. If you already had codes, they stay and Two-factor authentication opens instead."
       ]
     },
     {
@@ -24,7 +24,7 @@
   ],
   "good_to_know": [
     "Until your account has an authenticator app, every other page, form and the admin console send you back here.",
-    "Continue takes you to the page you were opening when you signed in, or to the start page.",
+    "Continue takes you to the page you were opening when you signed in, or to the start page, and then forgets it.",
     "A shared demonstration account cannot add one. Sign out and use another account.",
     "If you lose your phone later, a recovery code signs you in once; an administrator can remove the old app so you can add a new one."
   ],
@@ -41,7 +41,7 @@
       "items": [
         {
           "label": "Set up authenticator app",
-          "description": "Opens the authenticator app setup. It asks for your password again first unless you confirmed it in the last 5 minutes. Not shown to a shared demonstration account."
+          "description": "Opens the authenticator app setup. It asks you to confirm who you are first (your password, or a recovery code for an account without one) unless you did so in the last 5 minutes. Not shown to a shared demonstration account."
         },
         {
           "label": "Sign out",
@@ -49,15 +49,15 @@
         },
         {
           "label": "Continue",
-          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the page you were opening when you signed in, once, or to the start page."
+          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the page you were opening when you signed in, or to the start page, and then forgets it. Two tabs choosing it at the same moment can both go there."
         }
       ]
     },
     {
       "title": "What this session can open",
       "paragraphs": [
-        "While your account has no authenticator app, this session opens only this page, Two-factor authentication, the app setup, the password confirmation it asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find and What's new are not shown. Recovery codes alone are not a second factor.",
-        "Once the app is set up, everything your roles allow opens again. If you remove the app in a session that the rule covered at sign-in, that session comes back here until you add one. If the rule stops covering your account (a role removed, the rule changed), this session goes on without one."
+        "While your account has no authenticator app, this session opens only this page, Two-factor authentication, the app setup, the confirmation it asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find, What's new and the other account pages are not shown. Recovery codes alone are not a second factor.",
+        "Once the app is set up, everything your roles allow opens again. If the app is removed later, every session of yours the rule covered at sign-in comes back here at its next request until you add one. If the rule stops covering your account (a role removed, the rule changed), this session goes on without one for as long as that lasts."
       ]
     }
   ],

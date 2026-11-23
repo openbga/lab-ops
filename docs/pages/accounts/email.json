@@ -62,14 +62,14 @@
         },
         {
           "label": "Add Email",
-          "description": "Adds an unverified address and requests a verification link. MFA currently blocks adding email addresses through this form while enabled, because link verification permits an unverified state. No maximum address count is set in this deployment; the configured-limit conditional does not hide the add form by default."
+          "description": "Adds an unverified address and requests a verification link. No maximum address count is set in this deployment; the configured-limit conditional does not hide the add form by default."
         }
       ]
     },
     {
       "title": "Empty state and rules",
       "paragraphs": [
-        "With no addresses, the page warns that an email is needed for notifications and password reset, and offers the add form. Verification is optional for ordinary login. MFA enrollment is separately blocked if any associated email record is unverified. Existing address actions are limited to the signed-in account; they do not modify client contacts. The committed configuration does not require separate recent reauthentication for ordinary email management."
+        "With no addresses, the page warns that an email is needed for notifications and password reset, and offers the add form. Verification is optional for ordinary login. An unverified address does not block adding an authenticator app in this deployment. Existing address actions are limited to the signed-in account; they do not modify client contacts. The committed configuration does not require separate recent reauthentication for ordinary email management."
       ]
     }
   ],

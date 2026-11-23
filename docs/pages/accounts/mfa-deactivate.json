@@ -40,7 +40,7 @@
       "title": "Eligibility and navigation",
       "paragraphs": [
         "Requires an existing TOTP record, sign-in and recent reauthentication, normally within five minutes. This form has no editable fields, Back button or Cancel button. Leave via normal account navigation without submitting to keep the app active. Removing TOTP here does not remove laboratory roles or change the password. The normal flow performs recovery-code cleanup; direct maintenance deletion has different behavior.",
-        "Removing the app is always allowed. When the laboratory's second sign-in factor rule covered your account as this session signed in, the session is sent to Set up a second sign-in factor at its next request and opens nothing else until a new app is active. Other sessions of your account are held to the rule from their next sign-in."
+        "Removing the app is always allowed. Every session of your account that the laboratory's second sign-in factor rule covered as it signed in, this one and any other, is sent to Set up a second sign-in factor at its next request and opens nothing else until a new app is active. Sessions the rule did not cover at sign-in are held to it from their next sign-in."
       ]
     }
   ],

@@ -140,6 +140,7 @@ def test_a_portal_account_in_the_admin_group_cannot_save_it():
         ({"roles": ["owner"]}, "roles"),
         ({"roles": "admin"}, "roles"),
         ({"staff": "yes"}, "staff"),
+        ({"staff_accounts": True}, "__all__"),
     ],
 )
 def test_unknown_parts_are_refused(new, field):

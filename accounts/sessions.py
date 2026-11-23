@@ -672,6 +672,11 @@ def start_session(sender, request, user, **kwargs):
             second_factor_required=requires(user),
         )
     session[SESSION_KEY] = str(record.pk)
+    # A new sign-in remembers its own page for Continue after a second factor is added
+    # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.
+    from .enrolment import NEXT_KEY
+
+    session.pop(NEXT_KEY, None)
 
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_account_session_end")
