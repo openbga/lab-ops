@@ -10,7 +10,7 @@ from urllib.parse import quote
 from allauth.account.signals import login_code_rejected
 from allauth.mfa.signals import authentication_failed
 from django.contrib.auth import get_user_model
-from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
+from django.contrib.auth.signals import user_logged_out, user_login_failed
 from django.db.models import Q
 from django.dispatch import receiver
 
@@ -22,14 +22,13 @@ def _log(event, user, request):
     logger.info("%s user=%s", event, username, extra={"request": request})
 
 
-@receiver(user_logged_in, dispatch_uid="lab_ops_signin_success")
-def log_sign_in(sender, request, user, **kwargs):
-    # Django emits this only after all required authentication stages have completed. A sign-in
-    # whose session started ended (accounts.compromised: the password alone, while it is marked as
-    # compromised) did not complete: accounts.sessions.start_session, which runs first (accounts.
-    # apps imports it first), logs it as signout.password_compromised instead.
-    if getattr(request, "vr_sign_in_refused", False):
-        return
+def log_sign_in(request, user):
+    """A completed sign-in, logged by accounts.sessions.start_session (Django's user_logged_in,
+    sent only after all required authentication stages have completed) once it has decided the
+    sign-in's session: one whose session starts ended (accounts.compromised: the password alone,
+    while it is marked as compromised) did not complete, and is logged as
+    signout.password_compromised instead. Logged there rather than by a receiver of its own, so
+    the decision is made before, whatever order the receivers run in."""
     _log("signin.success", user, request)
 
 

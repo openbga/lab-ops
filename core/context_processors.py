@@ -69,9 +69,11 @@ def _second_factor_pending(request):
     one (Not found), decided here."""
     decided = getattr(request, "vr_second_factor_pending", False)
     if decided is None:
-        from accounts.enrolment import pending
+        from accounts.enrolment import holds
 
-        decided = request.vr_second_factor_pending = pending(request)
+        # Both holds in one reading, as the middleware reads them (accounts.enrolment.holds).
+        decided, request.vr_password_marked = holds(getattr(request, "account_session", None))
+        request.vr_second_factor_pending = decided
     return decided
 
 
@@ -80,9 +82,12 @@ def _password_change_pending(request):
     without one (Not found), decided here."""
     decided = getattr(request, "vr_password_change_pending", False)
     if decided is None:
-        from accounts.compromised import pending
+        marked = getattr(request, "vr_password_marked", None)
+        if marked is None:
+            from accounts.compromised import pending
 
-        decided = request.vr_password_change_pending = pending(request)
+            marked = pending(request)
+        decided = request.vr_password_change_pending = marked
     return decided
 
 

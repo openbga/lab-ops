@@ -33,13 +33,43 @@ class User(AbstractUser):
         "email addresses or two-factor settings.",
     )
 
+    # A password set (set_password) and not yet written, carried by this instance across saves of
+    # other columns until a save writes it (see save).
+    _vr_staged_password = None
+
+    def set_unusable_password(self):
+        # No password is chosen any more: one set before and not yet written is dropped with it.
+        super().set_unusable_password()
+        self._password = None
+        self._vr_staged_password = None
+
     def save(self, *args, **kwargs):
-        update_fields = kwargs.get("update_fields")
+        # The names to save, read once and passed on as a list (an iterable can be read only
+        # once), also in Django 5.2's deprecated positional form (force_insert, force_update,
+        # using, update_fields), which is passed on as it came so that Django still warns of it.
+        if len(args) > 3:
+            update_fields = None if args[3] is None else list(args[3])
+            args = (*args[:3], update_fields, *args[4:])
+        else:
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = list(kwargs["update_fields"])
+            update_fields = kwargs.get("update_fields")
+        writes_password = update_fields is None or "password" in update_fields
+        # A password set but not written by this save (one naming other columns only) stays
+        # chosen for the save that writes it. Django would forget it after this save, having told
+        # the password validators of a change that is not written; it is carried here instead and
+        # given back to Django for the save that writes it, which tells them once.
+        if not writes_password and self._password is not None:
+            self._vr_staged_password, self._password = self._password, None
+        elif writes_password and self._password is None and self._vr_staged_password is not None:
+            self._password = self._vr_staged_password
+        if writes_password:
+            self._vr_staged_password = None
         # One transaction for the account and what its save signals change with it (releasing
         # a deactivated account's assignments, resetting portal access on a move), so they
         # succeed or fail together on every path, inside or outside a caller's transaction.
         with transaction.atomic():
-            if self.pk is not None and _may_change_access(kwargs.get("update_fields")):
+            if self.pk is not None and _may_change_access(update_fields):
                 # The access gate, before the save: a change the person has under way holds it
                 # until that change commits (accounts.acting), and the save waits for it. Then
                 # the row FOR NO KEY UPDATE, which an assignment to this account also takes
@@ -71,19 +101,14 @@ class User(AbstractUser):
             # A password chosen (set_password, which Django's own hash upgrade at sign-in does not
             # count as one) lifts a mark of the account's password as compromised, with this save
             # (accounts.compromised). Read before the save: Django forgets it once saved.
-            chosen = new_password and self._password is not None
+            chosen = new_password and self._password is not None and self.has_usable_password()
             # Before the account's row is updated: ending a session waits for a change of the
             # person's under way that holds it (accounts.sessions.hold_acting_session), and that
             # change may still take the account's row (an assignment to the person) after it.
             self._end_sessions(update_fields, new_password=new_password)
             if chosen:
                 self._check_chosen_while_marked()
-            # A password set but not written by this save (one naming other columns only) stays
-            # chosen for the save that writes it: Django forgets it after any save.
-            staged = self._password if not new_password else None
             super().save(*args, **kwargs)
-            if staged is not None and update_fields is not None and "password" not in update_fields:
-                self._password = staged
             if chosen:
                 CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
                     lifted_at=Now()
@@ -96,12 +121,17 @@ class User(AbstractUser):
         mark ended the session would otherwise lift the mark for whoever held the session. Read
         after the locks a mark also takes (the account's session-ending lock for a password saved
         alone, the account's row for a whole save), so a mark either committed before this reading
-        or waits for this save. Other paths (a reset link, a superuser setting it, a command) act
-        through no session of the account and are not affected; Choose a new password holds its
-        session already (accounts.compromised.choose_new_password)."""
+        or waits for this save. A reset through an emailed link proves the account's address
+        whatever session the browser has (accounts.sessions.RESETTING_VIEWS), and other paths (a
+        superuser setting it, a command) act through no session of the account: neither is
+        affected. Choose a new password holds its session already
+        (accounts.compromised.choose_new_password)."""
+        from .sessions import RESETTING_VIEWS, SessionEnded, _view, hold_acting_session
+
+        if _view.get() in RESETTING_VIEWS:
+            return
         if not CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).exists():
             return
-        from .sessions import SessionEnded, hold_acting_session
 
         if not hold_acting_session(self.pk):
             raise SessionEnded

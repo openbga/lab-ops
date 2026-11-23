@@ -81,7 +81,7 @@
         },
         {
           "label": "Compromised password",
-          "description": "Change only; read only. Whether the account's password is marked as compromised now: when and by whom, while the person must choose a new one, or Not marked with the Mark as compromised link, which opens a page to mark it with a reason. Shows why instead for a shared demonstration account or an account without a password; the Scheduled jobs account shows a dash. Any new password lifts the mark."
+          "description": "Change only; read only. Whether the account's password is marked as compromised now: when and by whom, while the person must choose a new one, or Not marked with the Mark as compromised link, which opens a page to mark it with a reason. Shows why instead on your own account (change your own password instead), for a shared demonstration account or for an account without a password; the Scheduled jobs account shows a dash. Any new password lifts the mark."
         },
         {
           "label": "First name / Last name",

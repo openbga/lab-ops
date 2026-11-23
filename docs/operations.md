@@ -106,9 +106,11 @@ stays with the laboratory and its host.
 A superuser marks a password as compromised in the admin console. Only server processes running a
 release that has this feature know about marks: while a deployment is still replacing processes of
 an earlier release, or after rolling back to one, a process of the earlier release lets the marked
-password sign in on its own, and a password set there does not lift the mark (set it again once the
-deployment has finished). Mark passwords once every process runs the new release, and check open
-marks after a rollback. Reversing the `accounts` migration 0008 deletes every mark, open or lifted,
+password sign in on its own and serves that session, and a password set there does not lift the
+mark (set it again once the deployment has finished). A process of this release ends such a session
+at its next request there. Mark passwords once every process runs the new release, and check open
+marks after a rollback; for an urgent case while processes are being replaced, also clear Active on
+the account until the deployment has finished, which every release refuses at sign-in. Reversing the `accounts` migration 0008 deletes every mark, open or lifted,
 with the copies of the marked passwords' stored hashes; the audit events stay. Removing a password
 hasher from `PASSWORD_HASHERS` that a mark's stored hash uses stops that password being refused as
 a new one; Security settings then reports the setting as changed.

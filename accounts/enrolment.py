@@ -175,6 +175,14 @@ class EnrolmentMiddleware:
         # Both holds in one reading: whether the password is marked is left for
         # accounts.compromised.PasswordChangeMiddleware, which comes next.
         waiting_now, marked = holds(getattr(request, "account_session", None))
+        if marked:
+            from .compromised import _end_unproved, proved_beyond_password
+
+            if not proved_beyond_password(request, request.user):
+                # A marked account's session that proved only the password ends before either
+                # hold applies (accounts.compromised.PasswordChangeMiddleware).
+                request.vr_second_factor_pending = request.vr_password_marked = False
+                return _end_unproved(request)
         request.vr_second_factor_pending = waiting_now
         request.vr_password_marked = marked
         if not request.vr_second_factor_pending:

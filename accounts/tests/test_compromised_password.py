@@ -700,3 +700,36 @@ def test_the_notice_fits_a_deployment_without_email(owner, person, settings):
     assert any("sends no email" in t and "Forgot your password?" not in t for t in text)
     one.get("/")
     assert notices(one) == [sessions.COMPROMISED_WITHOUT_MAIL]
+
+
+@pytest.mark.parametrize("enrolment", [False, True])
+def test_a_password_only_session_an_earlier_release_opened_is_ended_at_its_next_request(
+    owner, person, enrolment
+):
+    """A process of an earlier release knows no marks: its sign-in with the password alone opens
+    the session (simulated by reopening the row this release started ended). This release ends it
+    at its next request, before either hold, so it can neither choose the new password nor add a
+    second factor first."""
+    from core.models import SecondFactorRule
+
+    if enrolment:
+        SecondFactorRule.objects.update_or_create(pk=1, defaults={"roles": ["client_services"]})
+    mark(owner, person)
+    first = None
+    for path in (NEW_PAGE, "/account/second-factor/", reverse("mfa_activate_totp"), "/"):
+        browser = signed_in(person)
+        row = AccountSession.objects.filter(pk=browser.session[sessions.SESSION_KEY])
+        row.update(ended_at=None, ending="")
+        response = browser.get(path)
+        assert response.status_code == 302
+        assert response["Location"].startswith(reverse("account_login")), path
+        assert row.get().ending == Ending.PASSWORD_COMPROMISED
+        first = first or browser
+    assert notices(first) == [sessions.ENDED_BY_MESSAGES[Ending.PASSWORD_COMPROMISED]]
+    browser = signed_in(person)
+    AccountSession.objects.filter(pk=browser.session[sessions.SESSION_KEY]).update(
+        ended_at=None, ending=""
+    )
+    choose(browser, person, NEW_PASSWORD)
+    assert not User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
+    assert CompromisedPassword.objects.get(user=person).lifted_at is None

@@ -645,8 +645,6 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 
         if user.pk is None:
             return "—"
-        if user.pk == getattr(user, "_vr_admin_viewer", None):
-            return REFUSALS["own"]
         mark = open_mark(user.pk)
         if mark is not None:
             when = formats.localize(timezone.localtime(mark.marked_at))
@@ -654,6 +652,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 f"Marked on {when} by {mark.marked_by.get_username()}. The person must choose a "
                 "new password before anything else; any new password lifts the mark."
             )
+        if user.pk == getattr(user, "_vr_admin_viewer", None):
+            return REFUSALS["own"]
         refused = refusal(user, None)
         if refused == REFUSALS["system"]:
             return "—"
@@ -687,6 +687,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     def mark_compromised_view(self, request, id):
         """Mark the account's password as compromised, with a reason. Decided and recorded by the
         service, from the account as it stands when it is saved (accounts.compromised)."""
+        from allauth.account import app_settings as account_settings
+
         from core.second_factor import has_second_factor
         from jobs.outbox import mail_enabled
 
@@ -705,6 +707,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             raise Http404("No such account.")
         if not self.has_change_permission(request, user) or not can_mark(request.user):
             raise PermissionDenied
+        sign_in_codes = mail_enabled() and account_settings.LOGIN_BY_CODE_ENABLED
         if request.method == "POST":
             form = MarkCompromisedForm(request.POST)
         else:
@@ -736,11 +739,15 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         "code: they will be asked to choose a new password."
                     )
                 elif mail_enabled():
+                    by_code = (
+                        "or to sign in with a code emailed to them and choose a new password, "
+                        if sign_in_codes
+                        else ""
+                    )
                     then = (
                         "The account has no second factor, so its password no longer signs it "
                         "in. Tell the person to use Forgot your password? on the sign-in page, "
-                        "or to sign in with a code emailed to them and choose a new password, or "
-                        "set a new password for them on the account's password page."
+                        f"{by_code}or set a new password for them on the account's password page."
                     )
                 else:
                     then = (
@@ -764,6 +771,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             "form": form,
             "refused": refused,
             "second_factor": has_second_factor(user),
+            "sign_in_codes": sign_in_codes,
             "open_count": open_count(user),
         }
         request.current_app = self.admin_site.name

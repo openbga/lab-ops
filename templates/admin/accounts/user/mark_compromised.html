@@ -8,7 +8,7 @@ person must choose a new password before anything else (accounts.compromised). C
 account's password cannot be marked now, or None: then no form is offered), second_factor (the
 account has an authenticator now: what the person must do next depends on it), open_count (its
 sessions open when the page was drawn, counted only), outbound_email_enabled (the deployment sends
-email, so Forgot your password? works).
+email, so Forgot your password? works), sign_in_codes (emailed sign-in codes are offered too).
 {% endcomment %}
 {% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}{% endblock %}
 {% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
@@ -35,7 +35,7 @@ email, so Forgot your password? works).
 <ul>
 <li>ends every session of the account open when you save ({% if open_count %}{{ open_count }} session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now{% else %}none is open now{% endif %}), and anything typed there and not saved is lost;</li>
 <li>stops the password signing the account in on its own;</li>
-{% if second_factor %}<li>the account has an authenticator app, so the person signs in with their password and a code and must then choose a new password before anything else;</li>{% else %}<li>the account has no second factor, so its password alone no longer signs it in: {% if outbound_email_enabled %}the person chooses a new one through Forgot your password? on the sign-in page, or signs in with a code emailed to them and is asked for one there, or{% else %}this deployment sends no email, so{% endif %} you set one on the account's password page;</li>{% endif %}
+{% if second_factor %}<li>the account has an authenticator app, so the person signs in with their password and a code and must then choose a new password before anything else;</li>{% else %}<li>the account has no second factor, so its password alone no longer signs it in: {% if outbound_email_enabled %}the person chooses a new one through Forgot your password? on the sign-in page, {% if sign_in_codes %}or signs in with a code emailed to them and is asked for one there, {% endif %}or{% else %}this deployment sends no email, so{% endif %} you set one on the account's password page;</li>{% endif %}
 <li>refuses the marked password as the new one. Any new password lifts the mark.</li>
 </ul>
 <p>The person is not emailed: tell them yourself.</p>

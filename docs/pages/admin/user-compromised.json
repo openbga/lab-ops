@@ -18,7 +18,7 @@
       "title": "Tell the person what to do",
       "steps": [
         "With an authenticator app: they sign in with their password and a code, and choose a new password.",
-        "Without one: they use Forgot your password? on the sign-in page, where the laboratory sends email, or you set a new password on the account's password page."
+        "Without one: they use Forgot your password?, or sign in with an emailed code where offered, and choose one; or you set a new password on the account's password page."
       ]
     }
   ],
@@ -76,7 +76,7 @@
         "Any new password lifts the mark: one the person saves on Choose a new password, one set through an emailed reset link, or one you set on the account's password page. The marked password is refused as the new one, then and later. Signing in again with the old password after an upgrade of how passwords are stored does not lift it.",
         "The mark is kept after it is lifted, with when it was made, by whom, the reason and when it was lifted. A copy of the stored form of the marked password is kept with it so that it can be refused; it is never shown, logged or put in the audit history. The account's page shows whether the password is marked now. A password can be marked again after a new one is chosen.",
         "Marking takes no access away: roles and capabilities stay. To stop the person signing in at all, clear Active on the account's page.",
-        "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark, so mark passwords once the deployment has finished."
+        "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark; a process of this release ends such a session at its next request. Mark passwords once the deployment has finished."
       ]
     }
   ],

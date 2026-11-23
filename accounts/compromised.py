@@ -21,8 +21,11 @@ under the account's session-ending lock), so its browser is signed out at its ne
 notice saying what to do. A sign-in that also proved a second factor or a code emailed to the
 account's address (allauth's record of the sign-in's steps, PROOFS) opens a session that reaches
 only Choose a new password (PasswordChangeMiddleware), and the sign-in out and the session's own
-status, until a new password is saved. A session that must first add a second factor the
-laboratory requires (accounts.enrolment) does that first.
+status, until a new password is saved. That middleware checks the sign-in's steps again at each
+request, and ends a session of a marked account that proved only the password (one a server
+process of an earlier release opened while a deployment replaces it, or after a rollback). A
+session that must first add a second factor the laboratory requires (accounts.enrolment) does
+that first.
 
 Lifting: any password chosen for the account afterwards lifts the mark in the same save
 (accounts.models.User.save): on Choose a new password, through an emailed reset link, or set by a
@@ -224,8 +227,9 @@ def refused_at_sign_in(request, user):
 def waiting(state):
     """Whether the signed-in session `state` (accounts.sessions.SessionState) must choose a new
     password before anything else: its account's password is marked. Every session open then was
-    ended by the mark, and one that signed in afterwards with only the password started ended, so
-    an open session of a marked account proved more than the password."""
+    ended by the mark, and one that signed in afterwards with only the password started ended; a
+    session a process of an earlier release opened with the password alone is ended by
+    PasswordChangeMiddleware, which checks the sign-in's steps again at each request."""
     return state is not None and is_marked(state.user_id)
 
 
@@ -250,19 +254,43 @@ class PasswordChangeMiddleware:
     def process_view(self, request, view_func, view_args, view_kwargs):
         from .enrolment import _refusal
 
-        if getattr(request, "vr_second_factor_pending", False):
-            request.vr_password_change_pending = False
-            return None
         # Read with the second factor's hold, in the same statement (accounts.enrolment.holds);
         # read here only where that middleware did not run.
         marked = getattr(request, "vr_password_marked", None)
-        request.vr_password_change_pending = pending(request) if marked is None else marked
+        if marked is None:
+            marked = pending(request)
+        if marked and not proved_beyond_password(request, request.user):
+            # A session of a marked account whose sign-in proved only the password: one a server
+            # process of an earlier release opened (it does not know marks) while a deployment
+            # replaces it, or after a rollback. Ended here as this release ends such a sign-in,
+            # whichever hold would apply, so it can neither choose the new password nor add a
+            # second factor first.
+            request.vr_password_change_pending = False
+            return _end_unproved(request)
+        if getattr(request, "vr_second_factor_pending", False):
+            request.vr_password_change_pending = False
+            return None
+        request.vr_password_change_pending = marked
         if not request.vr_password_change_pending:
             return None
         match = request.resolver_match
         if match is not None and match.view_name in ALLOWED_VIEWS:
             return None
         return _refusal(request, NEW_PASSWORD_ROUTE, "password_change_required", NEXT_KEY)
+
+
+def _end_unproved(request):
+    """End this request's session (Ending.PASSWORD_COMPROMISED) and sign its browser out, with
+    the notice; a page opened with GET goes on as a signed-out visitor (to the sign-in page, for a
+    page that needs one), anything else is answered at once (accounts.sessions)."""
+    from .sessions import Ending, _goes_on, _sign_out, end_sessions
+    from .sessions import _refusal as signed_out
+
+    state = request.account_session
+    with transaction.atomic():
+        end_sessions(request.user, Ending.PASSWORD_COMPROMISED, session_id=state.id)
+    _sign_out(request, Ending.PASSWORD_COMPROMISED)
+    return None if _goes_on(request) else signed_out(request)
 
 
 class NewPasswordForm(PasswordGuidance, SetPasswordForm):

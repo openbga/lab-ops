@@ -211,7 +211,10 @@ the mark and is ended by it, or reads the mark: a sign-in whose steps, as allaut
 the browser's session, include no second factor or emailed code inserts its row already ended. An
 open row of a marked account has therefore proved more than the password, and
 `PasswordChangeMiddleware` (after `EnrolmentMiddleware`, which goes first) holds it to Choose a new
-password with one indexed `EXISTS` per request. `User.save` lifts the open mark in the same
+password; the mark is read in the same statement as the second factor's hold
+(`accounts.enrolment.holds`). The middleware also checks the sign-in's recorded steps again at each
+request, before either hold, and ends a marked account's session that proved only the password, as
+a process of an earlier release could have opened one. `User.save` lifts the open mark in the same
 transaction when a password is chosen (`set_password`, `_password` set), not when Django upgrades
 a hash at sign-in. Such a save for a marked account, from a request acting through a session of
 that account, first holds that session (`hold_acting_session`, after the locks a mark takes) and is

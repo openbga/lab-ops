@@ -674,7 +674,10 @@ def start_session(sender, request, user, **kwargs):
         # signed out at its next request, and the sign-in is not recorded as the last one.
         refused = refused_at_sign_in(request, user)
         if not refused:
+            from .signin_log import log_sign_in
+
             update_last_login(sender, user)
+            log_sign_in(request, user)  # the sign-in log's line, once this is decided
         if session is None:
             return
         previous = _valid_id(session.get(SESSION_KEY))
