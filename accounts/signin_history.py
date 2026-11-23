@@ -96,8 +96,13 @@ def sign_in_factor(request, user):
         method = item.get("method")
         if method in _FIRST:
             first, second = _FIRST[method], None
-        elif method == "mfa" and first is not None:
-            second = _SECOND.get(item.get("type"))
+        elif method == "mfa":
+            if first is not None:
+                second = _SECOND.get(item.get("type"))
+        else:
+            # Another way in (a password reset link that signs in, where the deployment turns it
+            # on): what it proved is not one of these, so nothing earlier describes it.
+            first, second = None, None
     if first is None:
         return ""
     value = first if second is None else f"{first}_{second}"

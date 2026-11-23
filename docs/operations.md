@@ -124,19 +124,22 @@ sign-in and sign-out to the history, and refuses to change or delete an entry. A
 the earlier release while the deployment runs shows its sign-in without what it proved. The
 history starts at the upgrade: a session open then shows only its sign-out. Failed and refused
 attempts that the earlier release's processes handle while the deployment replaces them are not
-recorded; the earlier release's sign-in log has those at sign-in, not those on re-authentication.
+recorded; the earlier release's sign-in log has the passwords and codes it refused, on
+re-authentication too, but not a second factor's code refused on re-authentication.
 Refusals by the failed sign-in limit add at most one entry a minute for each account, step and
 address, so a flood of refused attempts does not add a row each. Wrong passwords and codes that
-are checked add one entry each: at sign-in the failed sign-in limit bounds how many are checked,
-the account menu's Change password has a limit of its own (five a minute for each account), and
+are checked add one entry each: at sign-in the failed sign-in limit bounds the passwords and the
+second factor's codes checked, each emailed code allows a few attempts of its own, the account
+menu's Change password has a limit of its own (five a minute for each account), and
 the admin console's own Change password has none. Entries are kept, with
 no retention period and no setting to remove them, and an account with history cannot be deleted
 (accounts are deactivated instead). Reversing migration 0009 deletes the whole history. The
 browser and address recorded are those the request reported; the address follows
 `ALLAUTH_TRUSTED_PROXY_COUNT` or `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (see below), so behind a proxy
 without either, every entry shows the proxy's address. The sign-in log gains one line: a sign-in
-refused because its account was deactivated while it was under way is logged as
-`signout.deactivated` once that commits; its other lines are unchanged.
+whose session starts ended because its account was deactivated while it was under way is logged
+as `signout.deactivated` once that commits (a refusal before any session starts adds no line);
+its other lines are unchanged.
 
 ## Sign-in limits behind a proxy
 

@@ -657,6 +657,7 @@ def reported_by(request):
 def start_session(sender, request, user, **kwargs):
     from django.contrib.auth.models import update_last_login
 
+    from .acting import share_access
     from .compromised import refused_at_sign_in
     from .session_list import lock_endings
 
@@ -666,12 +667,19 @@ def start_session(sender, request, user, **kwargs):
     # (accounts.adapter.ClosedSignupAdapter.login). Django's login() called otherwise (the
     # application never does; tests do) proved nothing this records: blank, and whether it is
     # refused for a marked password is decided from the browser's session (accounts.compromised).
-    proved = getattr(request, "vr_sign_in_factor", None) if request is not None else None
+    # Taken once: another login() on the same request did not prove it.
+    proved = request.__dict__.pop("vr_sign_in_factor", None) if request is not None else None
     factor = proved or ""
     with transaction.atomic():
         # The account's session-ending lock first, as the person's own endings, a new password
-        # saved alone and marking a password as compromised take it, so they take turns.
+        # saved alone and marking a password as compromised take it, so they take turns. Then its
+        # access gate, shared, as a new password saved alone takes it after that lock
+        # (accounts.acting.share_access): a deactivation under way (which holds the gate, then
+        # the account's row, then ends its sessions) finishes first, and one that starts
+        # afterwards waits for this sign-in, so the two never hold what the other needs. The
+        # person's own changes under way hold the gate shared too, and are not waited for here.
         lock_endings(user.pk)
+        share_access([user.pk])
         # Then the sessions this sign-in closes: the browser's earlier session of the account
         # (signed in again) and the sessions abandoned since and past a limit. Ending one waits
         # for a change under way that holds it (hold_acting_session), which may still take the
