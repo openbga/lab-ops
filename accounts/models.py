@@ -78,7 +78,12 @@ class User(AbstractUser):
             self._end_sessions(update_fields, new_password=new_password)
             if chosen:
                 self._check_chosen_while_marked()
+            # A password set but not written by this save (one naming other columns only) stays
+            # chosen for the save that writes it: Django forgets it after any save.
+            staged = self._password if not new_password else None
             super().save(*args, **kwargs)
+            if staged is not None and update_fields is not None and "password" not in update_fields:
+                self._password = staged
             if chosen:
                 CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
                     lifted_at=Now()

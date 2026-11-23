@@ -88,6 +88,10 @@ ALREADY_MARKED = (
     "This account's password is already marked as compromised, so nothing changed. The person "
     "must choose a new one before anything else."
 )
+NOT_THE_DRAWN_MARK = (
+    "Nothing was saved: your password's mark changed after this page was opened. Choose a new "
+    "password again if you are still asked to."
+)
 CHANGED_SINCE_DRAWN = (
     "The password of this account changed after you opened this page, so it was not marked. Open "
     "the page again to mark the password it has now."
@@ -249,7 +253,10 @@ class PasswordChangeMiddleware:
         if getattr(request, "vr_second_factor_pending", False):
             request.vr_password_change_pending = False
             return None
-        request.vr_password_change_pending = pending(request)
+        # Read with the second factor's hold, in the same statement (accounts.enrolment.holds);
+        # read here only where that middleware did not run.
+        marked = getattr(request, "vr_password_marked", None)
+        request.vr_password_change_pending = pending(request) if marked is None else marked
         if not request.vr_password_change_pending:
             return None
         match = request.resolver_match
@@ -260,9 +267,11 @@ class PasswordChangeMiddleware:
 
 class NewPasswordForm(PasswordGuidance, SetPasswordForm):
     """The new password, twice, checked against the rule for the account (the marked password
-    refused too); no current password, which is the one marked. Saved by choose_new_password."""
+    refused too); no current password, which is the one marked. It carries the mark the page was
+    drawn for, which the save requires to be the open one. Saved by choose_new_password."""
 
     guidance_field = "new_password1"
+    mark = forms.IntegerField(widget=forms.HiddenInput, label="Marked password")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -282,12 +291,13 @@ class NewPasswordForm(PasswordGuidance, SetPasswordForm):
 
 
 def choose_new_password(*, user, password, mark_id):
-    """Save the person's new password while the mark the page was drawn for is still open, in one
-    transaction: the account's session-ending lock, then the account held (a session that has
-    ended is refused, accounts.sessions.SessionEnded), then the mark. The save lifts the mark and
-    ends the account's other sessions, keeping this one (accounts.models.User.save). Returns the
-    account as saved, or None when the mark was lifted meanwhile (a new password chosen elsewhere),
-    in which case nothing is saved."""
+    """Save the person's new password while the mark the page was drawn for (`mark_id`, posted
+    with the form) is still the account's open one, in one transaction: the account's
+    session-ending lock, then the account held (a session that has ended is refused,
+    accounts.sessions.SessionEnded), then the mark. The save lifts the mark and ends the account's
+    other sessions, keeping this one (accounts.models.User.save). Returns the account as saved, or
+    None when that mark is not open (lifted meanwhile, or another account's or unknown), in which
+    case nothing is saved."""
     from core.audit import record_event
 
     from .acting import hold_actor
@@ -350,15 +360,20 @@ def new_password_page(request):
             form = NewPasswordForm(user, request.POST)
             if form.is_valid():
                 saved = choose_new_password(
-                    user=user, password=form.cleaned_data["new_password1"], mark_id=mark.pk
+                    user=user,
+                    password=form.cleaned_data["new_password1"],
+                    mark_id=form.cleaned_data["mark"],
                 )
-                if saved is not None:
-                    # This session stays signed in (accounts.sessions._settle_kept_session).
-                    update_session_auth_hash(request, saved)
-                    messages.success(request, "Your new password is saved.")
+                if saved is None:
+                    # The mark the page was drawn for is no longer the open one.
+                    messages.warning(request, NOT_THE_DRAWN_MARK)
+                    return redirect(NEW_PASSWORD_ROUTE)
+                # This session stays signed in (accounts.sessions._settle_kept_session).
+                update_session_auth_hash(request, saved)
+                messages.success(request, "Your new password is saved.")
                 return redirect(_next_page(request) or "dashboard")
         else:
-            form = NewPasswordForm(user)
+            form = NewPasswordForm(user, initial={"mark": mark.pk})
     if request.method == "GET" and _is_navigation(request):
         _remember(request, reverse("dashboard"), key=NEXT_KEY)
     return render(

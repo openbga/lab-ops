@@ -216,7 +216,9 @@ transaction when a password is chosen (`set_password`, `_password` set), not whe
 a hash at sign-in. Such a save for a marked account, from a request acting through a session of
 that account, first holds that session (`hold_acting_session`, after the locks a mark takes) and is
 refused when it has ended, so a change checked against the old password before the mark cannot
-lift it. `MarkedPasswordValidator` compares a new password with each mark's hash.
+lift it. `MarkedPasswordValidator` compares a new password with each mark's hash. All of this runs
+in the application: a process of an earlier release, still serving during a deployment or after a
+rollback, neither enforces nor lifts a mark (docs/operations.md).
 
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its

@@ -162,6 +162,18 @@ RELEASE = {
             "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
         },
     ),
+    # How stored passwords are read and written: Django's own list in this release. A mark of a
+    # password as compromised keeps its stored hash, which only a listed hasher can read again.
+    "PASSWORD_HASHERS": (
+        lambda: list(settings.PASSWORD_HASHERS),
+        [
+            "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+            "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+            "django.contrib.auth.hashers.Argon2PasswordHasher",
+            "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+            "django.contrib.auth.hashers.ScryptPasswordHasher",
+        ],
+    ),
     "MFA_SUPPORTED_TYPES": (
         lambda: sorted(mfa_settings.SUPPORTED_TYPES),
         ["recovery_codes", "totp"],
@@ -541,7 +553,7 @@ def _sign_in(facts):
         _fact(
             "passwords",
             "Passwords",
-            ["AUTH_PASSWORD_VALIDATORS", "ACCOUNT_ADAPTER", "ACCOUNT_FORMS"],
+            ["AUTH_PASSWORD_VALIDATORS", "ACCOUNT_ADAPTER", "ACCOUNT_FORMS", "PASSWORD_HASHERS"],
             _passwords,
         ),
         _fact(
@@ -808,7 +820,7 @@ def _sessions(facts):
         _fact(
             "compromised-password",
             "A password marked as compromised",
-            ["MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS"],
+            ["MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS", "PASSWORD_HASHERS"],
             lambda: Fact(
                 "compromised-password",
                 "A password marked as compromised",
@@ -817,8 +829,10 @@ def _sessions(facts):
                 "Every session of the account ends, and the password no longer signs it in on "
                 "its own: a sign-in with the password alone is signed out at once. One that also "
                 "gives an authenticator code, or a code emailed to the account, opens only Choose "
-                "a new password until a new password is saved. A reset through an emailed link, "
-                "or a password a superuser sets, also lifts the mark; the marked password cannot "
+                "a new password until a new password is saved, once it has set up a second "
+                "sign-in factor where the laboratory requires one of the account. A reset "
+                "through an emailed link, or a password a superuser sets, also lifts the mark; "
+                "the marked password cannot "
                 "be chosen again. Superusers cannot mark their own password, a shared "
                 "demonstration account's or one of an account without a password. The person is "
                 "not emailed. Each mark is kept in the audit history.",

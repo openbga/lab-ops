@@ -5,6 +5,8 @@ class AccountsConfig(AppConfig):
     name = "accounts"
 
     def ready(self):
+        # sessions before signin_log: its sign-in receiver decides whether the sign-in's session
+        # starts ended, which the sign-in log's receiver reads (both on user_logged_in).
         from . import acting, sessions, signin_log  # noqa: F401
 
         acting.connect()  # removals that take access away take the access gate

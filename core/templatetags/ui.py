@@ -467,6 +467,18 @@ def pagination_query(context, page_number, page_parameter="page"):
 
 
 @register.filter
+def password_fields(form):
+    """For the error summary: "all" when every visible field of `form` is a password field,
+    "some" when some are, "" when none is. A password field is drawn again empty after a refused
+    save, so the summary does not say it was kept."""
+    fields = list(getattr(form, "visible_fields", lambda: [])())
+    passwords = [field for field in fields if getattr(field, "widget_type", "") == "password"]
+    if not passwords:
+        return ""
+    return "all" if len(passwords) == len(fields) else "some"
+
+
+@register.filter
 def action_label(code):
     """Readable history title for an audit action code: "client.updated" -> "Client updated"."""
     words = str(code or "").replace(".", " ").replace("_", " ").split()

@@ -306,7 +306,8 @@ reason, when someone else may know it: for example, the person typed it into a p
 laboratory's. Every session of the account ends at once, and the password no longer signs the
 account in on its own: a sign-in with it alone is signed out at once, with a notice saying what to
 do. A sign-in that also gives the account's authenticator code, or a code emailed to its address,
-opens only Choose a new password until a new password is saved there. An account without a second
+opens only Choose a new password until a new password is saved there, after setting up a second
+sign-in factor first where the laboratory requires one of the account and it has none. An account without a second
 factor gets a new password through Forgot your password?, where the deployment sends email, or from
 a superuser on its password page. Any new password lifts the mark, and the marked password is
 refused as a new one, then and later. Superusers cannot mark their own password, a shared

@@ -112,6 +112,12 @@ ENDED_BY_MESSAGES = {
     "password and a code to choose a new password. Otherwise use Forgot your password? on the "
     "sign-in page, or ask the administrator to set a new one.",
 }
+# The same where the deployment sends no email, so Forgot your password? cannot help.
+COMPROMISED_WITHOUT_MAIL = (
+    "An administrator marked your password as compromised, so it no longer signs you in on its "
+    "own. If your account has an authenticator app, sign in with your password and a code to "
+    "choose a new password. Otherwise ask the administrator to set a new one."
+)
 # Endings the sign-in log records once the change that ended them commits (_log_after_commit).
 LOGGED_ENDINGS = frozenset(
     {
@@ -771,7 +777,11 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     request.user = AnonymousUser()
     request.account_session = None
     _current.set(None)
-    if ending in ENDED_BY_MESSAGES:
+    if ending == Ending.PASSWORD_COMPROMISED:
+        from jobs.outbox import mail_enabled
+
+        text = ENDED_BY_MESSAGES[ending] if mail_enabled() else COMPROMISED_WITHOUT_MAIL
+    elif ending in ENDED_BY_MESSAGES:
         text = ENDED_BY_MESSAGES[ending]
     elif ending in ENDED_MESSAGES and limits is not None:
         if ended:

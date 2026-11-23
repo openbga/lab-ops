@@ -101,6 +101,18 @@ Bytecode compiled in unchecked-hash mode is not compared with its source, so do 
 configuration that way. The [safeguards reference](safeguards.md) separates what the application does from what
 stays with the laboratory and its host.
 
+## Marking a password as compromised during an upgrade
+
+A superuser marks a password as compromised in the admin console. Only server processes running a
+release that has this feature know about marks: while a deployment is still replacing processes of
+an earlier release, or after rolling back to one, a process of the earlier release lets the marked
+password sign in on its own, and a password set there does not lift the mark (set it again once the
+deployment has finished). Mark passwords once every process runs the new release, and check open
+marks after a rollback. Reversing the `accounts` migration 0008 deletes every mark, open or lifted,
+with the copies of the marked passwords' stored hashes; the audit events stay. Removing a password
+hasher from `PASSWORD_HASHERS` that a mark's stored hash uses stops that password being refused as
+a new one; Security settings then reports the setting as changed.
+
 ## Sign-in limits behind a proxy
 
 Failed sign-ins, password resets and sign-in code requests are rate limited. By default the

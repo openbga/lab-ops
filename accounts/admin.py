@@ -645,6 +645,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 
         if user.pk is None:
             return "—"
+        if user.pk == getattr(user, "_vr_admin_viewer", None):
+            return REFUSALS["own"]
         mark = open_mark(user.pk)
         if mark is not None:
             when = formats.localize(timezone.localtime(mark.marked_at))
@@ -659,6 +661,13 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             return refused
         url = reverse("admin:accounts_user_compromised", args=[user.pk])
         return format_html('Not marked. <a href="{}">Mark as compromised</a>', url)
+
+    def get_object(self, request, object_id, from_field=None):
+        user = super().get_object(request, object_id, from_field)
+        if user is not None:
+            # Who is looking, for the Compromised password field (one's own cannot be marked).
+            user._vr_admin_viewer = request.user.pk
+        return user
 
     def get_urls(self):
         return [
@@ -679,6 +688,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         """Mark the account's password as compromised, with a reason. Decided and recorded by the
         service, from the account as it stands when it is saved (accounts.compromised)."""
         from core.second_factor import has_second_factor
+        from jobs.outbox import mail_enabled
 
         from .compromised import (
             ALREADY_MARKED,
@@ -725,11 +735,17 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         "Tell the person to sign in with their password and an authenticator "
                         "code: they will be asked to choose a new password."
                     )
-                else:
+                elif mail_enabled():
                     then = (
                         "The account has no second factor, so its password no longer signs it "
                         "in. Tell the person to use Forgot your password? on the sign-in page, "
-                        "or set a new password for them on the account's password page."
+                        "or to sign in with a code emailed to them and choose a new password, or "
+                        "set a new password for them on the account's password page."
+                    )
+                else:
+                    then = (
+                        "The account has no second factor and this deployment sends no email, so "
+                        "set a new password for them on the account's password page."
                     )
                 self.message_user(
                     request,

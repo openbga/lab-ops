@@ -96,6 +96,19 @@ def code_for(secret):
     return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
 
 
+def choose(browser, person, password, confirmation=None):
+    """Post Choose a new password as the browser does: with the mark the page is drawn for."""
+    latest = CompromisedPassword.objects.filter(user_id=person.pk).order_by("-pk").first()
+    return browser.post(
+        NEW_PAGE,
+        {
+            "new_password1": password,
+            "new_password2": password if confirmation is None else confirmation,
+            "mark": str(latest.pk) if latest else "",
+        },
+    )
+
+
 def notices(browser):
     return [str(m) for m in browser.get(reverse("account_login")).context["messages"]]
 
@@ -295,11 +308,7 @@ def test_a_wrong_password_is_refused_as_usual(owner, person):
     browser = BrowserClient()
     response = sign_in(browser, person, password="not the password at all")
     assert response.status_code == 200
-    assert (
-        not AccountSession.objects.filter(user=person)
-        .exclude(ending="")
-        .exclude(ending=Ending.PASSWORD_COMPROMISED)
-    )
+    assert not AccountSession.objects.filter(user=person).exists()
 
 
 def test_a_sign_in_with_a_second_factor_reaches_only_the_new_password_page(owner, person):
@@ -344,12 +353,12 @@ def test_choosing_a_new_password_lifts_the_mark_and_goes_on(owner, person):
     browser = BrowserClient()
     sign_in_with_code(browser, person, secret)
     browser.get("/requests/")  # remembered for after
-    short = browser.post(NEW_PAGE, {"new_password1": "short", "new_password2": "short"})
+    short = choose(browser, person, "short")
     assert short.status_code == 200 and short.context["form"].errors
-    same = browser.post(NEW_PAGE, {"new_password1": PASSWORD, "new_password2": PASSWORD})
+    same = choose(browser, person, PASSWORD)
     assert same.status_code == 200
     assert "marked as compromised" in str(same.context["form"].errors)
-    saved = browser.post(NEW_PAGE, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD})
+    saved = choose(browser, person, NEW_PASSWORD)
     assert saved.status_code == 302 and saved["Location"] == "/requests/"
     entry = CompromisedPassword.objects.get(user=person)
     assert entry.lifted_at is not None
@@ -362,7 +371,7 @@ def test_choosing_a_new_password_lifts_the_mark_and_goes_on(owner, person):
     event = AuditEvent.objects.get(action=compromised.CHANGED_ACTION, object_id=str(person.pk))
     assert event.actor == person and event.after == {"compromised_mark": entry.pk}
     assert NEW_PASSWORD not in json.dumps(event.after)
-    # The new password signs in on its own.
+    # The new password signs in again, with the account's second factor as usual.
     again = BrowserClient()
     assert sign_in(again, person, password=NEW_PASSWORD).url == reverse("mfa_authenticate")
 
@@ -378,7 +387,7 @@ def test_a_sign_in_code_emailed_to_the_account_reaches_the_new_password_page(
     assert response.status_code == 302
     assert row_of(browser).ended_at is None
     assert browser.get("/")["Location"] == NEW_PAGE
-    saved = browser.post(NEW_PAGE, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD})
+    saved = choose(browser, person, NEW_PASSWORD)
     assert saved.status_code == 302
     assert CompromisedPassword.objects.get(user=person).lifted_at is not None
 
@@ -446,7 +455,7 @@ def test_a_shared_demonstration_account_held_by_a_mark_cannot_change_its_passwor
     sign_in_with_code(browser, person, secret)
     page = browser.get(NEW_PAGE)
     assert page.status_code == 200 and page.context["form"] is None
-    browser.post(NEW_PAGE, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD})
+    choose(browser, person, NEW_PASSWORD)
     assert not User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
     assert CompromisedPassword.objects.get(user=person).lifted_at is None
 
@@ -595,9 +604,7 @@ def test_a_page_drawn_before_the_mark_was_lifted_elsewhere_saves_nothing(owner, 
     stored = User.objects.get(pk=person.pk)
     stored.set_password(OTHER_PASSWORD)
     stored.save(update_fields=["password"])
-    response = browser.post(
-        NEW_PAGE, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD}
-    )
+    response = choose(browser, person, NEW_PASSWORD)
     assert response.status_code == 302
     assert response["Location"].startswith(reverse("account_login"))
     stored.refresh_from_db()
@@ -659,3 +666,37 @@ def test_an_own_change_from_an_open_session_of_an_unmarked_account_is_unaffected
     assert response.status_code == 302
     assert User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
     assert browser.get("/").status_code == 200
+
+
+def test_a_page_drawn_for_an_earlier_mark_saves_nothing(owner, person):
+    secret = generate_totp_secret()
+    TOTP.activate(person, secret)
+    mark(owner, person)
+    browser = BrowserClient()
+    sign_in_with_code(browser, person, secret)
+    page = browser.get(NEW_PAGE)
+    drawn = page.context["form"]["mark"].value()
+    assert str(drawn) == str(CompromisedPassword.objects.get(user=person).pk)
+    response = browser.post(
+        NEW_PAGE,
+        {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD, "mark": str(drawn + 99)},
+    )
+    assert response.status_code == 302 and response["Location"] == NEW_PAGE
+    assert [str(m) for m in browser.get(NEW_PAGE).context["messages"]] == [
+        compromised.NOT_THE_DRAWN_MARK
+    ]
+    assert CompromisedPassword.objects.get(user=person).lifted_at is None
+    assert not User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
+    missing = browser.post(NEW_PAGE, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD})
+    assert missing.status_code == 200 and missing.context["form"].errors
+    assert not User.objects.get(pk=person.pk).check_password(NEW_PASSWORD)
+
+
+def test_the_notice_fits_a_deployment_without_email(owner, person, settings):
+    settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+    one = signed_in(person)
+    marker, response = mark(owner, person)
+    text = [str(m) for m in marker.get(response["Location"]).context["messages"]]
+    assert any("sends no email" in t and "Forgot your password?" not in t for t in text)
+    one.get("/")
+    assert notices(one) == [sessions.COMPROMISED_WITHOUT_MAIL]

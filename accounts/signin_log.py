@@ -24,7 +24,12 @@ def _log(event, user, request):
 
 @receiver(user_logged_in, dispatch_uid="lab_ops_signin_success")
 def log_sign_in(sender, request, user, **kwargs):
-    # Django emits this only after all required authentication stages have completed.
+    # Django emits this only after all required authentication stages have completed. A sign-in
+    # whose session started ended (accounts.compromised: the password alone, while it is marked as
+    # compromised) did not complete: accounts.sessions.start_session, which runs first (accounts.
+    # apps imports it first), logs it as signout.password_compromised instead.
+    if getattr(request, "vr_sign_in_refused", False):
+        return
     _log("signin.success", user, request)
 
 

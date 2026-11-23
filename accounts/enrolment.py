@@ -77,14 +77,25 @@ def waiting(state):
     factor before anything else: the rule covered its account at sign-in (the row's flag), the
     account has no second factor of a type this deployment offers, and the rule as it stands still
     covers the active account. One statement, so the three are read together."""
+    return holds(state)[0]
+
+
+def holds(state):
+    """(waiting, marked) for the signed-in session `state`, in one statement: waiting() above, and
+    whether its account's password is marked as compromised (accounts.compromised, which holds the
+    session to Choose a new password). One statement for both, so the two holds cost a request
+    one reading. (False, False) without a session."""
     if state is None:
-        return False
+        return False, False
     from django.db import connection
 
     from core import second_factor
 
+    from .models import CompromisedPassword
+
     t = second_factor._tables()
     sessions = connection.ops.quote_name(AccountSession._meta.db_table)
+    marks = connection.ops.quote_name(CompromisedPassword._meta.db_table)
     source, source_params = second_factor._rule_source(None)
     condition, params = second_factor._covered_sql()
     with connection.cursor() as cursor:
@@ -92,16 +103,19 @@ def waiting(state):
             f"SELECT EXISTS (SELECT 1 FROM {sessions} s JOIN {t['user']} u ON u.id = s.user_id, "
             f"{source} r WHERE s.id = %s AND s.user_id = %s AND s.second_factor_required "
             f"AND u.is_active AND NOT EXISTS (SELECT 1 FROM {t['authenticator']} a "
-            f"WHERE a.user_id = u.id AND a.type = ANY(%s)) AND {condition})",
+            f"WHERE a.user_id = u.id AND a.type = ANY(%s)) AND {condition}), "
+            f"EXISTS (SELECT 1 FROM {marks} m WHERE m.user_id = %s AND m.lifted_at IS NULL)",
             [
                 *source_params,
                 state.id,
                 state.user_id,
                 second_factor.second_factor_types(),
                 *params,
+                state.user_id,
             ],
         )
-        return bool(cursor.fetchone()[0])
+        found = cursor.fetchone()
+        return bool(found[0]), bool(found[1])
 
 
 def pending(request):
@@ -154,10 +168,15 @@ class EnrolmentMiddleware:
         # Decided once a view is reached (process_view); None until then, so that a page drawn
         # without one (Not found) decides for its shell itself (core.context_processors).
         request.vr_second_factor_pending = None
+        request.vr_password_marked = None
         return self.get_response(request)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        request.vr_second_factor_pending = pending(request)
+        # Both holds in one reading: whether the password is marked is left for
+        # accounts.compromised.PasswordChangeMiddleware, which comes next.
+        waiting_now, marked = holds(getattr(request, "account_session", None))
+        request.vr_second_factor_pending = waiting_now
+        request.vr_password_marked = marked
         if not request.vr_second_factor_pending:
             return None
         match = request.resolver_match
