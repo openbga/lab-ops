@@ -20,6 +20,9 @@ the password, and lets its operator go past it; with --noinput it does not check
   digits or keyboard keys; one too similar to the account's username, names or email address
   (AccountSimilarityValidator). The whole password is compared each time, never a word found
   inside it, so a passphrase that contains a common word is accepted.
+- A password marked as compromised for the account (accounts.compromised), while the mark is open
+  or after it was lifted: compared with the copy of its hash each mark keeps
+  (MarkedPasswordValidator).
 - No composition rule (no required kinds of character) and no periodic change.
 
 What the checks read is read when the password is checked, just before it is saved: the
@@ -318,6 +321,41 @@ class ExpectedPasswordValidator:
         )
 
 
+class MarkedPasswordValidator:
+    """A password marked as compromised for this account (accounts.compromised), open or lifted,
+    is refused as its new password: compared with the copy of its hash each mark keeps, one
+    comparison per mark. Nothing to compare for an account not yet saved."""
+
+    def validate(self, password, user=None):
+        if not _saved(user):
+            return
+        from django.contrib.auth.hashers import check_password
+
+        from .models import CompromisedPassword
+
+        marked = CompromisedPassword.objects.filter(user_id=user.pk).order_by("-pk")
+        for encoded in marked.values_list("password", flat=True):
+            if check_password(password, encoded):
+                raise ValidationError(
+                    "This password was marked as compromised for this account. Choose a "
+                    "different one.",
+                    code="password_marked_compromised",
+                )
+
+    def get_help_text(self):
+        return "Your password can’t be one that was marked as compromised for your account."
+
+    def help_text_for(self, user, *, own):
+        """Stated only for an account with a marked password: for others it says nothing."""
+        if not _saved(user):
+            return ""
+        from .models import CompromisedPassword
+
+        if not CompromisedPassword.objects.filter(user_id=user.pk).exists():
+            return ""
+        return self.get_help_text()
+
+
 # Why the rule refused a password, by the refusal's code, in fixed words: a validator's own message
 # may quote the password.
 REFUSAL_REASONS = {
@@ -329,6 +367,7 @@ REFUSAL_REASONS = {
     "with only digits, symbols, spaces or letter case changed",
     "password_repeated": "it repeats one character or a short text",
     "password_run": "it is a run of letters, digits or keyboard keys",
+    "password_marked_compromised": "it was marked as compromised for the account",
 }
 
 
@@ -386,7 +425,7 @@ def guidance(user, *, own, minimum=None):
     """What a new password of `user` must be, one line per validator, with the length for this
     account (help_text_for; `minimum`, when given, is the length a check of this password used),
     then advice on choosing one. `own`: the person is choosing their own password; otherwise the
-    lines name the account."""
+    lines name the account. A validator whose help is empty for this account adds no line."""
     lines = []
     for validator in get_default_password_validators():
         text_for = getattr(validator, "help_text_for", None)
@@ -396,6 +435,8 @@ def guidance(user, *, own, minimum=None):
             text = text_for(user, own=own, minimum=minimum)
         else:
             text = text_for(user, own=own)
+        if not text:
+            continue
         if not own:
             for mine, theirs in OTHER_ACCOUNT:
                 text = text.replace(mine, theirs)

@@ -29,6 +29,16 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             return self.respond_user_inactive(request, user)
         return super().pre_login(request, user, **kwargs)
 
+    def add_message(self, request, level, message_template=None, *args, **kwargs):
+        # A sign-in whose session started ended (accounts.compromised: the password alone, while
+        # it is marked as compromised) is not announced as signed in: the next page says why it
+        # was signed out instead.
+        if message_template == "account/messages/logged_in.txt" and getattr(
+            request, "vr_sign_in_refused", False
+        ):
+            return
+        super().add_message(request, level, message_template, *args, **kwargs)
+
     def send_password_reset_mail(self, user, email, context):
         # A shared demonstration account keeps its published password (accounts.middleware).
         # The page answers as for any address, so it does not reveal which accounts are shared.

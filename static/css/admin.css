@@ -92,6 +92,7 @@ html[data-theme="dark"] {
   #content input[type="password"],
   #content input[type="email"],
   #content input[type="submit"],
+  #content button[type="submit"],
   #content textarea,
   #content select {
     min-height: 44px;

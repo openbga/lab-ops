@@ -56,7 +56,7 @@ ships, move it to Built in the same change.
 | Service clocks | First-response and resolution targets by category and priority on the laboratory's calendars, paused while waiting on the client |
 | Client portal | Each portal account raises, follows and replies to tickets for its organization or its sites; a reply refused because the laboratory closed the ticket meanwhile is shown again to copy into a follow-up; a ticket's page is read at one moment, so its reply form always matches the conversation it shows |
 | Notifications | Email notices of replies, status changes and assignments that carry no ticket content; staff can turn off their own |
-| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; authenticator sign-in with recovery codes, which an administrator can require of every staff account, chosen roles, holders of the patient-information capability, admin console accounts or portal accounts, an account the rule covers setting one up at its next sign-in before anything else; passwords of at least 15 characters, or 8 where a second factor is required, refused when common or expected (a common password or a name of the laboratory, the application or the account with only digits, symbols, spaces or letter case changed, a repeat or a run), with no composition rules and no periodic change, and each password form stating the rule for its account; limits on failed sign-ins, counted in the database so that every server process counts the same attempts; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; sign-out after a period without activity and after a longest session, set by an administrator for staff and for portal accounts, with a warning and Stay signed in; what a person was typing in a ticket's reply, note or logged contact, a new ticket logged by staff (with its category, organization and ticket form), a portal reply, a new portal ticket or a nonconformance form kept for 24 hours when a limit signs them out, and given back in that form when they sign in again in the same browser, a form typed in the form dialog on its own page; a nonconformance form keeps the revision it was typed against, so its save is refused, with the typing kept, when the record changed since; deactivation and a new password end sessions at once; a page where each person sees where they are signed in, with the browser and address each session reported, and signs out the others; a superuser ends a person's sessions from the account administration, with a reason; signed-in pages marked not to be stored by the browser; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
+| Safeguards | Roles and an explicit patient-information capability checked on the server; attributed, append-only change history; masked person-level keys and audited reveals; authenticator sign-in with recovery codes, which an administrator can require of every staff account, chosen roles, holders of the patient-information capability, admin console accounts or portal accounts, an account the rule covers setting one up at its next sign-in before anything else; passwords of at least 15 characters, or 8 where a second factor is required, refused when common or expected (a common password or a name of the laboratory, the application or the account with only digits, symbols, spaces or letter case changed, a repeat or a run), with no composition rules and no periodic change, and each password form stating the rule for its account; a superuser marks a password someone else may know as compromised, with a reason, which ends the account's sessions, stops the password signing in on its own and holds a sign-in that also gave a second factor or an emailed code to choosing a new password, any new password lifting the mark and the marked one refused; limits on failed sign-ins, counted in the database so that every server process counts the same attempts; file inspection and checksums; HTTPS, a content security policy and logs that carry no ticket content; sign-out after a period without activity and after a longest session, set by an administrator for staff and for portal accounts, with a warning and Stay signed in; what a person was typing in a ticket's reply, note or logged contact, a new ticket logged by staff (with its category, organization and ticket form), a portal reply, a new portal ticket or a nonconformance form kept for 24 hours when a limit signs them out, and given back in that form when they sign in again in the same browser, a form typed in the form dialog on its own page; a nonconformance form keeps the revision it was typed against, so its save is refused, with the typing kept, when the record changed since; deactivation and a new password end sessions at once; a page where each person sees where they are signed in, with the browser and address each session reported, and signs out the others; a superuser ends a person's sessions from the account administration, with a reason; signed-in pages marked not to be stored by the browser; an account page that refuses a save when the account changed after the page was opened, and password changes that save only the password; a Security settings page that lists what protects sign-in, sessions and patient information and who sets it; the laboratory's security and privacy contacts on its profile; and a [safeguards reference](safeguards.md) of what the application does for each safeguard this page cites |
 | Platform | Page help on every page, announcements, laboratory certificates and a retention statement, What's new, and a synthetic demonstration; each person's list layouts, page sizes, sidebar state and What's new visits are saved for their account and read for each page, so a change in one tab or on one workstation shows on the next page in the others, and the limit of 300 saved preferences holds when two are added at the same moment |
 | Quality records | An optional nonconformance and corrective action module, switched on by an administrator: records with source, severity, area and owner, five statuses, containment, root cause, the decision on reported results and the client notice, actions with a person and a due date, an effectiveness check, closing by a supervisor who is not the owner and reopening with a reason; opened from a complaint or linked to tickets; lists of open, mine and overdue work and monthly counts by source and area. The orders and reports reviewed are recorded as text; linking them as external records is not built yet |
 | Scheduled jobs | One management command, run by a scheduler every few minutes, that sends email notices from a durable outbox with retries, tells the people responsible, as they stand when it decides, when a service clock passes its due time and, when an administrator sets a period, closes resolved tickets; an administrators' page shows the jobs' last runs and notices that need attention. The jobs act as an account of their own, named with a random suffix nobody can know in advance, so a person's account registered at the same moment under its old name, in any letter case, neither delays its first use nor ends up differing from it only in case. The public demonstration has no scheduler and keeps email off |
@@ -68,7 +68,7 @@ A follow-up to an independent review fixes something already built, so it comes 
 
 The items on sign-in, sessions, access records, review and emergency access come before anything
 else, because a laboratory that handles patient-linked tickets needs them before real use. Today
-a password known to be compromised cannot be marked, opening a ticket or downloading a file leaves no record,
+opening a ticket or downloading a file leaves no record,
 failed sign-ins are kept only in the server log, and nobody can review activity across records. Each of these answers a safeguard the
 HIPAA Security Rule names, and none needs anything unbuilt.
 
@@ -88,29 +88,6 @@ matter once a laboratory uses the desk every day, so they come last.
 
 ## Next
 
-### Required two-factor sign-in and password rules
-
-- **Delivers:** laboratory settings that require a second factor for all staff, for chosen roles,
-  for holders of the patient-information capability and for anyone who can reach the admin console,
-  and optionally for portal accounts; a person who must enrol is taken to enrolment at the next
-  sign-in and reaches nothing else first; passwords of at least 15 characters where the password is
-  the only factor and 8 where a second factor is required, checked against a list of common and
-  compromised passwords, with no composition rules and no periodic change; an administrator can mark
-  a password as compromised, which forces a change; existing passwords meet the rule when next
-  changed; failed sign-ins are counted across all server processes.
-- **Basis:** 45 CFR §164.312(d) (person or entity authentication); §164.308(a)(5)(ii)(D) (password
-  management, addressable); NIST SP 800-63B-4 §3.1.1.2 (a recommendation). Proposed and not in
-  force: multi-factor authentication as a requirement (90 FR 898, proposed §164.312(f)).
-- **Depends on:** security settings and safeguards reference.
-- **Shipped so far:** the settings that require a second factor, and enrolment at the next sign-in
-  before anything else; the password rules (lengths, the list of common and compromised passwords
-  and the expected ones, no composition rules, no periodic change, guidance on each password form);
-  failed sign-ins counted across all server processes.
-- **Remains:** marking a password as compromised, which forces a change.
-- **Leaves out:** passkeys and security keys and single sign-on, which are Later items, codes by
-  text message, and checking new passwords online against a breach service, which would send part
-  of each password's hash to a third party (a deployment's decision).
-
 ### Sign-in history and re-authentication
 
 - **Delivers:** sign-ins, failures, sign-outs and lockouts stored in the database with the time, the
@@ -118,8 +95,11 @@ matter once a laboratory uses the desk every day, so they come last.
   code; each person sees their own recent sign-ins; the password, and the second factor where the
   account has one, asked for again before changing roles, capabilities, security settings or another
   account's sign-in factors, and, where the laboratory turns it on, before the first reveal of
-  patient information in a session.
-- **Basis:** 45 CFR §164.308(a)(5)(ii)(C) (log-in monitoring, addressable); §164.312(b), (d).
+  patient information in a session; where the deployment sends email, a notice to the person when a
+  superuser marks their password as compromised or removes their authenticator, or when an
+  authenticator is added.
+- **Basis:** 45 CFR §164.308(a)(5)(ii)(C) (log-in monitoring, addressable); §164.312(b), (d); NIST
+  SP 800-63B-4 §4.5 and §4.6 (notifying the subscriber of authenticator changes; recommendations).
 - **Depends on:** required two-factor sign-in and password rules.
 - **Leaves out:** alerts on unusual sign-ins and blocking by location.
 
@@ -752,7 +732,7 @@ contracts that apply to it.
 | [90 FR 898](https://www.federalregister.gov/d/2024-30983), proposed changes to the HIPAA Security Rule (2025-01-06, RIN 0945-AA22) | 2026-11-18 | A proposal, not in force. The [Unified Agenda](https://www.reginfo.gov/public/do/eAgendaViewRule?pubId=202510&RIN=0945-AA22) lists it as a long-term action with final action in July 2027 |
 | [FR Doc. 2026-23429](https://www.federalregister.gov/d/2026-23429), HIPAA Privacy Rule final rule | 2026-11-18 | Read in the public inspection copy filed 2026-11-16 for publication on 2026-11-19. Effective 60 days and compliance 240 days after publication. Confirm the dates in the published rule |
 | [OCR Cybersecurity Newsletter, January 2017](https://www.hhs.gov/sites/default/files/january-2017-cyber-newsletter.pdf), audit controls | 2026-11-18 | Guidance |
-| [NIST SP 800-66 Rev. 2](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf) (February 2024) and [NIST SP 800-63B-4](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf) (July 2025) | 2026-11-18; SP 800-63B-4 §2.2.3, §5.1, §5.2 and its usability guidance on timeouts again on 2026-11-21; §3.1.1.2 (password verifiers) and §3.2.2 (rate limiting) on 2026-11-23 | Recommendations, not HIPAA requirements |
+| [NIST SP 800-66 Rev. 2](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf) (February 2024) and [NIST SP 800-63B-4](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf) (July 2025) | 2026-11-18; SP 800-63B-4 §2.2.3, §5.1, §5.2 and its usability guidance on timeouts again on 2026-11-21; §3.1.1.2 (password verifiers), §3.2.2 (rate limiting), §4.3 (compromised authenticators), §4.5 and §4.6 (invalidation and notifications) on 2026-11-23 | Recommendations, not HIPAA requirements |
 | [45 CFR §84.84](https://www.ecfr.gov/current/title-45/section-84.84), accessibility of web content under Section 504 | 2026-11-18 | Applies to recipients of HHS funding |
 | [42 CFR Part 493](https://www.ecfr.gov/current/title-42/part-493), CLIA | 2026-11-17 and 2026-11-18 | Applies to laboratories that test human specimens |
 | [CMS State Operations Manual, Appendix C](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/som107ap_c_lab.pdf), Rev. 236 (2026-01-23) | 2026-11-17 | Guidance for surveyors |

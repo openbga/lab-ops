@@ -39,6 +39,8 @@ def link_preview_image(request):
 
 def workspace(request):
     roles = effective_roles(getattr(request, "user", AnonymousUser()))
+    second_factor_pending = _second_factor_pending(request)
+    password_change_pending = not second_factor_pending and _password_change_pending(request)
     return {
         "outbound_email_enabled": settings.EMAIL_BACKEND
         != "django.core.mail.backends.dummy.EmailBackend",
@@ -52,7 +54,11 @@ def workspace(request):
         "account_session": getattr(request, "account_session", None),
         # The session must add a second sign-in factor before anything else (accounts.enrolment):
         # the shell leaves out the navigation it cannot use yet.
-        "second_factor_pending": _second_factor_pending(request),
+        "second_factor_pending": second_factor_pending,
+        # The session must choose a new password before anything else (accounts.compromised).
+        "password_change_pending": password_change_pending,
+        # Either: the shell leaves out its navigation.
+        "session_held": second_factor_pending or password_change_pending,
         # The page that sign-in was opening is still kept for Continue after the factor is added.
         "second_factor_continue": _second_factor_continue(request),
     }
@@ -63,9 +69,25 @@ def _second_factor_pending(request):
     one (Not found), decided here."""
     decided = getattr(request, "vr_second_factor_pending", False)
     if decided is None:
-        from accounts.enrolment import pending
+        from accounts.enrolment import holds
 
-        decided = request.vr_second_factor_pending = pending(request)
+        # Both holds in one reading, as the middleware reads them (accounts.enrolment.holds).
+        decided, request.vr_password_marked = holds(getattr(request, "account_session", None))
+        request.vr_second_factor_pending = decided
+    return decided
+
+
+def _password_change_pending(request):
+    """As accounts.compromised decided when the request reached its view; for a page drawn
+    without one (Not found), decided here."""
+    decided = getattr(request, "vr_password_change_pending", False)
+    if decided is None:
+        marked = getattr(request, "vr_password_marked", None)
+        if marked is None:
+            from accounts.compromised import pending
+
+            marked = pending(request)
+        decided = request.vr_password_change_pending = marked
     return decided
 
 

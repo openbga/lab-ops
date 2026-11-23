@@ -33,13 +33,28 @@ class User(AbstractUser):
         "email addresses or two-factor settings.",
     )
 
+    def set_unusable_password(self):
+        # A password set before and not yet written is dropped with it: Django would otherwise tell
+        # the password validators of it at the next save.
+        super().set_unusable_password()
+        self._password = None
+
     def save(self, *args, **kwargs):
-        update_fields = kwargs.get("update_fields")
+        # The names to save, read once and passed on as a list (an iterable can be read only
+        # once), also in Django 5.2's deprecated positional form (force_insert, force_update,
+        # using, update_fields), which is passed on as it came so that Django still warns of it.
+        if len(args) > 3:
+            update_fields = None if args[3] is None else list(args[3])
+            args = (*args[:3], update_fields, *args[4:])
+        else:
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = list(kwargs["update_fields"])
+            update_fields = kwargs.get("update_fields")
         # One transaction for the account and what its save signals change with it (releasing
         # a deactivated account's assignments, resetting portal access on a move), so they
         # succeed or fail together on every path, inside or outside a caller's transaction.
         with transaction.atomic():
-            if self.pk is not None and _may_change_access(kwargs.get("update_fields")):
+            if self.pk is not None and _may_change_access(update_fields):
                 # The access gate, before the save: a change the person has under way holds it
                 # until that change commits (accounts.acting), and the save waits for it. Then
                 # the row FOR NO KEY UPDATE, which an assignment to this account also takes
@@ -68,11 +83,46 @@ class User(AbstractUser):
                     type(self).objects.filter(pk=self.pk).values_list("password", flat=True).first()
                 )
                 new_password = stored is not None and stored != self.password
+            # A password chosen (set_password, which Django's own hash upgrade at sign-in does not
+            # count as one) lifts a mark of the account's password as compromised, with this save
+            # (accounts.compromised). Read before the save: Django forgets it once saved, also
+            # after a save that does not write the password (a password set, then a save of
+            # other columns, then a save of the password lifts nothing: no path of the
+            # application saves that way).
+            chosen = new_password and self._password is not None and self.has_usable_password()
             # Before the account's row is updated: ending a session waits for a change of the
             # person's under way that holds it (accounts.sessions.hold_acting_session), and that
             # change may still take the account's row (an assignment to the person) after it.
             self._end_sessions(update_fields, new_password=new_password)
+            if chosen:
+                self._check_chosen_while_marked()
             super().save(*args, **kwargs)
+            if chosen:
+                CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
+                    lifted_at=Now()
+                )
+
+    def _check_chosen_while_marked(self):
+        """A password chosen for an account whose password is marked as compromised, by a request
+        acting through a session of that same account, needs that session still open: a change
+        started before the mark (its form checked against the old password) and saved after the
+        mark ended the session would otherwise lift the mark for whoever held the session. Read
+        after the locks a mark also takes (the account's session-ending lock for a password saved
+        alone, the account's row for a whole save), so a mark either committed before this reading
+        or waits for this save. A reset through an emailed link proves the account's address
+        whatever session the browser has (accounts.sessions.RESETTING_VIEWS), and other paths (a
+        superuser setting it, a command) act through no session of the account: neither is
+        affected. Choose a new password holds its session already
+        (accounts.compromised.choose_new_password)."""
+        from .sessions import RESETTING_VIEWS, SessionEnded, _view, hold_acting_session
+
+        if _view.get() in RESETTING_VIEWS:
+            return
+        if not CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).exists():
+            return
+
+        if not hold_acting_session(self.pk):
+            raise SessionEnded
 
     def _end_sessions(self, update_fields, *, new_password):
         """A deactivation ends every session of the account at once, and a new password every
@@ -123,6 +173,9 @@ class AccountSession(models.Model):
         CHANGE_REFUSED = "change_refused", "A change found it past a limit"
         SIGNED_OUT_ELSEWHERE = "signed_out_elsewhere", "Signed out from another session"
         ADMINISTRATOR = "administrator", "Ended by an administrator"
+        # The account's password was marked as compromised (accounts.compromised): every session
+        # open then, and a later sign-in that proved nothing but the password.
+        MARKED_COMPROMISED = "password_compromised", "Password marked as compromised"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never
@@ -163,6 +216,40 @@ class AccountSession(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class CompromisedPassword(models.Model):
+    """A superuser's mark of an account's password as compromised (accounts.compromised), kept
+    after it is lifted. While it is open (lifted_at empty) the password alone no longer signs the
+    account in, and a session that proved more than the password (a second factor or an emailed
+    code) reaches only Choose a new password. Any password chosen for the account afterwards
+    lifts it, in the same save (User.save): the person's own, one set through an emailed reset
+    link, or one a superuser sets in the admin console. At most one is open per account."""
+
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="compromised_passwords")
+    marked_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    marked_at = models.DateTimeField(db_default=Now())
+    # Why, as the superuser gave it: recorded in the audit history too. Not shown to the person.
+    reason = models.TextField()
+    # The stored hash of the marked password, copied when it was marked, so that the same password
+    # is refused as a new one (accounts.passwords.MarkedPasswordValidator). Never shown, logged,
+    # audited or registered in the admin console.
+    password = models.CharField(max_length=128)
+    lifted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        # Changed only through accounts.compromised: no model permission to grant.
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(lifted_at__isnull=True),
+                name="compromised_password_open_once",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.marked_at:%Y-%m-%d %H:%M}"
 
 
 class KeptDraft(models.Model):

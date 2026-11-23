@@ -65,6 +65,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db import connection, transaction
+from django.db.models.functions import Now
 from django.dispatch import receiver
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
@@ -106,10 +107,26 @@ ENDED_BY_MESSAGES = {
     Ending.SIGNED_OUT_ELSEWHERE: "You were signed out from another session of your account. Sign "
     "in again to continue.",
     Ending.ADMINISTRATOR: "An administrator ended your session. Sign in again to continue.",
+    Ending.MARKED_COMPROMISED: "An administrator marked your password as compromised, so it no "
+    "longer signs you in on its own. If your account has an authenticator app, sign in with your "
+    "password and a code to choose a new password. Otherwise use Forgot your password? on the "
+    "sign-in page, or ask the administrator to set a new one.",
 }
+# The same where the deployment sends no email, so Forgot your password? cannot help.
+COMPROMISED_WITHOUT_MAIL = (
+    "An administrator marked your password as compromised, so it no longer signs you in on its "
+    "own. If your account has an authenticator app, sign in with your password and a code to "
+    "choose a new password. Otherwise ask the administrator to set a new one."
+)
 # Endings the sign-in log records once the change that ended them commits (_log_after_commit).
 LOGGED_ENDINGS = frozenset(
-    {Ending.DEACTIVATED, Ending.NEW_PASSWORD, Ending.SIGNED_OUT_ELSEWHERE, Ending.ADMINISTRATOR}
+    {
+        Ending.DEACTIVATED,
+        Ending.NEW_PASSWORD,
+        Ending.SIGNED_OUT_ELSEWHERE,
+        Ending.ADMINISTRATOR,
+        Ending.MARKED_COMPROMISED,
+    }
 )
 # What a session row keeps of the browser's own description of itself (the User-Agent header).
 USER_AGENT_LENGTH = AccountSession._meta.get_field("user_agent").max_length
@@ -640,43 +657,68 @@ def reported_by(request):
 def start_session(sender, request, user, **kwargs):
     from django.contrib.auth.models import update_last_login
 
+    from .compromised import refused_at_sign_in
     from .session_list import lock_endings
 
     session = getattr(request, "session", None)
     agent, address = reported_by(request) if session is not None else ("", None)
     with transaction.atomic():
-        # The account's session-ending lock first, as the person's own endings and a new
-        # password saved alone take it, so they take turns; then the sign-in's time, which
-        # writes the account's row (Django's own receiver, disconnected in accounts.apps so that
-        # its hold on the row comes after this lock, also with a transaction around the request).
+        # The account's session-ending lock first, as the person's own endings, a new password
+        # saved alone and marking a password as compromised take it, so they take turns; then the
+        # sign-in's time, which writes the account's row (Django's own receiver, disconnected in
+        # accounts.apps so that its hold on the row comes after this lock, also with a transaction
+        # around the request).
         lock_endings(user.pk)
-        update_last_login(sender, user)
-        if session is None:
-            return
-        previous = _valid_id(session.get(SESSION_KEY))
-        if previous is not None:
-            # Signed in again over an open session in the same browser (Django keeps the
-            # session's data when the account is the same one), with the sessions abandoned
-            # since and past a limit, locked together in id order.
-            end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
-        else:
-            close_expired(user)  # sessions abandoned since, past a limit
-        # Whether the laboratory's rule requires a second factor of the account as it signs in
-        # (accounts.enrolment holds the session to it while the account has none).
-        from core.second_factor import requires
-
-        record = AccountSession.objects.create(
-            user=user,
-            user_agent=agent,
-            address=address,
-            second_factor_required=requires(user),
+        # The account's password is marked as compromised and this sign-in proved nothing more
+        # than the password (accounts.compromised): its session starts ended, so the browser is
+        # signed out at its next request, and the sign-in is not recorded as the last one.
+        refused = refused_at_sign_in(request, user)
+        if not refused:
+            update_last_login(sender, user)
+        record = (
+            None if session is None else _record_session(session, user, agent, address, refused)
         )
+    # The sign-in log's line once the session has started (a start that failed did not complete
+    # the sign-in); a refused one is logged as its session's ending once that commits.
+    if refused:
+        if record is not None:
+            _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
+        request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
+    else:
+        _log_sign_in(request, user)
+    if session is None:
+        return
     session[SESSION_KEY] = str(record.pk)
     # A new sign-in remembers its own page for Continue after a second factor is added
     # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.
     from .enrolment import NEXT_KEY
 
     session.pop(NEXT_KEY, None)
+
+
+def _record_session(session, user, agent, address, refused):
+    """The sign-in's session row (start_session, in its transaction, after the account's
+    session-ending lock): ended at once when the sign-in is refused."""
+    previous = _valid_id(session.get(SESSION_KEY))
+    if previous is not None:
+        # Signed in again over an open session in the same browser (Django keeps the
+        # session's data when the account is the same one), with the sessions abandoned
+        # since and past a limit, locked together in id order.
+        end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
+    else:
+        close_expired(user)  # sessions abandoned since, past a limit
+    # Whether the laboratory's rule requires a second factor of the account as it signs in
+    # (accounts.enrolment holds the session to it while the account has none).
+    from core.second_factor import requires
+
+    ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
+    return AccountSession.objects.create(
+        user=user,
+        user_agent=agent,
+        address=address,
+        second_factor_required=requires(user),
+        **ended,
+    )
 
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_account_session_end")
@@ -691,6 +733,12 @@ def end_signed_out_session(sender, request, user, **kwargs):
         # Signing out leaves nothing typed behind: every copy kept for the account goes, and the
         # moment is recorded, so a copy sent later from an ended session finds that Sign out.
         discard_all(user.pk)
+
+
+def _log_sign_in(request, user):
+    from .signin_log import log_sign_in
+
+    log_sign_in(request, user)
 
 
 def _valid_id(value):
@@ -748,7 +796,11 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     request.user = AnonymousUser()
     request.account_session = None
     _current.set(None)
-    if ending in ENDED_BY_MESSAGES:
+    if ending == Ending.MARKED_COMPROMISED:
+        from jobs.outbox import mail_enabled
+
+        text = ENDED_BY_MESSAGES[ending] if mail_enabled() else COMPROMISED_WITHOUT_MAIL
+    elif ending in ENDED_BY_MESSAGES:
         text = ENDED_BY_MESSAGES[ending]
     elif ending in ENDED_MESSAGES and limits is not None:
         if ended:

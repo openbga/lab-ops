@@ -6,7 +6,7 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
-from accounts import enrolment, session_views
+from accounts import compromised, enrolment, session_views
 from core import (
     announcement_views,
     lab_profile_views,
@@ -49,6 +49,7 @@ urlpatterns = [
     ),
     path("account/session/keep/", session_views.keep_typing, name="account-session-keep"),
     path("account/second-factor/", enrolment.enrolment_page, name="account-second-factor"),
+    path("account/new-password/", compromised.new_password_page, name="account-new-password"),
     path("account/sessions/", session_views.sessions_page, name="account-sessions"),
     path(
         "account/sessions/others/sign-out/",

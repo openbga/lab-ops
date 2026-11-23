@@ -53,7 +53,7 @@
       "title": "Access and page variants",
       "paragraphs": [
         "The administration site requires an active account with Staff status. User and group pages additionally require Superuser status; a laboratory admin role alone or individual model permissions do not open them. These technical flags do not themselves confer operational roles or capabilities.",
-        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Important dates (read only) and Sessions (read only)."
+        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Important dates (read only) and Sessions (read only); Compromised password (read only) follows Password."
       ]
     },
     {
@@ -78,6 +78,10 @@
         {
           "label": "Password",
           "description": "Change only: read-only password-hash status, never the original secret. Reset password or Set password opens the separate administrator password form; changing this display is not password entry. The Scheduled jobs account shows its status only: nobody signs in as it, and no password can be set."
+        },
+        {
+          "label": "Compromised password",
+          "description": "Change only; read only. Whether the account's password is marked as compromised now: when and by whom, while the person must choose a new one, or Not marked with the Mark as compromised link, which opens a page to mark it with a reason. Shows why instead on your own account (change your own password instead), for a shared demonstration account or for an account without a password; the Scheduled jobs account shows a dash. Any new password lifts the mark."
         },
         {
           "label": "First name / Last name",
@@ -176,6 +180,7 @@
     "templates/admin/base_site.html",
     "desk/tests/test_decisions_read_before_a_wait.py",
     "accounts/session_list.py",
-    "core/second_factor.py"
+    "core/second_factor.py",
+    "accounts/compromised.py"
   ]
 }

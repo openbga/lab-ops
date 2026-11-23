@@ -199,6 +199,30 @@ or address. Every other row open when the change is saved ends, including rows t
 after the page was drawn; the confirmation counts those by their sign-in time against the
 database's clock when the page read the rows.
 
+Marking a password as compromised (`accounts.compromised`) takes the session-ending locks of the
+superuser and the account, holds the superuser (`hold_actor`), then locks the account's row
+`FOR NO KEY UPDATE`, so a password saved with the whole account (setup, a command) has committed
+or waits; it decides from that reading, including a keyed fingerprint of the stored password that
+the page was drawn with (`drawn_password`, an HMAC under the deployment's secret key), records a
+`CompromisedPassword` row with a copy of the stored hash, ends the account's rows
+(`password_compromised`) and records one `account.password_marked_compromised` event without the
+hash. A sign-in takes the same session-ending lock in `start_session`, so it either started before
+the mark and is ended by it, or reads the mark: a sign-in whose steps, as allauth recorded them in
+the browser's session, include no second factor or emailed code inserts its row already ended. An
+open row of a marked account has therefore proved more than the password, and
+`PasswordChangeMiddleware` (after `EnrolmentMiddleware`, which goes first) holds it to Choose a new
+password; the mark is read in the same statement as the second factor's hold
+(`accounts.enrolment.holds`). The middleware also checks the sign-in's recorded steps again at each
+request, before either hold, and ends a marked account's session that proved only the password, as
+a process of an earlier release could have opened one. `User.save` lifts the open mark in the same
+transaction when a password is chosen (`set_password`, `_password` set), not when Django upgrades
+a hash at sign-in. Such a save for a marked account, from a request acting through a session of
+that account, first holds that session (`hold_acting_session`, after the locks a mark takes) and is
+refused when it has ended, so a change checked against the old password before the mark cannot
+lift it. `MarkedPasswordValidator` compares a new password with each mark's hash. All of this runs
+in the application: a process of an earlier release, still serving during a deployment or after a
+rollback, neither enforces nor lifts a mark (docs/operations.md).
+
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible

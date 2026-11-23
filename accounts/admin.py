@@ -22,6 +22,9 @@ rules:
 - An account's page shows how many of its sessions are open, and End sessions ends them all with
   a reason (accounts.session_list.end_account_sessions), audited. Their browsers and addresses
   are shown only to the account itself, on Where you are signed in.
+- An account's page shows whether its password is marked as compromised, and Mark as compromised
+  marks it, with a reason (accounts.compromised.mark_compromised), audited: its sessions end and
+  the person must choose a new password before anything else.
 """
 
 import hashlib
@@ -49,6 +52,7 @@ from django.forms.models import model_to_dict
 from django.http import Http404, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils import formats, timezone
 from django.utils.html import format_html
 
 from core.audit import record_event
@@ -358,6 +362,20 @@ class EndSessionsForm(forms.Form):
     )
 
 
+class MarkCompromisedForm(forms.Form):
+    reason = forms.CharField(
+        # The page's one field: focused when it opens, and again when a save is refused.
+        widget=forms.Textarea(attrs={"rows": 3, "cols": 60, "autofocus": True}),
+        max_length=1000,
+        help_text="Recorded in the audit history with the mark, for example the person typed it "
+        "into a page posing as the laboratory's, or it was found in a published breach. The "
+        "person does not see it. Do not include patient information.",
+    )
+    # The password as the page was drawn (accounts.compromised.drawn_password): a password changed
+    # since is not marked.
+    drawn = forms.CharField(widget=forms.HiddenInput)
+
+
 class AccountPasswordForm(PasswordGuidance, AdminPasswordChangeForm):
     """The account's password page. It saves the password only: the account was read when the
     request began, and a full save would put back what changed since, such as a deactivation
@@ -470,9 +488,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 
     actions = None
     # Recorded by the application: shown, never edited (a save would put back the time drawn).
-    readonly_fields = ("last_login", "date_joined", "open_sessions")
+    readonly_fields = ("last_login", "date_joined", "open_sessions", "compromised_password")
     fieldsets = (
-        (None, {"fields": ("username", "password", "drawn")}),
+        (None, {"fields": ("username", "password", "compromised_password", "drawn")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
         (
             "Client access",
@@ -620,6 +638,37 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         url = reverse("admin:accounts_user_sessions", args=[user.pk])
         return format_html('{} <a href="{}">End sessions</a>', text, url)
 
+    @admin.display(description="Compromised password")
+    def compromised_password(self, user):
+        """Whether the password is marked as compromised now, and the way to mark it."""
+        from .compromised import REFUSALS, open_mark, refusal
+
+        if user.pk is None:
+            return "—"
+        mark = open_mark(user.pk)
+        if mark is not None:
+            when = formats.localize(timezone.localtime(mark.marked_at))
+            return (
+                f"Marked on {when} by {mark.marked_by.get_username()}. The person must choose a "
+                "new password before anything else; any new password lifts the mark."
+            )
+        if user.pk == getattr(user, "_vr_admin_viewer", None):
+            return REFUSALS["own"]
+        refused = refusal(user, None)
+        if refused == REFUSALS["system"]:
+            return "—"
+        if refused:
+            return refused
+        url = reverse("admin:accounts_user_compromised", args=[user.pk])
+        return format_html('Not marked. <a href="{}">Mark as compromised</a>', url)
+
+    def get_object(self, request, object_id, from_field=None):
+        user = super().get_object(request, object_id, from_field)
+        if user is not None:
+            # Who is looking, for the Compromised password field (one's own cannot be marked).
+            user._vr_admin_viewer = request.user.pk
+        return user
+
     def get_urls(self):
         return [
             path(
@@ -627,8 +676,106 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 self.admin_site.admin_view(self.end_sessions_view),
                 name="accounts_user_sessions",
             ),
+            path(
+                "<id>/compromised/",
+                self.admin_site.admin_view(self.mark_compromised_view),
+                name="accounts_user_compromised",
+            ),
             *super().get_urls(),
         ]
+
+    def mark_compromised_view(self, request, id):
+        """Mark the account's password as compromised, with a reason. Decided and recorded by the
+        service, from the account as it stands when it is saved (accounts.compromised)."""
+        from allauth.account import app_settings as account_settings
+
+        from core.second_factor import has_second_factor
+        from jobs.outbox import mail_enabled
+
+        from .compromised import (
+            ALREADY_MARKED,
+            can_mark,
+            drawn_password,
+            mark_compromised,
+            open_mark,
+            refusal,
+        )
+        from .session_list import open_count
+
+        user = self.get_object(request, unquote(id))
+        if user is None:
+            raise Http404("No such account.")
+        if not self.has_change_permission(request, user) or not can_mark(request.user):
+            raise PermissionDenied
+        sign_in_codes = mail_enabled() and account_settings.LOGIN_BY_CODE_ENABLED
+        if request.method == "POST":
+            form = MarkCompromisedForm(request.POST)
+        else:
+            form = MarkCompromisedForm(initial={"drawn": drawn_password(user)})
+        if request.method == "POST" and form.is_valid():
+            try:
+                with transaction.atomic():
+                    marked = mark_compromised(
+                        actor=request.user,
+                        account_id=user.pk,
+                        reason=form.cleaned_data["reason"],
+                        drawn=form.cleaned_data["drawn"],
+                    )
+                    self.log_change(request, user, "Marked the password as compromised.")
+            except ValidationError as error:
+                form.add_error(None, error)
+            except User.DoesNotExist:
+                raise Http404("No such account.") from None
+            else:
+                count = len(marked.sessions)
+                ended = (
+                    f"{count} session{'s' if count != 1 else ''} ended."
+                    if count
+                    else "No session was open."
+                )
+                if marked.second_factor:
+                    then = (
+                        "Tell the person to sign in with their password and an authenticator "
+                        "code: they will be asked to choose a new password."
+                    )
+                elif mail_enabled():
+                    by_code = (
+                        "or to sign in with a code emailed to them and choose a new password, "
+                        if sign_in_codes
+                        else ""
+                    )
+                    then = (
+                        "The account has no second factor, so its password no longer signs it "
+                        "in. Tell the person to use Forgot your password? on the sign-in page, "
+                        f"{by_code}or set a new password for them on the account's password page."
+                    )
+                else:
+                    then = (
+                        "The account has no second factor and this deployment sends no email, so "
+                        "set a new password for them on the account's password page."
+                    )
+                self.message_user(
+                    request,
+                    f"Marked the password of {user.get_username()} as compromised. {ended} {then}",
+                )
+                return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
+        refused = refusal(user, request.user)
+        if refused is None and open_mark(user.pk) is not None:
+            refused = ALREADY_MARKED
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Mark password as compromised: {user.get_username()}",
+            "subtitle": None,
+            "opts": self.opts,
+            "original": user,
+            "form": form,
+            "refused": refused,
+            "second_factor": has_second_factor(user),
+            "sign_in_codes": sign_in_codes,
+            "open_count": open_count(user),
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(request, "admin/accounts/user/mark_compromised.html", context)
 
     def end_sessions_view(self, request, id):
         """End every open session of the account, with a reason (on one's own account, every one
