@@ -451,10 +451,10 @@ def _second_factor(staff_with, staff, portal_with, portal):
         "Required of " + _lower_first(summary(values(current))),
         "second-factor",
         "An account the rule covers that has no second factor sets up an authenticator app, with "
-        "recovery codes, at its next sign-in and opens nothing else first; sessions already open "
-        "are not interrupted. Removing it in a session the rule covered at sign-in sends that "
-        "session back to setting one up. Other accounts' holders can add one. Shared "
-        "demonstration accounts cannot add one. " + counted,
+        "recovery codes, at its next sign-in and opens nothing else first. A session the rule did "
+        "not cover at sign-in is not interrupted; one it covered is sent back to setting one up "
+        "whenever its account has none while the rule covers it. Other accounts' holders can add "
+        "one. Shared demonstration accounts cannot add one. " + counted,
     )
 
 

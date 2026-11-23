@@ -88,17 +88,25 @@ account and to count them, so the page and the sign-in agree. Roles are matched 
 `effective_roles` counts them and the patient-information grant as `has_capability` does (on the
 account or a group). At sign-in, `accounts.sessions.start_session` records on the new
 `AccountSession` row whether the rule covered the account then (`second_factor_required`).
-`accounts.enrolment.EnrolmentMiddleware`, after `SessionLimitMiddleware`, reads that flag and
-whether the account has a non-recovery-code authenticator in one statement on each request; while
-the flag is set and there is none, and the rule as it stands still covers the account, only the
-setup routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup page: redirected
-(a GET remembers its address once, for Continue), told to load it in the whole window (HTMX and
-the form dialog) or refused with JSON for scripts. Deciding at sign-in keeps open sessions and
+`accounts.enrolment.EnrolmentMiddleware`, after `SessionLimitMiddleware`, reads in one statement
+on each request that flag, whether the account has an authenticator of a type the deployment offers
+(`MFA_SUPPORTED_TYPES`) other than recovery codes, and whether the rule as it stands still covers
+the active account; while the flag is set, there is none and the rule covers it, only the setup
+routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup page: redirected (the
+first GET opened in the window is remembered for Continue), told to load it in the whole window
+(HTMX and the form dialog) or refused with JSON for scripts. The setup page draws whether the
+session waits, why, and the account's recovery codes from one snapshot. Deciding at sign-in keeps open sessions and
 their unsaved forms going when the rule changes; deciding each request from the factor keeps a
 session that removes its only authenticator held. The rule, the account, its groups and its grants are read in one
 statement (`core.second_factor`: the setup page's reasons and the Security settings counts too).
 Continue's page is kept in the browser's session, which Django writes as a whole, so two tabs
-choosing Continue at the same moment can both go there (a strict xfail documents it). allauth's
+choosing Continue at the same moment can both go there (a strict xfail documents it). Two
+limitations of allauth's own sign-in steps predate this and are documented with strict xfails: a
+stored credential of a type the deployment does not offer (a security key kept from an earlier
+configuration) still makes password sign-in ask for a code the account cannot give, and an account
+without a password whose recovery codes are all used is asked for a code to confirm before adding
+an app; a superuser removes the stored credential in the admin console (Authenticators). After a
+re-authentication that resumes a posted setup form, the help shown is the re-authentication page's. allauth's
 refusal to add an authenticator while an address record is unverified is off
 (`MFA_ALLOW_UNVERIFIED_EMAIL`): sign-up is closed, and on a deployment without outgoing email a
 required account holding an unverified address could otherwise never enrol (an account with no

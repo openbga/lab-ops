@@ -368,6 +368,9 @@ def test_the_allowed_pages_are_the_setup_ones():
         "account-second-factor",
         "mfa_index",
         "mfa_activate_totp",
+        "mfa_view_recovery_codes",
+        "mfa_download_recovery_codes",
+        "mfa_generate_recovery_codes",
         "account_reauthenticate",
         "mfa_reauthenticate",
         "account_login",
@@ -494,3 +497,68 @@ def test_opening_the_setup_page_first_remembers_the_start_page(client, make_user
     assert client.session[NEXT_KEY] == reverse("dashboard")
     assert client.get("/requests/").url == SETUP
     assert client.session[NEXT_KEY] == reverse("dashboard")  # the first page stays
+
+
+# --- review verification: neighbours of the fixed cases -------------------------------------------
+
+
+def test_the_gate_reads_the_flag_the_factor_and_the_rule_in_one_statement(client, make_user):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from accounts import enrolment
+
+    require(staff=True)
+    sign_in(client, make_user("gate_one_statement", "technical"))
+    request = client.get(SETUP).wsgi_request
+    with CaptureQueriesContext(connection) as queries:
+        assert enrolment.pending(request) is True
+    assert len(queries) == 1
+
+
+def test_a_stored_name_that_is_not_a_role_neither_covers_nor_survives_a_save(make_user):
+    from django.contrib.auth.models import Group
+
+    from core import second_factor
+    from core.models import AuditEvent
+
+    member = make_user("stray_group_member")
+    member.groups.add(Group.objects.create(name="Technical"))  # not the role group "technical"
+    rule = require()
+    SecondFactorRule.objects.filter(pk=1).update(roles=["Technical"])
+    assert second_factor.requires(member) is False
+    assert second_factor.counts() == (0, 0)
+    admin = make_user("stray_admin", "admin")
+    _, changed = second_factor.save_rule(
+        actor=admin, new={}, expected_revision=rule.revision, reason="Clear the stored names."
+    )
+    assert changed and SecondFactorRule.objects.get(pk=1).roles == []
+    event = AuditEvent.objects.get(action=second_factor.ACTION)
+    assert event.before["roles"] == ["Technical"] and event.after["roles"] == []
+
+
+def test_a_waiting_session_opens_its_existing_codes_but_stays_held(client, make_user):
+    from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+
+    require(staff=True)
+    user = make_user("codes_while_waiting", "technical")
+    RecoveryCodes.activate(user)
+    sign_in(client, user)
+    client.post(reverse("account_reauthenticate"), {"password": PASSWORD})
+    assert client.get(reverse("mfa_view_recovery_codes")).status_code == 200
+    assert client.get(reverse("mfa_download_recovery_codes")).status_code == 200
+    client.get(reverse("mfa_generate_recovery_codes"))
+    assert client.get("/requests/").url == SETUP  # codes are not a second factor
+
+
+def test_the_setup_page_words_used_up_codes(client, make_user):
+    from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+
+    require(staff=True)
+    user = make_user("used_up_codes", "technical")
+    codes = RecoveryCodes.activate(user)
+    for code in codes.get_unused_codes():
+        codes.validate_code(code)
+    sign_in(client, user)
+    html = client.get(SETUP).content.decode()
+    assert "recovery codes are all used" in html and "Generate" in html

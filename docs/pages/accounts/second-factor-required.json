@@ -26,14 +26,14 @@
     "Until your account has an authenticator app, every other page, form and the admin console send you back here.",
     "Continue takes you to the page you were opening when you signed in, or to the start page, and then forgets it.",
     "A shared demonstration account cannot add one. Sign out and use another account.",
-    "If you lose your phone later, a recovery code signs you in once; an administrator can remove the old app so you can add a new one."
+    "If you lose your phone later, a recovery code signs you in once. If your codes are all used, generate new ones on Two-factor authentication after setup."
   ],
   "sections": [
     {
       "title": "Why you are here",
       "paragraphs": [
         "An administrator of your laboratory chose which accounts must have a second sign-in factor on Security settings: every staff account, staff with chosen roles, staff who can view patient information, accounts that can open the admin console, or client portal accounts. Why it is needed names the parts that cover your account as it stands now.",
-        "Whether the rule covers your account is decided when you sign in. A rule saved while you were already signed in applies from your next sign-in."
+        "Whether the rule covers your account is decided when you sign in. A session it did not cover then is not held, whatever is saved later, until you sign in again; a session it covered comes here whenever your account has no app while the rule covers it."
       ]
     },
     {
@@ -41,7 +41,7 @@
       "items": [
         {
           "label": "Set up authenticator app",
-          "description": "Opens the authenticator app setup. It asks you to confirm who you are first (your password, or a recovery code for an account without one) unless you did so in the last 5 minutes. Not shown to a shared demonstration account."
+          "description": "Opens the authenticator app setup. It may ask you to confirm who you are first (your password, or a recovery code for an account without one) unless you did so in the last 5 minutes; an account with no password and no recovery codes is not asked. Not shown to a shared demonstration account."
         },
         {
           "label": "Sign out",
@@ -49,15 +49,15 @@
         },
         {
           "label": "Continue",
-          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the page you were opening when you signed in, or to the start page, and then forgets it. Two tabs choosing it at the same moment can both go there."
+          "description": "Shown on the recovery codes page (or Two-factor authentication) once the app is set up: goes on to the first page you opened in the window after signing in, or to the start page, and then forgets it. Two tabs choosing it at the same moment can both go there."
         }
       ]
     },
     {
       "title": "What this session can open",
       "paragraphs": [
-        "While your account has no authenticator app, this session opens only this page, Two-factor authentication, the app setup, the confirmation it asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find, What's new and the other account pages are not shown. Recovery codes alone are not a second factor.",
-        "Once the app is set up, everything your roles allow opens again. If the app is removed later, every session of yours the rule covered at sign-in comes back here at its next request until you add one. If the rule stops covering your account (a role removed, the rule changed), this session goes on without one for as long as that lasts."
+        "While your account has no authenticator app, this session opens only this page, Two-factor authentication with the app setup and any recovery codes your account already has, the confirmation the setup asks for, Sign out and sign-in. Any other page, form, dialog or file sends you back here, and the menu, Find, What's new and the other account pages are not shown. Recovery codes alone are not a second factor.",
+        "Once the app is set up, everything your roles allow opens again. If the app is removed later, every session of yours the rule covered at sign-in comes back here at its next request while the rule still covers your account. If the rule stops covering your account (a role removed, the rule changed), this session goes on without one for as long as that lasts."
       ]
     }
   ],

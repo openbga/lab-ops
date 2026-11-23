@@ -53,7 +53,7 @@
     {
       "title": "Prerequisites and changing enrollment",
       "paragraphs": [
-        "Requires sign-in and recent reauthentication: a password (or code) confirmed in the last five minutes; signing in does not count. An unverified email address does not stop activation in this deployment. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment.",
+        "Requires sign-in and recent reauthentication: a password (or code) confirmed in the last five minutes; signing in does not count. An account with no password and no codes to confirm with is not asked. An unverified email address does not stop activation in this deployment. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment.",
         "When the laboratory requires a second factor of your account, a session that signed in without one is sent here through Set up a second sign-in factor and opens nothing else until activation succeeds. The recovery codes page then offers Continue."
       ]
     }

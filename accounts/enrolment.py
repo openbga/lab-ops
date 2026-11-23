@@ -29,7 +29,7 @@ middleware): the setup page says so and offers only Sign out.
 
 from allauth.mfa.models import Authenticator
 from django.contrib.auth.decorators import login_required
-from django.db.models import Exists, OuterRef
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -43,8 +43,9 @@ ENROLMENT_ROUTE = "account-second-factor"
 # The page the sign-in was going to, kept in the browser's session while it waits for a factor.
 NEXT_KEY = "_second_factor_next"
 # What a session waiting for a second factor may reach: the setup page; the account's two-factor
-# overview and adding an authenticator app (with the re-authentication that asks for first, by
-# password or, for an account without one, by a recovery code);
+# overview, adding an authenticator app (with the re-authentication that asks for first, by
+# password or, for an account without one, by a recovery code) and the recovery codes pages the
+# overview offers for codes the account already has;
 # signing in and out; the session status, Stay signed in and keeping what was typed
 # (accounts.sessions); the laboratory's logo; and the health checks.
 ALLOWED_VIEWS = frozenset(
@@ -52,6 +53,9 @@ ALLOWED_VIEWS = frozenset(
         ENROLMENT_ROUTE,
         "mfa_index",
         "mfa_activate_totp",
+        "mfa_view_recovery_codes",
+        "mfa_download_recovery_codes",
+        "mfa_generate_recovery_codes",
         "account_reauthenticate",
         "mfa_reauthenticate",
         "account_login",
@@ -66,38 +70,41 @@ ALLOWED_VIEWS = frozenset(
 )
 
 
-def second_factor_types():
-    from core.second_factor import second_factor_types as types
-
-    return types()
-
-
 def waiting(state):
-    """Whether the signed-in session `state` (accounts.sessions.SessionState) was held to the rule
-    at sign-in and its account has no second factor now: one statement."""
+    """Whether the signed-in session `state` (accounts.sessions.SessionState) must add a second
+    factor before anything else: the rule covered its account at sign-in (the row's flag), the
+    account has no second factor of a type this deployment offers, and the rule as it stands still
+    covers the active account. One statement, so the three are read together."""
     if state is None:
         return False
-    factor = Authenticator.objects.filter(
-        user_id=OuterRef("user_id"), type__in=second_factor_types()
-    )
-    return (
-        AccountSession.objects.filter(
-            pk=state.id, user_id=state.user_id, second_factor_required=True
+    from django.db import connection
+
+    from core import second_factor
+
+    t = second_factor._tables()
+    sessions = connection.ops.quote_name(AccountSession._meta.db_table)
+    source, source_params = second_factor._rule_source(None)
+    condition, params = second_factor._covered_sql()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT EXISTS (SELECT 1 FROM {sessions} s JOIN {t['user']} u ON u.id = s.user_id, "
+            f"{source} r WHERE s.id = %s AND s.user_id = %s AND s.second_factor_required "
+            f"AND u.is_active AND NOT EXISTS (SELECT 1 FROM {t['authenticator']} a "
+            f"WHERE a.user_id = u.id AND a.type = ANY(%s)) AND {condition})",
+            [
+                *source_params,
+                state.id,
+                state.user_id,
+                second_factor.second_factor_types(),
+                *params,
+            ],
         )
-        .exclude(Exists(factor))
-        .exists()
-    )
+        return bool(cursor.fetchone()[0])
 
 
 def pending(request):
-    """Whether this request's session must add a second factor before anything else: waiting for
-    one (waiting()) and its account still covered by the rule as it stands (core.second_factor)."""
-    from core.second_factor import requires
-
-    state = getattr(request, "account_session", None)
-    if state is None or not waiting(state):
-        return False
-    return requires(request.user)
+    """Whether this request's session must add a second factor before anything else (waiting())."""
+    return waiting(getattr(request, "account_session", None))
 
 
 def _is_navigation(request):
@@ -156,9 +163,10 @@ class EnrolmentMiddleware:
 
 
 def _take_next(request):
-    """The page the sign-in was going to, taken from the session by a GET (a HEAD leaves it), if
-    it is on this site."""
-    if request.method == "GET":
+    """The page the sign-in was going to, taken from the session by a GET the browser opens in the
+    window (a HEAD, a script's request, a dialog or a partial update leaves it), if it is on this
+    site."""
+    if request.method == "GET" and _is_navigation(request):
         path = request.session.pop(NEXT_KEY, None)
     else:
         path = request.session.get(NEXT_KEY)
@@ -168,23 +176,38 @@ def _take_next(request):
     return None
 
 
+def _codes(user):
+    """The account's recovery codes, for the setup page's steps: "unused", "used up", or ""
+    when it has none."""
+    from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+
+    record = Authenticator.objects.filter(
+        user_id=user.pk, type=Authenticator.Type.RECOVERY_CODES
+    ).first()
+    if record is None:
+        return ""
+    return "unused" if RecoveryCodes(record).get_unused_codes() else "used up"
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @require_safe
 @login_required
 def enrolment_page(request):
     """Set up a second sign-in factor: why the laboratory requires one of this account, and the way
     to add an authenticator app. Once the session is no longer waiting (an authenticator added, or
     the rule no longer covers the account), Continue: it goes on to the page the sign-in was going
-    to, or the start page, and forgets it."""
+    to, or the start page, and forgets it. Whether the session waits, why, and the account's
+    recovery codes are read in one snapshot, so the page describes one state."""
+    from core.concurrency import one_reading
     from core.second_factor import reasons
 
     user = request.user
-    # Why, read in one statement with the rule and the account as they stand now: when nothing
-    # covers the account any more (the rule changed since this request was let through), the
-    # session is no longer waiting, and the page goes on as for one that is not.
-    why = reasons(user) if getattr(request, "vr_second_factor_pending", False) else []
+    with one_reading():
+        why = reasons(user) if pending(request) else []
+        codes = _codes(user) if why else ""
     if not why:
         return redirect(_take_next(request) or "dashboard")
-    if request.method == "GET":
+    if request.method == "GET" and _is_navigation(request):
         _remember(request, reverse("dashboard"))
     return render(
         request,
@@ -193,8 +216,6 @@ def enrolment_page(request):
             "page_title": "Set up a second sign-in factor",
             "reasons": why,
             "locked": user.credentials_locked,
-            "has_recovery_codes": Authenticator.objects.filter(
-                user_id=user.pk, type=Authenticator.Type.RECOVERY_CODES
-            ).exists(),
+            "codes": codes,
         },
     )

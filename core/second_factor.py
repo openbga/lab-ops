@@ -127,13 +127,15 @@ def _rule_source(current):
 
 def _parts_sql():
     """[(part, SQL condition on account `u` and rule `r`, parameters)] in FIELDS order. Roles as
-    effective_roles counts them (the admin role does the work of the operational ones); the
+    effective_roles counts them (the admin role does the work of the operational ones), and only
+    the role names of accounts.roles.ROLES, whatever else a stored row holds, as values() reads it;
+    the
     patient-information grant on the account or any of its groups, as has_capability counts it;
     staff status as the admin console checks it."""
     t = _tables()
     held = (
         f"SELECT 1 FROM {t['user_groups']} ug JOIN {t['group']} g ON g.id = ug.group_id "
-        "WHERE ug.user_id = u.id AND (g.name = ANY(r.roles) "
+        "WHERE ug.user_id = u.id AND g.name = ANY(%s::varchar[]) AND (g.name = ANY(r.roles) "
         "OR (g.name = 'admin' AND r.roles && %s::varchar[]))"
     )
     grant = (
@@ -146,7 +148,11 @@ def _parts_sql():
     )
     return [
         ("staff", "(r.staff AND u.client_id IS NULL)", []),
-        ("roles", f"(u.client_id IS NULL AND EXISTS ({held}))", [sorted(OPERATIONAL_ROLES)]),
+        (
+            "roles",
+            f"(u.client_id IS NULL AND EXISTS ({held}))",
+            [list(ROLES), sorted(OPERATIONAL_ROLES)],
+        ),
         (
             "patient_information",
             f"(r.patient_information AND u.client_id IS NULL AND EXISTS ({grant}))",
@@ -297,8 +303,8 @@ def save_rule(*, actor, new, expected_revision, reason):
     """Set the rule, with a reason. Returns (rule, changed).
 
     `expected_revision` is the rule's revision the form showed (0 for a rule never saved): a
-    change saved in between refuses this one. Sessions already open keep going; the rule applies
-    from each account's next sign-in.
+    change saved in between refuses this one. Whether a session is held to the rule is decided at
+    its sign-in (accounts.enrolment): a session the rule did not cover then is not held.
     """
     current = hold_actor(actor)  # before any other lock (accounts.acting)
     if current is None or not can_manage(current):
@@ -317,7 +323,8 @@ def save_rule(*, actor, new, expected_revision, reason):
             "has been kept; reload and compare the current rule before saving again."
         )
     after = _clean(new)
-    before = values(stored)
+    # The row as stored, so that a save clears a role name outside ROLES that a row holds.
+    before = {**values(stored), "roles": list(stored.roles or [])}
     if after == before:
         return stored, False
     for name, value in after.items():
