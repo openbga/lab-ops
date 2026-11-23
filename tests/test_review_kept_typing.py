@@ -802,23 +802,42 @@ def test_send_from_old_tab_after_signing_back_in_on_another_tab(review_form_case
 
 @pytest.mark.django_db(transaction=True)
 def test_migration_preserves_existing_open_and_ended_sessions():
+    # Adapted when accounts 0007 added AccountSession.second_factor_required: the rows of the
+    # earlier schema are written through its historical model, and the browser's session is the
+    # one a sign-in of that release left (force_login would write a row of today's model).
+    from importlib import import_module
+
+    from django.conf import settings
+    from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY
+    from django.contrib.auth import SESSION_KEY as AUTH_SESSION_KEY
+
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
     previous = [("accounts", "0004_session_browser_address")]
     executor.migrate(previous)
     try:
+        then = executor.loader.project_state(previous).apps.get_model("accounts", "AccountSession")
         account = User.objects.create_user("migration-review")
+        opened = then.objects.create(user_id=account.pk)
+        store = import_module(settings.SESSION_ENGINE).SessionStore()
+        store[AUTH_SESSION_KEY] = str(account.pk)
+        store[BACKEND_SESSION_KEY] = "django.contrib.auth.backends.ModelBackend"
+        store[HASH_SESSION_KEY] = account.get_session_auth_hash()
+        store[sessions.SESSION_KEY] = str(opened.pk)
+        store.save()
         browser = Client()
-        browser.force_login(account)
-        ended = AccountSession.objects.create(
-            user=account, ended_at=timezone.now(), ending=AccountSession.Ending.INACTIVITY
+        browser.cookies[settings.SESSION_COOKIE_NAME] = store.session_key
+        ended = then.objects.create(
+            user_id=account.pk, ended_at=timezone.now(), ending=AccountSession.Ending.INACTIVITY
         )
-        before = list(AccountSession.objects.filter(user=account).order_by("id").values())
+        before = list(then.objects.filter(user_id=account.pk).order_by("id").values())
         assert len(before) == 2 and sum(row["ended_at"] is None for row in before) == 1
     finally:
         MigrationExecutor(connection).migrate(latest)
 
-    assert list(AccountSession.objects.filter(user=account).order_by("id").values()) == before
+    after = list(AccountSession.objects.filter(user=account).order_by("id").values())
+    assert [row.pop("second_factor_required") for row in after] == [False, False]
+    assert after == before
     assert browser.get(reverse("account-session")).json()["signed_in"] is True
     assert AccountSession.objects.get(pk=ended.pk).ending == AccountSession.Ending.INACTIVITY
     assert not KeptDraft.objects.exists()
