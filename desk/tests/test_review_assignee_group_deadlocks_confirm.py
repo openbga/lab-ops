@@ -299,7 +299,7 @@ def test_demo_seed_repair_leaves_the_external_system_available_to_an_earlier_imp
 
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+    monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
     options = {"stdout": io.StringIO(), "stderr": io.StringIO()}
     call_command("seed_demo", **options)

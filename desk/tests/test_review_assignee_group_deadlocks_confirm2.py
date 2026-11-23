@@ -502,7 +502,7 @@ def confirmation_seed_options(settings, monkeypatch):
 
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+    monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
     return {"stdout": io.StringIO(), "stderr": io.StringIO()}
 

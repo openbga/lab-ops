@@ -245,7 +245,7 @@ def test_seed_leaves_write_access_to_an_organization_preview_that_started_first(
     manager = make_user("seed_review_manager", "account_manager")
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+    monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
     ready = Gate()
     real_apply = importing._apply
