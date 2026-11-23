@@ -567,16 +567,17 @@ def test_the_setup_page_words_used_up_codes(client, make_user):
 # --- review confirmation: neighbours of the fixed cases -------------------------------------------
 
 
-def test_only_a_window_navigation_to_an_allowed_page_is_remembered(client, make_user):
+def test_the_setup_pages_are_not_remembered_for_continue(client, make_user):
     require(staff=True)
-    sign_in(client, make_user("allowed_first", "technical"), next_page=reverse("mfa_index"))
-    client.get(reverse("mfa_index"), HTTP_SEC_FETCH_DEST="empty")
-    client.get(reverse("mfa_index"), HTTP_HX_REQUEST="true")
+    user = make_user("allowed_first", "technical")
+    sign_in(client, user, next_page=reverse("mfa_activate_totp"))
+    for name in ("mfa_index", "account-session", "mfa_activate_totp", "account_reauthenticate"):
+        client.get(reverse(name))
     assert NEXT_KEY not in client.session
-    assert client.get(reverse("mfa_index")).status_code == 200
-    assert client.session[NEXT_KEY] == reverse("mfa_index")
     client.get(SETUP)
-    assert client.session[NEXT_KEY] == reverse("mfa_index")
+    assert client.session[NEXT_KEY] == reverse("dashboard")
+    assert client.get("/requests/").url == SETUP
+    assert client.session[NEXT_KEY] == reverse("dashboard")
 
 
 def test_the_overview_offers_continue_only_once_the_session_is_released(client, make_user):

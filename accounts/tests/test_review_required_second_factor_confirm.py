@@ -1,7 +1,7 @@
 """Independent confirmation cases for the changed required-second-factor behavior.
 
 Written by the independent reviewer (Codex) confirming the verification fixes at e1d9af3 and
-adopted unchanged, except one assertion adapted to the corrected setup step (marked in place) and
+adopted unchanged, except two assertions adapted to the corrected behaviour (marked in place) and
 two strict xfails for allauth's code generation, which offers and opens
 its confirmation to an account holding only recovery codes before it can be submitted (predates;
 documented in docs/architecture.md, "Required second factor"). The original is archived in
@@ -333,7 +333,10 @@ def test_continue_remembers_the_recovery_page_opened_first_after_signin(client, 
     completed, _secret = activate_app(client)
     assert completed.url == reverse("mfa_index")
     assert f'href="{SETUP}">Continue</a>'.encode() in client.get(completed.url).content
-    assert client.get(SETUP).url == first
+    # Adapted after the second confirmation: the setup pages are never remembered for Continue
+    # (the app's setup page turns into its removal once the app exists), so it goes to the start
+    # page when no other page was opened.
+    assert client.get(SETUP).url == reverse("dashboard")
 
 
 @pytest.mark.parametrize(

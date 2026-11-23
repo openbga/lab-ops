@@ -5,8 +5,8 @@ account at that moment (AccountSession.second_factor_required, set by
 accounts.sessions.start_session). While the account of such a session has no second factor, the
 session is waiting for one: EnrolmentMiddleware lets its requests reach only the pages that set one
 up (ALLOWED_VIEWS), and answers every other request by sending the browser to Set up a second
-sign-in factor (the setup page). The first page opened with GET is remembered as the page the
-sign-in was going to (the start page when the setup page itself was opened first); once the factor
+sign-in factor (the setup page). The first page outside ALLOWED_VIEWS opened with GET in the window
+is remembered as the page the sign-in was going to (the start page when none was); once the factor
 is added, Continue goes there and forgets it. Each sign-in starts without one. The browser's
 session is written as a whole, so two tabs choosing Continue at the same moment can both go there.
 
@@ -158,14 +158,8 @@ class EnrolmentMiddleware:
             return None
         match = request.resolver_match
         if match is not None and match.view_name in ALLOWED_VIEWS:
-            # The first page opened in the window is the one Continue goes back to, an allowed one
-            # too (the setup page itself remembers the start page when nothing is remembered).
-            if (
-                match.view_name != ENROLMENT_ROUTE
-                and request.method == "GET"
-                and _is_navigation(request)
-            ):
-                _remember(request)
+            # The setup pages themselves are never remembered for Continue (one may mean something
+            # else once the factor is added, such as the app's setup turning into its removal).
             return None
         return _refusal(request)
 
