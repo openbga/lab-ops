@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from accounts.acting import hold_actors, scope
 from accounts.models import User
+from accounts.passwords import SINGLE_FACTOR_MINIMUM
 from accounts.roles import ROLE_LABELS, ROLES
 from clients.services import hold_directory
 from core import demo, lab_profile
@@ -83,12 +84,17 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         password = os.environ.get("DEMO_PASSWORD")
-        if not password or len(password) < 12:
-            raise CommandError("Set DEMO_PASSWORD to at least 12 characters; it is never printed.")
-        admin_password = os.environ.get("DEMO_ADMIN_PASSWORD") or password
-        if len(admin_password) < 12:
+        # The length the password rule asks of a password used alone (accounts.passwords).
+        if not password or len(password) < SINGLE_FACTOR_MINIMUM:
             raise CommandError(
-                "DEMO_ADMIN_PASSWORD needs at least 12 characters, or leave it unset."
+                f"Set DEMO_PASSWORD to at least {SINGLE_FACTOR_MINIMUM} characters; it is never "
+                "printed."
+            )
+        admin_password = os.environ.get("DEMO_ADMIN_PASSWORD") or password
+        if len(admin_password) < SINGLE_FACTOR_MINIMUM:
+            raise CommandError(
+                f"DEMO_ADMIN_PASSWORD needs at least {SINGLE_FACTOR_MINIMUM} characters, or leave "
+                "it unset."
             )
         # The settings first, before any lock. Then one seed at a time; then the demonstration
         # accounts it acts as, in their gates' order (as an access change takes them), held for

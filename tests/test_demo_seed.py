@@ -206,3 +206,16 @@ def test_seed_gives_the_demo_laboratory_an_identity_once(monkeypatch):
     call_command("seed_demo", verbosity=0)
     lab.refresh_from_db()
     assert lab.logo_id is None and LabCertificate.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_seed_needs_the_length_of_a_password_used_alone(monkeypatch):
+    monkeypatch.setenv("DEMO_PASSWORD", "fourteen-chars")
+    monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
+    with pytest.raises(CommandError, match="DEMO_PASSWORD to at least 15 characters"):
+        call_command("seed_demo", verbosity=0)
+    monkeypatch.setenv("DEMO_PASSWORD", SHARED)
+    monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "fourteen-chars")
+    with pytest.raises(CommandError, match="DEMO_ADMIN_PASSWORD needs at least 15 characters"):
+        call_command("seed_demo", verbosity=0)
+    assert not User.objects.exists()

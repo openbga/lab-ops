@@ -14,7 +14,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   <details><summary>Technical notes</summary>
 
-  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, Django's `UserAttributeSimilarityValidator` and `CommonPasswordValidator`, and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account.
+  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, Django's `UserAttributeSimilarityValidator` and `CommonPasswordValidator`, and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account. `seed_demo` now needs `DEMO_PASSWORD` and `DEMO_ADMIN_PASSWORD` of at least 15 characters (was 12): set longer ones before the next demonstration reset.
 
   </details>
 
