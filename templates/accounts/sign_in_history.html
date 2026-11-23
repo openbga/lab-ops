@@ -33,7 +33,7 @@ addresses are left out), recent_days and recent_limit (how far back and how many
         {% for entry in entries %}
         <tr>
           <th scope="row" class="vr-nowrap"><time datetime="{{ entry.occurred_at|date:'c' }}">{{ entry.occurred_at|date:"Y-m-d H:i" }}</time></th>
-          <td class="vr-nowrap">{% if entry.attention %}{% status label=entry.event tone="warning" plain=True %}{% else %}{{ entry.event }}{% endif %}{% if entry.this_session %} {% status label="This browser" tone="info" plain=True %}{% endif %}</td>
+          <td class="vr-wrap">{% if entry.attention %}{% status label=entry.event tone="warning" plain=True %}{% else %}<span class="vr-nowrap">{{ entry.event }}</span>{% endif %}{% if entry.this_session %} {% status label="This browser" tone="info" plain=True %}{% endif %}</td>
           <td class="vr-wrap">{{ entry.details }}</td>
           <td class="vr-wrap">{% if entry.browser %}{{ entry.browser }}{% else %}<span class="vr-muted">Not shown</span>{% endif %}</td>
           <td class="vr-nowrap">{% if entry.address %}{{ entry.address }}{% elif entry.browser %}<span class="vr-muted">Not recorded</span>{% else %}<span class="vr-muted">Not shown</span>{% endif %}</td>

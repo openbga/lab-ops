@@ -30,7 +30,8 @@
   "good_to_know": [
     "This asks for your current password, not a new one.",
     "A confirmation counts as recent for five minutes.",
-    "Wrong passwords are rate limited."
+    "Wrong passwords are rate limited.",
+    "A password not accepted here is listed in your Sign-in history, in the account menu, as Re-authentication failed."
   ],
   "sections": [
     {
@@ -57,7 +58,8 @@
     {
       "title": "Availability",
       "paragraphs": [
-        "Requires sign-in and an available password authentication method. Without a usable password, redirects to an available factor method; if no reauthentication method exists the request is denied. A stored pending operation can resume after success; a separate pending challenge is not required merely to open this page. MFA-sensitive operations require recent reauthentication; the default recent interval is five minutes."
+        "Requires sign-in and an available password authentication method. Without a usable password, redirects to an available factor method; if no reauthentication method exists the request is denied. A stored pending operation can resume after success; a separate pending challenge is not required merely to open this page. MFA-sensitive operations require recent reauthentication; the default recent interval is five minutes.",
+        "A password not accepted here is kept in your Sign-in history as Re-authentication failed (Password not accepted), and one the failed sign-in limit refused before it was checked as Too many failed attempts (Refused before the password was checked). The password is never kept."
       ]
     }
   ],
@@ -65,6 +67,9 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "accounts/adapter.py",
+    "accounts/signin_history.py",
+    "accounts/tests/test_sign_in_history.py"
   ]
 }

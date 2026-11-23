@@ -30,7 +30,7 @@
     "Signing out a session does not stop anyone signing in again. If you think someone else knows your password, change it: that ends your other sessions too.",
     "Anything typed and not saved in a browser you sign out is lost.",
     "The browser name and the address are what each browser and the network reported at sign-in, so they can be wrong.",
-    "A session also leaves the list when it passes the laboratory's session limits or is signed out there.",
+    "A session also leaves the list when it passes the laboratory's session limits or is signed out there. [[Sign-in history]] shows when and why it ended.",
     "On a shared demonstration account you see only your own session: the others belong to other visitors."
   ],
   "sections": [
@@ -48,7 +48,8 @@
         {"label": "Address at sign-in", "description": "The network address the session signed in from, as the deployment reports it. Behind a proxy the deployment must be told which proxy to trust, or every session shows the proxy's address (see Security settings). Not recorded for a session that signed in before this was recorded, or when no address was available."},
         {"label": "Signed in", "description": "When the session signed in, in the laboratory's time zone."},
         {"label": "Last activity", "description": "When the session last opened a page, saved, searched or chose Stay signed in. Reading or typing does not count, and neither do the page's own checks of how long remains."},
-        {"label": "Open sessions", "description": "The number in the panel header counts the rows shown."}
+        {"label": "Open sessions", "description": "The number in the panel header counts the rows shown."},
+        {"label": "Sign-in history", "description": "A link under the list to Sign-in history, which lists your sign-ins of the last 90 days, the sessions that ended and why, and the attempts to sign in to your account that failed or were refused."}
       ]
     },
     {
@@ -61,8 +62,8 @@
     {
       "title": "Rules and records",
       "paragraphs": [
-        "A session is listed while it is open and inside both session limits, measured by the server's clock. A browser that was closed without signing out stays listed until it passes a limit.",
-        "Each sign-out from this page is recorded in the audit history with the sessions ended, without their browsers or addresses, and in the sign-in log. A change being saved from the session you sign out at that moment finishes first; one it starts afterwards is refused and that browser is signed out.",
+        "A session is listed while it is open and inside both session limits, measured by the server's clock. A browser that was closed without signing out stays listed until it passes a limit. A session that has ended is no longer listed here; its sign-in and its sign-out, with why it ended, stay in Sign-in history.",
+        "Each sign-out from this page is recorded in the audit history with the sessions ended, without their browsers or addresses, in the sign-in log, and in your Sign-in history as Signed out from another session. A change being saved from the session you sign out at that moment finishes first; one it starts afterwards is refused and that browser is signed out.",
         "If your own session ended while this page was open (it was signed out from another browser, or passed a limit), a sign-out sent from it is refused and you go to the sign-in page.",
         "A session that passes a session limit while it is being signed out is recorded as ended by that limit.",
         "Signing out ends sessions only. It does not change your password, your second factor or your access."
@@ -76,6 +77,8 @@
     "accounts/models.py",
     "templates/accounts/sessions.html",
     "templates/includes/user_menu.html",
-    "tests/test_session_list.py"
+    "tests/test_session_list.py",
+    "accounts/signin_history.py",
+    "templates/accounts/sign_in_history.html"
   ]
 }

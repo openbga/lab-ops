@@ -473,3 +473,48 @@ def test_the_page_reads_a_bounded_number_of_queries(make_user, django_assert_max
     http.get(PAGE)
     with django_assert_max_num_queries(25):
         assert http.get(PAGE).status_code == 200
+
+
+# --- Upgrade and reversal ----------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_session_open_at_the_upgrade_records_its_sign_out_and_reversal_removes_the_history():
+    from django.db.migrations.executor import MigrationExecutor
+
+    executor = MigrationExecutor(connection)
+    latest = executor.loader.graph.leaf_nodes()
+    before = [("accounts", "0008_compromised_password")]
+    executor.migrate(before)
+    try:
+        then = executor.loader.project_state(before).apps.get_model("accounts", "AccountSession")
+        account = User.objects.create_user("history-upgrade")
+        opened = then.objects.create(user_id=account.pk)
+    finally:
+        MigrationExecutor(connection).migrate(latest)
+
+    assert events(account) == []
+    sessions.end_sessions(account, Ending.ADMINISTRATOR)
+    assert events(account) == [(Kind.SIGNED_OUT, "", Ending.ADMINISTRATOR)]
+    assert SignInEvent.objects.get(user=account).session == opened.pk
+
+    executor = MigrationExecutor(connection)
+    executor.migrate(before)
+    try:
+        with connection.cursor() as cursor:
+            assert "accounts_signinevent" not in connection.introspection.table_names(cursor)
+            cursor.execute(
+                "SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal "
+                "AND tgrelid = 'accounts_accountsession'::regclass"
+            )
+            assert cursor.fetchone()[0] == 0
+        # Sessions start and end as before without the history.
+        then = executor.loader.project_state(before).apps.get_model("accounts", "AccountSession")
+        row = then.objects.create(user_id=account.pk)
+        then.objects.filter(pk=row.pk).update(ended_at=row.started_at, ending="signed_out")
+    finally:
+        MigrationExecutor(connection).migrate(
+            MigrationExecutor(connection).loader.graph.leaf_nodes()
+        )
+    with transaction.atomic():
+        User.objects.filter(pk=account.pk).update(is_active=False)

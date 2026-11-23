@@ -223,6 +223,36 @@ lift it. `MarkedPasswordValidator` compares a new password with each mark's hash
 in the application: a process of an earlier release, still serving during a deployment or after a
 rollback, neither enforces nor lifts a mark (docs/operations.md).
 
+Each account's sign-in history is a `SignInEvent` row per entry
+([accounts/signin_history.py](../accounts/signin_history.py)): the kind (signed in, sign-in
+refused, sign-in failed, too many failed attempts, re-authentication failed, signed out), the
+factor a sign-in proved or the step an attempt failed at (`SignInFactor`), the session ending, the
+session's id (not a foreign key: the session row is state, this is history), and the browser and
+address as `accounts.sessions.reported_by` gives them. Triggers added by `accounts` migration 0009
+write a row for each `AccountSession` inserted (signed in, or sign-in refused for a row inserted
+already ended, which is how a marked password alone is refused) and for each row whose `ended_at`
+is first set (signed out), with the session row's own times, ending, browser and address, in the
+statement that starts or ends the session. Every path that starts or ends a session, including a
+release still running while the migration applies, therefore leaves its entry in the same
+transaction; such a release's sessions carry no `factor` (the column's database default is blank),
+and their sign-ins show the factor as not recorded. `start_session` stores the factor on the row
+from the steps allauth recorded in the browser's session (`sign_in_factor`). A row past a limit is
+ended at the moment its limit passed, so its sign-out entry carries that time even when it is
+written later. The application writes the other kinds: `accounts.adapter` a password not
+accepted (`authentication_failed`), one refused by the failed sign-in limit (`pre_authenticate`)
+and the right password of a deactivated account (`pre_login`); `accounts.signin_log` an emailed
+code or a second factor not accepted, from allauth's signals; `accounts.forms.RecordedLockout` a
+second factor refused by the limit before it was checked. A password attempt made while signed in
+is a re-authentication and belongs to the signed-in account; otherwise it is recorded only for the
+one account its username or email address names in any letter case
+(`accounts.signin_log.accounts_named`, the sign-in log's match), and not at all when it names none or several. No
+submitted identifier, password or code is stored. A third trigger refuses `UPDATE` and `DELETE`
+on `accounts_signinevent`; `reset_demo` empties it with `TRUNCATE`, which row triggers do not see,
+and the account foreign key is `PROTECT`. The table has no model permissions and no admin; the
+page (`accounts.session_views.sign_in_history_page`) reads the account's own rows of the last 90
+days by the database's clock, at most 100, newest first, and hides the browser and address of
+every row but the current session's for a shared demonstration account.
+
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible

@@ -44,7 +44,8 @@
     {
       "title": "Sign-out activity",
       "paragraphs": [
-        "Ending an authenticated session records a sign-out with the stored username in the deployment’s application logs. Opening this confirmation page or canceling a pending sign-in while already signed out does not record a sign-out. These logs follow the deployment’s retention and survive database resets. A browser cookie expiring or a database reset is not an explicit sign-out and does not generate this event."
+        "Ending an authenticated session records a sign-out with the stored username in the deployment’s application logs. Opening this confirmation page or canceling a pending sign-in while already signed out does not record a sign-out. These logs follow the deployment’s retention and survive database resets. A browser cookie expiring or a database reset is not an explicit sign-out and does not generate this event.",
+        "The session's end is also kept in your Sign-in history as Signed out, With Sign out, with the browser and address the session reported when it signed in."
       ]
     }
   ],
@@ -55,6 +56,8 @@
     "uv.lock",
     "templates/includes/user_menu.html",
     "accounts/signin_log.py",
-    "accounts/tests/test_signin_log.py"
+    "accounts/tests/test_signin_log.py",
+    "accounts/signin_history.py",
+    "accounts/tests/test_sign_in_history.py"
   ]
 }
