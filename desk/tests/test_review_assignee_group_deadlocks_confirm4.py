@@ -38,7 +38,7 @@ def test_invalid_seed_configuration_is_reported_before_locking(make_user, monkey
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
     setting = "DEMO_PASSWORD"
     if invalid == "short admin password":
-        monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+        monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
         monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "short")
         setting = "DEMO_ADMIN_PASSWORD"
 

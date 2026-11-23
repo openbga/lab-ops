@@ -15,3 +15,8 @@ class AccountsConfig(AppConfig):
         from django.contrib.auth.signals import user_logged_in
 
         user_logged_in.disconnect(update_last_login, dispatch_uid="update_last_login")
+
+        # manage.py changepassword saves the password alone (accounts.password_command).
+        from . import password_command
+
+        password_command.install()

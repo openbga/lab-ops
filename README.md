@@ -36,7 +36,7 @@ PostgreSQL listen on your machine's loopback interface. This configuration is fo
 git clone https://github.com/openbga/lab-ops.git
 cd lab-ops
 docker compose --profile app up --build --wait
-# Type a password of at least 12 characters and press Enter.
+# Type a password of at least 15 characters, not a common or predictable one, and press Enter.
 read -rs DEMO_PASSWORD
 export DEMO_PASSWORD
 docker compose --profile app exec -e DEMO_PASSWORD web python manage.py seed_demo
@@ -92,8 +92,9 @@ python manage.py setup_lab --lab-name "Your Lab Name" \
   --admin-username owner --admin-email owner@yourlab.example
 ```
 
-The command prompts privately for the first administrator's password. For unattended setup,
-supply `SETUP_ADMIN_PASSWORD` in the environment. Sign in at `/accounts/login/` and open
+The command prompts privately for the first administrator's password, which needs at least 15
+characters and must not be a common or predictable password. For unattended setup, supply
+`SETUP_ADMIN_PASSWORD` in the environment. Sign in at `/accounts/login/` and open
 **Accounts & roles** to create staff accounts. An administrator creates each account. Each account
 can enrol an authenticator app, and **Security settings** chooses which accounts must have one. Staff need an explicit **Can view patient information** grant
 to access person-level identifiers, including staff with the administrator role.

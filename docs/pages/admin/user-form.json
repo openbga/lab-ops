@@ -73,7 +73,7 @@
         },
         {
           "label": "Password / Password confirmation",
-          "description": "Creation: required matching password when Enabled. Minimum eight characters, account-similarity, common-password and numeric-only checks apply."
+          "description": "Creation: required matching password when Enabled. A new account's first password needs at least 15 characters whatever the second sign-in factor rule, and common and expected passwords and ones too similar to the username or email address are refused. No required kinds of character."
         },
         {
           "label": "Password",

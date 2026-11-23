@@ -84,3 +84,25 @@ html[data-theme="dark"] {
   color: var(--body-quiet-color);
   font-size: 0.75rem;
 }
+
+/* Phone widths: the admin console's text, password and email fields and its buttons are touch
+   targets of at least 44 px (docs/ui-standards.md section 13). */
+@media (max-width: 767px) {
+  #content input[type="text"],
+  #content input[type="password"],
+  #content input[type="email"],
+  #content input[type="submit"],
+  #content textarea,
+  #content select {
+    min-height: 44px;
+  }
+}
+
+/* Phone widths: the header's buttons (Help, the theme switch, Log out) are touch targets of at
+   least 44 px too. */
+@media (max-width: 767px) {
+  #header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

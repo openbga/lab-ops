@@ -286,6 +286,21 @@ kept. Signing in again after a reply was refused opens the ticket. Deactivating 
 and a new password ends the account's other sessions. Pages shown to a signed-in person are
 marked not to be stored by the browser.
 
+A new password needs at least 15 characters, or 8 for an account the laboratory's second-factor
+rule covers when the password is chosen, and is refused when it is a common password, a common
+password (where it has at least four letters) or a name of the laboratory, the application or the
+account with only digits, symbols, spaces or letter case changed, one character or a text of fewer
+than 15 characters repeated, a run such as 123456789, or close to the account's username, names or
+email address as they stand when it is checked. Nothing asks for particular kinds of
+characters and passwords never expire. Each form that sets a password, on the account pages,
+through an emailed reset link and in the admin console, states the rule for its account; the
+`setup_lab` and `changepassword` commands and the demonstration's seed check it too. A password
+chosen earlier keeps working until it is next changed. A reset link mailed to an account does not
+work while the account is a shared demonstration account. Failed sign-ins are counted in the
+database, so a deployment running several server processes counts them together rather than in each
+process. Django's own `createsuperuser` command checks the password rule only when it asks for
+the password, and lets its operator go past it; `setup_lab` always checks it.
+
 Every signed-in person, staff or client portal, opens Where you are signed in from the account menu.
 It lists their own open sessions with the browser and the address each one reported when it signed
 in, when it signed in and when it was last active, and marks the one they are using. They can sign

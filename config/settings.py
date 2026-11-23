@@ -120,13 +120,24 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
+# The rule for a new password (accounts.passwords): 15 characters, or 8 where the laboratory
+# requires a second sign-in factor of the account; common and expected passwords refused; no
+# composition rule.
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "accounts.passwords.LengthByFactorValidator"},
+    {"NAME": "accounts.passwords.AccountSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
 ]
 ACCOUNT_ADAPTER = "accounts.adapter.ClosedSignupAdapter"
+# A reset link stops working once its account is a shared demonstration account (accounts.tokens).
+ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR = "accounts.tokens.ResetTokenGenerator"
+# The password forms state the rule for their account (accounts.passwords.guidance).
+ACCOUNT_FORMS = {
+    "change_password": "accounts.forms.ChangePasswordForm",
+    "set_password": "accounts.forms.SetPasswordForm",
+    "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
+}
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "optional"
@@ -149,6 +160,18 @@ ALLAUTH_TRUSTED_PROXY_COUNT = int(os.environ.get("ALLAUTH_TRUSTED_PROXY_COUNT", 
 # Alternative for platforms that set a client-address header themselves and replace any value a
 # client sends (never one a client can supply). When set, it is used instead of the proxy count.
 ALLAUTH_TRUSTED_CLIENT_IP_HEADER = os.environ.get("ALLAUTH_TRUSTED_CLIENT_IP_HEADER") or None
+# The failed sign-in counts, and allauth's other limits, are kept in the database, so that every
+# server process of the deployment counts the same attempts (core migration 0007 creates the
+# table). Each key is stored as a keyed digest, expired entries are removed at every write and
+# live ones are never dropped (core.cache): neither a name typed at sign-in nor a network address
+# is written.
+CACHES = {
+    "default": {
+        "BACKEND": "core.cache.SharedCache",
+        "LOCATION": "lab_ops_cache",
+        "KEY_FUNCTION": "core.cache.keyed_digest",
+    }
+}
 LOGIN_URL = "account_login"
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/accounts/login/"

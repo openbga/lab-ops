@@ -53,6 +53,7 @@ from django.utils.html import format_html
 
 from core.audit import record_event
 
+from .forms import PasswordGuidance
 from .models import User
 from .roles import CAPABILITIES, ROLES
 from .setup import account_snapshot, group_snapshot
@@ -339,8 +340,12 @@ class AccountChangeForm(AccessRules, UserChangeForm):
             password.help_text = ReservedPasswordWidget.explanation
 
 
-class AccountCreationForm(AccessRules, AdminUserCreationForm):
-    pass
+class AccountCreationForm(PasswordGuidance, AccessRules, AdminUserCreationForm):
+    # A new account's first password: the rule for an account not yet saved.
+    guidance_own = False
+
+    def guided_account(self):
+        return self.instance
 
 
 class EndSessionsForm(forms.Form):
@@ -353,10 +358,12 @@ class EndSessionsForm(forms.Form):
     )
 
 
-class AccountPasswordForm(AdminPasswordChangeForm):
+class AccountPasswordForm(PasswordGuidance, AdminPasswordChangeForm):
     """The account's password page. It saves the password only: the account was read when the
     request began, and a full save would put back what changed since, such as a deactivation
     committed while the new password was being checked and hashed."""
+
+    guidance_own = False
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -365,10 +372,12 @@ class AccountPasswordForm(AdminPasswordChangeForm):
         return user
 
 
-class OwnPasswordForm(AdminSitePasswordChangeForm):
+class OwnPasswordForm(PasswordGuidance, AdminSitePasswordChangeForm):
     """The admin console's own Change password page (for the signed-in account). It saves the
     password only, as AccountPasswordForm does for an account's password page: the account was
     read when the request began, and a full save would put back what changed since."""
+
+    guidance_field = "new_password1"
 
     def save(self, commit=True):
         user = super().save(commit=False)

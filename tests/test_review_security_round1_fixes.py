@@ -582,9 +582,9 @@ def test_an_unknown_validator_next_to_a_minimum_length_claims_nothing_about_eith
 
 
 def test_allauth_minimum_never_changes_the_release_statement():
-    assert "At least 8 characters" in fact("passwords").value
+    assert "At least 15 characters" in fact("passwords").value
     with override_settings(ACCOUNT_PASSWORD_MIN_LENGTH=20):  # ignored while validators exist
-        assert "At least 8 characters" in fact("passwords").value
+        assert "At least 15 characters" in fact("passwords").value
     with override_settings(AUTH_PASSWORD_VALIDATORS=[], ACCOUNT_PASSWORD_MIN_LENGTH=20):
         stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
     assert "20" not in stated

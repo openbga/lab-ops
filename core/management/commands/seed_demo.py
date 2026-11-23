@@ -11,6 +11,11 @@ from django.utils import timezone
 
 from accounts.acting import hold_actors, scope
 from accounts.models import User
+from accounts.passwords import (
+    SINGLE_FACTOR_MINIMUM,
+    check_published_password,
+    laboratory_named,
+)
 from accounts.roles import ROLE_LABELS, ROLES
 from clients.services import hold_directory
 from core import demo, lab_profile
@@ -66,7 +71,90 @@ ANNOUNCED_ACCOUNTS = (
 SEED_ACTORS = ("demo_admin", *(username for username, _summary in ANNOUNCED_ACCOUNTS))
 
 
+def staff_account_fields(role):
+    """A demonstration staff account's name and address, as the seed creates it."""
+    return {
+        "username": f"demo_{role}",
+        "email": f"{role.replace('_', '-')}@example.invalid",
+        "first_name": "Demo",
+        "last_name": ROLE_LABELS[role],
+        "is_staff": role == "admin",
+    }
+
+
+def published_passwords():
+    """(DEMO_PASSWORD, the password demo_admin gets), each setting read once, checked: the length
+    of a password used alone, then the rule for every account the seed creates. Refused with a
+    CommandError that never repeats a password.
+
+    seed_demo checks them before its transaction, so that nothing a password check reads is held
+    while it waits for the seed lock; reset_demo checks them once, holding that lock, before it
+    erases, and gives them to the seed (a caller that wraps seed_demo in a transaction of its own
+    holds whatever the check reads, as reset_demo does after taking the lock). Validators see each
+    account as the seed will create it, before it exists: with its username, email address and
+    names, and no id or organization yet. On a reset they run before the erase, so a validator
+    that reads the database sees the demonstration being replaced; the release's validators read
+    nothing there (accounts.passwords.laboratory_named with read_saved false)."""
+    password = os.environ.get("DEMO_PASSWORD")
+    # The length the password rule asks of a password used alone (accounts.passwords).
+    if not password or len(password) < SINGLE_FACTOR_MINIMUM:
+        raise CommandError(
+            f"Set DEMO_PASSWORD to at least {SINGLE_FACTOR_MINIMUM} characters; it is never "
+            "printed."
+        )
+    admin_setting = os.environ.get("DEMO_ADMIN_PASSWORD") or None
+    if admin_setting is not None and len(admin_setting) < SINGLE_FACTOR_MINIMUM:
+        raise CommandError(
+            f"DEMO_ADMIN_PASSWORD needs at least {SINGLE_FACTOR_MINIMUM} characters, or leave "
+            "it unset."
+        )
+    check_published_passwords(password, admin_setting)
+    return password, admin_setting or password
+
+
+def check_published_passwords(password, admin_password):
+    """Before anything is locked or written: the passwords the seed publishes meet the password
+    rule for every account it creates (accounts.passwords), each checked against the account as
+    it will be created. A refusal names the setting and, unless the password contains its
+    username, the account, never the password."""
+    from clients.seed import DEMO_PORTAL_ACCOUNTS, portal_account_fields
+
+    accounts = []
+    for role in ROLES:
+        if role == "admin" and admin_password:
+            accounts.append((staff_account_fields(role), admin_password, "DEMO_ADMIN_PASSWORD"))
+        else:
+            accounts.append((staff_account_fields(role), password, "DEMO_PASSWORD"))
+    for username, last_name, email, *_rest in DEMO_PORTAL_ACCOUNTS:
+        fields = portal_account_fields(username, last_name, email)
+        accounts.append((fields, password, "DEMO_PASSWORD"))
+    # The seed's laboratory is the demonstration's (it refuses any other), and the check comes
+    # before the seed may read a table: compare with its name rather than reading the saved one.
+    with laboratory_named(DEMO_LAB_NAME, read_saved=False):
+        for fields, chosen, setting in accounts:
+            try:
+                check_published_password(chosen, User(**fields), setting)
+            except ValidationError as error:
+                raise CommandError(" ".join(error.messages)) from None
+
+
+def refuse_announcing_a_shared_admin_password(password, admin_password):
+    """--announce-accounts publishes DEMO_PASSWORD, which must not open demo_admin: refused
+    before anything is written when demo_admin is about to get it (reset_demo)."""
+    if admin_password == password:
+        raise CommandError(
+            "Refusing to publish DEMO_PASSWORD: it also opens demo_admin, which manages "
+            "announcements and accounts. Set DEMO_ADMIN_PASSWORD to another password and run this "
+            "again. Nothing was changed."
+        )
+
+
 class Command(BaseCommand):
+    # reset_demo gives the seed the passwords it checked (published_passwords), so that one
+    # reading of the settings is checked and used. Only through Django's Python API (no
+    # command-line flag): a caller passing it is taken to have checked them. A deployment that
+    # replaces seed_demo with its own command keeps this option, or reset_demo cannot call it.
+    stealth_options = ("checked_passwords",)
     help = "Create synthetic demo records once; never reset existing data or passwords."
 
     def add_arguments(self, parser):
@@ -80,28 +168,23 @@ class Command(BaseCommand):
             "ends the announcement (for example when a scheduled reset_demo runs).",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
-        password = os.environ.get("DEMO_PASSWORD")
-        if not password or len(password) < 12:
-            raise CommandError("Set DEMO_PASSWORD to at least 12 characters; it is never printed.")
-        admin_password = os.environ.get("DEMO_ADMIN_PASSWORD") or password
-        if len(admin_password) < 12:
-            raise CommandError(
-                "DEMO_ADMIN_PASSWORD needs at least 12 characters, or leave it unset."
-            )
-        # The settings first, before any lock. Then one seed at a time; then the demonstration
-        # accounts it acts as, in their gates' order (as an access change takes them), held for
-        # the whole seed (accounts.acting.scope: its steps lock those that existed when it began
-        # nothing again; accounts it creates are its own until it commits); then the
-        # organization directory lock, before anything else it locks. No step of the seed then
-        # holds a record an import needs while it waits for the import, and a seed that waited
-        # sees the accounts the one before made.
-        demo.hold_seed_lock()
-        actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
-        with scope(actors):
-            hold_directory()
-            return self._seed(password, admin_password, *args, **options)
+        # The settings first, each read once, outside the transaction: whatever their check reads
+        # is not held while the seed waits for its lock. reset_demo has checked them already.
+        password, admin_password = options.get("checked_passwords") or published_passwords()
+        with transaction.atomic():
+            # Then one seed at a time; then the demonstration accounts it acts as, in their
+            # gates' order (as an access change takes them), held for the whole seed
+            # (accounts.acting.scope: its steps lock those that existed when it began nothing
+            # again; accounts it creates are its own until it commits); then the organization
+            # directory lock, before anything else it locks. No step of the seed then holds a
+            # record an import needs while it waits for the import, and a seed that waited sees
+            # the accounts the one before made.
+            demo.hold_seed_lock()
+            actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
+            with scope(actors):
+                hold_directory()
+                return self._seed(password, admin_password, *args, **options)
 
     def _seed(self, password, admin_password, *args, **options):
         # Only a seed that starts from an empty database (the test reset_demo applies) may seal
@@ -132,15 +215,8 @@ class Command(BaseCommand):
             )
         for role in ROLES:
             group, _ = Group.objects.get_or_create(name=role)
-            user, new = User.objects.get_or_create(
-                username=f"demo_{role}",
-                defaults={
-                    "email": f"{role.replace('_', '-')}@example.invalid",
-                    "first_name": "Demo",
-                    "last_name": ROLE_LABELS[role],
-                    "is_staff": role == "admin",
-                },
-            )
+            fields = staff_account_fields(role)
+            user, new = User.objects.get_or_create(username=fields.pop("username"), defaults=fields)
             if new:
                 user.set_password(admin_password if role == "admin" else password)
                 user.save()

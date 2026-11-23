@@ -280,19 +280,21 @@ def seed_setup(ctx):
     """Nothing to configure."""
 
 
+def portal_account_fields(username, last_name, email):
+    """A demonstration portal account's name and address, as the seed creates it (and as
+    seed_demo checks the published password against it before writing anything)."""
+    # Each portal account is named after its client.
+    return {"username": username, "email": email, "first_name": "Demo", "last_name": last_name}
+
+
 def seed_records(ctx):
     actor = User.objects.get(username="demo_account_manager")
     ctx.created["clients"] = _seed_clients(actor)
     for username, last_name, email, account, contact_email, site_codes in DEMO_PORTAL_ACCOUNTS:
         client = Client.objects.get(account_number=account)
+        fields = portal_account_fields(username, last_name, email)
         portal_user, new = User.objects.get_or_create(
-            username=username,
-            defaults={
-                "email": email,
-                "first_name": "Demo",
-                "last_name": last_name,  # each portal account named after its client
-                "client": client,
-            },
+            username=fields.pop("username"), defaults={**fields, "client": client}
         )
         if new:
             portal_user.set_password(ctx.password)

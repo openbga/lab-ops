@@ -33,7 +33,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 def demo_options(settings, monkeypatch):
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     settings.EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+    monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
     return {"stdout": io.StringIO(), "stderr": io.StringIO()}
 
@@ -315,7 +315,7 @@ def test_seed_prefix_takes_every_folded_gate_in_the_access_services_order(make_u
 
     first = make_user("demo_admin", "admin", pk=400)
     folded = make_user("demo_account_manager", "account_manager", pk=INT4 + 17)
-    monkeypatch.setenv("DEMO_PASSWORD", "synthetic review only")
+    monkeypatch.setenv("DEMO_PASSWORD", "Tern harbor 4182 lantern")
     monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
 
     class ReachedDirectory(Exception):

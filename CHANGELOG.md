@@ -8,6 +8,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### High impact
 
+- **Changed:** Longer passwords, checked against common and expected ones (2026-11-23, Security settings)
+
+  New passwords need 15 characters, or 8 where a second sign-in factor is required; each password form says which, and common or predictable ones are refused.
+
+  <details><summary>Technical notes</summary>
+
+  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, `accounts.passwords.AccountSimilarityValidator` (Django's similarity check against the account as it stands), Django's `CommonPasswordValidator` and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account. `seed_demo` now needs `DEMO_PASSWORD` and `DEMO_ADMIN_PASSWORD` of at least 15 characters (was 12) that meet the rule for each account it creates: set such ones before the next demonstration reset. `manage.py changepassword` now saves the password alone. `ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR` is `accounts.tokens.ResetTokenGenerator`: a reset link does not work while its account is a shared demonstration account; other links are unchanged.
+
+  </details>
+
 - **Added:** Require a second sign-in factor (2026-11-23, Security settings)
 
   Administrators choose which accounts must use an authenticator app; those accounts set one up at their next sign-in, before anything else.
@@ -89,6 +99,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   </details>
 
 ### Medium impact
+
+- **Security:** Failed sign-ins count the same in every server process (2026-11-23, Security settings)
+
+  The limit on failed sign-ins now counts attempts together across all of the deployment's server processes, rather than in each one.
+
+  <details><summary>Technical notes</summary>
+
+  `CACHES` is now `core.cache.SharedCache`, Django's database cache in the table `lab_ops_cache`, created by migration `core.0007_shared_cache_table` (run `migrate`; `createcachetable` is not needed). Keys are stored as HMACs made with `SECRET_KEY` (`core.cache.keyed_digest`), so the table holds no name or address; rotating `SECRET_KEY` starts the counts afresh. Every write removes expired entries, a live one is never removed to make room, and an entry lasts at least as long as asked. A deployment that replaces `CACHES` with a per-process cache gives each worker its own counts again, and Security settings says the configuration changed.
+
+  </details>
 
 - **Added:** Get back a new ticket you were typing after a sign-out (2026-11-22, Tickets)
 
