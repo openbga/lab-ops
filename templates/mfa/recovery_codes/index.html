@@ -1,0 +1,6 @@
+{% extends "mfa/recovery_codes/index.html" %}
+{% comment %}allauth's recovery codes page, with Continue for a session that was sent to set up a second factor (accounts.enrolment): it goes on to the page the sign-in was opening.{% endcomment %}
+{% block content %}
+  {{ block.super }}
+  {% if second_factor_continue and not second_factor_pending %}<p><a class="btn btn-primary" href="{% url 'account-second-factor' %}">Continue</a></p>{% endif %}
+{% endblock content %}

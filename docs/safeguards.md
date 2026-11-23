@@ -15,9 +15,10 @@ appropriate (§164.306(d)(3)). The proposed changes to the Security Rule (90 FR 
 are not in force and are not described here.
 
 The **Security settings** page in the application (Setup, administrators) shows the values in
-force in a running deployment: password rules, failed sign-in limits, the session limits, who can
-view patient information and the connection settings, with who sets each one. Administrators set
-the session limits there. The statements below on
+force in a running deployment: password rules, failed sign-in limits, the session limits, which
+accounts must have a second sign-in factor, who can view patient information and the connection
+settings, with who sets each one. Administrators set the session limits and the second-factor rule
+there. The statements below on
 passwords, failed sign-ins, sessions and re-authentication describe this release's default
 configuration (`config/settings.py`). The Security settings page follows the deployment settings
 read from the environment; where a deployment has changed a setting in `config/settings.py` that
@@ -59,7 +60,7 @@ laboratory's settings for it to the Security settings page.
 | Encryption and decryption (Addressable), (a)(2)(iv) | Nothing inside the application. Authenticator secrets and recovery codes are stored unencrypted in the database. | Encryption of the database, its storage and its backups at the host, and protection of database dumps. | Encryption of sign-in secrets and patient information |
 | Audit controls, (b) | Change events record who did what, when, to which record and why. Revealing a person-level key or a patient-marked answer, and an exact-key search, are recorded without the value. Opening a ticket, downloading a file and a portal account being shown a patient-marked answer are not recorded. | Log collection and retention at the host. | Access records for sensitive reads |
 | Integrity; mechanism to authenticate (Addressable), (c)(1)-(2) | Database triggers refuse changes and deletions of history, form values and file bytes. Files are stored with a SHA-256 checksum. Someone who controls the database can disable the triggers, so this is not tamper evidence. | Restricting database administration and keeping protected backups. | Tamper-evident audit records |
-| Person or entity authentication, (d) | A password, and an optional authenticator app with recovery codes, which each account's holder can add; shared demonstration accounts cannot. By default, adding or changing the second factor needs a recent re-authentication. Where the deployment sends email, a code sent to the account's address can take the place of the password, and the second factor is still asked for. | Whether to require a second factor until the application can. | Required two-factor sign-in and password rules |
+| Person or entity authentication, (d) | A password, and an authenticator app with recovery codes, which each account's holder can add; shared demonstration accounts cannot. An administrator can require one, on the Security settings page, of every staff account, staff with chosen roles, staff who can view patient information, accounts that can open the admin console and client portal accounts. An account the rule covers when it signs in, by password or emailed code, without an authenticator app sets one up before it can open anything else, and again whenever its account has none while the rule still covers it; sessions the rule did not cover at sign-in continue until they end. By default, adding or changing the second factor needs a recent re-authentication. Where the deployment sends email, a code sent to the account's address can take the place of the password, and the second factor is still asked for. | Which accounts must have a second factor, and the account recovery procedure when one is lost. | Required two-factor sign-in and password rules (the password rules) |
 | Transmission security; integrity controls and encryption (Addressable), (e) | With debug mode off, plain HTTP is redirected to HTTPS, browsers are told to keep using HTTPS (for one hour unless the deployment sets `SECURE_HSTS_SECONDS`), and cookies are sent over HTTPS only. Email notices carry the ticket number, a fixed event description, the laboratory's name and a sign-in link, never ticket content. | TLS at the host and proxy, and the mail route's encryption. | Email channel: replies out, inbound by webhook |
 
 ## Privacy Rule items the roadmap cites

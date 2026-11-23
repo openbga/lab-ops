@@ -80,6 +80,42 @@ role as the account is held, requires a reason and records one audit event, as t
 do in `core.session_limits`. The same change updates [the safeguards reference](safeguards.md).
 [Security settings](../core/security_settings.py)
 
+## Required second factor
+
+`core.second_factor` holds the laboratory's rule (`SecondFactorRule`, one row, saved like the
+session limits) and turns it into one condition on the accounts table, used both to decide for one
+account and to count them, so the page and the sign-in agree. Roles are matched as
+`effective_roles` counts them and the patient-information grant as `has_capability` does (on the
+account or a group). At sign-in, `accounts.sessions.start_session` records on the new
+`AccountSession` row whether the rule covered the account then (`second_factor_required`).
+`accounts.enrolment.EnrolmentMiddleware`, after `SessionLimitMiddleware`, reads in one statement
+on each request that flag, whether the account has an authenticator of a type the deployment offers
+(`MFA_SUPPORTED_TYPES`) other than recovery codes, and whether the rule as it stands still covers
+the active account; while the flag is set, there is none and the rule covers it, only the setup
+routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup page: redirected (the
+first GET opened in the window is remembered for Continue: the start page when it is the setup
+page itself, and the next one when it is another setup route), told to load it in the whole window
+(HTMX and the form dialog) or refused with JSON for scripts. The setup page draws whether the
+session waits, why, and the account's recovery codes from one snapshot. Deciding at sign-in keeps open sessions and
+their unsaved forms going when the rule changes; deciding each request from the factor keeps a
+session that removes its only authenticator held. The rule, the account, its groups and its grants are read in one
+statement (`core.second_factor`: the setup page's reasons and the Security settings counts too).
+Continue's page is kept in the browser's session, which Django writes as a whole, so two tabs
+choosing Continue at the same moment can both go there (a strict xfail documents it). Two
+limitations of allauth's own sign-in steps predate this and are documented with strict xfails: a
+stored credential of a type the deployment does not offer (a security key kept from an earlier
+configuration), when it is the account's only authenticator, leaves password sign-in asking for a
+code the account cannot give; for an account holding only recovery codes, allauth's overview
+offers Generate, whose submission explains that an app is needed first; and an account
+without a password whose recovery codes are all used is asked for a code to confirm before adding
+an app; a superuser removes the stored credential in the admin console (Authenticators). After a
+re-authentication that resumes a posted setup form, the help shown is the re-authentication page's. allauth's
+refusal to add an authenticator while an address record is unverified is off
+(`MFA_ALLOW_UNVERIFIED_EMAIL`): sign-up is closed, and on a deployment without outgoing email a
+required account holding an unverified address could otherwise never enrol (an account with no
+address record was never refused).
+[Required second factor](../accounts/enrolment.py)
+
 ## Sessions
 
 Each sign-in is an `AccountSession` row, created by Django's `user_logged_in` signal once every

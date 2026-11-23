@@ -661,8 +661,22 @@ def start_session(sender, request, user, **kwargs):
             end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
         else:
             close_expired(user)  # sessions abandoned since, past a limit
-        record = AccountSession.objects.create(user=user, user_agent=agent, address=address)
+        # Whether the laboratory's rule requires a second factor of the account as it signs in
+        # (accounts.enrolment holds the session to it while the account has none).
+        from core.second_factor import requires
+
+        record = AccountSession.objects.create(
+            user=user,
+            user_agent=agent,
+            address=address,
+            second_factor_required=requires(user),
+        )
     session[SESSION_KEY] = str(record.pk)
+    # A new sign-in remembers its own page for Continue after a second factor is added
+    # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.
+    from .enrolment import NEXT_KEY
+
+    session.pop(NEXT_KEY, None)
 
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_account_session_end")

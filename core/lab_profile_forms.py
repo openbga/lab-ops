@@ -2,6 +2,8 @@
 
 from django import forms
 
+from accounts.roles import ROLE_LABELS, ROLES
+
 from .lab_profile import IDENTITY_FIELDS, MAX_LOGO_SIDE, MIN_LOGO_SIDE
 from .models import MAX_LOGO_BYTES, Lab, LabCertificate
 from .widgets import TelInput
@@ -174,3 +176,58 @@ class SessionLimitsForm(GroupedForm, forms.Form):
     )
     expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
     groups = ((None, ["inactivity_minutes", "maximum_hours", "reason"]),)
+
+
+ROLE_CHOICES = [(role, ROLE_LABELS[role]) for role in ROLES]
+
+
+class SecondFactorRuleForm(GroupedForm, forms.Form):
+    """Set who must have a second sign-in factor (core.second_factor.save_rule), with a reason.
+    `expected_revision` is the rule's revision the form showed: a change saved in between refuses
+    this one. The roles are checked again when saving."""
+
+    staff = forms.BooleanField(
+        label="Every staff account",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Every account that is not a client portal account, whatever its role.",
+    )
+    roles = forms.MultipleChoiceField(
+        label="Staff with these roles",
+        choices=ROLE_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        help_text="Administrators do the work of every role, so choosing any role includes them.",
+    )
+    patient_information = forms.BooleanField(
+        label="Staff who can view patient information",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Staff accounts granted Can view patient information, themselves or through any "
+        "of their groups, with or without a role.",
+    )
+    admin_console = forms.BooleanField(
+        label="Accounts that can open the admin console",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Accounts with staff status in the admin console, superusers among them.",
+    )
+    portal = forms.BooleanField(
+        label="Client portal accounts",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    reason = forms.CharField(
+        label="Reason",
+        max_length=2000,
+        help_text="Kept with the change in the history on Security settings.",
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
+    groups = (
+        (
+            "Accounts that must have one",
+            ["staff", "roles", "patient_information", "admin_console", "portal"],
+        ),
+        ("Reason for the change", ["reason"]),
+    )

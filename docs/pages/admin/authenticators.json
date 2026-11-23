@@ -26,7 +26,7 @@
     "Secrets and recovery codes are never shown here.",
     "Factors cannot be added or edited. Users enroll their own on their Two-factor authentication pages.",
     "Each removal is recorded in the account's audit history.",
-    "When to remove someone's factor is the laboratory's account-recovery decision."
+    "Removing someone's factor is the laboratory's recovery decision. A stored security key, which this deployment does not offer, blocks password sign-in when it is the only one."
   ],
   "sections": [
     {
@@ -89,6 +89,7 @@
     "accounts/roles.py",
     "core/admin.py",
     "config/settings.py",
-    "uv.lock"
+    "uv.lock",
+    "accounts/enrolment.py"
   ]
 }

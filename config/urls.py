@@ -6,7 +6,7 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
-from accounts import session_views
+from accounts import enrolment, session_views
 from core import (
     announcement_views,
     lab_profile_views,
@@ -48,6 +48,7 @@ urlpatterns = [
         name="account-session-continue",
     ),
     path("account/session/keep/", session_views.keep_typing, name="account-session-keep"),
+    path("account/second-factor/", enrolment.enrolment_page, name="account-second-factor"),
     path("account/sessions/", session_views.sessions_page, name="account-sessions"),
     path(
         "account/sessions/others/sign-out/",
@@ -111,6 +112,11 @@ urlpatterns = [
         "lab/security/",
         security_settings_views.security_settings_page,
         name="security-settings",
+    ),
+    path(
+        "lab/security/second-factor/",
+        security_settings_views.second_factor_edit,
+        name="second-factor-edit",
     ),
     path(
         "lab/security/sessions/<slug:audience>/",

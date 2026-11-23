@@ -24,6 +24,7 @@ FORM_SURFACES = {
     "jobs:settings-edit": "lg",
     "lab-contact-edit": "lg",
     "session-limits-edit": "lg",
+    "second-factor-edit": "lg",
     # Request desk
     "desk:request-create": "lg",
     "desk:request-assign": "lg",

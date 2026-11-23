@@ -6,11 +6,20 @@ from types import SimpleNamespace
 
 import pytest
 from allauth.account.internal.flows import code_verification
-from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
+from allauth.mfa.models import Authenticator
+from allauth.mfa.totp.internal.auth import (
+    TOTP,
+    format_hotp_value,
+    generate_totp_secret,
+    hotp_value,
+    yield_hotp_counters_from_time,
+)
 from django.core import mail
 from django.core.cache import cache
 from django.test import Client
 from django.urls import reverse
+
+from .conftest import PASSWORD
 
 pytestmark = pytest.mark.django_db
 
@@ -156,15 +165,25 @@ def test_disabled_email_reset_gives_an_account_independent_recovery_path(client,
         assert b"We have sent you an email" not in response.content
 
 
-def test_mfa_overview_links_to_own_verification_and_names_recovery_codes(client, make_user):
-    from django.test import override_settings
+def test_an_unverified_address_does_not_block_adding_an_authenticator(client, make_user):
+    """Sign-up is closed, so allauth's check against unverified addresses only stood in the way of
+    the laboratory's own accounts (MFA_ALLOW_UNVERIFIED_EMAIL)."""
+    from allauth.account.models import EmailAddress
+    from allauth.mfa.totp.internal.auth import SECRET_SESSION_KEY
 
     from accounts.forms import MFAAuthenticateForm, MFAReauthenticateForm
 
     user = make_user("mfa-help", "technical")
-    client.force_login(user)
-    with override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"):
-        overview = client.get(reverse("mfa_index"))
-    assert f'href="{reverse("account_email")}"'.encode() in overview.content
+    EmailAddress.objects.create(user=user, email=user.email, verified=False, primary=True)
+    client.post(reverse("account_login"), {"login": user.username, "password": PASSWORD})
+    client.post(reverse("account_reauthenticate"), {"password": PASSWORD})
+    page = client.get(reverse("mfa_activate_totp"))
+    assert page.status_code == 200
+    secret = client.session[SECRET_SESSION_KEY]
+    counter = next(yield_hotp_counters_from_time())
+    client.post(
+        reverse("mfa_activate_totp"), {"code": format_hotp_value(hotp_value(secret, counter))}
+    )
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).exists()
     for form in (MFAAuthenticateForm, MFAReauthenticateForm):
         assert form(user=user).fields["code"].label == "Authenticator or recovery code"

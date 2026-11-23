@@ -23,7 +23,8 @@
   "good_to_know": [
     "Your recovery codes are deleted too when no other authenticator remains.",
     "Removing the app does not change your password or laboratory roles.",
-    "You may be asked to confirm your password or a code first."
+    "You may be asked to confirm your password or a code first.",
+    "If your laboratory requires a second factor of your account, you set up a new app before you can go on."
   ],
   "sections": [
     {
@@ -38,7 +39,8 @@
     {
       "title": "Eligibility and navigation",
       "paragraphs": [
-        "Requires an existing TOTP record, sign-in and recent reauthentication, normally within five minutes. This form has no editable fields, Back button or Cancel button. Leave via normal account navigation without submitting to keep the app active. Removing TOTP here does not remove laboratory roles or change the password. The normal flow performs recovery-code cleanup; direct maintenance deletion has different behavior."
+        "Requires an existing TOTP record, sign-in and recent reauthentication, normally within five minutes. This form has no editable fields, Back button or Cancel button. Leave via normal account navigation without submitting to keep the app active. Removing TOTP here does not remove laboratory roles or change the password. The normal flow performs recovery-code cleanup; direct maintenance deletion has different behavior.",
+        "Removing the app is always allowed. Every session of your account that the laboratory's second sign-in factor rule covered as it signed in, this one and any other, is sent to Set up a second sign-in factor at its next request while the rule still covers your account, and opens nothing else until a new app is active. Sessions the rule did not cover at sign-in are held to it from their next sign-in."
       ]
     }
   ],
@@ -46,6 +48,8 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "accounts/enrolment.py",
+    "core/second_factor.py"
   ]
 }

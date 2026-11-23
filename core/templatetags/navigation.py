@@ -232,7 +232,7 @@ STAFF_NAV = (
         "Security settings",
         "security-settings",
         "shield-lock",
-        ("session-limits-edit",),
+        ("session-limits-edit", "second-factor-edit"),
     ),
     NavItem("record-retention", "Record retention", "record-retention", "archive"),
     NavItem(
@@ -366,6 +366,7 @@ ACCOUNT_ROUTES = frozenset(
         "whats-new",
         "email-notices",
         "account-sessions",
+        "account-second-factor",
         "account_change_password",
         "account_set_password",
         "account_email",

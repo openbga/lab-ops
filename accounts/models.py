@@ -139,6 +139,11 @@ class AccountSession(models.Model):
     # sign-in names neither column) goes on signing people in.
     user_agent = models.CharField(max_length=300, blank=True, db_default="")
     address = models.GenericIPAddressField(null=True, blank=True)
+    # Whether the laboratory's rule required a second sign-in factor of the account when it
+    # signed in (core.second_factor): while it has none, such a session reaches only the pages
+    # that set one up (accounts.enrolment). Decided once at sign-in, so a rule saved later applies
+    # from the account's next sign-in. The database's own default, like the two columns above.
+    second_factor_required = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         indexes = [

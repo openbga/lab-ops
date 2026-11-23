@@ -95,7 +95,7 @@ python manage.py setup_lab --lab-name "Your Lab Name" \
 The command prompts privately for the first administrator's password. For unattended setup,
 supply `SETUP_ADMIN_PASSWORD` in the environment. Sign in at `/accounts/login/` and open
 **Accounts & roles** to create staff accounts. An administrator creates each account. Each account
-can enrol an authenticator app. Staff need an explicit **Can view patient information** grant
+can enrol an authenticator app, and **Security settings** chooses which accounts must have one. Staff need an explicit **Can view patient information** grant
 to access person-level identifiers, including staff with the administrator role.
 
 Under **Setup**, enter your laboratory profile, configure teams and choose ticket categories.

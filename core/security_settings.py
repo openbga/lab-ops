@@ -46,6 +46,7 @@ SOURCES = {
     "forms": "Ticket forms",
     "unavailable": "Not available yet",
     "session-limits": "Session limits, above",
+    "second-factor": "Second sign-in factor, above",
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
@@ -54,7 +55,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "c4bf66d99a1818d3a0f05548b3235fc65c66c66ede4289ded0ac9cc0fb566059"
+RELEASE_SETTINGS_SHA256 = "cbd0d45289b9aa003d20a05fd875e20f7890155f84dc943f94575f0baa3b00bb"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -114,6 +115,7 @@ RELEASE = {
             "django.contrib.messages.middleware.MessageMiddleware",
             "accounts.middleware.LockedCredentialsMiddleware",
             "accounts.sessions.SessionLimitMiddleware",
+            "accounts.enrolment.EnrolmentMiddleware",
             "django.middleware.clickjacking.XFrameOptionsMiddleware",
             "core.form_dialog.FormDialogMiddleware",
         ],
@@ -154,6 +156,7 @@ RELEASE = {
         ["recovery_codes", "totp"],
     ),
     "MFA_TRUST_ENABLED": (lambda: mfa_settings.TRUST_ENABLED, False),
+    "MFA_ALLOW_UNVERIFIED_EMAIL": (lambda: mfa_settings.ALLOW_UNVERIFIED_EMAIL, True),
     "MFA_REAUTHENTICATION_REQUIRED": (lambda: mfa_settings.REAUTHENTICATION_REQUIRED, True),
     "ACCOUNT_REAUTHENTICATION_TIMEOUT": (lambda: account_settings.REAUTHENTICATION_TIMEOUT, 300),
     "ACCOUNT_RATE_LIMITS": (
@@ -327,10 +330,12 @@ def _either(names):
 def _second_factor_counts():
     """(staff with a second factor, active staff, portal with one, active portal), counted in one
     statement so the four numbers describe one reading of the accounts."""
+    from .second_factor import second_factor_types
+
+    # The types this deployment offers, less recovery codes (core.second_factor): a credential of
+    # a type it no longer offers is not counted.
     enrolled = Exists(
-        Authenticator.objects.filter(user=OuterRef("pk")).exclude(
-            type=Authenticator.Type.RECOVERY_CODES
-        )
+        Authenticator.objects.filter(user=OuterRef("pk"), type__in=second_factor_types())
     )
     counts = (
         get_user_model()
@@ -415,6 +420,48 @@ def _sign_in_code():
     )
 
 
+def _second_factor_rule():
+    """The second-factor rule as it stands (a database reading, core.second_factor)."""
+    from .second_factor import rule
+
+    return rule()
+
+
+def _second_factor(staff_with, staff, portal_with, portal):
+    """The second-factor rule as it stands (core.second_factor) and how many accounts have one."""
+    from .second_factor import requires_any, summary, values
+
+    current = _second_factor_rule()
+    counted = (
+        f"Active staff accounts with one: {staff_with} of {staff}. "
+        f"Active client portal accounts with one: {portal_with} of {portal}."
+    )
+    if not requires_any(current):
+        return Fact(
+            "second-factor",
+            "Second sign-in factor",
+            "Optional",
+            "second-factor",
+            "An account's holder can add an authenticator app, with recovery codes. The admin "
+            "role can require one above. Shared demonstration accounts cannot add one. " + counted,
+        )
+    return Fact(
+        "second-factor",
+        "Second sign-in factor",
+        "Required of " + _lower_first(summary(values(current))),
+        "second-factor",
+        "An account the rule covers that has no second factor sets up an authenticator app, with "
+        "recovery codes, at its next sign-in and opens nothing else first. A session the rule did "
+        "not cover at sign-in is not interrupted; one it covered is sent back to setting one up "
+        "whenever its account has none while the rule covers it. Other accounts' holders can add "
+        "one. Shared demonstration accounts cannot add one. " + counted,
+    )
+
+
+def _lower_first(text):
+    return text[:1].lower() + text[1:]
+
+
 def _sign_in(facts):
     staff_with, staff, portal_with, portal = _second_factor_counts()
     facts += [
@@ -446,17 +493,13 @@ def _sign_in(facts):
         _fact(
             "second-factor",
             "Second sign-in factor",
-            ["MFA_SUPPORTED_TYPES", "MFA_RECOVERY_CODE_COUNT", "MIDDLEWARE"],
-            lambda: Fact(
-                "second-factor",
-                "Second sign-in factor",
-                "Optional",
-                "person",
-                "An account's holder can add an authenticator app, with recovery codes. Shared "
-                "demonstration accounts cannot. "
-                f"Active staff accounts with one: {staff_with} of {staff}. "
-                f"Active client portal accounts with one: {portal_with} of {portal}.",
-            ),
+            [
+                "MFA_SUPPORTED_TYPES",
+                "MFA_RECOVERY_CODE_COUNT",
+                "MFA_ALLOW_UNVERIFIED_EMAIL",
+                "MIDDLEWARE",
+            ],
+            lambda: _second_factor(staff_with, staff, portal_with, portal),
         ),
         _fact(
             "second-factor-changes",

@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.core.validators import URLValidator
 from django.db import models
 
@@ -209,6 +210,39 @@ class SessionLimit(models.Model):
 
     def __str__(self):
         return self.get_audience_display()
+
+
+class SecondFactorRule(models.Model):
+    """Which accounts the laboratory requires to have a second sign-in factor (core.second_factor;
+    accounts.enrolment applies it at sign-in). One row, written the first time an administrator
+    saves the rule, never by a migration, so an empty database stays empty (core.demo); until then
+    nothing is required. `revision` is the stale-edit check of the form."""
+
+    # Every account that is not a client portal account.
+    staff = models.BooleanField("Every staff account", default=False)
+    # Staff accounts holding any of these roles (accounts.roles.ROLES), as the application counts
+    # them: the admin role does the work of the others, so it is covered by any of them.
+    roles = ArrayField(
+        models.CharField(max_length=40),
+        verbose_name="Staff with these roles",
+        default=list,
+        blank=True,
+    )
+    patient_information = models.BooleanField(
+        "Staff who can view patient information", default=False
+    )
+    admin_console = models.BooleanField("Accounts that can open the admin console", default=False)
+    portal = models.BooleanField("Client portal accounts", default=False)
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(id=1), name="second_factor_rule_single"),
+        ]
+
+    def __str__(self):
+        return "Second sign-in factor"
 
 
 class AuditEvent(models.Model):

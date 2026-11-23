@@ -98,7 +98,11 @@ def test_signin_fact_names_changed_logging_when_console_omits_the_event_details(
         options["format"] = "%(levelname)s %(name)s"
         console.setFormatter(logging.Formatter(options["format"]))
         after = observe()
-        with patch.object(security, "_second_factor_counts", return_value=(0, 0, 0, 0)):
+        # Adapted: the second-factor rule is a database reading too since the required second
+        # factor change.
+        from core.models import SecondFactorRule
+        with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
+                            _second_factor_rule=lambda: SecondFactorRule(pk=1)):
             rows = []
             security._sign_in(rows)
         row = next(row for row in rows if row.key == "sign-in-records")
