@@ -106,10 +106,9 @@ def _count(number, singular, plural=None):
 @require_GET
 def sessions_page(request):
     current = _current_id(request)
-    rows, now = session_list.reading(request.user)
+    rows, now, locked = session_list.reading(request.user)
     this = next((row for row in rows if row.id == current), None)
     others = [row for row in rows if row.id != current]
-    locked = request.user.credentials_locked
     return render(
         request,
         "accounts/sessions.html",
@@ -131,7 +130,8 @@ def sessions_page(request):
 @login_required
 @require_GET
 def sign_in_history_page(request):
-    entries = signin_history.recent(request.user, current=_current_id(request))
+    reading = signin_history.recent(request.user, current=_current_id(request))
+    entries = reading.entries
     return render(
         request,
         "accounts/sign_in_history.html",
@@ -139,7 +139,8 @@ def sign_in_history_page(request):
             "page_title": "Sign-in history",
             "entries": entries,
             "attention_count": sum(1 for entry in entries if entry.attention),
-            "locked": request.user.credentials_locked,
+            # As the account stood when its entries were read (signin_history.recent).
+            "locked": reading.locked,
             "recent_days": signin_history.RECENT_DAYS,
             "recent_limit": signin_history.RECENT_LIMIT,
             "empty_body": f"Nothing was recorded for your account in the last "

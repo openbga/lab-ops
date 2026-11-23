@@ -670,11 +670,27 @@ def start_session(sender, request, user, **kwargs):
         # accounts.apps so that its hold on the row comes after this lock, also with a transaction
         # around the request).
         lock_endings(user.pk)
-        # The account's password is marked as compromised and this sign-in proved nothing more
-        # than the password (accounts.compromised): its session starts ended, so the browser is
-        # signed out at its next request, and the sign-in is not recorded as the last one.
-        refused = refused_at_sign_in(request, user)
-        if not refused:
+        # Then the account's row, held until this commits, read as held: an account deactivated
+        # while the sign-in was under way (its password or code was checked against the account
+        # as read earlier) is refused, and a deactivation that starts now waits for this sign-in
+        # and then ends its session (models.User.save).
+        active = (
+            get_user_model()
+            .objects.select_for_update(no_key=True)
+            .filter(pk=user.pk)
+            .values_list("is_active", flat=True)
+            .first()
+        )
+        # A refused sign-in's session starts ended, so the browser is signed out at its next
+        # request, and the sign-in is not recorded as the last one: the account is no longer
+        # active, or its password is marked as compromised and this sign-in proved nothing more
+        # than the password (accounts.compromised).
+        if not active:
+            refused = Ending.DEACTIVATED
+        elif refused_at_sign_in(request, user):
+            refused = Ending.MARKED_COMPROMISED
+        else:
+            refused = None
             update_last_login(sender, user)
         record = (
             None
@@ -687,7 +703,7 @@ def start_session(sender, request, user, **kwargs):
     # the sign-in); a refused one is logged as its session's ending once that commits.
     if refused:
         if record is not None:
-            _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
+            _log_after_commit(refused, user, 1)
         request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
     else:
         _log_sign_in(request, user)
@@ -703,9 +719,9 @@ def start_session(sender, request, user, **kwargs):
 
 def _record_session(session, user, agent, address, refused, factor):
     """The sign-in's session row (start_session, in its transaction, after the account's
-    session-ending lock): ended at once when the sign-in is refused. The database writes the
-    sign-in, or its refusal, to the account's sign-in history with the row (accounts migration
-    0009), with what it proved (`factor`)."""
+    session-ending lock and its row): ended at once, with the ending `refused`, when the sign-in
+    is refused. The database writes the sign-in, or its refusal, to the account's sign-in history
+    with the row (accounts migration 0009), with what it proved (`factor`)."""
     previous = _valid_id(session.get(SESSION_KEY))
     if previous is not None:
         # Signed in again over an open session in the same browser (Django keeps the
@@ -718,7 +734,7 @@ def _record_session(session, user, agent, address, refused, factor):
     # (accounts.enrolment holds the session to it while the account has none).
     from core.second_factor import requires
 
-    ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
+    ended = {"ended_at": Now(), "ending": refused} if refused else {}
     return AccountSession.objects.create(
         user=user,
         user_agent=agent,

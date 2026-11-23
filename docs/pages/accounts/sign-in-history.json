@@ -10,14 +10,14 @@
       "steps": [
         "Open [[Sign-in history]] from the account menu.",
         "Read the time, browser and address of each [[Signed in]] entry. [[This browser]] marks the sign-in of the session you are using now.",
-        "If one is not yours, sign it out on [[Where you are signed in]], then change your password from the account menu."
+        "If one is not yours, sign it out on [[Where you are signed in]] and change your password. On a shared demonstration account others' sign-ins are expected."
       ]
     },
     {
       "title": "Look into failed attempts",
       "steps": [
         "Read the entries marked [[Sign-in failed]], [[Too many failed attempts]], [[Sign-in refused]] or [[Re-authentication failed]], and their [[Details]].",
-        "If you did not make them, change your password from the account menu and tell your laboratory's security contact. Client portal users tell the laboratory."
+        "If you did not make them, change your password and tell your laboratory's security contact (portal users: the laboratory). A shared demonstration account cannot do either."
       ]
     },
     {
@@ -29,7 +29,7 @@
   ],
   "good_to_know": [
     "Only you see your own history. An attempt for a username or email address that matches no account, or several, is not listed for anyone.",
-    "Nothing you typed is kept: no password, no code, and not the username or email address entered.",
+    "No entry keeps what you typed: no password, no code, and not the username or email address entered.",
     "The browser and the address are what the browser and the network reported, so they can be wrong.",
     "Entries are never changed or deleted. The history starts at the release that added this page.",
     "On a shared demonstration account, other visitors' entries are listed with the browser and address Not shown."
@@ -47,7 +47,7 @@
       "title": "Columns",
       "items": [
         {"label": "When", "description": "The date and time of the entry, in the laboratory's time zone, by the database's clock. For a sign-out of a session that passed a session limit, the moment the limit passed, which can be earlier than the moment the sign-out was written (see Rules and records)."},
-        {"label": "Event", "description": "What happened (see Events and details). Sign-in failed, Sign-in refused, Too many failed attempts and Re-authentication failed are shown as warnings. This browser marks the sign-in of the session you are reading the page from."},
+        {"label": "Event", "description": "What happened (see Events and details). Sign-in failed, Sign-in refused, Too many failed attempts and Re-authentication failed are shown as warnings. This browser marks the Signed in entry of the session you are reading the page from, not its other entries."},
         {"label": "Details", "description": "For a sign-in, what it proved; for a failed attempt, what was not accepted; for a refusal or a sign-out, why. Not recorded when it is not known."},
         {"label": "Browser", "description": "The browser and system, such as Firefox on Windows, worked out from how the browser described itself. Unknown browser when it gave nothing recognizable. For a sign-out, the browser the session reported when it signed in. Not shown on a shared demonstration account for entries of other sessions."},
         {"label": "Address", "description": "The network address the request came from, as the deployment reports it; behind a proxy the deployment must be told which proxy to trust, or every entry shows the proxy's address. For a sign-out, the address the session reported when it signed in. Not recorded when no address was available. Not shown on a shared demonstration account for entries of other sessions."},
@@ -60,26 +60,26 @@
       "title": "Events and details",
       "items": [
         {"label": "Signed in", "description": "A session started. Details: Password; Password and authenticator app; Password and recovery code; Emailed code; Emailed code and authenticator app; Emailed code and recovery code. Not recorded when the steps are not known, for example a session started by the earlier release still running while the deployment was upgraded."},
-        {"label": "Sign-in refused", "description": "The password was right, but the sign-in was not let through. Details: Password marked as compromised (the password alone was given while a superuser had marked it; the session ended as it started) or Account deactivated (the right password was given for a deactivated account; no session started)."},
+        {"label": "Sign-in refused", "description": "The password, or an emailed code, was accepted, but the sign-in was not let through. Details: Password marked as compromised (the password alone was given while a superuser had marked it; the session ended as it started) or Account deactivated (the right password or an emailed code was given for a deactivated account, or the account was deactivated while the sign-in was under way; no usable session started). Recorded for the account the password or code was accepted for."},
         {"label": "Sign-in failed", "description": "An attempt to sign in was not accepted. Details: Password not accepted; Authenticator or recovery code not accepted (the second step, which takes either kind of code); Emailed code not accepted."},
-        {"label": "Too many failed attempts", "description": "The failed sign-in limit refused the attempt before the password or code was checked, at sign-in or when a page asked for it again. Details: Refused before the password was checked, or Refused before the code was checked."},
-        {"label": "Re-authentication failed", "description": "While you were signed in, a page asked for your password or a code again before a change, such as setting up or removing an authenticator app, and it was not accepted. Details: Password not accepted, or Authenticator or recovery code not accepted."},
+        {"label": "Too many failed attempts", "description": "The failed sign-in limit refused the attempt before the password or code was checked, at sign-in or when a page asked for it again. Details: Refused before the password was checked, or Refused before the code was checked. Recorded at most once a minute for the same step and address: more refused attempts in that minute add no entry."},
+        {"label": "Re-authentication failed", "description": "While you were signed in, a page asked for your password or a code again and it was not accepted: the confirmation asked before a change such as setting up or removing an authenticator app, or the current password on Change password (also the admin console's own Change password). Details: Password not accepted, or Authenticator or recovery code not accepted."},
         {"label": "Signed out", "description": "A session ended. Details says why: With Sign out (Sign out in the account menu, or Log out in the admin console); No activity; Longest session reached; Account deactivated; New password; Signed in again in the same browser; Signed out from another session (from Where you are signed in); Ended by an administrator; Password marked as compromised; A change found it past a limit (a change being saved found the session past a session limit, and the browser was signed out)."}
       ]
     },
     {
       "title": "What is and is not recorded",
       "paragraphs": [
-        "Every session's start and end is recorded, whichever way the session ended. A failed or refused attempt is recorded only when the username or email address given names exactly one account, in any letter case; an attempt that names no account, or more than one, is not recorded in anyone's history and stays only in the deployment's sign-in log. Failed codes and re-authentication failures belong to the account already identified at that step.",
-        "Never recorded: a password, a code, or what was typed as the username or email address.",
-        "Not recorded: an attempt that the per-address request limit stopped before the form was read, a code entered after its emailed sign-in had expired, and a request for an emailed code.",
+        "Every session's start and end is recorded, whichever way the session ended. A failed attempt, or one refused by the failed sign-in limit, is recorded only when the username or email address given names exactly one account, in any letter case; an attempt that names no account, or more than one, is not recorded in anyone's history and stays only in the deployment's sign-in log. A refused sign-in is recorded for the account whose password or emailed code was accepted. Failed codes and re-authentication failures belong to the account already identified at that step.",
+        "No entry holds a password, a code, or what was typed as the username or email address.",
+        "Not recorded: an attempt that the per-address request limit stopped before the form was read, an emailed code form sent without a code, a code entered after its emailed sign-in had expired, a request for an emailed code, and attempts handled by the earlier release's processes while a deployment replaces them (the sessions they start and end are recorded).",
         "The browser and the address are what the request reported. They describe where the request seemed to come from and prove nothing on their own."
       ]
     },
     {
       "title": "Shared demonstration accounts",
       "paragraphs": [
-        "A shared demonstration account, one whose password the deployment publishes on the sign-in page, is used by other visitors too. Its history lists their entries as well, with the browser and the address shown only for the session you are using and Not shown for every other entry. An information notice says so, and the warning about failed attempts is not shown."
+        "A shared demonstration account, one whose password the deployment publishes on the sign-in page, is used by other visitors too. Its history lists their entries as well, with the browser and the address shown only for the session you are using and Not shown for every other entry. An information notice says so, and the warning about failed attempts is not shown. Other visitors' sign-ins and failed attempts are expected there: the password cannot be changed and other visitors' sessions cannot be signed out from such an account."
       ]
     },
     {
@@ -94,7 +94,7 @@
     {
       "title": "If you do not recognize an entry",
       "paragraphs": [
-        "A sign-in you did not make: sign that session out on Where you are signed in, change your password from the account menu (that also ends your other sessions), and tell your laboratory's security contact, or the laboratory if you use the client portal.",
+        "A sign-in you did not make: sign that session out on Where you are signed in, change your password from the account menu (that also ends your other sessions), and tell your laboratory's security contact, or the laboratory if you use the client portal. This does not apply to a shared demonstration account.",
         "Failed attempts you did not make: someone may be trying your username or email address. Change your password if you think it could be known, and tell the same contact. An authenticator app on Two-factor authentication stops a known password signing in on its own.",
         "Check the time zone and the times before concluding: a browser you forgot to sign out of ends with No activity or Longest session reached."
       ]
@@ -116,6 +116,7 @@
     "templates/accounts/sessions.html",
     "templates/includes/user_menu.html",
     "config/urls.py",
-    "accounts/tests/test_sign_in_history.py"
+    "accounts/tests/test_sign_in_history.py",
+    "accounts/admin.py"
   ]
 }

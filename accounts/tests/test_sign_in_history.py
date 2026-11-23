@@ -65,6 +65,13 @@ def code_for(secret):
     return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
 
 
+def wrong_code(secret):
+    """Six digits no authenticator code of this period or the next accepts."""
+    counter = next(yield_hotp_counters_from_time())
+    accepted = {hotp_value(secret, counter + step) for step in (-1, 0, 1, 2)}
+    return format_hotp_value(next(n for n in range(10**6) if n not in accepted))
+
+
 def session_row(http):
     return AccountSession.objects.get(pk=http.session[sessions.SESSION_KEY])
 
@@ -199,10 +206,10 @@ def test_second_factor_failures_and_lockouts_are_recorded(make_user, settings):
     TOTP.activate(user, secret)
     http = browser()
     assert sign_in(http, user.username).url == reverse("mfa_authenticate")
-    http.post(reverse("mfa_authenticate"), {"code": "000000"})
+    http.post(reverse("mfa_authenticate"), {"code": wrong_code(secret)})
     settings.ACCOUNT_RATE_LIMITS = {"login_failed": "1/m/key"}
     cache.clear()
-    http.post(reverse("mfa_authenticate"), {"code": "000000"})
+    http.post(reverse("mfa_authenticate"), {"code": wrong_code(secret)})
     refused = http.post(reverse("mfa_authenticate"), {"code": code_for(secret)})
     assert refused.status_code == 200 and "_auth_user_id" not in http.session
     assert events(user) == [
@@ -257,7 +264,7 @@ def test_reauthentication_failures_are_recorded_for_the_signed_in_account(make_u
     http.post(reverse("account_reauthenticate"), {"password": TYPED_SECRET})
     secret = generate_totp_secret()
     TOTP.activate(user, secret)
-    http.post(reverse("mfa_reauthenticate"), {"code": "000000"})
+    http.post(reverse("mfa_reauthenticate"), {"code": wrong_code(secret)})
     assert events(user) == [
         (Kind.SIGNED_IN, SignInFactor.PASSWORD, ""),
         (Kind.REAUTHENTICATION_FAILED, SignInFactor.PASSWORD, ""),
@@ -520,3 +527,98 @@ def test_a_session_open_at_the_upgrade_records_its_sign_out_and_reversal_removes
         )
     with transaction.atomic():
         User.objects.filter(pk=account.pk).update(is_active=False)
+
+
+# --- Round 1 review: the cases next to the findings ---------------------------------------------
+
+
+@pytest.mark.parametrize("page", ["account", "admin"])
+def test_a_current_password_not_accepted_on_change_password_is_a_failed_reauthentication(
+    make_user, page
+):
+    user = make_user("history-current", "admin", is_staff=True, is_superuser=(page == "admin"))
+    http = browser()
+    sign_in(http, user.username)
+    if page == "account":
+        url, fields = reverse("account_change_password"), ("oldpassword", "password1", "password2")
+    else:
+        url = reverse("admin:password_change")
+        fields = ("old_password", "new_password1", "new_password2")
+    new = "copper lantern orchard seventeen"
+    refused = http.post(url, dict(zip(fields, (TYPED_SECRET, new, new), strict=True)))
+    assert refused.status_code == 200
+    accepted = http.post(url, dict(zip(fields, (PASSWORD, new, new), strict=True)))
+    assert accepted.status_code == 302
+    assert events(user) == [
+        (Kind.SIGNED_IN, SignInFactor.PASSWORD, ""),
+        (Kind.REAUTHENTICATION_FAILED, SignInFactor.PASSWORD, ""),
+    ]
+    assert nothing_typed_is_stored()
+
+
+def test_refusals_by_the_limit_are_recorded_once_a_minute_for_each_address(make_user, settings):
+    user = make_user("history-flood", "technical")
+    secret = generate_totp_secret()
+    TOTP.activate(user, secret)
+    first = browser()
+    assert sign_in(first, user.username).url == reverse("mfa_authenticate")
+    settings.ACCOUNT_RATE_LIMITS = {"login_failed": "1/m/key"}
+    cache.clear()
+    for _ in range(4):
+        first.post(reverse("mfa_authenticate"), {"code": wrong_code(secret)})
+    elsewhere = BrowserClient(HTTP_USER_AGENT=AGENT, REMOTE_ADDR="198.51.100.20")
+    settings.ACCOUNT_RATE_LIMITS = {}
+    sign_in(elsewhere, user.username)
+    settings.ACCOUNT_RATE_LIMITS = {"login_failed": "1/m/key"}
+    elsewhere.post(reverse("mfa_authenticate"), {"code": wrong_code(secret)})
+    lockouts = SignInEvent.objects.filter(user=user, kind=Kind.LOCKED_OUT)
+    assert sorted(str(entry.address) for entry in lockouts) == ["192.0.2.10", "198.51.100.20"]
+    assert all(entry.factor == SignInFactor.SECOND_FACTOR for entry in lockouts)
+    # One written more than a minute ago does not hold back the next.
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO accounts_signinevent (user_id, occurred_at, kind, factor, ending, "
+            "user_agent, address) VALUES (%s, now() - interval '2 minutes', 'locked_out', "
+            "'password', '', '', '203.0.113.9')",
+            [user.pk],
+        )
+    signin_history.record(user, Kind.LOCKED_OUT, None, factor=SignInFactor.PASSWORD)
+    recent = SignInEvent.objects.filter(user=user, kind=Kind.LOCKED_OUT, factor="password")
+    assert recent.count() == 2
+
+
+def test_an_account_deactivated_at_the_second_step_is_refused(make_user):
+    user = make_user("history-late-deactivation", "technical")
+    secret = generate_totp_secret()
+    TOTP.activate(user, secret)
+    http = browser()
+    assert sign_in(http, user.username).url == reverse("mfa_authenticate")
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    http.post(reverse("mfa_authenticate"), {"code": code_for(secret)})
+    assert not AccountSession.objects.filter(user=user, ended_at__isnull=True).exists()
+    assert [(kind, ending) for kind, _, ending in events(user)] == [
+        (Kind.REFUSED, Ending.DEACTIVATED)
+    ]
+    assert http.get(PAGE).status_code == 302
+    assert not User.objects.get(pk=user.pk).last_login
+
+
+def test_a_later_sign_in_in_the_same_browser_does_not_take_earlier_steps(make_user):
+    user = make_user("history-steps", "technical")
+    http = browser()
+    sign_in(http, user.username)
+    http.post(reverse("account_reauthenticate"), {"password": PASSWORD})
+    http.force_login(user)
+    assert events(user)[-1] == (Kind.SIGNED_IN, "", "")
+    assert session_row(http).factor == ""
+
+
+@pytest.mark.parametrize("code", ["", "   "])
+def test_an_emailed_code_form_sent_without_a_code_is_not_recorded(make_user, settings, code):
+    settings.ACCOUNT_LOGIN_BY_CODE_ENABLED = True
+    user = make_user("history-blank-code", "technical")
+    http = browser()
+    request_code(http, user.email)
+    http.post(reverse("account_confirm_login_code"), {"code": code})
+    assert events(user) == []

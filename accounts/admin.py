@@ -397,6 +397,16 @@ class OwnPasswordForm(PasswordGuidance, AdminSitePasswordChangeForm):
 
     guidance_field = "new_password1"
 
+    def clean_old_password(self):
+        # A current password not accepted: recorded in the account's sign-in history.
+        try:
+            return super().clean_old_password()
+        except ValidationError:
+            from .forms import record_current_password_refused
+
+            record_current_password_refused(self.user)
+            raise
+
     def save(self, commit=True):
         user = super().save(commit=False)
         if commit:

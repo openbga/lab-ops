@@ -333,13 +333,17 @@ most recent, newest first: each sign-in with what it proved (the password or an 
 the authenticator app or recovery code that followed), each sign-out with why the session ended,
 attempts that failed (a password, an authenticator or recovery code, or an emailed code not
 accepted), attempts refused by the failed sign-in limit before the password or code was checked,
-sign-ins refused because the account is deactivated or the password alone was given while marked
-as compromised, and a password or code not accepted when a signed-in page asked for it again. Each
-entry shows the browser and the address the request reported; a sign-out shows those its session
-reported at sign-in. A warning above the list counts the failures and refusals shown. A wrong password,
-or one the failed sign-in limit refused, is kept only when the username or email address given
-names exactly one account; one that names no account, or several, stays only in the sign-in log. No password, code, or
-username or email address as typed is kept. A shared demonstration account sees its entries, with
+sign-ins refused because the account is deactivated (also when it was deactivated while the
+sign-in was under way) or the password alone was given while marked as compromised, and a password
+or code not accepted when a signed-in page asked for it again (the re-authentication pages, and the
+current password on Change password). Each entry shows the browser and the address the request
+reported; a sign-out shows those its session reported at sign-in. A warning above the list counts
+the failures and refusals shown. A wrong password, or one the failed sign-in limit refused, is kept
+only when the username or email address given names exactly one account; one that names no
+account, or several, stays only in the sign-in log. A refused sign-in is kept for the account whose
+password or emailed code was accepted. Refusals by the limit are kept at most once a minute for the
+same step and address. No entry holds a password, a code, or the username or email address as
+typed. A shared demonstration account sees its entries, with
 the browser and address only for the session it is using. Entries are kept with no retention
 period and are never changed or deleted; nobody reads another person's history in this release.
 The history starts at the upgrade that added it.

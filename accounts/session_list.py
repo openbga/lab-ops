@@ -86,29 +86,37 @@ def lock_endings(*account_ids):
 
 
 def reading(user):
-    """(sessions, now): the account's sessions open and inside both limits as they stand, by the
-    database's clock at this statement, most recent activity first (then the latest sign-in), and
-    that clock, which tells a later change what signed in after this reading."""
+    """(sessions, now, locked): the account's sessions open and inside both limits as they stand,
+    by the database's clock at this statement, most recent activity first (then the latest
+    sign-in); that clock, which tells a later change what signed in after this reading; and
+    whether the account is a shared demonstration account, read in the same statement, so that
+    what the page lists follows the account as it stood when the sessions were read."""
     sessions, _ = _tables()
+    users = connection.ops.quote_name(User._meta.db_table)
     inactivity, longest, inactivity_params, longest_params = _limits_sql(user)
     with connection.cursor() as cursor:
         cursor.execute(
-            f"WITH c AS (SELECT clock_timestamp() AS t) "
-            f"SELECT c.t, s.id, s.started_at, s.last_active_at, s.user_agent, s.address "
-            f"FROM c LEFT JOIN {sessions} s ON s.user_id = %s AND s.ended_at IS NULL "
+            f"WITH c AS (SELECT clock_timestamp() AS t, coalesce((SELECT credentials_locked "
+            f"FROM {users} WHERE id = %s), false) AS locked) "
+            f"SELECT c.t, c.locked, s.id, s.started_at, s.last_active_at, s.user_agent, "
+            f"s.address FROM c LEFT JOIN {sessions} s ON s.user_id = %s AND s.ended_at IS NULL "
             f"AND s.last_active_at > c.t - {inactivity} AND s.started_at > c.t - {longest} "
             f"ORDER BY s.last_active_at DESC, s.started_at DESC, s.id",
-            [user.pk, *inactivity_params, *longest_params],
+            [user.pk, user.pk, *inactivity_params, *longest_params],
         )
         rows = cursor.fetchall()
-    now = rows[0][0]
-    return [
-        OpenSession(
-            str(pk), started_at, last_active_at, agent or "", str(address) if address else None
-        )
-        for _now, pk, started_at, last_active_at, agent, address in rows
-        if pk is not None
-    ], now
+    now, locked = rows[0][0], rows[0][1]
+    return (
+        [
+            OpenSession(
+                str(pk), started_at, last_active_at, agent or "", str(address) if address else None
+            )
+            for _now, _locked, pk, started_at, last_active_at, agent, address in rows
+            if pk is not None
+        ],
+        now,
+        locked,
+    )
 
 
 def open_sessions(user):

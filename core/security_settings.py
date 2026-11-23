@@ -674,15 +674,17 @@ def _sign_in(facts):
                 "release",
                 "Every sign-in, with what it proved, and every sign-out, with why the session "
                 "ended; a password, an authenticator or recovery code or an emailed code not "
-                "accepted, at sign-in or when a page asks for it again; an attempt refused by "
-                "the failed sign-in limit; and a sign-in refused because the account is "
-                "deactivated or its password, marked as compromised, was given alone. Each "
-                "entry has the time and the browser and address the request reported, never a "
-                "password, a code or the username or email address typed, and an attempt is kept "
-                "only when it names exactly one account. The database refuses to change or "
-                "delete an entry, and entries have no retention period. Each person reads their "
-                "own entries of the last 90 days on Sign-in history; no page shows another "
-                "person's.",
+                "accepted, at sign-in or when a page asks for it again (also the current "
+                "password on Change password); an attempt refused by the failed sign-in limit, at "
+                "most once a minute for each account, step and address; and a sign-in refused "
+                "because the account is deactivated or its password, marked as compromised, was "
+                "given alone. Each entry has the time and the browser and address the request "
+                "reported, never a password, a code or the username or email address typed. A "
+                "failed or limited attempt at sign-in is kept only when it names exactly one "
+                "account, and a refused sign-in for the account whose password or code was "
+                "accepted. The database refuses to change or delete an entry, and entries have "
+                "no retention period. Each person reads their own entries of the last 90 days on "
+                "Sign-in history; no page shows another person's.",
             ),
         ),
     ]

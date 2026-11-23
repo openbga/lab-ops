@@ -58,11 +58,22 @@ def log_sign_in_failure(sender, credentials, request=None, **kwargs):
     _log("signin.failed", users[0] if len(users) == 1 else None, request)
 
 
+def _code_submitted(request):
+    """Whether the emailed code form was sent with a code: allauth counts a form sent without one
+    (a resend no longer offered is checked as an empty code) as an attempt too."""
+    if request is None or request.method != "POST":
+        return False
+    code = request.POST.get("code")
+    return isinstance(code, str) and bool(code.strip())
+
+
 @receiver(login_code_rejected, dispatch_uid="lab_ops_signin_code_failure")
 def log_login_code_failure(sender, request, user, **kwargs):
     from .models import SignInEvent, SignInFactor
     from .signin_history import record
 
+    if not _code_submitted(request):
+        return
     _log("signin.failed", user, request)
     if user is not None and user.pk is not None:
         record(user, SignInEvent.Kind.FAILED, request, factor=SignInFactor.CODE)

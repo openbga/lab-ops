@@ -245,7 +245,8 @@ class SignInEvent(models.Model):
     database itself, in the statement that starts or ends the session row, so that no path that
     starts or ends a session, a release still running during a deployment included, leaves none.
     Failed attempts, refusals after too many failed attempts and refused sign-ins that start no
-    session are written by accounts.signin_log, for the one account the attempt names. Never a
+    session are written by accounts.signin_history.record, called from accounts.adapter,
+    accounts.signin_log and accounts.forms (and the admin console's own password form). Never a
     password, a code or what was typed as the username or email address."""
 
     class Kind(models.TextChoices):

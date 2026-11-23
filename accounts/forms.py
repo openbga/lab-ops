@@ -89,8 +89,27 @@ class PasswordGuidance:
             self.draw_guidance(minimum)
 
 
+def record_current_password_refused(user):
+    """A signed-in account's current password not accepted by a password form (Change password,
+    and the admin console's own): a re-authentication that failed, in its sign-in history."""
+    from .models import SignInEvent, SignInFactor
+    from .signin_history import record
+
+    record(
+        user,
+        SignInEvent.Kind.REAUTHENTICATION_FAILED,
+        context.request,
+        factor=SignInFactor.PASSWORD,
+    )
+
+
 class ChangePasswordForm(PasswordGuidance, account_forms.ChangePasswordForm):
-    pass
+    def clean_oldpassword(self):
+        try:
+            return super().clean_oldpassword()
+        except ValidationError:
+            record_current_password_refused(self.user)
+            raise
 
 
 class SetPasswordForm(PasswordGuidance, account_forms.SetPasswordForm):

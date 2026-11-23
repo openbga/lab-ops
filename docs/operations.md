@@ -122,7 +122,11 @@ The `accounts` migration 0009 adds the table `accounts_signinevent`, the column
 upgrade keeps signing people in) and database triggers: the database writes each session's
 sign-in and sign-out to the history, and refuses to change or delete an entry. A session started by
 the earlier release while the deployment runs shows its sign-in without what it proved. The
-history starts at the upgrade: a session open then shows only its sign-out. Entries are kept, with
+history starts at the upgrade: a session open then shows only its sign-out. Failed and refused
+attempts that the earlier release's processes handle while the deployment replaces them are not
+recorded (they stay in the sign-in log). Refusals by the failed sign-in limit add at most one entry
+a minute for each account, step and address, so a flood of refused attempts does not add a row
+each; failed attempts that are checked stay bounded by that limit. Entries are kept, with
 no retention period and no setting to remove them, and an account with history cannot be deleted
 (accounts are deactivated instead). Reversing migration 0009 deletes the whole history. The
 browser and address recorded are those the request reported; the address follows
