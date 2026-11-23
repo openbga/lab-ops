@@ -262,7 +262,9 @@ class SignInEvent(models.Model):
     # The account, by id. Not a constraint in the database: an entry outlives its account (accounts
     # are deactivated, never deleted, by the application; a deletion by other means leaves its
     # history in place, since the database refuses to delete an entry), and writing one, inside a
-    # session's start or end, takes no lock on the account's row.
+    # session's start or end, takes no lock on the account's row. Read entries by user_id: a join
+    # to the account (select_related, natural keys) leaves out those of a deleted account, and
+    # nothing checks that an id written by a caller names an account.
     user = models.ForeignKey(
         User,
         on_delete=models.DO_NOTHING,
@@ -292,7 +294,7 @@ class SignInEvent(models.Model):
         indexes = [models.Index(fields=["user", "-occurred_at"], name="sign_in_event_recent")]
 
     def __str__(self):
-        return f"{self.user} {self.kind} {self.occurred_at:%Y-%m-%d %H:%M}"
+        return f"account {self.user_id} {self.kind} {self.occurred_at:%Y-%m-%d %H:%M}"
 
 
 class CompromisedPassword(models.Model):

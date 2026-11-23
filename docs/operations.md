@@ -136,7 +136,9 @@ each emailed sign-in allows a few wrong codes in all, resends included; the acco
 password has a limit of its own (five a minute for each account), and the admin console's own
 Change password has none. Entries are kept, with
 no retention period and no setting to remove them; accounts are deactivated, not deleted, and an
-account deleted by other means leaves its history in place, under its id. Reversing migration 0009 deletes the whole history. The
+account deleted by other means leaves its history in place, under its id. Do not delete accounts:
+if one were deleted and the account id sequence then reset (Django's `loaddata` does), a new
+account could be given the deleted one's id and would list its entries. Reversing migration 0009 deletes the whole history. The
 browser and address recorded are those the request reported; the address follows
 `ALLAUTH_TRUSTED_PROXY_COUNT` or `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (see below), so behind a proxy
 without either, every entry shows the proxy's address. The sign-in log gains one line: a sign-in

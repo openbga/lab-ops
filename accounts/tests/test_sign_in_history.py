@@ -536,14 +536,16 @@ def test_a_session_open_at_the_upgrade_records_its_sign_out_and_reversal_removes
 # --- Round 1 review: the cases next to the findings ---------------------------------------------
 
 
-@pytest.mark.parametrize("page", ["account", "admin"])
+# Not named "page": pytest-playwright would parametrize it, and pytest would then group every
+# browser-parametrized test (transactional ones included) beside it.
+@pytest.mark.parametrize("surface", ["account", "admin"])
 def test_a_current_password_not_accepted_on_change_password_is_a_failed_reauthentication(
-    make_user, page
+    make_user, surface
 ):
-    user = make_user("history-current", "admin", is_staff=True, is_superuser=(page == "admin"))
+    user = make_user("history-current", "admin", is_staff=True, is_superuser=(surface == "admin"))
     http = browser()
     sign_in(http, user.username)
-    if page == "account":
+    if surface == "account":
         url, fields = reverse("account_change_password"), ("oldpassword", "password1", "password2")
     else:
         url = reverse("admin:password_change")

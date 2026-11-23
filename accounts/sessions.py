@@ -702,6 +702,11 @@ def start_session(sender, request, user, **kwargs):
         # request, and the sign-in is not recorded as the last one: the account is no longer
         # active, or its password is marked as compromised and this sign-in proved nothing more
         # than the password (accounts.compromised).
+        if active is None:
+            # The account was deleted while the sign-in was under way (the application never
+            # deletes one): no session starts, and nothing is recorded for an account that is gone.
+            request.vr_sign_in_refused = True
+            return
         if not active:
             refused = Ending.DEACTIVATED
         elif refused_at_sign_in(request, user, proved):
