@@ -5,7 +5,7 @@ import re
 import pytest
 from conftest import View
 from django.urls import reverse
-from helpers import field, make_user, pick, sign_in
+from helpers import field, make_user, pick, sign_in, wait_until_true
 from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -330,7 +330,7 @@ def test_revealed_key_does_not_survive_back_or_forward(browser_type, live_server
             page.wait_for_url(list_url, wait_until="commit")
             page.evaluate("history.forward()")
         page.wait_for_url(target, wait_until="commit")
-        page.wait_for_function("typeof window.vrRestored === 'boolean'")
+        wait_until_true(page, "typeof window.vrRestored === 'boolean'")
         reasons = page.evaluate(
             "JSON.stringify(performance.getEntriesByType('navigation')[0]"
             ".notRestoredReasons || null)"

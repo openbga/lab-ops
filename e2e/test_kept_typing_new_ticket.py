@@ -40,7 +40,10 @@ def open_session(username):
 
 
 def signed_out_by_inactivity(page: Page) -> None:
-    """Move the session past its limit and the page's clock with it, then wait for sign in."""
+    """Move the session past its limit and the page's clock with it, then wait for sign in. A
+    request still under way (a section the page is drawing again) would record activity after the
+    move, so the page is left to finish first."""
+    page.wait_for_load_state("networkidle")
     assert open_session(STAFF).update(last_active_at=Now() - (INACTIVITY - timedelta(seconds=3)))
     page.clock.fast_forward(int((INACTIVITY - timedelta(seconds=3)).total_seconds() * 1000))
     expect(page).to_have_url(re.compile(r"/accounts/login/\?next="), timeout=15_000)
