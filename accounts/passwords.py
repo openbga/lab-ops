@@ -368,10 +368,16 @@ OTHER_ACCOUNT = (
 
 
 def _takes_minimum(hook):
-    """Whether a validator's help_text_for accepts the length a check used (`minimum`)."""
-    parameters = inspect.signature(hook).parameters.values()
+    """Whether a validator's help_text_for accepts the length a check used as the keyword
+    `minimum`."""
+    try:
+        parameters = inspect.signature(hook).parameters.values()
+    except TypeError, ValueError:
+        return False
+    by_name = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
     return any(
-        parameter.name == "minimum" or parameter.kind is parameter.VAR_KEYWORD
+        (parameter.name == "minimum" and parameter.kind in by_name)
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
         for parameter in parameters
     )
 
@@ -384,7 +390,7 @@ def guidance(user, *, own, minimum=None):
     lines = []
     for validator in get_default_password_validators():
         text_for = getattr(validator, "help_text_for", None)
-        if text_for is None:
+        if not callable(text_for):
             text = str(validator.get_help_text())
         elif _takes_minimum(text_for):
             text = text_for(user, own=own, minimum=minimum)

@@ -17,7 +17,6 @@ from accounts.passwords import (
     laboratory_named,
 )
 from accounts.roles import ROLE_LABELS, ROLES
-from clients.models import Client
 from clients.services import hold_directory
 from core import demo, lab_profile
 from core.announcements import save_announcement
@@ -86,7 +85,14 @@ def staff_account_fields(role):
 def published_passwords():
     """(DEMO_PASSWORD, the password demo_admin gets), each setting read once, checked: the length
     of a password used alone, then the rule for every account the seed creates. Refused with a
-    CommandError that never repeats a password. reset_demo checks them before it erases."""
+    CommandError that never repeats a password.
+
+    seed_demo checks them before its transaction, so that nothing a password check reads is held
+    while it waits for the seed lock; reset_demo checks them once, holding that lock, before it
+    erases, and gives them to the seed (a caller that wraps seed_demo in a transaction of its own
+    holds whatever the check reads, as reset_demo does after taking the lock). Validators see each
+    account as the seed will create it, before it exists: with its username, email address and
+    names, and no id or organization yet."""
     password = os.environ.get("DEMO_PASSWORD")
     # The length the password rule asks of a password used alone (accounts.passwords).
     if not password or len(password) < SINGLE_FACTOR_MINIMUM:
@@ -117,12 +123,8 @@ def check_published_passwords(password, admin_password):
             accounts.append((staff_account_fields(role), admin_password, "DEMO_ADMIN_PASSWORD"))
         else:
             accounts.append((staff_account_fields(role), password, "DEMO_PASSWORD"))
-    for username, last_name, email, account, *_rest in DEMO_PORTAL_ACCOUNTS:
-        # A portal account, as validators see it: it belongs to its organization (not saved yet).
-        fields = {
-            **portal_account_fields(username, last_name, email),
-            "client": Client(name=last_name, account_number=account),
-        }
+    for username, last_name, email, *_rest in DEMO_PORTAL_ACCOUNTS:
+        fields = portal_account_fields(username, last_name, email)
         accounts.append((fields, password, "DEMO_PASSWORD"))
     # The seed's laboratory is the demonstration's (it refuses any other), and the check comes
     # before the seed may read a table: compare with its name rather than reading the saved one.
@@ -134,7 +136,21 @@ def check_published_passwords(password, admin_password):
                 raise CommandError(" ".join(error.messages)) from None
 
 
+def refuse_announcing_a_shared_admin_password(password, admin_password):
+    """--announce-accounts publishes DEMO_PASSWORD, which must not open demo_admin: refused
+    before anything is written when demo_admin is about to get it (reset_demo)."""
+    if admin_password == password:
+        raise CommandError(
+            "Refusing to publish DEMO_PASSWORD: it also opens demo_admin, which manages "
+            "announcements and accounts. Set DEMO_ADMIN_PASSWORD to another password and run this "
+            "again. Nothing was changed."
+        )
+
+
 class Command(BaseCommand):
+    # reset_demo gives the seed the passwords it checked (published_passwords), so that one
+    # reading of the settings is checked and used.
+    stealth_options = ("checked_passwords",)
     help = "Create synthetic demo records once; never reset existing data or passwords."
 
     def add_arguments(self, parser):
@@ -150,8 +166,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # The settings first, each read once, outside the transaction: whatever their check reads
-        # is not held while the seed waits for its lock.
-        password, admin_password = published_passwords()
+        # is not held while the seed waits for its lock. reset_demo has checked them already.
+        password, admin_password = options.get("checked_passwords") or published_passwords()
         with transaction.atomic():
             # Then one seed at a time; then the demonstration accounts it acts as, in their
             # gates' order (as an access change takes them), held for the whole seed

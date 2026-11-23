@@ -23,7 +23,11 @@ from accounts.models import User
 from core import demo
 from core.models import Lab
 
-from .seed_demo import DEMO_LAB_NAME, published_passwords
+from .seed_demo import (
+    DEMO_LAB_NAME,
+    published_passwords,
+    refuse_announcing_a_shared_admin_password,
+)
 
 # This project's sequences that no table column owns (a feature's own numbering), so TRUNCATE
 # does not restart them. Only names starting with one of this project's app labels: anything else
@@ -97,11 +101,15 @@ class Command(BaseCommand):
             demo.hold_seed_lock()
             demo.lock_application_tables()
             self._require_demo_laboratory()
-            # The passwords the seed below will publish, checked before anything is erased.
-            published_passwords()
+            # The passwords the seed below will publish, checked once before anything is erased,
+            # and given to it.
+            checked = published_passwords()
+            if options["announce_accounts"]:
+                refuse_announcing_a_shared_admin_password(*checked)
             tables = self._erase()
             call_command(
                 "seed_demo",
+                checked_passwords=checked,
                 announce_accounts=options["announce_accounts"],
                 stdout=self.stdout,
                 verbosity=options["verbosity"],
