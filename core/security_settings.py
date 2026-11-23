@@ -178,6 +178,15 @@ RELEASE = {
         lambda: sorted(mfa_settings.SUPPORTED_TYPES),
         ["recovery_codes", "totp"],
     ),
+    # The second step's forms: they record a code refused by the failed sign-in limit in the
+    # account's sign-in history (accounts.forms.RecordedLockout).
+    "MFA_FORMS": (
+        lambda: dict(mfa_settings.FORMS),
+        {
+            "authenticate": "accounts.forms.MFAAuthenticateForm",
+            "reauthenticate": "accounts.forms.MFAReauthenticateForm",
+        },
+    ),
     "MFA_TRUST_ENABLED": (lambda: mfa_settings.TRUST_ENABLED, False),
     "MFA_ALLOW_UNVERIFIED_EMAIL": (lambda: mfa_settings.ALLOW_UNVERIFIED_EMAIL, True),
     "MFA_REAUTHENTICATION_REQUIRED": (lambda: mfa_settings.REAUTHENTICATION_REQUIRED, True),
@@ -650,9 +659,30 @@ def _sign_in(facts):
                 "account's last sign-in time and, for each session, when it started, the "
                 "browser and address it reported at sign-in, when it was last active and when "
                 "and why it ended. Each person sees their own open sessions on Where you are "
-                "signed in; ended sessions stay in the database and no page lists them. Failed "
-                "sign-ins are not stored, apart from the times of recent failures that the limit "
-                "counts (Failed sign-ins).",
+                "signed in, and their past sign-ins, sign-outs and failed attempts on Sign-in "
+                "history (Sign-in history).",
+            ),
+        ),
+        _fact(
+            "sign-in-history",
+            "Sign-in history",
+            ["ACCOUNT_ADAPTER", "AUTHENTICATION_BACKENDS", "MFA_FORMS"],
+            lambda: Fact(
+                "sign-in-history",
+                "Sign-in history",
+                "Kept in the database; each person reads their own",
+                "release",
+                "Every sign-in, with what it proved, and every sign-out, with why the session "
+                "ended; a password, an authenticator or recovery code or an emailed code not "
+                "accepted, at sign-in or when a page asks for it again; an attempt refused by "
+                "the failed sign-in limit; and a sign-in refused because the account is "
+                "deactivated or its password, marked as compromised, was given alone. Each "
+                "entry has the time and the browser and address the request reported, never a "
+                "password, a code or the username or email address typed, and an attempt is kept "
+                "only when it names exactly one account. The database refuses to change or "
+                "delete an entry, and entries have no retention period. Each person reads their "
+                "own entries of the last 90 days on Sign-in history; no page shows another "
+                "person's.",
             ),
         ),
     ]
