@@ -295,9 +295,11 @@ email address as they stand when it is checked. Nothing asks for particular kind
 characters and passwords never expire. Each form that sets a password, on the account pages,
 through an emailed reset link and in the admin console, states the rule for its account; the
 `setup_lab` and `changepassword` commands and the demonstration's seed check it too. A password
-chosen earlier keeps working until it is next changed. A reset link mailed to an account stops
-working once the account becomes a shared demonstration account. Failed sign-ins are counted in the
-database, so a deployment running several server processes counts every attempt once.
+chosen earlier keeps working until it is next changed. A reset link mailed to an account does not
+work while the account is a shared demonstration account. Failed sign-ins are counted in the
+database, so a deployment running several server processes counts them together rather than in each
+process. Django's own `createsuperuser` command checks the password rule only when it asks for
+the password, and lets its operator go past it; `setup_lab` always checks it.
 
 Every signed-in person, staff or client portal, opens Where you are signed in from the account menu.
 It lists their own open sessions with the browser and the address each one reported when it signed

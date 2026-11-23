@@ -111,8 +111,10 @@ your platform overwrites with the visitor's address. Verify the selected value f
 client. Make sure visitors cannot supply that value themselves. The counters are kept in the
 database table `lab_ops_cache`, which a migration creates, so every worker and instance shares
 them. Their keys are HMACs made with `SECRET_KEY`: the table holds no name or address, and
-rotating the key starts every count afresh. Every write removes the entries that have expired,
-and none is removed before it expires, so the table holds only the counts still running.
+rotating the key starts every count afresh. Every write or deletion removes the entries that have
+expired, and none is removed to make room; entries left after the last request stay until the
+next one. A completed sign-in with a second factor, and a password reset, clear the failures
+counted for their network address, and the reset those counted for the account's email addresses.
 Replacing `CACHES` with a per-process cache would give
 each worker its own counters again, and the Security settings page would say the configuration
 changed. The same setting chooses the address recorded for

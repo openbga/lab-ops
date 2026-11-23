@@ -50,7 +50,7 @@
       "items": [
         {
           "label": "Login",
-          "description": "Required username or email address, as the placeholder Username or email explains. Staff and client accounts use this same page; their account assignment controls the destination and records they can access."
+          "description": "Required username or email address, as the placeholder Username or email explains. After a refused sign-in the page shows again what was typed here, so a typo can be corrected; do not type a password in this field. Staff and client accounts use this same page; their account assignment controls the destination and records they can access."
         },
         {
           "label": "Password",

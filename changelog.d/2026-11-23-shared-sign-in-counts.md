@@ -6,7 +6,7 @@ title: Failed sign-ins count the same in every server process
 area: Security settings
 link: security-settings
 ---
-The limit on failed sign-ins now counts every attempt once, however many server processes the deployment runs.
+The limit on failed sign-ins now counts attempts together across all of the deployment's server processes, rather than in each one.
 
 ## Technical notes
 

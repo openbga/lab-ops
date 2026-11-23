@@ -8,19 +8,24 @@ Three changes to Django's database cache, each for the counts it keeps:
   sign-in or the network address; the table holds an HMAC of each, keyed with the deployment's
   SECRET_KEY, so it holds no name or address and nobody without the key can tell whose attempts
   it counts. Changing SECRET_KEY starts every count afresh.
-- Expired entries are removed whenever an entry is written, and a live entry is never removed to
-  make room (SharedCache._cull): Django's database cache otherwise keeps expired entries until
-  their key is read again and, past MAX_ENTRIES, drops a third of the live ones, counts included.
+- Expired entries are removed whenever an entry is set, added, touched or deleted, by the time
+  now, and a live entry is never removed to make room (SharedCache._cull): Django's database cache
+  otherwise keeps expired entries until their key is read again and, past MAX_ENTRIES, drops a
+  third of the live ones, counts included. Removing them first also means an entry that has
+  expired is never taken for a live one by an add or a touch.
 - An entry lasts at least as long as asked: the table stores whole seconds, and Django's database
   cache drops the fraction, which would end a minute's count up to a second early
-  (SharedCache.get_backend_timeout rounds up instead).
+  (SharedCache.get_backend_timeout rounds up instead). A timeout of zero or less, given or the
+  default, is expired at once.
 """
 
 import math
+import time
 
+from django.core.cache.backends import db as database_cache
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.core.cache.backends.db import DatabaseCache
-from django.db import connections
+from django.db import connections, router
 from django.utils.crypto import salted_hmac
 
 _SALT = "openbga.lab_ops.cache_key"
@@ -39,14 +44,26 @@ class SharedCache(DatabaseCache):
         self._max_entries = 0
 
     def get_backend_timeout(self, timeout=DEFAULT_TIMEOUT):
-        expiry = super().get_backend_timeout(timeout)
-        return None if expiry is None else math.ceil(expiry)
+        if timeout == DEFAULT_TIMEOUT:
+            timeout = self.default_timeout
+        if timeout is None:
+            return None
+        if timeout <= 0:
+            return time.time() - 1
+        return math.ceil(time.time() + timeout)
 
     def _cull(self, db, cursor, now, num):
-        """Remove the entries that have expired, never a live one."""
+        """Remove the entries that have expired by the time now (Django passes `now` without its
+        fraction of a second), never a live one."""
         connection = connections[db]
         table = connection.ops.quote_name(self._table)
         cursor.execute(
             f"DELETE FROM {table} WHERE {connection.ops.quote_name('expires')} < %s",
-            [connection.ops.adapt_datetimefield_value(now)],
+            [connection.ops.adapt_datetimefield_value(database_cache.tz_now())],
         )
+
+    def _base_delete_many(self, keys):
+        db = router.db_for_write(self.cache_model_class)
+        with connections[db].cursor() as cursor:
+            self._cull(db, cursor, None, None)
+        return super()._base_delete_many(keys)

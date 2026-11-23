@@ -59,9 +59,12 @@ APPLICATION_NAMES = ("OpenBGA Lab Ops", "OpenBGA", "Lab Ops")
 # alone: nearly every one or two letters are what is left of some common password once its
 # digits are taken away. Names are compared whatever their length.
 SHORTEST_COMMON_LETTERS = 4
-# A repeated text this long or longer is a passage, not a pattern: a password that repeats one
-# is accepted.
+# A repeated text this long or longer, in characters as typed, is a passage, not a pattern: a
+# password that repeats one is accepted.
 LONGEST_REPEATED_UNIT = SINGLE_FACTOR_MINIMUM - 1
+# What people put between the copies of a repeated text: a password followed by one of these is
+# compared too, so "word word" repeats "word ".
+SEPARATORS = (" ", "-", "_", ".", ",", "/", "|", ":", ";", "+", "*", "#", "!")
 # The alphabet, the letter keys row by row and the digits (wrapping round), each read either way.
 RUNS = ("abcdefghijklmnopqrstuvwxyz", "qwertyuiopasdfghjklzxcvbnm", "1234567890" * 8)
 # Django's list of common passwords, which CommonPasswordValidator reads too.
@@ -76,35 +79,51 @@ GUIDANCE = (
 CHECKED_MINIMUM = "_vr_password_minimum"
 # A laboratory name that is about to be saved (setup_lab), compared as the saved one is.
 _proposed_names = contextvars.ContextVar("proposed_laboratory_names", default=())
+# Whether the saved laboratory name is read too (the demonstration's seed knows the name and
+# checks before it may read any table).
+_read_saved_name = contextvars.ContextVar("read_saved_laboratory_name", default=True)
 
 
 @contextmanager
-def laboratory_named(name):
+def laboratory_named(name, *, read_saved=True):
     """While checking a password, also compare it with `name`, a laboratory name about to be
-    saved (setup_lab checks the first administrator's password before it saves the name)."""
-    token = _proposed_names.set((*_proposed_names.get(), name or ""))
+    saved (setup_lab checks the first administrator's password before it saves the name). With
+    `read_saved` false, compare with `name` instead of reading the saved name: the caller knows
+    it and must not read the laboratory's table yet."""
+    names = _proposed_names.set((*_proposed_names.get(), name or ""))
+    reading = _read_saved_name.set(_read_saved_name.get() and read_saved)
     try:
         yield
     finally:
-        _proposed_names.reset(token)
+        _read_saved_name.reset(reading)
+        _proposed_names.reset(names)
+
+
+def _saved(user):
+    """Whether `user` is a saved account: it has a primary key and is not an instance about to be
+    added (which may carry one already)."""
+    if user is None or getattr(user, "pk", None) is None:
+        return False
+    state = getattr(user, "_state", None)
+    return not getattr(state, "adding", False)
 
 
 def current_account(user):
     """The account as it stands now, for a saved account (read again, so a name corrected after
-    the account was read, or after the form was drawn, is the one compared); `user` itself for
-    an account not yet saved, or None."""
-    if user is None or getattr(user, "pk", None) is None:
+    the account was read, or after the form was drawn, is the one compared; None when it no
+    longer exists); `user` itself for an account not yet saved, or None."""
+    if not _saved(user):
         return user
     from django.contrib.auth import get_user_model
 
-    return get_user_model()._default_manager.filter(pk=user.pk).first() or user
+    return get_user_model()._default_manager.filter(pk=user.pk).first()
 
 
 def minimum_length(user):
     """The fewest characters a new password of `user` may have: 8 when the laboratory's rule
     requires a second factor of the saved, active account now (core.second_factor.requires, one
     statement), 15 otherwise, and for an account not yet saved."""
-    if user is None or getattr(user, "pk", None) is None:
+    if not _saved(user):
         return SINGLE_FACTOR_MINIMUM
     from core.second_factor import requires
 
@@ -161,8 +180,9 @@ def letters(text):
 
 
 def _period(text):
-    """The length of the shortest unit `text` repeats (len(text) when it repeats none), by the
-    prefix function, in time proportional to its length."""
+    """The length of the shortest unit `text` (a string or a list of characters) repeats
+    (len(text) when it repeats none), by the prefix function, in time proportional to its
+    length."""
     border = [0] * len(text)
     for index in range(1, len(text)):
         length = border[index - 1]
@@ -183,9 +203,19 @@ def _repeated_unit(text):
     return text[:period] if period * 2 <= len(text) else None
 
 
-def _short_repeat(text):
-    unit = _repeated_unit(text)
-    return unit is not None and len(unit) <= LONGEST_REPEATED_UNIT
+def _short_repeat(characters):
+    """Whether the characters (each case folded on its own, so a unit's length is counted in the
+    characters typed) repeat a text of fewer than 15 characters at least twice, a last copy
+    possibly cut short, with or without one separator after the last copy. At most 14 passes,
+    each ending at the first character that breaks the pattern."""
+    marks = [mark for mark in SEPARATORS if mark in characters]
+    for text in (characters, *([*characters, mark] for mark in marks)):
+        for unit in range(1, LONGEST_REPEATED_UNIT + 1):
+            if 2 * unit > len(text):
+                break
+            if all(text[index] == text[index - unit] for index in range(unit, len(text))):
+                return True
+    return False
 
 
 @cache
@@ -217,7 +247,8 @@ def context_names(user):
     laboratory_named), this application's, and the account's username, the part of its email
     address before the @, its first and last name, and both names together either way round, as
     the account stands now (current_account)."""
-    names = [_lab_name(), *_proposed_names.get(), *APPLICATION_NAMES]
+    saved = [_lab_name()] if _read_saved_name.get() else []
+    names = [*saved, *_proposed_names.get(), *APPLICATION_NAMES]
     account = current_account(user)
     if account is not None:
         first = getattr(account, "first_name", "") or ""
@@ -261,7 +292,7 @@ class ExpectedPasswordValidator:
                         code="password_context_name",
                     )
         joined = "".join(folded.split())
-        if _short_repeat(folded) or _short_repeat(joined):
+        if _short_repeat([character.casefold() for character in password]):
             raise ValidationError(
                 "This password repeats one character or a short text.",
                 code="password_repeated",
@@ -283,16 +314,19 @@ class ExpectedPasswordValidator:
 
 def check_published_password(password, user, setting):
     """For the demonstration seed: a password it publishes (`setting` names where it comes from)
-    must meet the rule for each account it is given to. The error names the setting and the
-    account, never the password."""
+    must meet the rule for the account `user` (unsaved, as the seed will create it). The error
+    names the setting and the account, or no account when the password contains its username,
+    and never repeats the password: where a validator's message quotes it, it is left out."""
     from django.contrib.auth.password_validation import validate_password
 
     try:
         validate_password(password, user)
     except ValidationError as error:
+        username = user.get_username()
+        whose = "one of the accounts it creates" if username in password else username
+        reasons = " ".join(message.replace(password, "…") for message in error.messages)
         raise ValidationError(
-            f"{setting} does not meet the password rule for {user.get_username()}: "
-            + " ".join(error.messages)
+            f"{setting} does not meet the password rule for {whose}: {reasons}"
         ) from None
 
 
@@ -313,8 +347,10 @@ def guidance(user, *, own, minimum=None):
     lines = []
     for validator in get_default_password_validators():
         text_for = getattr(validator, "help_text_for", None)
-        if text_for:
+        if isinstance(validator, LengthByFactorValidator):
             text = text_for(user, own=own, minimum=minimum)
+        elif text_for:
+            text = text_for(user, own=own)
         else:
             text = str(validator.get_help_text())
         if not own:

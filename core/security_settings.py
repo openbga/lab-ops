@@ -590,9 +590,10 @@ def _sign_in(facts):
                 "network counts as one address. The counts are kept in the database, so every "
                 "server process of the deployment counts the same attempts, under a keyed digest "
                 "of the name or address rather than the name or address itself; a count is "
-                "removed once it expires and never earlier. A completed sign-in with a second "
+                "removed once it expires, never to make room. A completed sign-in with a second "
                 "factor, and a password reset through an emailed link, clear the failures counted "
-                "for the network address they came from.",
+                "for the network address they came from; the reset also clears those counted for "
+                "the account's email addresses.",
             ),
         ),
         _fact(

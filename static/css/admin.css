@@ -97,3 +97,12 @@ html[data-theme="dark"] {
     min-height: 44px;
   }
 }
+
+/* Phone widths: the header's buttons (Help, the theme switch, Log out) are touch targets of at
+   least 44 px too. */
+@media (max-width: 767px) {
+  #header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

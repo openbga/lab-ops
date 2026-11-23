@@ -289,7 +289,7 @@
           <pre><code>git clone https://github.com/openbga/lab-ops.git
 cd lab-ops
 docker compose --profile app up --build --wait
-<span class="comment"># Type a password of at least 12 characters and press Enter.</span>
+<span class="comment"># Type a password of at least 15 characters, not a common or predictable one, and press Enter.</span>
 read -rs DEMO_PASSWORD
 export DEMO_PASSWORD
 docker compose --profile app exec -e DEMO_PASSWORD web \

@@ -14,7 +14,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   <details><summary>Technical notes</summary>
 
-  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, `accounts.passwords.AccountSimilarityValidator` (Django's similarity check against the account as it stands), Django's `CommonPasswordValidator` and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account. `seed_demo` now needs `DEMO_PASSWORD` and `DEMO_ADMIN_PASSWORD` of at least 15 characters (was 12) that meet the rule for each account it creates: set such ones before the next demonstration reset. `manage.py changepassword` now saves the password alone. `ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR` is `accounts.tokens.ResetTokenGenerator`: a reset link stops working once its account becomes a shared demonstration account; other links are unchanged.
+  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, `accounts.passwords.AccountSimilarityValidator` (Django's similarity check against the account as it stands), Django's `CommonPasswordValidator` and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account. `seed_demo` now needs `DEMO_PASSWORD` and `DEMO_ADMIN_PASSWORD` of at least 15 characters (was 12) that meet the rule for each account it creates: set such ones before the next demonstration reset. `manage.py changepassword` now saves the password alone. `ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR` is `accounts.tokens.ResetTokenGenerator`: a reset link does not work while its account is a shared demonstration account; other links are unchanged.
 
   </details>
 
@@ -102,7 +102,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 - **Security:** Failed sign-ins count the same in every server process (2026-11-23, Security settings)
 
-  The limit on failed sign-ins now counts every attempt once, however many server processes the deployment runs.
+  The limit on failed sign-ins now counts attempts together across all of the deployment's server processes, rather than in each one.
 
   <details><summary>Technical notes</summary>
 
