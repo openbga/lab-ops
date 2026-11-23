@@ -5,13 +5,12 @@
   ],
   "title": "Two-factor authentication",
   "purpose": "Manage the authenticator app and recovery codes used to protect your account.",
-  "summary": "Protect your own account with an authenticator app and recovery codes. Two-factor authentication is optional and never changes your roles.",
+  "summary": "Protect your own account with an authenticator app and recovery codes. Your laboratory may require one of your account; it never changes your roles.",
   "tasks": [
     {
       "title": "Turn on two-factor authentication",
       "steps": [
-        "Under [[Authenticator App]], select [[Activate]] and follow the setup.",
-        "If verification is required, open [[Email addresses]], select the unverified address and choose [[Re-send Verification]]."
+        "Under [[Authenticator App]], select [[Activate]] and follow the setup."
       ]
     },
     {
@@ -34,7 +33,7 @@
     }
   ],
   "good_to_know": [
-    "Setup requires all addresses on your account to be verified. Contact the laboratory administrator if outgoing email is off.",
+    "Your laboratory may require a second factor of your account. Then, after signing in without one, you set it up before anything else.",
     "Viewing codes and the other actions here may ask you to confirm your password or a code first.",
     "Each recovery code works once, as an alternative to an app code.",
     "Security keys and passkeys are not offered."
@@ -43,7 +42,7 @@
     {
       "title": "Enabled factors and account boundary",
       "paragraphs": [
-        "Requires sign-in and shows only your own authenticators. This deployment enables Authenticator App and Recovery Codes, with optional enrollment. Security keys, passkeys and trusted-browser shortcuts are not enabled. MFA does not grant laboratory roles."
+        "Requires sign-in and shows only your own authenticators. This deployment enables Authenticator App and Recovery Codes. Adding them is optional unless the laboratory's second sign-in factor rule (Security settings) covers your account. Security keys, passkeys and trusted-browser shortcuts are not enabled. MFA does not grant laboratory roles."
       ]
     },
     {
@@ -70,8 +69,8 @@
     {
       "title": "Enrollment and sensitive actions",
       "paragraphs": [
-        "Activation is blocked while any associated email address record is unverified. Ordinary email login may still succeed because its verification policy is optional. Successful first app activation automatically creates recovery codes if none exist and opens their page. Sensitive MFA actions and code viewing/downloading require recent reauthentication, normally within five minutes. The overview itself does not require a fresh check.",
-        "Before an authenticator is active, Email addresses opens your own account’s address list so you can request a verification link. When outgoing email is disabled, the page directs you to the laboratory administrator."
+        "Successful first app activation automatically creates recovery codes if none exist and opens their page. Sensitive MFA actions and code viewing/downloading require recent reauthentication, normally within five minutes. The overview itself does not require a fresh check. An unverified email address does not stop activation: sign-up is closed, so every account is one the laboratory created.",
+        "When the laboratory requires a second factor of your account and this session was sent to set one up, this page opens while the rest stays closed, and once the app is active it shows Continue, which goes on to the page you were opening when you signed in. Deactivating the app in such a session sends it back to Set up a second sign-in factor."
       ]
     }
   ],
@@ -81,6 +80,9 @@
     "templates/allauth/layouts/manage.html",
     "uv.lock",
     "templates/mfa/index.html",
-    "core/context_processors.py"
+    "core/context_processors.py",
+    "accounts/enrolment.py",
+    "core/second_factor.py",
+    "templates/accounts/second_factor_required.html"
   ]
 }

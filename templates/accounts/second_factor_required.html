@@ -1,0 +1,30 @@
+{% extends user.client|yesno:"layouts/portal.html,base.html" %}
+{% load ui %}
+{% comment %}
+Set up a second sign-in factor (accounts.enrolment): the page a session waiting for a second factor
+is sent to. It says why the laboratory requires one of this account and leads to adding an
+authenticator app (allauth's mfa_activate_totp); Sign out is the other way out. The shell leaves
+out the navigation while the session waits (second_factor_pending). Context: page_title, reasons
+(core.second_factor.reasons: the parts of the rule that cover the account, in words), locked (a
+shared demonstration account, which cannot add one).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Your laboratory requires a second sign-in factor for your account before you continue.</p>{% endblock %}
+{% block page_actions %}{% url 'account_logout' as logout_url %}{% post_button action=logout_url label="Sign out" %}{% if not locked %}<a class="btn btn-primary" href="{% url 'mfa_activate_totp' %}">Set up authenticator app</a>{% endif %}{% endblock %}
+{% block content %}
+{% if locked %}
+{% notice tone="warning" blocking=True %}This shared demonstration account cannot add a second factor, so it cannot be used while the laboratory requires one. Sign out and sign in with another account.{% endnotice %}
+{% endif %}
+{% panel title="Why it is needed" heading_id="why-heading" class="mb-3" %}
+  <p>{% if reasons %}The laboratory requires a second factor of {{ reasons|join:", " }}.{% else %}The laboratory requires a second factor of your account.{% endif %} Until your account has one, this session opens only the pages that set it up.</p>
+{% endpanel %}
+{% if not locked %}
+{% panel title="How to set it up" heading_id="how-heading" class="mb-3" %}
+  <ol class="mb-0">
+    <li>Install an authenticator app on your phone, if you have none.</li>
+    <li>Select Set up authenticator app and enter your password again when asked. Scan the code shown with the app and enter the 6-digit code the app gives.</li>
+    <li>Save the recovery codes shown next somewhere safe. Each one signs you in once if you lose your phone.</li>
+    <li>Select Continue to go on to the page you were opening.</li>
+  </ol>
+{% endpanel %}
+{% endif %}
+{% endblock %}

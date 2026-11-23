@@ -8,7 +8,8 @@ uses synthetic accounts and records.
 
 Sign in with the account the laboratory provides. A superuser creates accounts in **Accounts &
 roles**. Staff and client portal accounts are distinct. Users can enroll an authenticator and
-save recovery codes. Password resets and sign-in codes depend on the deployment's email settings.
+save recovery codes; where the laboratory requires one of their account, they set it up at sign-in
+before anything else. Password resets and sign-in codes depend on the deployment's email settings.
 [Sign-in configuration](operations.md#sign-in-limits-behind-a-proxy)
 
 ## Roles and capabilities

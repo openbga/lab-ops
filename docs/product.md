@@ -249,6 +249,18 @@ for staff and for client portal accounts: after how long without activity a sess
 and 12 hours. Each change needs a reason and is kept in the page's history with the values before
 and after. The laboratory chooses the periods; the application does not.
 
+Administrators also choose on Security settings which accounts must have a second sign-in factor:
+every staff account, staff with chosen roles (administrators do every role's work, so any role
+covers them), staff who can view patient information, accounts that can open the admin console,
+and client portal accounts. Nothing is required until the rule is first saved, with a reason, and
+each change is kept in the page's history. Whether the rule covers an account is decided when it
+signs in: an account it covers that has no authenticator app is taken to Set up a second sign-in
+factor and opens nothing else until it adds one (recovery codes alone do not count), then goes on
+to the page it was opening. Sessions already open when the rule changes are not interrupted.
+Removing the app in a session the rule covered sends that session back to setting one up. A
+shared demonstration account cannot add one. The panel counts the active accounts the rule covers
+and how many have no second factor yet.
+
 Pages warn 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before
 the longest session ends; the admin console does not warn. Opening a page, saving, searching or Stay signed in counts as
 activity; reading or typing on a page does not. Signing in again returns to the page. When a limit

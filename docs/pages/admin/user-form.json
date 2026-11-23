@@ -94,7 +94,7 @@
         },
         {
           "label": "Groups",
-          "description": "Optional assigned groups in Available groups and Chosen groups, with filter boxes, choose/remove controls and Choose all/Remove all. Built-in group names determine roles. Custom groups can carry explicit permissions without becoming operational roles. Removing a role or a capability waits for a change the person is saving at that moment, which is kept; a change they start afterwards no longer has that role or capability."
+          "description": "Optional assigned groups in Available groups and Chosen groups, with filter boxes, choose/remove controls and Choose all/Remove all. Built-in group names determine roles. Custom groups can carry explicit permissions without becoming operational roles. Removing a role or a capability waits for a change the person is saving at that moment, which is kept; a change they start afterwards no longer has that role or capability. A role or a group's Can view patient information grant can bring the account under the laboratory's second sign-in factor rule (Security settings), from its next sign-in."
         },
         {
           "label": "Active",
@@ -102,7 +102,7 @@
         },
         {
           "label": "Staff status",
-          "description": "Allows the maintenance-site entry check; does not grant laboratory roles, superuser status or model permissions."
+          "description": "Allows the maintenance-site entry check; does not grant laboratory roles, superuser status or model permissions. Where the laboratory's second sign-in factor rule covers accounts that can open the admin console, an account with Staff status must also set up an authenticator app at its next sign-in."
         },
         {
           "label": "Superuser status",
@@ -175,6 +175,7 @@
     "accounts/tests/test_admin.py",
     "templates/admin/base_site.html",
     "desk/tests/test_decisions_read_before_a_wait.py",
-    "accounts/session_list.py"
+    "accounts/session_list.py",
+    "core/second_factor.py"
   ]
 }

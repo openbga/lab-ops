@@ -77,6 +77,9 @@ MIDDLEWARE = [
     # Signs out a session past the laboratory's limits before anything acts for the account and
     # records its activity once a view is reached, after the check above (accounts.sessions).
     "accounts.sessions.SessionLimitMiddleware",
+    # A session the laboratory's rule held to a second factor at sign-in reaches only the pages
+    # that set one up while its account has none (accounts.enrolment).
+    "accounts.enrolment.EnrolmentMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
 ]
@@ -127,6 +130,12 @@ ACCOUNT_ADAPTER = "accounts.adapter.ClosedSignupAdapter"
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "optional"
+# allauth refuses to add an authenticator while any of the account's email addresses is
+# unverified, which protects an open sign-up from an unverified address claiming an account.
+# Sign-up is closed here (the laboratory creates every account), and where the laboratory requires
+# a second factor (core.second_factor) the check would leave a person whose address cannot be
+# verified (outgoing email off) unable to sign in at all.
+MFA_ALLOW_UNVERIFIED_EMAIL = True
 MFA_FORMS = {
     "authenticate": "accounts.forms.MFAAuthenticateForm",
     "reauthenticate": "accounts.forms.MFAReauthenticateForm",

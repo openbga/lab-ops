@@ -4,8 +4,8 @@
     "security-settings"
   ],
   "title": "Security settings",
-  "purpose": "See the laboratory's security and privacy contacts, set the session limits, and see what protects sign-in, sessions and patient information in this deployment, with who sets each part.",
-  "summary": "Your security and privacy contacts, the session limits you set, and what protects sign-in, sessions and patient information here, with who sets each part. Only the admin role can open this page.",
+  "purpose": "See the laboratory's security and privacy contacts, set the session limits and who must have a second sign-in factor, and see what protects sign-in, sessions and patient information here, with who sets each part.",
+  "summary": "Your security and privacy contacts, the session limits and second sign-in factor rule you set, and what protects sign-in, sessions and patient information here. Only the admin role can open this page.",
   "tasks": [
     {
       "title": "Record or change a contact",
@@ -22,24 +22,25 @@
       ]
     },
     {
+      "title": "Require a second sign-in factor",
+      "steps": [
+        "Under Second sign-in factor select [[Edit]].",
+        "Tick the accounts that must have one, explain why in [[Reason]] and select [[Save changes]]. It applies at each account's next sign-in."
+      ]
+    },
+    {
       "title": "Find out who sets a protection",
       "steps": [
         "Find the setting in its group (Sign-in, Sessions, Patient information or Connection) and read [[Set by]].",
         "A deployment setting names its environment variable. Ask whoever runs the deployment to change it."
       ]
-    },
-    {
-      "title": "See who has turned on a second sign-in factor",
-      "steps": [
-        "Under Sign-in read the details of Second sign-in factor. It counts active staff and client portal accounts that have a second factor (recovery codes alone do not count)."
-      ]
     }
   ],
   "good_to_know": [
-    "You change the contacts and the session limits here, each in its own form with a reason. Every other value is changed where Set by says.",
+    "You change the contacts, the session limits and the second sign-in factor rule here, each in its own form with a reason. Every other value is changed where Set by says.",
     "A shorter limit applies from each session's next request: a session already idle longer is signed out then.",
-    "Values are read from the running application each time the page opens, so they follow the deployment as it stands.",
-    "The page states what is in force. It does not rate the deployment or say whether it meets any rule or standard.",
+    "A second-factor rule applies at each account's next sign-in; open sessions are not interrupted.",
+    "Values are read from the running application each time the page opens. The page does not rate the deployment or say whether it meets any rule.",
     "Staff see the contacts on the laboratory profile. Client portal accounts do not see them."
   ],
   "sections": [
@@ -91,9 +92,30 @@
       ]
     },
     {
+      "title": "Second sign-in factor",
+      "paragraphs": [
+        "Which accounts the laboratory requires to have a second sign-in factor (an authenticator app, with recovery codes), as the rule stands when the page opens. Nothing is required until the rule is first saved. Edit opens the rule's form; after saving or cancelling you return to this page.",
+        "Whether the rule covers an account is decided when it signs in. An account it covers without an authenticator app is sent to Set up a second sign-in factor after signing in and opens nothing else first; sessions already open are not interrupted. Recovery codes alone do not count."
+      ],
+      "items": [
+        {
+          "label": "Accounts",
+          "description": "Every staff account; Staff with these roles; Staff who can view patient information; Accounts that can open the admin console; Client portal accounts."
+        },
+        {
+          "label": "Second factor",
+          "description": "Required (with the roles chosen, for the roles row) or Not required."
+        },
+        {
+          "label": "Active accounts required to have one",
+          "description": "Under the table once the rule covers anyone: how many active accounts it covers now and how many of them have no authenticator app yet."
+        }
+      ]
+    },
+    {
       "title": "Groups of settings",
       "paragraphs": [
-        "Sign-in: how accounts are created, the password rule, the second sign-in factor with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
+        "Sign-in: how accounts are created, the password rule, the second sign-in factor (Optional, or whom the rule above requires it of) with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins, sign-in with an emailed code and where sign-ins are recorded.",
         "Sessions: sign-out after a period without activity and the longest session (both from Session limits above), what closing the browser does, what deactivating an account and setting a new password do to its sessions, that each person sees where they are signed in and signs out the others (with where the recorded address comes from behind a proxy), that a superuser ends a person's sessions from the admin console with a reason, that the browser keeps no copy of the pages, and how the session cookie is sent.",
         "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
@@ -122,7 +144,7 @@
       "items": [
         {
           "label": "History",
-          "description": "The newest 20 changes to the security contact, the privacy contact and the session limits, shown oldest first: Lab contact changed, with the contact it changed and the name before and after, or Lab session limits changed, with the accounts they apply to and each value before and after; then the reason given, the time and the administrator who made it. The laboratory profile's history lists the contact changes too."
+          "description": "The newest 20 changes to the security contact, the privacy contact, the session limits and the second sign-in factor rule, shown oldest first: Lab contact changed, with the contact it changed and the name before and after; Lab session limits changed, with the accounts they apply to and each value before and after; or Lab second factor rule changed, with whom it requires a second factor of and whom it did before; then the reason given, the time and the administrator who made it. The laboratory profile's history lists the contact changes too."
         }
       ]
     }
@@ -143,6 +165,9 @@
     "templates/core/_session_limits_panel.html",
     "accounts/sessions.py",
     "tests/test_session_limits.py",
-    "accounts/kept.py"
+    "accounts/kept.py",
+    "core/second_factor.py",
+    "templates/core/_second_factor_panel.html",
+    "tests/test_second_factor_rule.py"
   ]
 }

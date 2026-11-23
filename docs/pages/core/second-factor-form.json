@@ -1,0 +1,100 @@
+{
+  "id": "core-second-factor-form",
+  "routes": [
+    "second-factor-edit"
+  ],
+  "title": "Edit second sign-in factor rule",
+  "purpose": "Choose which accounts must have a second sign-in factor, with a reason.",
+  "summary": "Choose which accounts must set up an authenticator app before they can work. Only the admin role can do this, with a reason.",
+  "tasks": [
+    {
+      "title": "Require a second factor",
+      "steps": [
+        "Tick [[Every staff account]], roles under [[Staff with these roles]], or the other groups of accounts.",
+        "Explain why in [[Reason]] and select [[Save changes]]. You return to Security settings."
+      ]
+    },
+    {
+      "title": "Stop requiring it",
+      "steps": [
+        "Clear the ticks, give a [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Go back without saving",
+      "steps": [
+        "Select [[Cancel]]. Nothing changes."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The rule applies at each account's next sign-in. Sessions already open are not interrupted; a superuser can end a person's sessions in the admin console.",
+    "An account the rule covers without an authenticator app is sent to set one up after signing in and opens nothing else first.",
+    "Shared demonstration accounts cannot add one, so a rule covering them stops them working.",
+    "If someone saved the rule after you opened the form, your change is refused and what you chose stays. Reload and compare."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role may open this form; other staff roles, client portal accounts and a superuser without the role are refused. It opens from Edit on the Second sign-in factor panel of Security settings, as a dialog or a full page, and returns there. Your role is checked again as your account stands when you save."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Every staff account",
+          "description": "Every account that is not a client portal account, whatever its role, including accounts without a role."
+        },
+        {
+          "label": "Staff with these roles",
+          "description": "Administrator, Supervisor, Client services, Account manager, Technical staff. A staff account holding a chosen role is covered. Administrators do the work of every role, so choosing any role also covers them."
+        },
+        {
+          "label": "Staff who can view patient information",
+          "description": "Staff accounts granted Can view patient information, to the account itself or through a role group, with or without a role."
+        },
+        {
+          "label": "Accounts that can open the admin console",
+          "description": "Accounts with staff status in the admin console, superusers among them."
+        },
+        {
+          "label": "Client portal accounts",
+          "description": "Every client portal account."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Kept with the change in the history on Security settings."
+        },
+        {
+          "label": "Save changes",
+          "description": "Saves the rule with an audit event naming you, the rule before and after, and your reason. Saving the same rule records nothing and shows No changes to save."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Security settings without saving."
+        }
+      ]
+    },
+    {
+      "title": "Rules and states",
+      "paragraphs": [
+        "Only active accounts are counted. An account is covered when any ticked part covers it. Nothing is required until the rule is first saved.",
+        "Whether the rule covers an account is decided when it signs in, from the account and the rule as they stand then. A session it covers reaches only the setup pages while the account has no authenticator app; recovery codes alone do not count.",
+        "The form carries the revision of the rule it showed. A change saved by someone else in between refuses yours, keeps your choices and asks you to reload and compare.",
+        "Which accounts must have a second factor is the laboratory's decision. The application sets none by default."
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/security_settings_views.py",
+    "core/second_factor.py",
+    "core/lab_profile_forms.py",
+    "core/models.py",
+    "templates/core/second_factor_form.html",
+    "accounts/enrolment.py",
+    "tests/test_second_factor_rule.py"
+  ]
+}

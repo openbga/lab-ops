@@ -303,8 +303,11 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
         import sys
         before = "config" in sys.modules
         try:
+            # The second-factor rule too, since the required second factor change.
+            from core.models import SecondFactorRule
             with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
-                                patient_capability_holders=lambda: 0, _patient_fields=lambda: 0):
+                                patient_capability_holders=lambda: 0, _patient_fields=lambda: 0,
+                                _second_factor_rule=lambda: SecondFactorRule(pk=1)):
                 result = security.in_force()
             outcome = [row.value for group in result if group.key != "patient-information"
                        for row in group.facts]

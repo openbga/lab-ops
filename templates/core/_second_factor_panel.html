@@ -1,0 +1,28 @@
+{% load ui %}{% comment %}
+The "Second sign-in factor" panel on Security settings (the admin role): which accounts the
+laboratory requires to have a second sign-in factor, as the rule stands when the page is read
+(core.second_factor; a rule never saved requires nothing), and how many active accounts it covers
+and how many of those have none yet. Context: second_factor ((label, status text or "") rows),
+second_factor_covered, second_factor_missing, can_edit_second_factor (the admin role: Edit opens
+core/second_factor_form.html in the form dialog).
+{% endcomment %}
+{% panel title="Second sign-in factor" heading_id="second-factor-heading" table=True flush=True class="mb-3" %}
+  {% fill actions %}{% if can_edit_second_factor %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'second-factor-edit' %}">Edit<span class="visually-hidden"> second sign-in factor rule</span></a>{% endif %}{% endfill %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="second-factor-heading">
+      <thead><tr>
+        <th scope="col">Accounts</th>
+        <th scope="col">Second factor</th>
+      </tr></thead>
+      <tbody>
+        {% for label, required in second_factor %}
+        <tr>
+          <th scope="row" class="vr-wrap">{{ label }}</th>
+          <td class="vr-wrap">{% if required %}{% status label=required tone="info" plain=True %}{% else %}<span class="vr-muted">Not required</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% fill footer %}<p class="vr-muted small mb-0">{% if second_factor_covered %}Active accounts required to have one: {{ second_factor_covered }}; without one yet: {{ second_factor_missing }}. {% endif %}A required account without one sets it up at its next sign-in and reaches nothing else first; open sessions are not interrupted. Only the admin role changes this, with a reason.</p>{% endfill %}
+{% endpanel %}

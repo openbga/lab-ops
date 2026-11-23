@@ -1902,7 +1902,8 @@ html:hover::-webkit-scrollbar-thumb,
     min-height: calc(100vh - var(--vr-topbar-height));
   }
 
-  .vr-portal .vr-shell {
+  .vr-portal .vr-shell,
+  .vr-shell.vr-shell-bare {
     grid-template-columns: minmax(0, 1fr);
   }
 

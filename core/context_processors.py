@@ -50,4 +50,19 @@ def workspace(request):
         # The signed-in session as this request found it (accounts.sessions), for the warning
         # before sign-out (includes/session_warning.html); None when not signed in.
         "account_session": getattr(request, "account_session", None),
+        # The session must add a second sign-in factor before anything else (accounts.enrolment):
+        # the shell leaves out the navigation it cannot use yet.
+        "second_factor_pending": getattr(request, "vr_second_factor_pending", False),
+        # The page that sign-in was opening is still kept for Continue after the factor is added.
+        "second_factor_continue": _second_factor_continue(request),
     }
+
+
+def _second_factor_continue(request):
+    from accounts.enrolment import NEXT_KEY
+
+    user = getattr(request, "user", None)
+    session = getattr(request, "session", None)
+    return bool(
+        user is not None and user.is_authenticated and session is not None and NEXT_KEY in session
+    )

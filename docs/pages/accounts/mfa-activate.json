@@ -24,7 +24,7 @@
   ],
   "good_to_know": [
     "Reloading this page creates new setup details. Use the QR code shown now.",
-    "Setup is blocked while any email address on your account is unverified.",
+    "It asks for your password again first unless you confirmed it in the last 5 minutes, even right after signing in.",
     "Keep the recovery codes somewhere private. They let you sign in if you lose the app.",
     "An authenticator app does not change your laboratory roles."
   ],
@@ -53,7 +53,8 @@
     {
       "title": "Prerequisites and changing enrollment",
       "paragraphs": [
-        "Requires sign-in, recent reauthentication and no unverified associated email records. This check is not a blanket requirement that a verified email record must exist: an account with no address records passes that particular test. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment."
+        "Requires sign-in and recent reauthentication: a password (or code) confirmed in the last five minutes; signing in does not count. An unverified email address does not stop activation in this deployment. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment.",
+        "When the laboratory requires a second factor of your account, a session that signed in without one is sent here through Set up a second sign-in factor and opens nothing else until activation succeeds. The recovery codes page then offers Continue."
       ]
     }
   ],
@@ -61,6 +62,8 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "accounts/enrolment.py",
+    "core/second_factor.py"
   ]
 }

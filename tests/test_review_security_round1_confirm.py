@@ -122,7 +122,11 @@ def test_logging_claim_tracks_delivery_to_the_configured_handler():
         options["level"] = "WARNING"
         console.setLevel(options["level"])
         after = recorded()
-        with patch.object(security, "_second_factor_counts", return_value=(0, 0, 0, 0)):
+        # Adapted: the second-factor rule is a database reading too since the required second
+        # factor change.
+        from core.models import SecondFactorRule
+        with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
+                            _second_factor_rule=lambda: SecondFactorRule(pk=1)):
             rows = []
             security._sign_in(rows)
         fact = next(row for row in rows if row.key == "sign-in-records")
@@ -189,12 +193,14 @@ def test_one_page_gives_one_answer_about_the_release_files():
 
         # Only the database readings are replaced (adapted: the session limits are one since the
         # automatic sign-out change). Each fact checks the real release files.
-        from core.models import SessionLimit
+        # The second-factor rule too, since the required second factor change.
+        from core.models import SecondFactorRule, SessionLimit
         limits = [SessionLimit(audience=audience, inactivity_minutes=30, maximum_hours=12)
                   for audience in ("staff", "portal")]
         with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
                             patient_capability_holders=lambda: 0, _patient_fields=lambda: 0,
-                            _session_limits=lambda: limits):
+                            _session_limits=lambda: limits,
+                            _second_factor_rule=lambda: SecondFactorRule(pk=1)):
             with patch.object(SourceFileLoader, "get_data", try_read):
                 first = config_states()
             print(json.dumps([first, config_states()]))

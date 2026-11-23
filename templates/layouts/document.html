@@ -22,6 +22,8 @@ Application document and staff shell. Block contract (docs/ui-standards.md secti
                  also marks the page as a record, which numbers its panel headings
   extra_js       extra <script> tags at the end of <body>
 Every page in this shell (staff and client portal) ends <main> with includes/source_footer.html.
+While the session must add a second sign-in factor first (second_factor_pending, accounts.
+enrolment), the shell leaves out the navigation, Find and What's new, which it cannot open yet.
 The sidebar and portal items, and which one a page marks, are declared in
 core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for signed-in users.
 {% endcomment %}
@@ -79,12 +81,14 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   {% url 'dashboard' as dashboard_url %}
   {% block topbar %}
   <header class="vr-topbar">
-    <button class="btn btn-sm vr-topbar-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>
+    {% if not second_factor_pending %}<button class="btn btn-sm vr-topbar-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>{% endif %}
     {% brand href=dashboard_url|default:"/" %}
     {% if lab.name %}<span class="vr-lab-name d-none d-lg-inline">{{ lab.name }}</span>{% endif %}
     <div class="vr-topbar-end">
+      {% if not second_factor_pending %}
       {% include "includes/client_lookup.html" %}
       {% whats_new_button %}
+      {% endif %}
       {% include "documentation/button.html" %}
       {% include "includes/theme_menu.html" %}
       {% if user.is_authenticated %}{% include "includes/user_menu.html" %}{% endif %}
@@ -92,8 +96,8 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   </header>
   {% endblock topbar %}
   {% preference "nav.collapsed" as nav_collapsed %}
-  <div class="vr-shell{% if nav_collapsed %} vr-nav-collapsed{% endif %}">
-    {% block sidenav %}
+  <div class="vr-shell{% if second_factor_pending %} vr-shell-bare{% elif nav_collapsed %} vr-nav-collapsed{% endif %}">
+    {% block sidenav %}{% if not second_factor_pending %}
     <nav class="vr-sidenav offcanvas-lg offcanvas-start" id="vr-nav" tabindex="-1" aria-label="Primary">
       <div class="offcanvas-header d-lg-none">
         <p class="offcanvas-title h5 mb-0">OpenBGA Lab Ops</p>
@@ -104,7 +108,7 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
         {% include "includes/nav_staff.html" %}
       </div>
     </nav>
-    {% endblock sidenav %}
+    {% endif %}{% endblock sidenav %}
     <main class="vr-main" id="main" tabindex="-1"{% block form_surface_attributes %}{% if form_surface %} data-vr-form-page data-vr-form-url="{{ request.get_full_path }}" data-vr-form-size="{{ form_surface.size }}"{% endif %}{% endblock %}>
       {% block page_header %}
       <div class="vr-page-header {% block page_header_class %}{% endblock %}">
@@ -129,10 +133,12 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   {% block thumbbar %}
   {% comment %}Phones only (app.css "Phones"): the menu, Find (tickets and client organizations) and, placed beside them by CSS, the page's primary action (the .btn-primary in page_actions), within thumb reach. The portal has no staff menu and leaves it out.{% endcomment %}
   {% url 'desk:request-find' as find_url %}
+  {% if not second_factor_pending %}
   <nav class="vr-thumbbar" aria-label="Quick actions">
     <button class="vr-thumbbar-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>
     {% if find_url %}<a class="vr-thumbbar-btn" href="{{ find_url }}">{% icon name="search" %}<span>Find</span></a>{% endif %}
   </nav>
+  {% endif %}
   {% endblock thumbbar %}
   {% endblock body %}
   {% block documentation_panel %}{% include "documentation/panel.html" %}{% endblock %}

@@ -80,6 +80,26 @@ role as the account is held, requires a reason and records one audit event, as t
 do in `core.session_limits`. The same change updates [the safeguards reference](safeguards.md).
 [Security settings](../core/security_settings.py)
 
+## Required second factor
+
+`core.second_factor` holds the laboratory's rule (`SecondFactorRule`, one row, saved like the
+session limits) and turns it into one condition on the accounts table, used both to decide for one
+account and to count them, so the page and the sign-in agree. Roles are matched as
+`effective_roles` counts them and the patient-information grant as `has_capability` does (on the
+account or a group). At sign-in, `accounts.sessions.start_session` records on the new
+`AccountSession` row whether the rule covered the account then (`second_factor_required`).
+`accounts.enrolment.EnrolmentMiddleware`, after `SessionLimitMiddleware`, reads that flag and
+whether the account has a non-recovery-code authenticator in one statement on each request; while
+the flag is set and there is none, and the rule as it stands still covers the account, only the
+setup routes (`ALLOWED_VIEWS`) are reached. Other requests are sent to the setup page: redirected
+(a GET remembers its address once, for Continue), told to load it in the whole window (HTMX and
+the form dialog) or refused with JSON for scripts. Deciding at sign-in keeps open sessions and
+their unsaved forms going when the rule changes; deciding each request from the factor keeps a
+session that removes its only authenticator held. allauth's refusal to add an authenticator while
+an address is unverified is off (`MFA_ALLOW_UNVERIFIED_EMAIL`): sign-up is closed, and the check
+would leave a required account without email unable to enrol.
+[Required second factor](../accounts/enrolment.py)
+
 ## Sessions
 
 Each sign-in is an `AccountSession` row, created by Django's `user_logged_in` signal once every
