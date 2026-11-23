@@ -92,7 +92,9 @@ def published_passwords():
     erases, and gives them to the seed (a caller that wraps seed_demo in a transaction of its own
     holds whatever the check reads, as reset_demo does after taking the lock). Validators see each
     account as the seed will create it, before it exists: with its username, email address and
-    names, and no id or organization yet."""
+    names, and no id or organization yet. On a reset they run before the erase, so a validator
+    that reads the database sees the demonstration being replaced; the release's validators read
+    nothing there (accounts.passwords.laboratory_named with read_saved false)."""
     password = os.environ.get("DEMO_PASSWORD")
     # The length the password rule asks of a password used alone (accounts.passwords).
     if not password or len(password) < SINGLE_FACTOR_MINIMUM:
@@ -149,7 +151,9 @@ def refuse_announcing_a_shared_admin_password(password, admin_password):
 
 class Command(BaseCommand):
     # reset_demo gives the seed the passwords it checked (published_passwords), so that one
-    # reading of the settings is checked and used.
+    # reading of the settings is checked and used. Only through Django's Python API (no
+    # command-line flag): a caller passing it is taken to have checked them. A deployment that
+    # replaces seed_demo with its own command keeps this option, or reset_demo cannot call it.
     stealth_options = ("checked_passwords",)
     help = "Create synthetic demo records once; never reset existing data or passwords."
 
