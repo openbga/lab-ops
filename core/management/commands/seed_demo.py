@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from accounts.acting import hold_actors, scope
 from accounts.models import User
-from accounts.passwords import SINGLE_FACTOR_MINIMUM
+from accounts.passwords import SINGLE_FACTOR_MINIMUM, check_published_password
 from accounts.roles import ROLE_LABELS, ROLES
 from clients.services import hold_directory
 from core import demo, lab_profile
@@ -107,7 +107,13 @@ class Command(BaseCommand):
         actors = hold_actors(User.objects.filter(username__in=SEED_ACTORS))
         with scope(actors):
             hold_directory()
-            return self._seed(password, admin_password, *args, **options)
+            try:
+                return self._seed(password, admin_password, *args, **options)
+            except ValidationError as error:
+                # A published password the rule refuses (accounts.passwords): nothing is kept.
+                if any("password rule" in message for message in error.messages):
+                    raise CommandError("; ".join(error.messages)) from None
+                raise
 
     def _seed(self, password, admin_password, *args, **options):
         # Only a seed that starts from an empty database (the test reset_demo applies) may seal
@@ -148,7 +154,12 @@ class Command(BaseCommand):
                 },
             )
             if new:
-                user.set_password(admin_password if role == "admin" else password)
+                chosen = admin_password if role == "admin" else password
+                setting = "DEMO_ADMIN_PASSWORD" if role == "admin" else "DEMO_PASSWORD"
+                if role == "admin" and not os.environ.get("DEMO_ADMIN_PASSWORD"):
+                    setting = "DEMO_PASSWORD"
+                check_published_password(chosen, user, setting)
+                user.set_password(chosen)
                 user.save()
                 user.groups.add(group)
         if created and not leftovers:

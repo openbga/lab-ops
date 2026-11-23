@@ -134,7 +134,7 @@ def test_the_table_holds_keyed_digests_not_names_or_addresses():
 
 @pytest.mark.django_db
 def test_the_cache_is_the_database_table_and_reset_demo_leaves_it_alone():
-    assert settings.CACHES["default"]["BACKEND"] == "django.core.cache.backends.db.DatabaseCache"
+    assert settings.CACHES["default"]["BACKEND"] == "core.cache.SharedCache"
     assert settings.CACHES["default"]["LOCATION"] == TABLE
     assert TABLE in connection.introspection.table_names()
     # Not an application table: the demonstration's emptiness check and erase never read it.
@@ -185,7 +185,26 @@ def test_failures_arriving_together_are_each_counted(technician):
         thread.join(timeout=120)
 
     assert len(outcomes) == 12
-    assert outcomes.count(False) <= 5  # checked against the password at most five times
+    checked = outcomes.count(False)
+    assert checked <= 5  # checked against the password at most five times
+    # Every attempt that was checked is counted: the account's history holds one time for each.
+    from allauth.account.adapter import get_adapter
+    from allauth.core.internal import ratelimit
+    from django.test import RequestFactory
+
+    request = RequestFactory().post("/accounts/login/")
+    key = get_adapter()._get_login_attempts_cache_key(request, username="technical")
+    rate = next(
+        rate
+        for rate in ratelimit.get_rates(app="allauth.account", action="login_failed")
+        if rate.per == "key"
+    )
+    history = cache.get(
+        ratelimit.get_cache_key(
+            request, app="allauth.account", action="login_failed", rate=rate, key=key
+        )
+    )
+    assert len(history) == checked
     http = HttpClient(REMOTE_ADDR="203.0.113.200")
     response = http.post("/accounts/login/", {"login": "technical", "password": PASSWORD})
     assert REFUSED.encode() in response.content

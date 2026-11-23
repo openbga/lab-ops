@@ -19,6 +19,7 @@ from core.audit import record_event, snapshot
 from core.models import Lab
 
 from .models import User
+from .passwords import laboratory_named
 from .roles import ROLES
 
 REASON = "setup_lab command"
@@ -72,7 +73,7 @@ def _fail(message):
     raise ValidationError(message)
 
 
-def _new_user(username, email, password, first_name, last_name):
+def _new_user(username, email, password, first_name, last_name, lab_name=""):
     user = User(
         username=username,
         email=email,
@@ -84,7 +85,9 @@ def _new_user(username, email, password, first_name, last_name):
     user.full_clean(exclude=["password"])
     if User.objects.filter(email__iexact=email).exists():
         _fail("Another account already uses this email address.")
-    validate_password(password, user)
+    # The laboratory's name as setup is about to save it counts as its name already.
+    with laboratory_named(lab_name):
+        validate_password(password, user)
     user.set_password(password)
     return user
 
@@ -169,7 +172,8 @@ def setup_lab(
         if actor is None:
             if not email or not password:
                 _fail("Creating the administrator needs --admin-email and a password.")
-            actor = _new_user(username, email.strip(), password, first_name, last_name)
+            saving = lab_name.strip() if (needs_lab or renames_lab) and lab_name else ""
+            actor = _new_user(username, email.strip(), password, first_name, last_name, saving)
             roles = roles or ["admin"]
         elif actor.client_id is not None:
             _fail("That account belongs to a client; it cannot administer the lab.")

@@ -125,11 +125,13 @@ AUTHENTICATION_BACKENDS = [
 # composition rule.
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "accounts.passwords.LengthByFactorValidator"},
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "accounts.passwords.AccountSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
 ]
 ACCOUNT_ADAPTER = "accounts.adapter.ClosedSignupAdapter"
+# A reset link stops working once its account is a shared demonstration account (accounts.tokens).
+ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR = "accounts.tokens.ResetTokenGenerator"
 # The password forms state the rule for their account (accounts.passwords.guidance).
 ACCOUNT_FORMS = {
     "change_password": "accounts.forms.ChangePasswordForm",
@@ -160,14 +162,14 @@ ALLAUTH_TRUSTED_PROXY_COUNT = int(os.environ.get("ALLAUTH_TRUSTED_PROXY_COUNT", 
 ALLAUTH_TRUSTED_CLIENT_IP_HEADER = os.environ.get("ALLAUTH_TRUSTED_CLIENT_IP_HEADER") or None
 # The failed sign-in counts, and allauth's other limits, are kept in the database, so that every
 # server process of the deployment counts the same attempts (core migration 0007 creates the
-# table). Each key is stored as a keyed digest (core.cache): neither a name typed at sign-in nor
-# a network address is written.
+# table). Each key is stored as a keyed digest, expired entries are removed at every write and
+# live ones are never dropped (core.cache): neither a name typed at sign-in nor a network address
+# is written.
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "BACKEND": "core.cache.SharedCache",
         "LOCATION": "lab_ops_cache",
         "KEY_FUNCTION": "core.cache.keyed_digest",
-        "OPTIONS": {"MAX_ENTRIES": 100000},
     }
 }
 LOGIN_URL = "account_login"

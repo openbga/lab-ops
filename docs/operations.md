@@ -111,8 +111,8 @@ your platform overwrites with the visitor's address. Verify the selected value f
 client. Make sure visitors cannot supply that value themselves. The counters are kept in the
 database table `lab_ops_cache`, which a migration creates, so every worker and instance shares
 them. Their keys are HMACs made with `SECRET_KEY`: the table holds no name or address, and
-rotating the key starts every count afresh. The table keeps up to 100,000 entries; past that,
-expired entries are removed first and then a third of the rest, which would reset some counts.
+rotating the key starts every count afresh. Every write removes the entries that have expired,
+and none is removed before it expires, so the table holds only the counts still running.
 Replacing `CACHES` with a per-process cache would give
 each worker its own counters again, and the Security settings page would say the configuration
 changed. The same setting chooses the address recorded for

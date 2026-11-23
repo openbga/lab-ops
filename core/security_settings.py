@@ -55,7 +55,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "dbf47e4f86ecfa6cbfbc20d155f2d2ddf26c893c033fc2ffd72ed80f486b9c06"
+RELEASE_SETTINGS_SHA256 = "13a080f2a68efe5c34874d29b4b3f0192f7a59e2ce55bb2f6aed0889d927c1f8"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -146,7 +146,7 @@ RELEASE = {
         lambda: [dict(entry) for entry in settings.AUTH_PASSWORD_VALIDATORS],
         [
             {"NAME": "accounts.passwords.LengthByFactorValidator"},
-            {"NAME": f"{_VALIDATORS}UserAttributeSimilarityValidator"},
+            {"NAME": "accounts.passwords.AccountSimilarityValidator"},
             {"NAME": f"{_VALIDATORS}CommonPasswordValidator"},
             {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
         ],
@@ -177,10 +177,9 @@ RELEASE = {
         lambda: settings.CACHES,
         {
             "default": {
-                "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                "BACKEND": "core.cache.SharedCache",
                 "LOCATION": "lab_ops_cache",
                 "KEY_FUNCTION": "core.cache.keyed_digest",
-                "OPTIONS": {"MAX_ENTRIES": 100000},
             }
         },
     ),
@@ -479,6 +478,7 @@ def _passwords():
     accounts whose new passwords need 8 characters rather than 15."""
     from accounts.passwords import SINGLE_FACTOR_MINIMUM as LONG
     from accounts.passwords import WITH_SECOND_FACTOR_MINIMUM as SHORT
+    from accounts.passwords import common_password_count
 
     from .second_factor import requires_any, summary, values
 
@@ -497,18 +497,22 @@ def _passwords():
         "and expected passwords refused",
         "configuration",
         "Checked whenever a password is chosen: on the account pages, through an emailed reset "
-        f"link, in the admin console and at setup. {SHORT} characters are enough for an account "
-        "the second sign-in factor rule covers when the password is chosen, and an account not "
-        f"yet created needs {LONG}. {covered} Refused: a password on a list of 20,000 common "
-        "passwords taken from breached ones; one whose letters are those of a common password, "
-        "or of the laboratory's name, this application's name or the account's username, email "
-        "name, first or last name, with only digits, symbols, spaces or letter case changed; one "
-        "character or a short text repeated; a run such as 123456789 or qwertyuiop; and one too "
-        "similar to the account's username, names or email address. No rule asks for kinds of "
-        "characters, any character can be used, and passwords never expire. A password chosen "
-        "earlier keeps working, also after the rule stops covering its account, and meets the "
-        "rule in force when it is next changed. Each password form states the rule for its "
-        "account.",
+        "link, in the admin console, at setup, by the changepassword command and for the "
+        "demonstration's published passwords; Django's createsuperuser checks it only when it "
+        "asks for the password, and lets its operator go past it. "
+        f"{SHORT} characters are enough for an account the second sign-in factor rule covers when "
+        f"the password is checked, and an account not yet created needs {LONG}. {covered} "
+        f"Refused: a password on a list of {common_password_count():,} common passwords taken "
+        "from breached ones; one whose letters, where it has at least four, are those of a "
+        "common password with only digits, symbols, spaces or letter case changed; one whose "
+        "letters are the laboratory's name, this application's name or the account's username, "
+        "email name, first or last name with only those changed; one character or a text of "
+        f"fewer than {LONG} characters repeated; a run such as 123456789 or qwertyuiop; and one "
+        "too similar to the account's username, names or email address as they stand. No rule "
+        "asks for kinds of characters, letters of any language, digits, symbols and spaces can "
+        "be used, and passwords never expire. A password chosen earlier keeps working, also "
+        "after the rule stops covering its account, and meets the rule in force when it is next "
+        "changed. Each password form states the rule for its account.",
     )
 
 
@@ -585,7 +589,10 @@ def _sign_in(facts):
                 "A username and the account's email address are counted separately. An IPv6 /64 "
                 "network counts as one address. The counts are kept in the database, so every "
                 "server process of the deployment counts the same attempts, under a keyed digest "
-                "of the name or address rather than the name or address itself.",
+                "of the name or address rather than the name or address itself; a count is "
+                "removed once it expires and never earlier. A completed sign-in with a second "
+                "factor, and a password reset through an emailed link, clear the failures counted "
+                "for the network address they came from.",
             ),
         ),
         _fact(
@@ -607,6 +614,8 @@ def _sign_in(facts):
                 "ACCOUNT_ADAPTER",
                 "ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE",
                 "MIDDLEWARE",
+                # The stored times of recent failures are the cache's.
+                "CACHES",
             ],
             lambda: Fact(
                 "sign-in-records",

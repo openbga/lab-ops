@@ -154,15 +154,25 @@ sessions are ended. The rows are kept after they end. The limits are rows of `co
 one per audience, absent until first saved.
 
 Passwords are checked by the validators in `AUTH_PASSWORD_VALIDATORS` (`accounts.passwords`),
-which every form that sets one runs: the length reads the second-factor rule and the account in
-one statement when the password is checked (`core.second_factor.requires`), so a page drawn under
-one rule and saved under another is checked against the rule at the save; the form's guidance is
-drawn from the rule when the page is drawn. The checks against common and expected passwords
-compare the whole password and take time proportional to its length. allauth's sign-in limits
-and its other counters live in Django's database cache (`CACHES`, the table `lab_ops_cache`
-created by `core` migration 0007, outside the models so that reset_demo neither reads nor erases
-it); allauth serialises each count with a lock entry added to the same table, and the table's
-primary key makes that addition atomic across processes. Keys are HMACs (`core.cache`).
+which every form that sets one runs, and `setup_lab`, `changepassword` (replaced by
+`accounts.password_command`, which saves the password alone) and the demonstration's seed. The
+checks read what they compare when the password is checked, just before the save: the length
+reads the second-factor rule and the account in one statement (`core.second_factor.requires`),
+and the account's names are read again (`current_account`), so a page drawn under one rule or
+name is checked against the ones in force then. A rule saved between that check and the save
+applies from the next password (a strict xfail documents it). The form's guidance is drawn when
+the page is, and drawn again from the length a check used, so a refusal and the guidance beside
+it name the same length. The checks against common and expected passwords compare the whole
+password and take time proportional to its length. A reset link's token also covers whether the
+account is a shared demonstration account (`accounts.tokens`). allauth's sign-in limits and its
+other counters live in the database cache `core.cache.SharedCache` (`CACHES`, the table
+`lab_ops_cache` created by `core` migration 0007, outside the models so that reset_demo neither
+reads nor erases it); allauth serialises each count with a lock entry added to the same table,
+and the table's primary key makes that addition atomic across processes. Keys are HMACs, every
+write removes expired entries and never a live one, and an entry lasts at least as long as asked.
+Two allauth behaviours remain, documented with strict xfails: a completed second factor, and a
+password reset, clear the failures counted for their address; and giving back an attempt removes
+every attempt recorded at the same clock reading.
 
 A row records the browser's `User-Agent` (printable, cut to 300 characters) and the client address
 at sign-in, by the trusted proxy settings the sign-in limits use; a release still running while the

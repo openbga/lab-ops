@@ -140,9 +140,10 @@ def _plain_static_storage(settings):
 
 @pytest.fixture(autouse=True)
 def _fresh_login_rate_limits():
-    """Sign-in attempts are rate limited per client address in the process-wide cache. The
-    journeys sign in dozens of times, so each test starts with an empty limiter, as a fresh
-    server process would. The limiter itself stays enabled."""
+    """Sign-in attempts are rate limited per client address in the shared cache, a database table
+    the test database's flush between journeys does not empty (core.cache). The journeys sign in
+    dozens of times, so each test starts with an empty limiter. The limiter itself stays
+    enabled."""
     from django.core.cache import cache
 
     cache.clear()

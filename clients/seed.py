@@ -11,6 +11,7 @@ demo_client_water is narrowed to one site.
 
 from accounts.acting import hold_actor
 from accounts.models import User
+from accounts.passwords import check_published_password
 
 from .models import Client, ClientContact, ClientSite
 from .services import (
@@ -295,6 +296,7 @@ def seed_records(ctx):
             },
         )
         if new:
+            check_published_password(ctx.password, portal_user, "DEMO_PASSWORD")
             portal_user.set_password(ctx.password)
             portal_user.save()
         if not hasattr(portal_user, "portal_access"):

@@ -36,7 +36,7 @@ PostgreSQL listen on your machine's loopback interface. This configuration is fo
 git clone https://github.com/openbga/lab-ops.git
 cd lab-ops
 docker compose --profile app up --build --wait
-# Type a password of at least 15 characters and press Enter.
+# Type a password of at least 15 characters, not a common or predictable one, and press Enter.
 read -rs DEMO_PASSWORD
 export DEMO_PASSWORD
 docker compose --profile app exec -e DEMO_PASSWORD web python manage.py seed_demo
