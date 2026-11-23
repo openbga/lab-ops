@@ -48,12 +48,14 @@ jobs:
       - run: uv run pytest
 
   browser:
-    # The journeys run at four views each and take about twenty minutes in one job, so they are
-    # split by file into four jobs. Each job has its own database, so the split changes nothing
-    # about isolation: one worker and one disposable test database per job.
+    # The journeys run at four views each and take over an hour in one job, so they are split by
+    # file into four jobs of about 12 to 25 minutes each, depending on the runner. Each job has its
+    # own database, so the split changes nothing about isolation: one worker and one disposable test
+    # database per job. The limit leaves room for a slow runner (a 25-minute limit cancelled a job
+    # that had passed in 20 minutes on another run).
     name: browser (${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
