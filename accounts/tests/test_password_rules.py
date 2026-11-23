@@ -206,6 +206,8 @@ def test_guidance_states_the_length_for_the_account(make_user):
     assert guidance(person, own=False)[0].endswith("second sign-in factor of this account.")
     assert guidance(None, own=False)[0] == "The password must contain at least 15 characters."
     assert "unrelated words" in guidance(person, own=True)[-1]
+    for line in guidance(person, own=False):
+        assert "your" not in line.lower().replace("you like", ""), line
 
 
 def test_a_very_long_password_is_checked_in_proportionate_time():

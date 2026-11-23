@@ -204,13 +204,27 @@ class ExpectedPasswordValidator:
         )
 
 
+# Django's own help texts speak to the person choosing their own password; for another account's
+# password (the admin console's account page, a new account) they name the account instead.
+OTHER_ACCOUNT = (
+    ("Your password", "The password"),
+    ("your other personal information", "the account’s other personal information"),
+    ("your account", "the account"),
+)
+
+
 def guidance(user, *, own):
     """What a new password of `user` must be, one line per validator, with the length for this
-    account (help_text_for), then advice on choosing one."""
+    account (help_text_for), then advice on choosing one. `own`: the person is choosing their own
+    password; otherwise the lines name the account."""
     lines = []
     for validator in get_default_password_validators():
         text_for = getattr(validator, "help_text_for", None)
-        lines.append(text_for(user, own=own) if text_for else validator.get_help_text())
+        text = text_for(user, own=own) if text_for else str(validator.get_help_text())
+        if not own:
+            for mine, theirs in OTHER_ACCOUNT:
+                text = text.replace(mine, theirs)
+        lines.append(text)
     return [*lines, GUIDANCE]
 
 
