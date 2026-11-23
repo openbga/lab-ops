@@ -659,6 +659,7 @@ def start_session(sender, request, user, **kwargs):
 
     from .compromised import refused_at_sign_in
     from .session_list import lock_endings
+    from .signin_history import sign_in_factor
 
     session = getattr(request, "session", None)
     agent, address = reported_by(request) if session is not None else ("", None)
@@ -676,7 +677,11 @@ def start_session(sender, request, user, **kwargs):
         if not refused:
             update_last_login(sender, user)
         record = (
-            None if session is None else _record_session(session, user, agent, address, refused)
+            None
+            if session is None
+            else _record_session(
+                session, user, agent, address, refused, sign_in_factor(request, user)
+            )
         )
     # The sign-in log's line once the session has started (a start that failed did not complete
     # the sign-in); a refused one is logged as its session's ending once that commits.
@@ -696,9 +701,11 @@ def start_session(sender, request, user, **kwargs):
     session.pop(NEXT_KEY, None)
 
 
-def _record_session(session, user, agent, address, refused):
+def _record_session(session, user, agent, address, refused, factor):
     """The sign-in's session row (start_session, in its transaction, after the account's
-    session-ending lock): ended at once when the sign-in is refused."""
+    session-ending lock): ended at once when the sign-in is refused. The database writes the
+    sign-in, or its refusal, to the account's sign-in history with the row (accounts migration
+    0009), with what it proved (`factor`)."""
     previous = _valid_id(session.get(SESSION_KEY))
     if previous is not None:
         # Signed in again over an open session in the same browser (Django keeps the
@@ -717,6 +724,7 @@ def _record_session(session, user, agent, address, refused):
         user_agent=agent,
         address=address,
         second_factor_required=requires(user),
+        factor=factor,
         **ended,
     )
 

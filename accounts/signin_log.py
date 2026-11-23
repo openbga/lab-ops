@@ -2,6 +2,11 @@
 
 Only stored usernames are logged, never submitted identifiers, passwords or codes.
 The console filter attaches the application and Render request IDs.
+
+The wrong codes received here are also written to the account's sign-in history
+(accounts.signin_history); the history's password failures, refusals after too many failed
+attempts and refused sign-ins of a deactivated account are written by accounts.adapter, which
+can tell them apart.
 """
 
 import logging
@@ -32,8 +37,9 @@ def log_sign_in(request, user):
     _log("signin.success", user, request)
 
 
-@receiver(user_login_failed, dispatch_uid="lab_ops_signin_failure")
-def log_sign_in_failure(sender, credentials, request=None, **kwargs):
+def accounts_named(credentials):
+    """The accounts (at most two) whose username or email address, in any letter case, is the
+    username or email address an attempt gave."""
     matches = Q()
     for field in ("username", "email"):
         identifier = credentials.get(field)
@@ -43,19 +49,39 @@ def log_sign_in_failure(sender, credentials, request=None, **kwargs):
                 | Q(email__iexact=identifier)
                 | Q(emailaddress__email__iexact=identifier)
             )
-    users = list(get_user_model().objects.filter(matches).distinct()[:2]) if matches else []
+    return list(get_user_model().objects.filter(matches).distinct()[:2]) if matches else []
+
+
+@receiver(user_login_failed, dispatch_uid="lab_ops_signin_failure")
+def log_sign_in_failure(sender, credentials, request=None, **kwargs):
+    users = accounts_named(credentials)
     _log("signin.failed", users[0] if len(users) == 1 else None, request)
 
 
 @receiver(login_code_rejected, dispatch_uid="lab_ops_signin_code_failure")
 def log_login_code_failure(sender, request, user, **kwargs):
+    from .models import SignInEvent, SignInFactor
+    from .signin_history import record
+
     _log("signin.failed", user, request)
+    if user is not None and user.pk is not None:
+        record(user, SignInEvent.Kind.FAILED, request, factor=SignInFactor.CODE)
 
 
 @receiver(authentication_failed, dispatch_uid="lab_ops_signin_mfa_failure")
 def log_mfa_failure(sender, request, user, reauthentication=False, **kwargs):
+    from .models import SignInEvent, SignInFactor
+    from .signin_history import record
+
     if not reauthentication:
         _log("signin.failed", user, request)
+    if user is not None and user.pk is not None:
+        kind = (
+            SignInEvent.Kind.REAUTHENTICATION_FAILED
+            if reauthentication
+            else SignInEvent.Kind.FAILED
+        )
+        record(user, kind, request, factor=SignInFactor.SECOND_FACTOR)
 
 
 @receiver(user_logged_out, dispatch_uid="lab_ops_signout")

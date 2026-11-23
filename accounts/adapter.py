@@ -14,7 +14,15 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             from .signin_log import log_sign_in_failure
 
             log_sign_in_failure(sender=type(self), credentials=credentials, request=request)
+            _record_attempt(request, credentials, locked_out=True)
             raise
+
+    def authentication_failed(self, request, **credentials):
+        # A password not accepted, at sign-in or when a signed-in page asks for it again (allauth
+        # calls this for both, and not for a deactivated account's right password, which
+        # pre_login refuses).
+        _record_attempt(request, credentials)
+        super().authentication_failed(request, **credentials)
 
     def pre_login(self, request, user, **kwargs):
         # The scheduled jobs' account (jobs.actor) never signs in, even if someone activates it
@@ -27,6 +35,18 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
 
             clear_login(request)
             return self.respond_user_inactive(request, user)
+        if not user.is_active:
+            # The right password (or an emailed code) for a deactivated account: refused by
+            # allauth below, and recorded in the account's sign-in history.
+            from .models import AccountSession, SignInEvent
+            from .signin_history import record
+
+            record(
+                user,
+                SignInEvent.Kind.REFUSED,
+                request,
+                ending=AccountSession.Ending.DEACTIVATED,
+            )
         return super().pre_login(request, user, **kwargs)
 
     def add_message(self, request, level, message_template=None, *args, **kwargs):
@@ -52,3 +72,23 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
         # checked and hashed.
         user.set_password(password)
         user.save(update_fields=["password"])
+
+
+def _record_attempt(request, credentials, *, locked_out=False):
+    """A password attempt that failed, or was refused for too many failed attempts before the
+    password was checked, in the sign-in history of the account it concerns: the signed-in
+    account when a page asked for its password again, otherwise the one account the attempt's
+    username or email address names (none is recorded when it names none or several)."""
+    from .models import SignInEvent, SignInFactor
+    from .signin_history import account_named, record, signed_in_account
+
+    account = signed_in_account(request)
+    if account is not None:
+        kind = SignInEvent.Kind.REAUTHENTICATION_FAILED
+    else:
+        account = account_named(credentials)
+        kind = SignInEvent.Kind.FAILED
+    if locked_out:
+        kind = SignInEvent.Kind.LOCKED_OUT
+    if account is not None:
+        record(account, kind, request, factor=SignInFactor.PASSWORD)

@@ -50,7 +50,7 @@ sessions as they stand when it is saved.
       </tbody>
     </table>
   </div>
-  {% fill footer %}<p class="vr-muted small mb-0">The browser and the address are as they were reported when each session signed in, and can be wrong. A session leaves this list when it is signed out or passes a session limit.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">The browser and the address are as they were reported when each session signed in, and can be wrong. A session leaves this list when it is signed out or passes a session limit. <a href="{% url 'account-sign-ins' %}">Sign-in history</a> lists past sign-ins, sign-outs and failed attempts.</p>{% endfill %}
 {% endpanel %}
 {% if other_sessions %}
 {% url 'account-sessions-sign-out-others' as others_url %}

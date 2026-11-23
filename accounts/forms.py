@@ -1,8 +1,13 @@
 from allauth.account import forms as account_forms
+from allauth.core import context
 from allauth.mfa.base.forms import AuthenticateForm, ReauthenticateForm
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from .passwords import CHECKED_MINIMUM, guidance_html
+
+# allauth's error code for an attempt refused by the failed sign-in limit.
+TOO_MANY_ATTEMPTS = "too_many_login_attempts"
 
 
 class AuthenticatorCodeLabel:
@@ -11,11 +16,33 @@ class AuthenticatorCodeLabel:
         self.fields["code"].label = _("Authenticator or recovery code")
 
 
-class MFAAuthenticateForm(AuthenticatorCodeLabel, AuthenticateForm):
+class RecordedLockout:
+    """A code refused for too many failed attempts, before it was checked, is written to the
+    account's sign-in history (accounts.signin_history). A code checked and not accepted is
+    written by accounts.signin_log, from allauth's signal."""
+
+    def clean_code(self):
+        try:
+            return super().clean_code()
+        except ValidationError as error:
+            if any(item.code == TOO_MANY_ATTEMPTS for item in error.error_list):
+                from .models import SignInEvent, SignInFactor
+                from .signin_history import record
+
+                record(
+                    self.user,
+                    SignInEvent.Kind.LOCKED_OUT,
+                    context.request,
+                    factor=SignInFactor.SECOND_FACTOR,
+                )
+            raise
+
+
+class MFAAuthenticateForm(RecordedLockout, AuthenticatorCodeLabel, AuthenticateForm):
     pass
 
 
-class MFAReauthenticateForm(AuthenticatorCodeLabel, ReauthenticateForm):
+class MFAReauthenticateForm(RecordedLockout, AuthenticatorCodeLabel, ReauthenticateForm):
     pass
 
 

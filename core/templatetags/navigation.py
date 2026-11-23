@@ -366,6 +366,7 @@ ACCOUNT_ROUTES = frozenset(
         "whats-new",
         "email-notices",
         "account-sessions",
+        "account-sign-ins",
         "account-second-factor",
         "account-new-password",
         "account_change_password",
