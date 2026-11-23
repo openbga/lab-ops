@@ -8,6 +8,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### High impact
 
+- **Changed:** Longer passwords, checked against common and expected ones (2026-11-23, Security settings)
+
+  New passwords need 15 characters, or 8 where a second sign-in factor is required; each password form says which, and common or predictable ones are refused.
+
+  <details><summary>Technical notes</summary>
+
+  `AUTH_PASSWORD_VALIDATORS` is now `accounts.passwords.LengthByFactorValidator`, Django's `UserAttributeSimilarityValidator` and `CommonPasswordValidator`, and `accounts.passwords.ExpectedPasswordValidator`; Django's `MinimumLengthValidator` and `NumericPasswordValidator` are no longer used, so no rule asks for particular kinds of character. Existing passwords keep working and meet the rule when next changed. `ACCOUNT_FORMS` points allauth's change, set and reset-from-link password forms at `accounts.forms`, which state the rule for their account.
+
+  </details>
+
 - **Added:** Require a second sign-in factor (2026-11-23, Security settings)
 
   Administrators choose which accounts must use an authenticator app; those accounts set one up at their next sign-in, before anything else.
@@ -89,6 +99,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   </details>
 
 ### Medium impact
+
+- **Security:** Failed sign-ins count the same in every server process (2026-11-23, Security settings)
+
+  The limit on failed sign-ins now counts every attempt once, however many server processes the deployment runs.
+
+  <details><summary>Technical notes</summary>
+
+  `CACHES` is now Django's database cache in the table `lab_ops_cache`, created by migration `core.0007_shared_cache_table` (run `migrate`; `createcachetable` is not needed). Keys are stored as HMACs made with `SECRET_KEY` (`core.cache.keyed_digest`), so the table holds no name or address; rotating `SECRET_KEY` starts the counts afresh. A deployment that replaces `CACHES` with a per-process cache gives each worker its own counts again, and Security settings says the configuration changed.
+
+  </details>
 
 - **Added:** Get back a new ticket you were typing after a sign-out (2026-11-22, Tickets)
 

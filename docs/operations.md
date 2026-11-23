@@ -108,8 +108,12 @@ address is the connecting peer. If a proxy serves everyone, requests can share o
 per-address limit. Set `ALLAUTH_TRUSTED_PROXY_COUNT` to the number of trusted proxies
 appending to `X-Forwarded-For`, or set `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` to a header
 your platform overwrites with the visitor's address. Verify the selected value from a known
-client. Make sure visitors cannot supply that value themselves. With the default per-process
-cache, each worker maintains separate counters. The same setting chooses the address recorded for
+client. Make sure visitors cannot supply that value themselves. The counters are kept in the
+database table `lab_ops_cache`, which a migration creates, so every worker and instance shares
+them. Their keys are HMACs made with `SECRET_KEY`: the table holds no name or address, and
+rotating the key starts every count afresh. Replacing `CACHES` with a per-process cache would give
+each worker its own counters again, and the Security settings page would say the configuration
+changed. The same setting chooses the address recorded for
 each session at sign-in and shown on Where you are signed in; without it, every session shows the
 proxy's address.
 

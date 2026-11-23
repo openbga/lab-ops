@@ -153,6 +153,17 @@ pass a limit; they are closed as expired, and logged, when the account next sign
 sessions are ended. The rows are kept after they end. The limits are rows of `core.SessionLimit`,
 one per audience, absent until first saved.
 
+Passwords are checked by the validators in `AUTH_PASSWORD_VALIDATORS` (`accounts.passwords`),
+which every form that sets one runs: the length reads the second-factor rule and the account in
+one statement when the password is checked (`core.second_factor.requires`), so a page drawn under
+one rule and saved under another is checked against the rule at the save; the form's guidance is
+drawn from the rule when the page is drawn. The checks against common and expected passwords
+compare the whole password and take time proportional to its length. allauth's sign-in limits
+and its other counters live in Django's database cache (`CACHES`, the table `lab_ops_cache`
+created by `core` migration 0007, outside the models so that reset_demo neither reads nor erases
+it); allauth serialises each count with a lock entry added to the same table, and the table's
+primary key makes that addition atomic across processes. Keys are HMACs (`core.cache`).
+
 A row records the browser's `User-Agent` (printable, cut to 300 characters) and the client address
 at sign-in, by the trusted proxy settings the sign-in limits use; a release still running while the
 migration applies goes on inserting rows through the column's database default. Where you are

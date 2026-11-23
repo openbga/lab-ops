@@ -55,7 +55,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "cbd0d45289b9aa003d20a05fd875e20f7890155f84dc943f94575f0baa3b00bb"
+RELEASE_SETTINGS_SHA256 = "dbf47e4f86ecfa6cbfbc20d155f2d2ddf26c893c033fc2ffd72ed80f486b9c06"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -145,11 +145,20 @@ RELEASE = {
     "AUTH_PASSWORD_VALIDATORS": (
         lambda: [dict(entry) for entry in settings.AUTH_PASSWORD_VALIDATORS],
         [
+            {"NAME": "accounts.passwords.LengthByFactorValidator"},
             {"NAME": f"{_VALIDATORS}UserAttributeSimilarityValidator"},
-            {"NAME": f"{_VALIDATORS}MinimumLengthValidator"},
             {"NAME": f"{_VALIDATORS}CommonPasswordValidator"},
-            {"NAME": f"{_VALIDATORS}NumericPasswordValidator"},
+            {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
         ],
+    ),
+    # The password forms that state the rule for their account (accounts.forms).
+    "ACCOUNT_FORMS": (
+        lambda: dict(account_settings.FORMS),
+        {
+            "change_password": "accounts.forms.ChangePasswordForm",
+            "set_password": "accounts.forms.SetPasswordForm",
+            "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
+        },
     ),
     "MFA_SUPPORTED_TYPES": (
         lambda: sorted(mfa_settings.SUPPORTED_TYPES),
@@ -166,7 +175,14 @@ RELEASE = {
     "ALLAUTH_RATE_LIMIT_IPV6_PREFIX": (lambda: allauth_settings.RATE_LIMIT_IPV6_PREFIX, 64),
     "CACHES": (
         lambda: settings.CACHES,
-        {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
+        {
+            "default": {
+                "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                "LOCATION": "lab_ops_cache",
+                "KEY_FUNCTION": "core.cache.keyed_digest",
+                "OPTIONS": {"MAX_ENTRIES": 100000},
+            }
+        },
     ),
     "ACCOUNT_LOGIN_BY_CODE_TIMEOUT": (lambda: account_settings.LOGIN_BY_CODE_TIMEOUT, 300),
     "SESSION_ENGINE": (lambda: settings.SESSION_ENGINE, "django.contrib.sessions.backends.db"),
@@ -458,6 +474,44 @@ def _second_factor(staff_with, staff, portal_with, portal):
     )
 
 
+def _passwords():
+    """The password rule (accounts.passwords), with whom the second-factor rule covers now: the
+    accounts whose new passwords need 8 characters rather than 15."""
+    from accounts.passwords import SINGLE_FACTOR_MINIMUM as LONG
+    from accounts.passwords import WITH_SECOND_FACTOR_MINIMUM as SHORT
+
+    from .second_factor import requires_any, summary, values
+
+    current = _second_factor_rule()
+    if requires_any(current):
+        covered = (
+            f"The rule now covers: {_lower_first(summary(values(current)))}. Their new passwords "
+            f"need {SHORT} characters; everyone else's need {LONG}."
+        )
+    else:
+        covered = f"The rule covers nobody now, so every new password needs {LONG} characters."
+    return Fact(
+        "passwords",
+        "Passwords",
+        f"At least {LONG} characters, or {SHORT} where a second sign-in factor is required; common "
+        "and expected passwords refused",
+        "configuration",
+        "Checked whenever a password is chosen: on the account pages, through an emailed reset "
+        f"link, in the admin console and at setup. {SHORT} characters are enough for an account "
+        "the second sign-in factor rule covers when the password is chosen, and an account not "
+        f"yet created needs {LONG}. {covered} Refused: a password on a list of 20,000 common "
+        "passwords taken from breached ones; one whose letters are those of a common password, "
+        "or of the laboratory's name, this application's name or the account's username, email "
+        "name, first or last name, with only digits, symbols, spaces or letter case changed; one "
+        "character or a short text repeated; a run such as 123456789 or qwertyuiop; and one too "
+        "similar to the account's username, names or email address. No rule asks for kinds of "
+        "characters, any character can be used, and passwords never expire. A password chosen "
+        "earlier keeps working, also after the rule stops covering its account, and meets the "
+        "rule in force when it is next changed. Each password form states the rule for its "
+        "account.",
+    )
+
+
 def _lower_first(text):
     return text[:1].lower() + text[1:]
 
@@ -480,15 +534,8 @@ def _sign_in(facts):
         _fact(
             "passwords",
             "Passwords",
-            ["AUTH_PASSWORD_VALIDATORS", "ACCOUNT_ADAPTER"],
-            lambda: Fact(
-                "passwords",
-                "Passwords",
-                "At least 8 characters, not a common password, not only digits and not close to "
-                "the account's username, first name, last name or email address",
-                "configuration",
-                "The account pages and the admin console's password form check the same rule.",
-            ),
+            ["AUTH_PASSWORD_VALIDATORS", "ACCOUNT_ADAPTER", "ACCOUNT_FORMS"],
+            _passwords,
         ),
         _fact(
             "second-factor",
@@ -536,7 +583,9 @@ def _sign_in(facts):
                 "address, or 10 failures within a minute from one network address",
                 "configuration",
                 "A username and the account's email address are counted separately. An IPv6 /64 "
-                "network counts as one address. Each server process keeps its own count.",
+                "network counts as one address. The counts are kept in the database, so every "
+                "server process of the deployment counts the same attempts, under a keyed digest "
+                "of the name or address rather than the name or address itself.",
             ),
         ),
         _fact(
@@ -577,7 +626,8 @@ def _sign_in(facts):
                 "browser and address it reported at sign-in, when it was last active and when "
                 "and why it ended. Each person sees their own open sessions on Where you are "
                 "signed in; ended sessions stay in the database and no page lists them. Failed "
-                "sign-ins are not stored.",
+                "sign-ins are not stored, apart from the times of recent failures that the limit "
+                "counts (Failed sign-ins).",
             ),
         ),
     ]

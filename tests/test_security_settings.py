@@ -5,6 +5,7 @@ against the real middleware."""
 import pytest
 from allauth.account import app_settings as account_settings
 from allauth.mfa.models import Authenticator
+from django.conf import settings
 from django.contrib.auth.models import Group, Permission
 from django.core.cache import cache
 from django.test import Client as BrowserClient
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.django_db
 PASSWORD = "test-password-729!"
 NEW_PASSWORD = "another-password-418?"
 GROUP_KEYS = {"sign-in", "sessions", "patient-information", "connection"}
-DEFAULT_ENGINE = "django.core.cache.backends.locmem.LocMemCache"
+DEFAULT_ENGINE = "django.core.cache.backends.locmem.LocMemCache"  # a per-process cache
 
 
 @pytest.fixture(autouse=True)
@@ -250,10 +251,13 @@ def test_session_cookie_wording_follows_the_secure_flag():
 
 
 def test_password_rule_is_the_release_rule_and_any_other_is_changed():
-    assert fact("passwords").value == (
-        "At least 8 characters, not a common password, not only digits and not close to "
-        "the account's username, first name, last name or email address"
+    stated = fact("passwords")
+    assert stated.value == (
+        "At least 15 characters, or 8 where a second sign-in factor is required; common and "
+        "expected passwords refused"
     )
+    assert "The rule covers nobody now, so every new password needs 15 characters." in stated.note
+    assert "No rule asks for kinds of characters" in stated.note
     validators = [
         {
             "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -266,6 +270,19 @@ def test_password_rule_is_the_release_rule_and_any_other_is_changed():
     with override_settings(AUTH_PASSWORD_VALIDATORS=[]):
         stated = assert_changed("passwords", "AUTH_PASSWORD_VALIDATORS")
     assert "6" not in stated and "any password" not in stated
+    with override_settings(ACCOUNT_FORMS={}):
+        stated = assert_changed("passwords", "ACCOUNT_FORMS")
+    assert "states the rule" not in stated
+
+
+def test_password_rule_names_whom_the_second_factor_rule_covers_now():
+    from core.models import SecondFactorRule
+
+    SecondFactorRule.objects.create(pk=1, staff=True, portal=True, revision=1)
+    assert (
+        "The rule now covers: every staff account; client portal accounts. Their new passwords "
+        "need 8 characters; everyone else's need 15." in fact("passwords").note
+    )
 
 
 def test_failed_sign_in_limit_is_the_release_limit_and_any_other_is_changed():
@@ -282,13 +299,17 @@ def test_failed_sign_in_limit_is_the_release_limit_and_any_other_is_changed():
     assert "no limit" not in stated
 
 
-def test_per_process_note_belongs_to_the_local_memory_cache_of_the_release():
-    assert "Each server process keeps its own count." in fact("failed-sign-ins").note
-    for backend in (
-        "django.core.cache.backends.db.DatabaseCache",
-        "django.core.cache.backends.dummy.DummyCache",
+def test_shared_count_note_belongs_to_the_database_cache_of_the_release():
+    stated = fact("failed-sign-ins").note
+    assert "every server process of the deployment counts the same attempts" in stated
+    assert "keyed digest" in stated
+    for caches in (
+        {"default": {"BACKEND": DEFAULT_ENGINE}},
+        {"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}},
+        {"default": {**settings.CACHES["default"], "KEY_FUNCTION": None}},
+        {"default": {**settings.CACHES["default"], "OPTIONS": {"MAX_ENTRIES": 300}}},
     ):
-        with override_settings(CACHES={"default": {"BACKEND": backend}}):
+        with override_settings(CACHES=caches):
             stated = assert_changed("failed-sign-ins", "CACHES")
         assert "server process" not in stated and "not enforced" not in stated
 
