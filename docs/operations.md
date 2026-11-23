@@ -122,16 +122,19 @@ The `accounts` migration 0009 adds the table `accounts_signinevent`, the column
 upgrade keeps signing people in) and database triggers: the database writes each session's
 sign-in and sign-out to the history, and refuses to change or delete an entry. A session started by
 the earlier release while the deployment runs shows its sign-in without what it proved. The
-history starts at the upgrade: a session open then shows only its sign-out. Failed and refused
-attempts that the earlier release's processes handle while the deployment replaces them are not
-recorded; the earlier release's sign-in log may have some of them.
-Refusals by the failed sign-in limit add at most one entry a minute for each account, step and
-address, so a flood of refused attempts does not add a row each. A wrong password or code that is
-checked adds one entry to the history of the account it is recorded for (a wrong password whose
-name matches no account, or several, adds none): at sign-in the failed sign-in limit bounds the
-passwords and the second factor's codes checked, each emailed sign-in allows a few wrong codes in
-all, resends included, the account menu's Change password has a limit of its own (five a minute for each account), and
-the admin console's own Change password has none. Entries are kept, with
+history starts at the upgrade: a session open then shows only its sign-out. While the deployment
+replaces the earlier release's processes, the failed attempts they handle, and the refusals they
+make without starting a session, are not in the history (the earlier release's sign-in log may
+have some of them); a sign-in such a process refuses by starting its session ended (a password
+marked as compromised, given alone) is, since the database writes it. Refusals by the failed
+sign-in limit add at most one entry a minute for each account, step and address, so a flood of
+refused attempts does not add a row each. A wrong password or code that is checked adds one entry
+to the history of the account it is recorded for (at sign-in, a wrong password whose name matches
+no account, or several, adds none; on re-authentication it belongs to the signed-in person). At
+sign-in the failed sign-in limit bounds the passwords and the second factor's codes checked, and
+each emailed sign-in allows a few wrong codes in all, resends included; the account menu's Change
+password has a limit of its own (five a minute for each account), and the admin console's own
+Change password has none. Entries are kept, with
 no retention period and no setting to remove them, and an account with history cannot be deleted
 (accounts are deactivated instead). Reversing migration 0009 deletes the whole history. The
 browser and address recorded are those the request reported; the address follows
