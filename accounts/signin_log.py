@@ -60,7 +60,8 @@ def log_sign_in_failure(sender, credentials, request=None, **kwargs):
 
 def _code_submitted(request):
     """Whether the emailed code form was sent with a code: allauth counts a form sent without one
-    (a resend no longer offered is checked as an empty code) as an attempt too."""
+    (a resend no longer offered is checked as an empty code) as an attempt too. The sign-in log
+    records every attempt allauth counts; the sign-in history only a code entered."""
     if request is None or request.method != "POST":
         return False
     code = request.POST.get("code")
@@ -72,10 +73,8 @@ def log_login_code_failure(sender, request, user, **kwargs):
     from .models import SignInEvent, SignInFactor
     from .signin_history import record
 
-    if not _code_submitted(request):
-        return
     _log("signin.failed", user, request)
-    if user is not None and user.pk is not None:
+    if user is not None and user.pk is not None and _code_submitted(request):
         record(user, SignInEvent.Kind.FAILED, request, factor=SignInFactor.CODE)
 
 
