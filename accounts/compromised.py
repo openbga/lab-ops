@@ -11,7 +11,7 @@ without a usable password, one already marked, and one whose password changed af
 opened (the page carries a keyed fingerprint of the password it was drawn with, drawn_password).
 It records the mark (accounts.models.CompromisedPassword, with a copy of the stored hash so that
 the same password is refused as a new one), ends every open session of the account
-(Ending.PASSWORD_COMPROMISED) and records one audit event, `account.password_marked_compromised`,
+(Ending.MARKED_COMPROMISED) and records one audit event, `account.password_marked_compromised`,
 with the reason, the mark and the sessions ended: never the password or its hash.
 
 Signing in while marked: the password alone no longer opens a session. A sign-in that proved only
@@ -194,7 +194,7 @@ def mark_compromised(*, actor, account_id, reason, drawn):
         mark = CompromisedPassword.objects.create(
             user=account, marked_by=held, reason=reason, password=account.password
         )
-        ended = end_session_ids(account, AccountSession.Ending.PASSWORD_COMPROMISED)
+        ended = end_session_ids(account, AccountSession.Ending.MARKED_COMPROMISED)
         record_event(
             actor=held,
             action=ACTION,
@@ -280,7 +280,7 @@ class PasswordChangeMiddleware:
 
 
 def _end_unproved(request):
-    """End this request's session (Ending.PASSWORD_COMPROMISED) and sign its browser out, with
+    """End this request's session (Ending.MARKED_COMPROMISED) and sign its browser out, with
     the notice; a page opened with GET goes on as a signed-out visitor (to the sign-in page, for a
     page that needs one), anything else is answered at once (accounts.sessions)."""
     from .sessions import Ending, _goes_on, _sign_out, end_sessions
@@ -288,8 +288,8 @@ def _end_unproved(request):
 
     state = request.account_session
     with transaction.atomic():
-        end_sessions(request.user, Ending.PASSWORD_COMPROMISED, session_id=state.id)
-    _sign_out(request, Ending.PASSWORD_COMPROMISED)
+        end_sessions(request.user, Ending.MARKED_COMPROMISED, session_id=state.id)
+    _sign_out(request, Ending.MARKED_COMPROMISED)
     return None if _goes_on(request) else signed_out(request)
 
 

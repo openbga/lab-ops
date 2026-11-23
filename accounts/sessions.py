@@ -107,7 +107,7 @@ ENDED_BY_MESSAGES = {
     Ending.SIGNED_OUT_ELSEWHERE: "You were signed out from another session of your account. Sign "
     "in again to continue.",
     Ending.ADMINISTRATOR: "An administrator ended your session. Sign in again to continue.",
-    Ending.PASSWORD_COMPROMISED: "An administrator marked your password as compromised, so it no "
+    Ending.MARKED_COMPROMISED: "An administrator marked your password as compromised, so it no "
     "longer signs you in on its own. If your account has an authenticator app, sign in with your "
     "password and a code to choose a new password. Otherwise use Forgot your password? on the "
     "sign-in page, or ask the administrator to set a new one.",
@@ -125,7 +125,7 @@ LOGGED_ENDINGS = frozenset(
         Ending.NEW_PASSWORD,
         Ending.SIGNED_OUT_ELSEWHERE,
         Ending.ADMINISTRATOR,
-        Ending.PASSWORD_COMPROMISED,
+        Ending.MARKED_COMPROMISED,
     }
 )
 # What a session row keeps of the browser's own description of itself (the User-Agent header).
@@ -692,7 +692,7 @@ def start_session(sender, request, user, **kwargs):
         # (accounts.enrolment holds the session to it while the account has none).
         from core.second_factor import requires
 
-        ended = {"ended_at": Now(), "ending": Ending.PASSWORD_COMPROMISED} if refused else {}
+        ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
         record = AccountSession.objects.create(
             user=user,
             user_agent=agent,
@@ -701,7 +701,7 @@ def start_session(sender, request, user, **kwargs):
             **ended,
         )
     if refused:
-        _log_after_commit(Ending.PASSWORD_COMPROMISED, user, 1)
+        _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
         request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
     session[SESSION_KEY] = str(record.pk)
     # A new sign-in remembers its own page for Continue after a second factor is added
@@ -780,7 +780,7 @@ def _sign_out(request, ending, limits=None, *, ended=0):
     request.user = AnonymousUser()
     request.account_session = None
     _current.set(None)
-    if ending == Ending.PASSWORD_COMPROMISED:
+    if ending == Ending.MARKED_COMPROMISED:
         from jobs.outbox import mail_enabled
 
         text = ENDED_BY_MESSAGES[ending] if mail_enabled() else COMPROMISED_WITHOUT_MAIL

@@ -156,7 +156,7 @@ def test_mark_ends_a_session_opened_after_the_admin_drew_the_page(
     result = admin.post(mark_page(target), {"drawn": form.initial["drawn"], "reason": REASON})
     assert result.status_code == 302
     row = AccountSession.objects.get(pk=row_pk)
-    assert row.ending == AccountSession.Ending.PASSWORD_COMPROMISED and row.ended_at is not None
+    assert row.ending == AccountSession.Ending.MARKED_COMPROMISED and row.ended_at is not None
     assert AuditEvent.objects.get(action=feature.ACTION).after["sessions"] == [row_pk]
     assert browser.get(reverse("account_reauthenticate")).url.startswith(reverse("account_login"))
 
@@ -176,7 +176,7 @@ def test_marked_password_signin_ends_the_new_row(feature, review_owner, make_use
     )
     assert result.status_code == 302
     row = AccountSession.objects.get(pk=browser.session[sessions.SESSION_KEY])
-    assert row.ending == AccountSession.Ending.PASSWORD_COMPROMISED
+    assert row.ending == AccountSession.Ending.MARKED_COMPROMISED
     assert row.ended_at is not None
     assert browser.get(reverse("account-session")).json()["signed_in"] is False
     assert "_auth_user_id" not in browser.session
@@ -193,7 +193,7 @@ def test_a_signed_out_browsers_prior_email_proof_is_not_a_new_proof(
     client.post(reverse("account_login"), {"login": review_person.username, "password": PASSWORD})
     next_row = AccountSession.objects.get(pk=client.session[sessions.SESSION_KEY])
     assert next_row.pk != first.pk
-    assert next_row.ending == AccountSession.Ending.PASSWORD_COMPROMISED
+    assert next_row.ending == AccountSession.Ending.MARKED_COMPROMISED
 
 
 def test_recovery_code_and_password_reach_only_the_replacement_workflow(
@@ -770,7 +770,7 @@ def test_two_administrators_marking_together_record_one_mark_and_one_ending():
     audit = AuditEvent.objects.get(action=compromised.ACTION, object_id=person.pk)
     assert audit.actor == alice and audit.after["sessions"] == [str(row.pk)]
     row.refresh_from_db()
-    assert row.ending == AccountSession.Ending.PASSWORD_COMPROMISED
+    assert row.ending == AccountSession.Ending.MARKED_COMPROMISED
 
 
 @pytest.mark.django_db(transaction=True)
@@ -897,7 +897,7 @@ def test_password_step_before_the_mark_commits_and_session_start_afterwards():
     assert marked.status_code == signed.status_code == 302
     assert password_steps == [False]  # The mark had not committed when authentication succeeded.
     row = row_of(signer)
-    assert row.ended_at is not None and row.ending == AccountSession.Ending.PASSWORD_COMPROMISED
+    assert row.ended_at is not None and row.ending == AccountSession.Ending.MARKED_COMPROMISED
     assert signer.get(reverse("dashboard")).url.startswith(reverse("account_login"))
     person.refresh_from_db()
     assert person.last_login is None

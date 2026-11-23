@@ -142,7 +142,7 @@ def test_a_superuser_marks_a_password_with_a_reason(owner, person):
     assert entry.password == person.password  # the copy refuses it as a new password
     assert entry.reason == "Typed into a page posing as the laboratory's"
     for b in (one, two):
-        assert row_of(b).ending == Ending.PASSWORD_COMPROMISED
+        assert row_of(b).ending == Ending.MARKED_COMPROMISED
     event = AuditEvent.objects.get(action=compromised.ACTION)
     assert event.actor == owner and event.object_id == str(person.pk)
     assert event.reason == entry.reason
@@ -162,7 +162,7 @@ def test_a_superuser_marks_a_password_with_a_reason(owner, person):
     assert browser.get(reverse("admin:index")).status_code == 200
     # Each ended browser is told why at its next request.
     assert one.get("/")["Location"].startswith(reverse("account_login"))
-    assert notices(one) == [sessions.ENDED_BY_MESSAGES[Ending.PASSWORD_COMPROMISED]]
+    assert notices(one) == [sessions.ENDED_BY_MESSAGES[Ending.MARKED_COMPROMISED]]
     assert mail.outbox == []  # nobody is emailed
 
 
@@ -293,11 +293,11 @@ def test_the_password_alone_no_longer_signs_in(owner, person):
     response = sign_in(browser, person)
     assert response.status_code == 302
     row = row_of(browser)
-    assert row.ending == Ending.PASSWORD_COMPROMISED and row.ended_at is not None
+    assert row.ending == Ending.MARKED_COMPROMISED and row.ended_at is not None
     landed = browser.get("/")
     assert landed["Location"].startswith(reverse("account_login"))
     messages = notices(browser)
-    assert messages == [sessions.ENDED_BY_MESSAGES[Ending.PASSWORD_COMPROMISED]]
+    assert messages == [sessions.ENDED_BY_MESSAGES[Ending.MARKED_COMPROMISED]]
     assert User.objects.get(pk=person.pk).last_login == last_login
     # Not even the page the sign-in would have opened next.
     assert browser.get(NEW_PAGE)["Location"].startswith(reverse("account_login"))
@@ -367,7 +367,7 @@ def test_choosing_a_new_password_lifts_the_mark_and_goes_on(owner, person):
     # This session goes on; the page no longer holds it.
     assert browser.get("/requests/").status_code == 200
     assert browser.get(NEW_PAGE)["Location"] == "/"
-    assert row_of(other).ending == Ending.PASSWORD_COMPROMISED
+    assert row_of(other).ending == Ending.MARKED_COMPROMISED
     event = AuditEvent.objects.get(action=compromised.CHANGED_ACTION, object_id=str(person.pk))
     assert event.actor == person and event.after == {"compromised_mark": entry.pk}
     assert NEW_PASSWORD not in json.dumps(event.after)
@@ -413,7 +413,7 @@ def test_a_sign_in_that_started_before_the_mark_with_the_password_alone_starts_e
     request.session = BrowserClient().session
     sessions.start_session(None, request, person)
     row = AccountSession.objects.get(user=person, pk=request.session[sessions.SESSION_KEY])
-    assert row.ending == Ending.PASSWORD_COMPROMISED
+    assert row.ending == Ending.MARKED_COMPROMISED
 
 
 def test_a_session_waiting_for_a_required_second_factor_sets_it_up_first(owner, person, settings):
@@ -723,9 +723,9 @@ def test_a_password_only_session_an_earlier_release_opened_is_ended_at_its_next_
         response = browser.get(path)
         assert response.status_code == 302
         assert response["Location"].startswith(reverse("account_login")), path
-        assert row.get().ending == Ending.PASSWORD_COMPROMISED
+        assert row.get().ending == Ending.MARKED_COMPROMISED
         first = first or browser
-    assert notices(first) == [sessions.ENDED_BY_MESSAGES[Ending.PASSWORD_COMPROMISED]]
+    assert notices(first) == [sessions.ENDED_BY_MESSAGES[Ending.MARKED_COMPROMISED]]
     browser = signed_in(person)
     AccountSession.objects.filter(pk=browser.session[sessions.SESSION_KEY]).update(
         ended_at=None, ending=""

@@ -187,7 +187,7 @@ class AccountSession(models.Model):
         ADMINISTRATOR = "administrator", "Ended by an administrator"
         # The account's password was marked as compromised (accounts.compromised): every session
         # open then, and a later sign-in that proved nothing but the password.
-        PASSWORD_COMPROMISED = "password_compromised", "Password marked as compromised"
+        MARKED_COMPROMISED = "password_compromised", "Password marked as compromised"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never
