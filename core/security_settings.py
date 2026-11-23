@@ -666,7 +666,7 @@ def _sign_in(facts):
         _fact(
             "sign-in-history",
             "Sign-in history",
-            ["ACCOUNT_ADAPTER", "AUTHENTICATION_BACKENDS", "MFA_FORMS"],
+            ["ACCOUNT_ADAPTER", "ACCOUNT_FORMS", "AUTHENTICATION_BACKENDS", "MFA_FORMS"],
             lambda: Fact(
                 "sign-in-history",
                 "Sign-in history",

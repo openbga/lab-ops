@@ -59,7 +59,7 @@
       "title": "Availability",
       "paragraphs": [
         "Requires sign-in and an available password authentication method. Without a usable password, redirects to an available factor method; if no reauthentication method exists the request is denied. A stored pending operation can resume after success; a separate pending challenge is not required merely to open this page. MFA-sensitive operations require recent reauthentication; the default recent interval is five minutes.",
-        "A password not accepted here is kept in your Sign-in history as Re-authentication failed (Password not accepted), and one the failed sign-in limit refused before it was checked as Too many failed attempts (Refused before the password was checked). The password is never kept."
+        "A password not accepted here is kept in your Sign-in history as Re-authentication failed (Password not accepted), and one the failed sign-in limit refused before it was checked as Too many failed attempts (Refused before the password was checked; at most once a minute for the same address). The password is never kept."
       ]
     }
   ],

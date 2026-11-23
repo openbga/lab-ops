@@ -14,20 +14,30 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             from .signin_log import log_sign_in_failure
 
             log_sign_in_failure(sender=type(self), credentials=credentials, request=request)
-            _record_attempt(request, credentials, locked_out=True)
+            _record_attempt(request, credentials, locked_out=True, account=self._reauthenticating)
             raise
 
+    # The account whose password reauthenticate is checking (allauth's re-authentication page),
+    # while it checks it: what the checks it calls decide is about that account, whatever the
+    # credentials name and whoever else is signed in.
+    _reauthenticating = None
+
     def authentication_failed(self, request, **credentials):
-        # A password not accepted at sign-in (allauth calls this when no account accepted it, so
-        # not for a deactivated account's right password, which pre_login refuses). One asked for
-        # again of a signed-in account is recorded by reauthenticate, which decides on it.
-        _record_attempt(request, credentials)
+        # A password not accepted (allauth calls this when no account accepted it, so not for a
+        # deactivated account's right password, which pre_login refuses): at sign-in, recorded
+        # for the account the attempt names; on re-authentication, by reauthenticate.
+        if self._reauthenticating is None:
+            _record_attempt(request, credentials)
         super().authentication_failed(request, **credentials)
 
     def reauthenticate(self, user, password):
         # The password asked for again of the signed-in account (allauth's re-authentication
         # page): not accepted when no account accepted it, or when another account did.
-        accepted = super().reauthenticate(user, password)
+        self._reauthenticating = user
+        try:
+            accepted = super().reauthenticate(user, password)
+        finally:
+            self._reauthenticating = None
         if not accepted:
             from allauth.core import context
 
@@ -41,6 +51,15 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
                 factor=SignInFactor.PASSWORD,
             )
         return accepted
+
+    def login(self, request, user):
+        # What this sign-in proved, read from allauth's steps before Django signs the browser in
+        # (which empties its session when another account was signed in there), for the session
+        # row and the sign-in history (accounts.sessions.start_session).
+        from .signin_history import sign_in_factor
+
+        request.vr_sign_in_factor = sign_in_factor(request, user)
+        super().login(request, user)
 
     def pre_login(self, request, user, **kwargs):
         # The scheduled jobs' account (jobs.actor) never signs in, even if someone activates it
@@ -93,18 +112,15 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
         user.save(update_fields=["password"])
 
 
-def _record_attempt(request, credentials, *, locked_out=False):
+def _record_attempt(request, credentials, *, locked_out=False, account=None):
     """A password attempt that failed, or was refused for too many failed attempts before the
-    password was checked, in the sign-in history of the account it concerns: the signed-in
-    account when a page asked for its password again, otherwise the one account the attempt's
+    password was checked, in the sign-in history of the account it concerns: `account` when a
+    re-authentication checks that account's password, otherwise the one account the attempt's
     username or email address names (none is recorded when it names none or several). A failed
-    re-authentication is recorded by ClosedSignupAdapter.reauthenticate instead."""
+    re-authentication is recorded by ClosedSignupAdapter.reauthenticate."""
     from .models import SignInEvent, SignInFactor
-    from .signin_history import account_named, record, signed_in_account
+    from .signin_history import account_named, record
 
-    account = signed_in_account(request)
-    if account is not None and not locked_out:
-        return
     if account is None:
         account = account_named(credentials)
     kind = SignInEvent.Kind.LOCKED_OUT if locked_out else SignInEvent.Kind.FAILED

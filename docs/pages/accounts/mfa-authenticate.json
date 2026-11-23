@@ -70,7 +70,7 @@
       "title": "Sign-in activity",
       "paragraphs": [
         "In the sign-in variant, a rejected code records a failed sign-in in the deployment’s application logs. Completing all required sign-in stages records one successful sign-in. Logs name the stored username and never include the code. Canceling an unfinished sign-in does not record a sign-out for an authenticated session. These logs follow the deployment’s retention and survive database resets. The reauthentication variant does not create a new sign-in or sign-out event.",
-        "Both variants also keep a code that was not accepted, and a code the failed sign-in limit refused before it was checked, in the account's Sign-in history: Sign-in failed or Re-authentication failed (Authenticator or recovery code not accepted), or Too many failed attempts (Refused before the code was checked). The code itself is never kept. A completed sign-in is kept there with what it proved, such as Password and recovery code."
+        "Both variants also keep a code that was not accepted, and a code the failed sign-in limit refused before it was checked, in the account's Sign-in history: Sign-in failed or Re-authentication failed (Authenticator or recovery code not accepted), or Too many failed attempts (Refused before the code was checked; at most once a minute for the same address). The code itself is never kept. A completed sign-in is kept there with what it proved, such as Password and recovery code."
       ]
     }
   ],

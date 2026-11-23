@@ -579,7 +579,7 @@ def test_refusals_by_the_limit_are_recorded_once_a_minute_for_each_address(make_
         cursor.execute(
             "INSERT INTO accounts_signinevent (user_id, occurred_at, kind, factor, ending, "
             "user_agent, address) VALUES (%s, now() - interval '2 minutes', 'locked_out', "
-            "'password', '', '', '203.0.113.9')",
+            "'password', '', '', NULL)",
             [user.pk],
         )
     signin_history.record(user, Kind.LOCKED_OUT, None, factor=SignInFactor.PASSWORD)

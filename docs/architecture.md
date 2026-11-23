@@ -236,11 +236,12 @@ statement that starts or ends the session. Every path that starts or ends a sess
 release still running while the migration applies, therefore leaves its entry in the same
 transaction; such a release's sessions carry no `factor` (the column's database default is blank),
 and their sign-ins show the factor as not recorded. `start_session` stores the factor on the row
-from the steps allauth recorded in the browser's session since the last sign-in in that browser
-(`sign_in_factor`, which keeps its place in the session and skips re-authentications), and,
-after the account's session-ending lock, holds the account's row and reads it as held: an
-account deactivated while the sign-in was under way starts its session ended
-(`Account deactivated`), refused. A row past a limit is
+from the steps allauth recorded in the browser's session (`sign_in_factor`: the last password or
+emailed code and the second factor after it, re-authentications left out), read when allauth
+completes the sign-in. After the account's session-ending lock it closes the browser's earlier
+session and the abandoned ones (ending one waits for a change under way that holds it), then
+holds the account's row and reads it as held: an account deactivated while the sign-in was under
+way starts its session ended (`Account deactivated`), refused. A row past a limit is
 ended at the moment its limit passed, so its sign-out entry carries that time even when it is
 written later. The application writes the other kinds, through `accounts.signin_history.record`:
 `accounts.adapter` a password not accepted at sign-in (`authentication_failed`) or on
@@ -249,13 +250,20 @@ re-authentication (`reauthenticate`, which decides it), one refused by the faile
 (`pre_login`, for the account it was accepted for); `accounts.signin_log` an emailed code that
 was entered, or a second factor, not accepted, from allauth's signals;
 `accounts.forms.RecordedLockout` a second factor refused by the limit before it was checked; the
-two Change password forms a current password not accepted. A refusal by the limit is written in
-one statement only when none for the same account, step and address was written in the last
-minute, since the second step has no request limit of its own. A password attempt made while
-signed in is a re-authentication and belongs to the signed-in account; otherwise it is recorded only for the
-one account its username or email address names in any letter case
-(`accounts.signin_log.accounts_named`, the sign-in log's match), and not at all when it names none or several. No
-submitted identifier, password or code is stored. A third trigger refuses `UPDATE` and `DELETE`
+two Change password forms a current password not accepted. A refusal by the limit is written
+only when none for the same account, step and address was written in the last minute, under an
+advisory lock for the account (`SIGN_IN_LOCKOUTS`), so that two at once take turns; the second
+step has no request limit of its own. A password checked by `reauthenticate` belongs to the
+account being re-authenticated (the adapter marks the check, not whoever is signed in). A wrong
+password at sign-in, or one the limit refused, is recorded only for the one account its username
+or email address names in any letter case (`accounts.signin_log.accounts_named`, the sign-in
+log's match), and not at all when it names none or several; a wrong code, or one refused at the
+code step, belongs to the account already identified there; a refused sign-in to the account
+whose password or code was accepted. No history entry holds a submitted identifier, password or
+code (allauth keeps the identifier typed among the sign-in's steps in the browser's session until
+it signs out). The factor is read by `ClosedSignupAdapter.login` before Django signs the browser
+in; a Django `login()` called otherwise records none, and `accounts.compromised` then reads the
+browser's session with the same reader. A third trigger refuses `UPDATE` and `DELETE`
 on `accounts_signinevent`; `reset_demo` empties it with `TRUNCATE`, which row triggers do not see,
 and the account foreign key is `PROTECT`. The table has no model permissions and no admin; the
 page (`accounts.session_views.sign_in_history_page`) reads the account's own rows of the last 90

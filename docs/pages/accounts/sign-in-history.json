@@ -17,7 +17,7 @@
       "title": "Look into failed attempts",
       "steps": [
         "Read the entries marked [[Sign-in failed]], [[Too many failed attempts]], [[Sign-in refused]] or [[Re-authentication failed]], and their [[Details]].",
-        "If you did not make them, change your password and tell your laboratory's security contact (portal users: the laboratory). A shared demonstration account cannot do either."
+        "If you did not make them, change your password and tell your laboratory's security contact (portal users: the laboratory). A shared account's password cannot be changed."
       ]
     },
     {
@@ -28,7 +28,7 @@
     }
   ],
   "good_to_know": [
-    "Only you see your own history. An attempt for a username or email address that matches no account, or several, is not listed for anyone.",
+    "Only you see your own history. A wrong password given with a name that matches no account, or several, is not listed for anyone.",
     "No entry keeps what you typed: no password, no code, and not the username or email address entered.",
     "The browser and the address are what the browser and the network reported, so they can be wrong.",
     "Entries are never changed or deleted. The history starts at the release that added this page.",
@@ -95,7 +95,7 @@
       "title": "If you do not recognize an entry",
       "paragraphs": [
         "A sign-in you did not make: sign that session out on Where you are signed in, change your password from the account menu (that also ends your other sessions), and tell your laboratory's security contact, or the laboratory if you use the client portal. This does not apply to a shared demonstration account.",
-        "Failed attempts you did not make: someone may be trying your username or email address. Change your password if you think it could be known, and tell the same contact. An authenticator app on Two-factor authentication stops a known password signing in on its own.",
+        "Failed attempts you did not make: someone may be trying your username or email address. Change your password if you think it could be known, and tell the same contact. An authenticator app on Two-factor authentication stops a known password signing in on its own. On a shared demonstration account the password and two-factor settings cannot be changed, and other visitors' failed attempts are expected.",
         "Check the time zone and the times before concluding: a browser you forgot to sign out of ends with No activity or Longest session reached."
       ]
     }
