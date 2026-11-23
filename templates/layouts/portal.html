@@ -13,7 +13,7 @@ core/templatetags/navigation.py (PORTAL_NAV); Home is current on the landing pag
 <header class="vr-topbar vr-topbar-portal">
   {% brand href=portal_home_url|default:"/" name=lab.name %}
   {% if user.client %}<span class="vr-lab-name d-none d-md-inline">{{ user.client }}</span>{% endif %}
-  {% if portal_home_url and not second_factor_pending %}
+  {% if portal_home_url and not session_held %}
   <nav class="vr-portal-nav" aria-label="Portal">
     <ul class="nav">
       {% portal_nav_item "portal-home" %}

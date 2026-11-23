@@ -115,28 +115,30 @@ def _is_navigation(request):
     return is_navigation(request)
 
 
-def _remember(request, path=None):
+def _remember(request, path=None, key=NEXT_KEY):
     """Keep the first page a GET navigation was opening, for Continue on the setup page (checked
-    again when it is taken, _take_next)."""
-    if NEXT_KEY not in request.session:
-        request.session[NEXT_KEY] = path or request.get_full_path()
+    again when it is taken, _take_next). `key`: where in the browser's session (Choose a new
+    password keeps its own, accounts.compromised)."""
+    if key not in request.session:
+        request.session[key] = path or request.get_full_path()
 
 
-def _refusal(request):
-    """Send the browser to the setup page: a page opened in the window is redirected (and
+def _refusal(request, route=ENROLMENT_ROUTE, flag="second_factor_required", key=NEXT_KEY):
+    """Send the browser to the setup page (or the page `route` names, with `flag` in a script's
+    answer and the page remembered under `key`): a page opened in the window is redirected (and
     remembered when opened with GET); the shared form dialog is redirected too, which it turns into
     loading the setup page in the whole window (core.form_dialog); a partial update is told to load
     it in the whole window; a script's request is refused with where to go."""
-    target = reverse(ENROLMENT_ROUTE)
+    target = reverse(route)
     if _is_navigation(request) or request.headers.get("X-VR-Form") == "1":
         if request.method == "GET" and _is_navigation(request):
-            _remember(request)
+            _remember(request, key=key)
         response = HttpResponseRedirect(target)
     elif request.headers.get("HX-Request"):
         response = HttpResponse(status=204)
         response["HX-Redirect"] = target
     else:
-        response = JsonResponse({"second_factor_required": True, "location": target}, status=403)
+        response = JsonResponse({flag: True, "location": target}, status=403)
     add_never_cache_headers(response)
     return response
 
@@ -166,14 +168,14 @@ class EnrolmentMiddleware:
         return _refusal(request)
 
 
-def _take_next(request):
-    """The page the sign-in was going to, taken from the session by a GET the browser opens in the
-    window (a HEAD, a script's request, a dialog or a partial update leaves it), if it is on this
-    site."""
+def _take_next(request, key=NEXT_KEY):
+    """The page the sign-in was going to, taken from the session (under `key`) by a GET the
+    browser opens in the window (a HEAD, a script's request, a dialog or a partial update leaves
+    it), if it is on this site."""
     if request.method == "GET" and _is_navigation(request):
-        path = request.session.pop(NEXT_KEY, None)
+        path = request.session.pop(key, None)
     else:
-        path = request.session.get(NEXT_KEY)
+        path = request.session.get(key)
     if isinstance(path, str) and path.startswith("/") and not path.startswith("//"):
         if url_has_allowed_host_and_scheme(path, allowed_hosts={request.get_host()}):
             return path

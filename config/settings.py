@@ -80,6 +80,9 @@ MIDDLEWARE = [
     # A session the laboratory's rule held to a second factor at sign-in reaches only the pages
     # that set one up while its account has none (accounts.enrolment).
     "accounts.enrolment.EnrolmentMiddleware",
+    # A session of an account whose password a superuser marked as compromised reaches only
+    # Choose a new password until it has chosen one (accounts.compromised).
+    "accounts.compromised.PasswordChangeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
 ]
@@ -122,12 +125,13 @@ AUTHENTICATION_BACKENDS = [
 ]
 # The rule for a new password (accounts.passwords): 15 characters, or 8 where the laboratory
 # requires a second sign-in factor of the account; common and expected passwords refused; no
-# composition rule.
+# composition rule; a password marked as compromised for the account refused.
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "accounts.passwords.LengthByFactorValidator"},
     {"NAME": "accounts.passwords.AccountSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
+    {"NAME": "accounts.passwords.MarkedPasswordValidator"},
 ]
 ACCOUNT_ADAPTER = "accounts.adapter.ClosedSignupAdapter"
 # A reset link stops working once its account is a shared demonstration account (accounts.tokens).

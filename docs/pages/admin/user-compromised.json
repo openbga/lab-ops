@@ -1,0 +1,70 @@
+{
+  "id": "admin-user-compromised",
+  "routes": ["admin:accounts_user_compromised"],
+  "title": "Mark password as compromised",
+  "purpose": "Mark one account's password as compromised, with a reason, so that its sessions end and the person must choose a new password.",
+  "summary": "Mark the selected account's password as compromised, with a reason. Its sessions end, the password stops signing it in on its own, and the person must choose a new one.",
+  "tasks": [
+    {
+      "title": "Mark a password someone else may know",
+      "steps": [
+        "Type why in [[Reason]], for example the person typed it into a page posing as the laboratory's.",
+        "Select [[Mark as compromised]]. You return to the account's page, which shows the mark."
+      ]
+    },
+    {
+      "title": "Tell the person what to do",
+      "steps": [
+        "With an authenticator app: they sign in with their password and a code, and choose a new password.",
+        "Without one: they use Forgot your password? on the sign-in page, where the laboratory sends email, or you set a new password on the account's password page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The person is not emailed. Tell them yourself; the page says what they must do for this account.",
+    "A sign-in with the marked password alone is signed out at once, so an account without a second factor needs a reset or a password you set.",
+    "Any new password lifts the mark, and the marked password cannot be chosen again.",
+    "The reason is kept in the audit history and is not shown to the person. Do not put patient information in it."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "The administration site requires an active account with Staff status. This page additionally requires an active Superuser with Staff status, checked again when you save; a laboratory admin role alone does not open it. The Scheduled jobs account, which nobody signs in as, has no such page."
+      ]
+    },
+    {
+      "title": "What the page shows",
+      "items": [
+        {"label": "What marking does", "description": "The effects for this account: how many of its sessions are open when the page opens (counted only), and what the person must do next, which depends on whether the account has an authenticator app now and whether this deployment sends email."},
+        {"label": "Reason", "description": "Required, at most 1,000 characters; spaces alone are refused. Recorded with the mark in the audit history. Not shown to the person."},
+        {"label": "Refused", "description": "Instead of the form, a notice when the password cannot be marked: your own account (change your own password instead), a shared demonstration account (its password is published on purpose), an account without a password, or one already marked."}
+      ]
+    },
+    {
+      "title": "Actions",
+      "items": [
+        {"label": "Mark as compromised", "description": "Records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what to tell the person. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."},
+        {"label": "Back to the account", "description": "Shown with a refusal: returns to the account's page."},
+        {"label": "Breadcrumbs", "description": "Return to the administration home, the Accounts section, the user list or the account's page without marking anything."}
+      ]
+    },
+    {
+      "title": "Rules and records",
+      "paragraphs": [
+        "While the mark is open, the password alone no longer signs the account in: a sign-in that gives only the password is signed out at once with a notice. A sign-in that also gives an authenticator code (or a recovery code), or a code emailed to the account's address where the laboratory sends email, reaches only Choose a new password until a new password is saved there.",
+        "Any new password lifts the mark: one the person saves on Choose a new password, one set through an emailed reset link, or one you set on the account's password page. The marked password is refused as the new one, then and later. Signing in again with the old password after an upgrade of how passwords are stored does not lift it.",
+        "The mark is kept after it is lifted, with when it was made, by whom, the reason and when it was lifted. A copy of the stored form of the marked password is kept with it so that it can be refused; it is never shown, logged or put in the audit history. The account's page shows whether the password is marked now. A password can be marked again after a new one is chosen.",
+        "Marking takes no access away: roles and capabilities stay. To stop the person signing in at all, clear Active on the account's page."
+      ]
+    }
+  ],
+  "sources": [
+    "accounts/admin.py",
+    "accounts/compromised.py",
+    "accounts/models.py",
+    "accounts/sessions.py",
+    "templates/admin/accounts/user/mark_compromised.html",
+    "accounts/tests/test_compromised_password.py"
+  ]
+}

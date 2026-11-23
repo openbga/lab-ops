@@ -1,0 +1,56 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static admin_urls %}
+{% comment %}
+Mark password as compromised (accounts.admin.AccountAdmin.mark_compromised_view), superusers only:
+marks the account's password with a reason, recorded in the audit history; its sessions end and the
+person must choose a new password before anything else (accounts.compromised). Context: original
+(the account), form (MarkCompromisedForm: reason, and the password as drawn), refused (why this
+account's password cannot be marked now, or None: then no form is offered), second_factor (the
+account has an authenticator now: what the person must do next depends on it), open_count (its
+sessions open when the page was drawn, counted only), outbound_email_enabled (the deployment sends
+email, so Forgot your password? works).
+{% endcomment %}
+{% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+{% block bodyclass %}{{ block.super }} {{ opts.app_label }}-{{ opts.model_name }} change-form{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'change' original.pk|admin_urlquote %}">{{ original|truncatewords:"18" }}</a>
+&rsaquo; Mark password as compromised
+</div>
+{% endblock %}
+{% block content %}<div id="content-main">
+{% if refused %}
+<p class="errornote">{{ refused }}</p>
+<p><a href="{% url opts|admin_urlname:'change' original.pk|admin_urlquote %}">Back to the account</a></p>
+{% else %}
+<form method="post" id="{{ opts.model_name }}_form">{% csrf_token %}
+<div>
+{% if form.errors %}<p class="errornote">Please correct the error below.</p>{{ form.non_field_errors }}{% endif %}
+{{ form.drawn }}
+<p>Marking the password of <strong>{{ original.get_username }}</strong> as compromised:</p>
+<ul>
+<li>ends every session of the account open when you save ({% if open_count %}{{ open_count }} session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now{% else %}none is open now{% endif %}), and anything typed there and not saved is lost;</li>
+<li>stops the password signing the account in on its own;</li>
+{% if second_factor %}<li>the account has an authenticator app, so the person signs in with their password and a code and must then choose a new password before anything else;</li>{% else %}<li>the account has no second factor, so its password alone no longer signs it in: {% if outbound_email_enabled %}the person chooses a new one through Forgot your password? on the sign-in page, or signs in with a code emailed to them and is asked for one there, or{% else %}this deployment sends no email, so{% endif %} you set one on the account's password page;</li>{% endif %}
+<li>refuses the marked password as the new one. Any new password lifts the mark.</li>
+</ul>
+<p>The person is not emailed: tell them yourself.</p>
+<fieldset class="module aligned">
+<div class="form-row field-reason">
+  {{ form.reason.errors }}
+  <div class="flex-container">{{ form.reason.label_tag }} {{ form.reason }}</div>
+  <div class="help" id="{{ form.reason.id_for_label }}_helptext"><p>{{ form.reason.help_text }}</p></div>
+</div>
+</fieldset>
+<div class="submit-row">
+  <button type="submit" class="button default">Mark as compromised</button>
+</div>
+</div>
+</form>
+{% endif %}
+</div>
+{% endblock %}

@@ -55,7 +55,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "13a080f2a68efe5c34874d29b4b3f0192f7a59e2ce55bb2f6aed0889d927c1f8"
+RELEASE_SETTINGS_SHA256 = "6cf317ddb9bb0653fe872ca4aa4aaa0fb85da24d3903afab5ae74664bf53e4d6"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -116,6 +116,7 @@ RELEASE = {
             "accounts.middleware.LockedCredentialsMiddleware",
             "accounts.sessions.SessionLimitMiddleware",
             "accounts.enrolment.EnrolmentMiddleware",
+            "accounts.compromised.PasswordChangeMiddleware",
             "django.middleware.clickjacking.XFrameOptionsMiddleware",
             "core.form_dialog.FormDialogMiddleware",
         ],
@@ -149,6 +150,7 @@ RELEASE = {
             {"NAME": "accounts.passwords.AccountSimilarityValidator"},
             {"NAME": f"{_VALIDATORS}CommonPasswordValidator"},
             {"NAME": "accounts.passwords.ExpectedPasswordValidator"},
+            {"NAME": "accounts.passwords.MarkedPasswordValidator"},
         ],
     ),
     # The password forms that state the rule for their account (accounts.forms).
@@ -508,7 +510,8 @@ def _passwords():
         "letters are the laboratory's name, this application's name or the account's username, "
         "email name, first or last name with only those changed; one character or a text of "
         f"fewer than {LONG} characters repeated; a run such as 123456789 or qwertyuiop; and one "
-        "too similar to the account's username, names or email address as they stand. No rule "
+        "too similar to the account's username, names or email address as they stand; and one "
+        "marked as compromised for the account. No rule "
         "asks for kinds of characters, letters of any language, digits, symbols and spaces can "
         "be used, and passwords never expire. A password chosen earlier keeps working, also "
         "after the rule stops covering its account, and meets the rule in force when it is next "
@@ -800,6 +803,25 @@ def _sessions(facts):
                 "end their own account's sessions, and its browsers go to the sign-in page at "
                 "their next request. The account can sign in again unless it is also "
                 "deactivated. Each ending is kept in the audit history.",
+            ),
+        ),
+        _fact(
+            "compromised-password",
+            "A password marked as compromised",
+            ["MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS"],
+            lambda: Fact(
+                "compromised-password",
+                "A password marked as compromised",
+                "A superuser, from the account's page in the admin console, with a reason",
+                "accounts",
+                "Every session of the account ends, and the password no longer signs it in on "
+                "its own: a sign-in with the password alone is signed out at once. One that also "
+                "gives an authenticator code, or a code emailed to the account, opens only Choose "
+                "a new password until a new password is saved. A reset through an emailed link, "
+                "or a password a superuser sets, also lifts the mark; the marked password cannot "
+                "be chosen again. Superusers cannot mark their own password, a shared "
+                "demonstration account's or one of an account without a password. The person is "
+                "not emailed. Each mark is kept in the audit history.",
             ),
         ),
         _fact(

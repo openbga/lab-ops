@@ -65,6 +65,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db import connection, transaction
+from django.db.models.functions import Now
 from django.dispatch import receiver
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
@@ -106,10 +107,20 @@ ENDED_BY_MESSAGES = {
     Ending.SIGNED_OUT_ELSEWHERE: "You were signed out from another session of your account. Sign "
     "in again to continue.",
     Ending.ADMINISTRATOR: "An administrator ended your session. Sign in again to continue.",
+    Ending.PASSWORD_COMPROMISED: "An administrator marked your password as compromised, so it no "
+    "longer signs you in on its own. If your account has an authenticator app, sign in with your "
+    "password and a code to choose a new password. Otherwise use Forgot your password? on the "
+    "sign-in page, or ask the administrator to set a new one.",
 }
 # Endings the sign-in log records once the change that ended them commits (_log_after_commit).
 LOGGED_ENDINGS = frozenset(
-    {Ending.DEACTIVATED, Ending.NEW_PASSWORD, Ending.SIGNED_OUT_ELSEWHERE, Ending.ADMINISTRATOR}
+    {
+        Ending.DEACTIVATED,
+        Ending.NEW_PASSWORD,
+        Ending.SIGNED_OUT_ELSEWHERE,
+        Ending.ADMINISTRATOR,
+        Ending.PASSWORD_COMPROMISED,
+    }
 )
 # What a session row keeps of the browser's own description of itself (the User-Agent header).
 USER_AGENT_LENGTH = AccountSession._meta.get_field("user_agent").max_length
@@ -640,17 +651,24 @@ def reported_by(request):
 def start_session(sender, request, user, **kwargs):
     from django.contrib.auth.models import update_last_login
 
+    from .compromised import refused_at_sign_in
     from .session_list import lock_endings
 
     session = getattr(request, "session", None)
     agent, address = reported_by(request) if session is not None else ("", None)
     with transaction.atomic():
-        # The account's session-ending lock first, as the person's own endings and a new
-        # password saved alone take it, so they take turns; then the sign-in's time, which
-        # writes the account's row (Django's own receiver, disconnected in accounts.apps so that
-        # its hold on the row comes after this lock, also with a transaction around the request).
+        # The account's session-ending lock first, as the person's own endings, a new password
+        # saved alone and marking a password as compromised take it, so they take turns; then the
+        # sign-in's time, which writes the account's row (Django's own receiver, disconnected in
+        # accounts.apps so that its hold on the row comes after this lock, also with a transaction
+        # around the request).
         lock_endings(user.pk)
-        update_last_login(sender, user)
+        # The account's password is marked as compromised and this sign-in proved nothing more
+        # than the password (accounts.compromised): its session starts ended, so the browser is
+        # signed out at its next request, and the sign-in is not recorded as the last one.
+        refused = refused_at_sign_in(request, user)
+        if not refused:
+            update_last_login(sender, user)
         if session is None:
             return
         previous = _valid_id(session.get(SESSION_KEY))
@@ -665,12 +683,17 @@ def start_session(sender, request, user, **kwargs):
         # (accounts.enrolment holds the session to it while the account has none).
         from core.second_factor import requires
 
+        ended = {"ended_at": Now(), "ending": Ending.PASSWORD_COMPROMISED} if refused else {}
         record = AccountSession.objects.create(
             user=user,
             user_agent=agent,
             address=address,
             second_factor_required=requires(user),
+            **ended,
         )
+    if refused:
+        _log_after_commit(Ending.PASSWORD_COMPROMISED, user, 1)
+        request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
     session[SESSION_KEY] = str(record.pk)
     # A new sign-in remembers its own page for Continue after a second factor is added
     # (accounts.enrolment), not one remembered for an earlier sign-in in this browser.

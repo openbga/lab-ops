@@ -301,6 +301,20 @@ database, so a deployment running several server processes counts them together 
 process. Django's own `createsuperuser` command checks the password rule only when it asks for
 the password, and lets its operator go past it; `setup_lab` always checks it.
 
+A superuser marks an account's password as compromised from its page in the admin console, with a
+reason, when someone else may know it: for example, the person typed it into a page posing as the
+laboratory's. Every session of the account ends at once, and the password no longer signs the
+account in on its own: a sign-in with it alone is signed out at once, with a notice saying what to
+do. A sign-in that also gives the account's authenticator code, or a code emailed to its address,
+opens only Choose a new password until a new password is saved there. An account without a second
+factor gets a new password through Forgot your password?, where the deployment sends email, or from
+a superuser on its password page. Any new password lifts the mark, and the marked password is
+refused as a new one, then and later. Superusers cannot mark their own password, a shared
+demonstration account's or that of an account without a password, and a password changed after the
+marking page was opened is not marked. The person is not emailed; the superuser tells them. Each
+mark is kept, with who made it, when, the reason and when it was lifted, and is recorded in the
+audit history without the password.
+
 Every signed-in person, staff or client portal, opens Where you are signed in from the account menu.
 It lists their own open sessions with the browser and the address each one reported when it signed
 in, when it signed in and when it was last active, and marks the one they are using. They can sign

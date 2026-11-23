@@ -68,11 +68,19 @@ class User(AbstractUser):
                     type(self).objects.filter(pk=self.pk).values_list("password", flat=True).first()
                 )
                 new_password = stored is not None and stored != self.password
+            # A password chosen (set_password, which Django's own hash upgrade at sign-in does not
+            # count as one) lifts a mark of the account's password as compromised, with this save
+            # (accounts.compromised). Read before the save: Django forgets it once saved.
+            chosen = new_password and self._password is not None
             # Before the account's row is updated: ending a session waits for a change of the
             # person's under way that holds it (accounts.sessions.hold_acting_session), and that
             # change may still take the account's row (an assignment to the person) after it.
             self._end_sessions(update_fields, new_password=new_password)
             super().save(*args, **kwargs)
+            if chosen:
+                CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
+                    lifted_at=Now()
+                )
 
     def _end_sessions(self, update_fields, *, new_password):
         """A deactivation ends every session of the account at once, and a new password every
@@ -123,6 +131,9 @@ class AccountSession(models.Model):
         CHANGE_REFUSED = "change_refused", "A change found it past a limit"
         SIGNED_OUT_ELSEWHERE = "signed_out_elsewhere", "Signed out from another session"
         ADMINISTRATOR = "administrator", "Ended by an administrator"
+        # The account's password was marked as compromised (accounts.compromised): every session
+        # open then, and a later sign-in that proved nothing but the password.
+        PASSWORD_COMPROMISED = "password_compromised", "Password marked as compromised"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Not PROTECT: this is the state of a sign-in, not history. Accounts are deactivated, never
@@ -163,6 +174,40 @@ class AccountSession(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class CompromisedPassword(models.Model):
+    """A superuser's mark of an account's password as compromised (accounts.compromised), kept
+    after it is lifted. While it is open (lifted_at empty) the password alone no longer signs the
+    account in, and a session that proved more than the password (a second factor or an emailed
+    code) reaches only Choose a new password. Any password chosen for the account afterwards
+    lifts it, in the same save (User.save): the person's own, one set through an emailed reset
+    link, or one a superuser sets in the admin console. At most one is open per account."""
+
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="compromised_passwords")
+    marked_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    marked_at = models.DateTimeField(db_default=Now())
+    # Why, as the superuser gave it: recorded in the audit history too. Not shown to the person.
+    reason = models.TextField()
+    # The stored hash of the marked password, copied when it was marked, so that the same password
+    # is refused as a new one (accounts.passwords.MarkedPasswordValidator). Never shown, logged,
+    # audited or registered in the admin console.
+    password = models.CharField(max_length=128)
+    lifted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        # Changed only through accounts.compromised: no model permission to grant.
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(lifted_at__isnull=True),
+                name="compromised_password_open_once",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.marked_at:%Y-%m-%d %H:%M}"
 
 
 class KeptDraft(models.Model):

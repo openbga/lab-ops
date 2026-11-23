@@ -23,7 +23,8 @@ Application document and staff shell. Block contract (docs/ui-standards.md secti
   extra_js       extra <script> tags at the end of <body>
 Every page in this shell (staff and client portal) ends <main> with includes/source_footer.html.
 While the session must add a second sign-in factor first (second_factor_pending, accounts.
-enrolment), the shell leaves out the navigation, Find and What's new, which it cannot open yet.
+enrolment) or choose a new password (password_change_pending, accounts.compromised), together
+session_held, the shell leaves out the navigation, Find and What's new, which it cannot open yet.
 The sidebar and portal items, and which one a page marks, are declared in
 core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for signed-in users.
 {% endcomment %}
@@ -81,11 +82,11 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   {% url 'dashboard' as dashboard_url %}
   {% block topbar %}
   <header class="vr-topbar">
-    {% if not second_factor_pending %}<button class="btn btn-sm vr-topbar-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>{% endif %}
+    {% if not session_held %}<button class="btn btn-sm vr-topbar-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>{% endif %}
     {% brand href=dashboard_url|default:"/" %}
     {% if lab.name %}<span class="vr-lab-name d-none d-lg-inline">{{ lab.name }}</span>{% endif %}
     <div class="vr-topbar-end">
-      {% if not second_factor_pending %}
+      {% if not session_held %}
       {% include "includes/client_lookup.html" %}
       {% whats_new_button %}
       {% endif %}
@@ -96,8 +97,8 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   </header>
   {% endblock topbar %}
   {% preference "nav.collapsed" as nav_collapsed %}
-  <div class="vr-shell{% if second_factor_pending %} vr-shell-bare{% elif nav_collapsed %} vr-nav-collapsed{% endif %}">
-    {% block sidenav %}{% if not second_factor_pending %}
+  <div class="vr-shell{% if session_held %} vr-shell-bare{% elif nav_collapsed %} vr-nav-collapsed{% endif %}">
+    {% block sidenav %}{% if not session_held %}
     <nav class="vr-sidenav offcanvas-lg offcanvas-start" id="vr-nav" tabindex="-1" aria-label="Primary">
       <div class="offcanvas-header d-lg-none">
         <p class="offcanvas-title h5 mb-0">OpenBGA Lab Ops</p>
@@ -133,7 +134,7 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
   {% block thumbbar %}
   {% comment %}Phones only (app.css "Phones"): the menu, Find (tickets and client organizations) and, placed beside them by CSS, the page's primary action (the .btn-primary in page_actions), within thumb reach. The portal has no staff menu and leaves it out.{% endcomment %}
   {% url 'desk:request-find' as find_url %}
-  {% if not second_factor_pending %}
+  {% if not session_held %}
   <nav class="vr-thumbbar" aria-label="Quick actions">
     <button class="vr-thumbbar-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#vr-nav" aria-controls="vr-nav">{% icon name="list" %}<span>Menu</span></button>
     {% if find_url %}<a class="vr-thumbbar-btn" href="{{ find_url }}">{% icon name="search" %}<span>Find</span></a>{% endif %}
