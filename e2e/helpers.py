@@ -1,6 +1,7 @@
 """Small shared helpers for the browser suite. Fixture data goes through the domain services."""
 
 import re
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -256,3 +257,13 @@ def menu_item(page: Page, menu: str, item: str):
     results"): opens the menu and returns the item, ready to click."""
     page.get_by_role("button", name=menu, exact=True).click()
     return page.locator(".dropdown-menu.show").get_by_role("link", name=item, exact=True)
+
+
+def wait_until_true(page: Page, expression: str, timeout: float = 15.0) -> None:
+    """Wait until `expression` is true in the page, checking from the test through
+    page.evaluate. Playwright's wait_for_function compiles a string predicate inside the page when
+    its first check fails, which the content security policy refuses ('unsafe-eval')."""
+    deadline = time.monotonic() + timeout
+    while not page.evaluate(expression):
+        assert time.monotonic() < deadline, f"Not true within {timeout} s: {expression}"
+        page.wait_for_timeout(50)
