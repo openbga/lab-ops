@@ -96,12 +96,13 @@ def sign_in_factor(request, user):
         method = item.get("method")
         if method in _FIRST:
             first, second = _FIRST[method], None
-        elif method == "mfa":
+        elif method == "mfa" and not item.get("passwordless"):
             if first is not None:
                 second = _SECOND.get(item.get("type"))
         else:
-            # Another way in (a password reset link that signs in, where the deployment turns it
-            # on): what it proved is not one of these, so nothing earlier describes it.
+            # Another way in (a password reset link that signs in, or a passkey on its own, where
+            # the deployment turns them on): what it proved is not one of these, so nothing
+            # earlier describes it, and a second factor after it is not counted either.
             first, second = None, None
     if first is None:
         return ""

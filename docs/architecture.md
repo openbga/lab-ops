@@ -484,9 +484,13 @@ state and is refused. An access change that affects several accounts, such as th
 page, takes their gates one at a time in id order: a member it has not reached yet can still
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
-Updates that take no access away, such as a sign-in, the email notice preference or a capability
-added to a role, do not wait for the gate (a sign-in that upgrades the stored password hash saves
-a new password, and waits as a password change does; an update of the account's row still waits a moment for
+Updates that take no access away, such as the email notice preference or a capability added to a
+role, do not wait for the gate. A sign-in takes it shared, after the account's session-ending
+lock, so that it and a deactivation never hold what the other needs: it waits for an access change
+of that account under way (such as `setup_lab` giving the account a role), and an access change
+that starts meanwhile waits for it; the person's own changes, which hold it shared too, are not
+waited for (a sign-in that upgrades the stored password hash saves a new password, and waits as a
+password change does; an update of the account's row still waits a moment for
 a change that holds that row, such as an assignment of a ticket to the person or a notice being
 sent to them; `setup_lab`, giving an existing account a role it lacks, takes the gate as the account
 page does, so each records only its own additions); a save on the account's page and every save of a portal account's

@@ -59,7 +59,11 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
         from .signin_history import sign_in_factor
 
         request.vr_sign_in_factor = sign_in_factor(request, user)
-        super().login(request, user)
+        try:
+            super().login(request, user)
+        finally:
+            # Taken by the sign-in's session start; gone too when the sign-in failed before it.
+            request.__dict__.pop("vr_sign_in_factor", None)
 
     def pre_login(self, request, user, **kwargs):
         # The scheduled jobs' account (jobs.actor) never signs in, even if someone activates it

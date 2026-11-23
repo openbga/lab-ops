@@ -224,18 +224,21 @@ def beyond_password(factor):
 
 
 def proved_beyond_password(request, user):
-    """Whether this request's session of `user` proved more than the password (PROOFS) when it
-    signed in: the factor its session row recorded then (accounts.sessions.start_session, read
-    as allauth completed the sign-in, before Django could empty the browser's session for another
-    account); where the row records none (a session an earlier release or Django's own login()
-    started), the steps allauth recorded in the browser's session, read as the sign-in history
-    reads them (accounts.signin_history.sign_in_factor). The record is the sign-in's own: signing
-    out, and being signed out, empties the browser's session. Asked only of a marked account."""
+    """Whether this browser's session of `user` proved more than the password (PROOFS) when it
+    signed in: the factor recorded on the session row the browser's session names now (a sign-in
+    earlier in this request may have replaced it), as accounts.sessions.start_session stored it
+    when allauth completed the sign-in, before Django could empty the browser's session for
+    another account; where the row records none (a session an earlier release or Django's own
+    login() started), the steps allauth recorded in the browser's session, read as the sign-in
+    history reads them (accounts.signin_history.sign_in_factor). The record is the sign-in's own:
+    signing out, and being signed out, empties the browser's session. Asked only of a marked
+    account."""
+    from .sessions import SESSION_KEY, _valid_id
     from .signin_history import sign_in_factor
 
-    state = getattr(request, "account_session", None) if request is not None else None
-    session_id = getattr(state, "id", None)
-    if session_id is not None and getattr(state, "user_id", None) == user.pk:
+    browser = getattr(request, "session", None) if request is not None else None
+    session_id = _valid_id(browser.get(SESSION_KEY)) if browser is not None else None
+    if session_id is not None:
         recorded = (
             AccountSession.objects.filter(pk=session_id, user_id=user.pk)
             .values_list("factor", flat=True)
