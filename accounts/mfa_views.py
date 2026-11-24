@@ -102,7 +102,9 @@ def _queued_messages(request):
 class DeactivateTOTPView(totp_views.DeactivateTOTPView):
     def form_valid(self, form):
         # allauth queues "Authenticator app deactivated." as it removes, before this transaction
-        # commits: a removal that rolls back takes the message back with it.
+        # commits: a removal that rolls back takes the message back with it. Accepted limit: the
+        # queue is put back as it was before the removal, so a message another receiver of
+        # allauth's removal signal queued during it goes too (nothing in this application does).
         queued = _queued_messages(self.request)
         before_messages = list(queued) if queued is not None else None
         try:
@@ -163,6 +165,9 @@ class GenerateRecoveryCodesView(recovery_code_views.GenerateRecoveryCodesView):
         return response
 
 
-activate_totp = ActivateTOTPView.as_view()
-deactivate_totp = DeactivateTOTPView.as_view()
-generate_recovery_codes = GenerateRecoveryCodesView.as_view()
+# Each view's own transaction is the change's whole transaction, also where a deployment wraps
+# every request in one (ATOMIC_REQUESTS): it commits, or fails, before the response is made, so a
+# removal that fails at its commit takes allauth's message back with it.
+activate_totp = transaction.non_atomic_requests(ActivateTOTPView.as_view())
+deactivate_totp = transaction.non_atomic_requests(DeactivateTOTPView.as_view())
+generate_recovery_codes = transaction.non_atomic_requests(GenerateRecoveryCodesView.as_view())

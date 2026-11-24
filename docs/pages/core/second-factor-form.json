@@ -12,7 +12,7 @@
       "steps": [
         "Tick [[Every staff account]], roles under [[Staff with these roles]], or the other groups of accounts.",
         "Explain why in [[Reason]].",
-        "If [[Confirm it is you]] is shown, type [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Save changes]]. You return to Security settings."
       ]
     },
@@ -34,7 +34,7 @@
     "An account the rule covers without an authenticator app is sent to set one up after signing in and opens nothing else first.",
     "Shared demonstration accounts cannot add one, so a rule covering them stops them working.",
     "If someone saved the rule after you opened the form, your change is refused and what you chose stays. Reload and compare.",
-    "Saving asks for your password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
+    "Saving asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
   ],
   "sections": [
     {

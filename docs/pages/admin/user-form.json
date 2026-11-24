@@ -46,7 +46,7 @@
     "Clear the client link before giving an account staff flags, groups or permissions.",
     "You cannot deactivate the last active staff superuser or remove their Staff or Superuser status. The Scheduled jobs account cannot be changed.",
     "If someone else saved the account after you opened it, your save is refused and nothing changes. Open the account again and redo your change.",
-    "Saving asks for [[Your password]], and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Changes are audited without passwords."
+    "Saving asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes. Changes are audited without passwords."
   ],
   "sections": [
     {

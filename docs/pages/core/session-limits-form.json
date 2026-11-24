@@ -12,7 +12,7 @@
       "steps": [
         "Enter [[Sign out after no activity for]] in minutes (5 to 60) and [[Longest session]] in hours (1 to 24).",
         "Explain why in [[Reason]].",
-        "If [[Confirm it is you]] is shown, type [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Save changes]]. You return to Security settings."
       ]
     },
@@ -28,7 +28,7 @@
     "Only activity that reaches the server counts: opening a page, saving, searching or Stay signed in. Typing on a page does not.",
     "If someone saved these limits after you opened the form, your change is refused and what you typed stays. Reload and compare before saving again.",
     "Your reason is kept with the change in the history on Security settings, with each value before and after.",
-    "Saving asks for your password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
+    "Saving asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
   ],
   "sections": [
     {

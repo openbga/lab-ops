@@ -11,7 +11,7 @@
       "title": "Remove the factor",
       "steps": [
         "Check the factor named on the page.",
-        "If [[Confirm it is you]] is shown, type your own password in [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Yes, I’m sure]]."
       ]
     },

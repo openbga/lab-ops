@@ -769,7 +769,12 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     if count
                     else "No session was open."
                 )
-                if marked.second_factor:
+                if not user.is_active:
+                    then = (
+                        "The account is deactivated, so it cannot sign in until it is made "
+                        "active again; a new password is then needed before anything else."
+                    )
+                elif marked.second_factor:
                     then = (
                         "Tell the person to sign in with their password and an authenticator "
                         "code: they will be asked to choose a new password."
@@ -815,6 +820,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             # Whether the mark's email notice would be sent, as accounts.security_notices decides
             # at sending: email on, the account active and with an address.
             "notice_sent": mail_enabled() and user.is_active and bool(user.email),
+            # Whether the person can choose a new password by email: email on and an address.
+            "email_recovery": mail_enabled() and bool(user.email),
+            "active": user.is_active,
             "open_count": open_count(user),
         }
         request.current_app = self.admin_site.name

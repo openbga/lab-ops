@@ -956,12 +956,19 @@ def _sessions(facts):
     ]
 
 
-def _reveal_confirmation():
-    """Whether staff confirm it is them before the first reveal in a session (a database reading,
+def _reveal_confirmation_rule():
+    """The confirmation before revealing as it stands (a database reading,
     core.reveal_confirmation)."""
-    from .reveal_confirmation import rule, summary
+    from .reveal_confirmation import rule
 
-    on = rule().first_reveal
+    return rule()
+
+
+def _reveal_confirmation():
+    """Whether staff confirm it is them before the first reveal in a session."""
+    from .reveal_confirmation import summary
+
+    on = _reveal_confirmation_rule().first_reveal
     return Fact(
         "patient-reveal-confirmation",
         "Confirmation before a reveal",

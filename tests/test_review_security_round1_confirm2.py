@@ -100,9 +100,10 @@ def test_signin_fact_names_changed_logging_when_console_omits_the_event_details(
         after = observe()
         # Adapted: the second-factor rule is a database reading too since the required second
         # factor change.
-        from core.models import SecondFactorRule
+        from core.models import RevealConfirmationRule, SecondFactorRule
         with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
-                            _second_factor_rule=lambda: SecondFactorRule(pk=1)):
+                            _second_factor_rule=lambda: SecondFactorRule(pk=1),
+                            _reveal_confirmation_rule=lambda: RevealConfirmationRule(pk=1)):
             rows = []
             security._sign_in(rows)
         row = next(row for row in rows if row.key == "sign-in-records")
@@ -292,6 +293,13 @@ def test_overlapping_readings_keep_their_own_file_reasons(monkeypatch):
     monkeypatch.setattr(security_settings, "_second_factor_counts", counts)
     monkeypatch.setattr(security_settings, "patient_capability_holders", lambda: 0)
     monkeypatch.setattr(security_settings, "_patient_fields", lambda: 0)
+    # Adapted for the reveal confirmation change: its rule is a database reading of the patient
+    # information group too.
+    from core.models import RevealConfirmationRule
+
+    monkeypatch.setattr(
+        security_settings, "_reveal_confirmation_rule", lambda: RevealConfirmationRule(pk=1)
+    )
     with ThreadPoolExecutor(max_workers=2) as pool:
         left = pool.submit(collect, "config.settings")
         right = pool.submit(collect, "config.logging")

@@ -334,7 +334,9 @@ do. A sign-in that also gives the account's authenticator code, or a code emaile
 opens only Choose a new password until a new password is saved there, after setting up a second
 sign-in factor first where the laboratory requires one of the account and it has none. An account without a second
 factor gets a new password through Forgot your password?, where the deployment sends email and the
-account has an email address, or from a superuser on its password page. Any new password lifts the mark, and the marked password is
+account has an email address, or from a superuser on its password page. A deactivated account
+that is marked cannot sign in until it is made active again, and then needs a new password before
+anything else. Any new password lifts the mark, and the marked password is
 refused as a new one, then and later. Superusers cannot mark their own password, a shared
 demonstration account's or that of an account without a password, and a password changed after the
 marking page was opened is not marked. Where the deployment sends email, the person is emailed

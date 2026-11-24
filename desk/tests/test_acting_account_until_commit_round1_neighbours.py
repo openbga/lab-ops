@@ -617,11 +617,15 @@ def test_a_reveal_page_posted_before_the_deactivation_commits_is_refused(
         "patient value": "request_form.value_revealed",
     }[page]
     url, data, module, name = {
+        # Adapted for the reveal confirmation change: the reveal views hold the acting account
+        # before the confirmation rule and the service (core.reveal_confirmation), so a
+        # deactivation that starts after that hold waits for the reveal (accounts/acting.py); the
+        # deactivation is injected just before the hold.
         "patient key": (
             reverse("link_records:attachment-reveal", args=[attachment.pk]),
             {},
             link_views,
-            "reveal_person_key",
+            "hold_actor",
         ),
         "key search": (
             reverse("link_records:person-search"),
@@ -633,7 +637,7 @@ def test_a_reveal_page_posted_before_the_deactivation_commits_is_refused(
             reverse("request_details:reveal", args=[patient_value.row.pk]),
             {},
             form_views,
-            "services_reveal_value",
+            "hold_actor",
         ),
     }[page]
     before = AuditEvent.objects.filter(action=action).count()

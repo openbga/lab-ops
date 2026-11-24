@@ -11,7 +11,7 @@
       "title": "Mark a password someone else may know",
       "steps": [
         "Type why in [[Reason]], for example the person typed it into a page posing as the laboratory's.",
-        "If [[Confirm it is you]] is shown, type your own password in [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Mark as compromised]]. You return to the account's page, which shows the mark."
       ]
     },
@@ -42,7 +42,7 @@
       "items": [
         {
           "label": "What marking does",
-          "description": "The effects for this account: how many of its sessions are open when the page opens (counted only), and what the person must do next, which depends on whether the account has an authenticator app now and whether this deployment sends email."
+          "description": "The effects for this account: how many of its sessions are open when the page opens (counted only), and what the person must do next. A deactivated account cannot sign in until it is made active again, and then needs a new password before anything else. An active account with an authenticator app signs in with its password and a code and must then choose a new password. One without a second factor no longer signs in with its password: where this deployment sends email and the account has an email address, the person uses Forgot your password? (or an emailed sign-in code, where offered); otherwise the page says the account has no email address, or that this deployment sends no email, and you set a new password on the account's password page."
         },
         {
           "label": "Reason",
@@ -94,7 +94,7 @@
       "items": [
         {
           "label": "Mark as compromised",
-          "description": "Once you have confirmed it is you (see Confirm it is you), records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what to tell the person, which depends on whether the account has an authenticator app and whether this deployment sends email. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
+          "description": "Once you have confirmed it is you (see Confirm it is you), records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what comes next: for a deactivated account, The account is deactivated, so it cannot sign in until it is made active again; a new password is then needed before anything else.; otherwise what to tell the person, which depends on whether the account has an authenticator app, whether this deployment sends email and whether the account has an email address. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
         },
         {
           "label": "Back to the account",

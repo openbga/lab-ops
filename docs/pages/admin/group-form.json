@@ -27,7 +27,7 @@
     "Built-in group names are read only.",
     "Changes are recorded in the audit history. A later save by someone else replaces yours.",
     "Groups cannot be deleted.",
-    "Saving, here or on Add group, asks for [[Your password]], and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes."
+    "Saving, here or on Add group, asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes."
   ],
   "sections": [
     {
