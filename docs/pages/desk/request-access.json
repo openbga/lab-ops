@@ -40,7 +40,7 @@
       "paragraphs": [
         "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page or its Form details page; downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal (which also adds a change event to the audit history); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member shown the ticket's entries on its client organization's timeline is recorded once for each timeline page drawn, since that page shows the start of each entry's text. A staff member who reveals the ticket's person-level key with Reveal key is recorded the same way (the key is never shown here).",
         "A ticket page drawn again after a refused reply, note or contact is recorded as opened again. A page that is refused (Not found, or not permitted), a reveal sent to Confirm it is you first, and a page that failed with a server error record nothing. If the record cannot be written, the page is not shown: the request fails with a server error instead.",
-        "Not recorded: lists, searches, the dashboard, and the pages that only change a ticket, such as Assign or Status, which show its number and subject. The search text is never recorded."
+        "Not recorded: lists, searches, the dashboard, the pages that only change a ticket, such as Assign or Status, which show its number and subject, and a client's new ticket started with Request again, which copies some of their own answers (never patient information) from an earlier ticket. The search text is never recorded."
       ]
     },
     {

@@ -6,8 +6,9 @@ page, the staff Form details page of a ticket; downloading a file; being shown a
 answer, whether a staff member reveals it or a portal account's ticket page shows it; a staff
 member revealing a ticket's person-level key; and each ticket whose entries a client
 organization's timeline page shows (the start of their text). Not recorded: rows shown in a list,
-a search or its text, and the pages that only change a ticket (their forms show its number and
-subject).
+a search or its text, the pages that only change a ticket (their forms show its number and
+subject), and a portal form opened with Request again (it copies some of the client's own answers,
+never patient information, into a new form; the ticket they come from is recorded when opened).
 
 Each record holds the account, the capacity it read in (laboratory staff or client portal, the
 account as it was read for the page), what was read (the kind, the ticket and, for a file or an
