@@ -69,7 +69,7 @@
         },
         {
           "label": "Access records",
-          "description": "The panel's title. The number beside it counts the rows for this ticket recorded when you opened the page. Twenty-five rows per page, newest first; the pager below the table moves through older rows, as they stood when you opened the first page, so a row recorded since (your own visit included) never moves another to the next page. Open the page again from the ticket to see newer rows."
+          "description": "The panel's title. The number beside it counts the rows for this ticket recorded when you opened the page. Twenty-five rows per page, newest first; the pager below the table moves through older rows, as they stood when you opened the first page, so a row recorded since (your own visit included) never moves another to the next page. A row whose recording was still being saved, in another person's request, at the very moment the first page was drawn can still appear among the later pages. Open the page again from the ticket to see newer rows."
         },
         {
           "label": "Nothing recorded yet",

@@ -53,9 +53,6 @@ INSTALLED_APPS = [
     "jobs",
     "nonconformance",
 ]
-# Error reports show no posted value (ticket text, answers, passwords): core.request_logging.
-DEFAULT_EXCEPTION_REPORTER_FILTER = "core.request_logging.NoPostedValuesFilter"
-
 MIDDLEWARE = [
     # Outermost: marks every answer to a signed-in session not to be stored, whichever layer drew
     # or replaced it (accounts.sessions).

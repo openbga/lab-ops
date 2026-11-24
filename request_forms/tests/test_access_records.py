@@ -534,3 +534,25 @@ def test_a_client_timeline_refused_records_nothing(client, portal_user, no_role,
         assert response.status_code in (403, 404)
         client.logout()
     assert records() == []
+
+
+def test_the_shipped_logging_sends_no_django_error_report():
+    """Django's error report would carry request values (docs/operations.md): this release's
+    logging configuration has no handler that builds one."""
+    from config.logging import LOGGING
+
+    classes = {handler.get("class", "") for handler in LOGGING["handlers"].values()}
+    assert not any("AdminEmailHandler" in name for name in classes)
+    assert LOGGING["loggers"]["django"]["handlers"] == []
+
+
+def test_a_cutoff_in_the_address_never_reaches_past_the_newest_record(client, capable, ticket):
+    for _ in range(3):
+        AccessRecord.objects.create(
+            account=capable, capacity="laboratory", kind="ticket", ticket_id=ticket.pk
+        )
+    login(client, capable)
+    url = reverse("desk:request-access", args=[ticket.pk])
+    future = client.get(url, {"upto": str(10**12)})
+    assert len(future.context["page_obj"].object_list) == 3
+    assert client.get(url, {"upto": "0"}).context["page_obj"].object_list == []

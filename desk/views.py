@@ -1358,8 +1358,11 @@ def request_access(request, pk):
         if not is_supervisor(account):
             raise PermissionDenied("Who opened a ticket is for supervisors.")
         list_query = _back(request)
-        # Every page of one reading is drawn as of the first: the pager's links carry `upto`.
-        upto = whole_number(request.GET.get("upto")) or opened.newest(request_obj)
+        # Every page of one reading is drawn as of the first: the pager's links carry `upto`, never
+        # beyond the newest record now (0: as of before the first record).
+        newest = opened.newest(request_obj)
+        upto = whole_number(request.GET.get("upto"))
+        upto = newest if upto is None else min(upto, newest)
         query = request.GET.copy()
         query["upto"] = str(upto)
         request.GET = query

@@ -23,8 +23,6 @@ import uuid
 from contextvars import ContextVar
 from urllib.parse import quote
 
-from django.views.debug import SafeExceptionReporterFilter
-
 logger = logging.getLogger("lab_ops.request")
 _request_id = ContextVar("request_id", default="-")
 _render_request_id = ContextVar("render_request_id", default="-")
@@ -45,26 +43,6 @@ def route_label(request):
     if match is None:
         return "<unmatched>" if request is not None else "<unknown>"
     return quote(str(match.route)[:200], safe="/<>:-_.~^$()[]+*?\\")
-
-
-class NoPostedValuesFilter(SafeExceptionReporterFilter):
-    """Django's error report (its debug page with DEBUG off, or a report a deployment chooses to
-    email) shows no value a request posted, nor any value of a query dictionary in a frame's
-    variables: ticket text, form answers, search text and typed passwords alike, whatever the view
-    marked as sensitive. With DEBUG on, Django's filter is off, as before."""
-
-    def get_post_parameters(self, request):
-        if request is None:
-            return {}
-        if not self.is_active(request):
-            return request.POST
-        return {name: self.cleansed_substitute for name in request.POST}
-
-    def get_cleansed_multivaluedict(self, request, multivaluedict):
-        cleansed = multivaluedict.copy()
-        for name in cleansed:
-            cleansed[name] = self.cleansed_substitute
-        return cleansed
 
 
 class RequestIdFilter(logging.Filter):

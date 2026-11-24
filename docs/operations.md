@@ -169,9 +169,11 @@ stays under its id. If a record cannot be written (the database refuses the inse
 not sent and the request fails with a server error, logged by `lab_ops.request` with its request
 ID. Reversing migration 0009 deletes every access record and every change event's request ID.
 
-Error reports built by Django (a deployment that turns on `ADMINS` mail or another reporter) show
-no value a request posted: `DEFAULT_EXCEPTION_REPORTER_FILTER` is
-`core.request_logging.NoPostedValuesFilter`.
+This release sends no Django error report: `config/logging.py` replaces Django's handlers,
+including the one that mails `ADMINS`, and with `DEBUG` off the error page shows nothing of the
+request. A deployment that adds a mail handler or another reporter of Django's error report gets
+the request's posted values, the names of uploaded files and the variables of the code that failed,
+which can include ticket text; do not add one where tickets can hold patient information.
 
 ## Sign-in limits behind a proxy
 

@@ -123,8 +123,10 @@ trigger (core migration 0009, `prevent_record_mutation`) refuses `UPDATE` and `D
 model has no permissions and no admin. Change events gain the same request ID
 (`AuditEvent.request_ref`, filled from the request being served by the field's default, blank
 outside one, with a database default so that a release still running during the migration keeps
-inserting events). Error reports show no posted value (`DEFAULT_EXCEPTION_REPORTER_FILTER`,
-`core.request_logging.NoPostedValuesFilter`).
+inserting events). Not covered: a record whose write was under way, in another
+request, when Who opened it drew its first page can still take a place in the later pages (ids are
+given out before a write commits); its pages never show a record written after that, and only
+records of the ticket.
 [Access records](../core/access.py)
 
 ## Security settings
