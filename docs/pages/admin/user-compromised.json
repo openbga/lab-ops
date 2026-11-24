@@ -18,7 +18,7 @@
     {
       "title": "Tell the person what to do",
       "steps": [
-        "A deactivated account cannot sign in: make it active again first, then follow the step for it below.",
+        "A deactivated account cannot sign in until it is made active again; you can set a new password for it on its password page either way.",
         "With an authenticator app: they sign in with their password and a code, and choose a new password.",
         "Without one: if email is on and the account has an address, they use Forgot your password? (or an emailed sign-in code, where offered); or you set a new password on its password page."
       ]

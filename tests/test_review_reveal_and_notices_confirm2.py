@@ -164,18 +164,14 @@ def test_invalid_or_stale_submission_keeps_factors_and_creates_no_notice(
     + [("mfa_deactivate_totp", "authenticator")],
 )
 def test_commit_failure_leaves_factors_and_suppresses_success(
-    client, person, route, confirmation_method, request_atomic, request
+    client, person, route, confirmation_method, request_atomic
 ):
+    # Accepted limit (accounts/mfa_views.py): with ATOMIC_REQUESTS, which this release does not
+    # set, allauth's re-authentication page resumes the removal inside its own request's
+    # transaction, whose commit comes after the removal view returns, so the overview after it
+    # still shows allauth's message. Only that last check differs for those cases.
     atomic = connection.settings_dict.get("ATOMIC_REQUESTS")
-    if atomic and route == "mfa_deactivate_totp" and confirmation_method != "direct":
-        request.applymarker(
-            pytest.mark.xfail(
-                strict=True,
-                reason="Accepted limit (accounts/mfa_views.py): with ATOMIC_REQUESTS, which this "
-                "release does not set, allauth's re-authentication page resumes the removal inside "
-                "its own request's transaction, whose commit comes after the removal view returns.",
-            )
-        )
+    limited = atomic and route == "mfa_deactivate_totp" and confirmation_method != "direct"
     app_secret = generate_totp_secret() if confirmation_method == "authenticator" else None
     data = factor_form(client, person, route, app_secret=app_secret)
     before = factors(person)
@@ -221,7 +217,10 @@ def test_commit_failure_leaves_factors_and_suppresses_success(
         for name, page in (("error response", result), ("following overview", next_page))
         if banner in strip_tags(page.content.decode())
     ]
-    assert not shown_on, f"{banner} appeared on {shown_on}"
+    if limited:
+        assert shown_on == ["following overview"], shown_on
+    else:
+        assert not shown_on, f"{banner} appeared on {shown_on}"
 
 
 def mark_form(browser, person):
