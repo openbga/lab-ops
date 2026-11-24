@@ -731,12 +731,12 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             form = MarkCompromisedForm(request.POST)
         else:
             form = MarkCompromisedForm(initial={"drawn": drawn_password(user)})
-        # Whether the mark can be offered at all, before the form (and the confirmation of who is
-        # making it) is checked: a mark refused for the account is not a reason to ask for a
-        # password. The service decides again when it saves.
+        # Whether the mark can be offered for this account at all, before the form (and the
+        # confirmation of who is making it) is checked: a mark refused for the account is not a
+        # reason to ask for a password. The service decides again when it saves. A mark already
+        # open is left to the service on a save, under its locks: the person may be choosing a new
+        # password at this moment, which lifts it, and the save waits for that.
         refused = refusal(user, request.user)
-        if refused is None and open_mark(user.pk) is not None:
-            refused = ALREADY_MARKED
         if request.method == "POST" and refused is None and form.is_valid():
             try:
                 with transaction.atomic():
@@ -795,6 +795,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     f"Marked the password of {user.get_username()} as compromised. {ended} {then}",
                 )
                 return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
+        if refused is None and open_mark(user.pk) is not None:
+            refused = ALREADY_MARKED  # drawn, not saved: the page offers no form for it
         context = {
             **self.admin_site.each_context(request),
             "title": f"Mark password as compromised: {user.get_username()}",
