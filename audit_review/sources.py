@@ -137,18 +137,16 @@ def action_choices(source):
 # ------------------------------------------------------------------------------ reading
 
 
-def now_marker():
-    """The moment of the current reading by the database's clock, in whole microseconds since
-    the epoch: what a first page is drawn as of."""
-    return to_marker(_database_now())
-
-
-def _database_now():
-    from django.db import connection
-
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT statement_timestamp()")
-        return cursor.fetchone()[0]
+def newest(source):
+    """What a first page of `source` is drawn as of (`upto`): for a list whose rows have ids given
+    out in the order they are written (access records, sign-in events, workspace uses), the newest
+    id now, or 0; for Changes, whose ids are random, the moment now, in whole microseconds since
+    the epoch, by the application's clock, which also times each change event. An id, not a time,
+    where there is one: a sign-out by a session limit is written with the earlier moment the limit
+    passed."""
+    if source == Source.CHANGES:
+        return to_marker(timezone.now())
+    return MODELS[source].objects.order_by("-pk").values_list("pk", flat=True).first() or 0
 
 
 def to_marker(moment):
@@ -160,10 +158,13 @@ def from_marker(marker):
 
 
 def rows_for(source, cleaned, upto):
-    """The records of `source` the filters `cleaned` (ReviewFilter.cleaned_data) select, written
-    up to the moment `upto` (a marker), newest first."""
+    """The records of `source` the filters `cleaned` (ReviewFilter.cleaned_data) select, as of
+    `upto` (newest), newest first."""
     model = MODELS[source]
-    records = model.objects.filter(occurred_at__lte=from_marker(upto))
+    if source == Source.CHANGES:
+        records = model.objects.filter(occurred_at__lte=from_marker(upto))
+    else:
+        records = model.objects.filter(pk__lte=upto)
     if person := cleaned.get("person"):
         records = records.filter(**{ACCOUNT[source]: person.pk})
     if action := cleaned.get("action"):

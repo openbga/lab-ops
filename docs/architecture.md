@@ -146,9 +146,12 @@ rows in one reading (`one_reading`, `reading_account`): an active staff account 
 role and the `review_audit_records` capability (`audit_review.permissions`; `has_capability` reads
 the grant on the account or a group). Each list (`audit_review.sources`) orders by
 `(-occurred_at, -pk)` over a new `-occurred_at` index per table (core 0010, accounts 0010) and is
-read up to `upto`, the reading's `statement_timestamp()` in microseconds, which the pager's and the
-export's links carry and the view clamps to now; as for Who opened it, a row whose write was under
-way in another request at that moment can still take a place in the later pages. The ticket and
+read as of `upto` (`sources.newest`), which the pager's and the export's links carry and the view
+clamps to what is newest now: the newest id for the tables whose ids follow the order rows are
+written (a sign-out by a session limit is written with the earlier moment the limit passed, so a
+time would let it into an earlier reading), and for `AuditEvent`, whose ids are random, the moment
+by the application's clock, which also times each event. As for Who opened it, a row whose write
+was under way in another request at that moment can still take a place in the later pages. The ticket and
 organization filters on Changes match `object_type` and `object_id` against subqueries of the
 ticket's parts (`TICKET_PARTS`) and the organization's records, cast to text. Rows are built from
 ids and codes: names as they stand now, never `before`, `after` or `reason`; access rows reuse

@@ -37,7 +37,7 @@ from .sources import (
     EXPORT_LIMIT,
     PAGE_SIZE,
     describe,
-    now_marker,
+    newest,
     rows_for,
 )
 
@@ -77,9 +77,10 @@ INTROS = {
 NOT_FILTERS = ("page", "upto")
 
 
-def _upto(request):
-    """The moment the reading is drawn as of: `upto` from the address, never later than now."""
-    now = now_marker()
+def _upto(request, source):
+    """What the reading is drawn as of (audit_review.sources.newest): `upto` from the address,
+    never beyond what is newest now."""
+    now = newest(source)
     upto = whole_number(request.GET.get("upto", ""), max_digits=19)
     return now if upto is None else min(upto, now)
 
@@ -121,7 +122,7 @@ def workspace(request, source):
         account = reading_account(request)
         require_reviewer(account)
         form = ReviewFilter(source, request.GET)
-        upto = _upto(request)
+        upto = _upto(request, source)
         chips = _chips(request, form)
         if form.is_valid():
             records = rows_for(source, form.cleaned_data, upto)
@@ -169,7 +170,7 @@ def export(request, source):
         account = reading_account(request)
         require_reviewer(account)
         form = ReviewFilter(source, request.GET)
-        upto = _upto(request)
+        upto = _upto(request, source)
         back = request.GET.copy()
         back["upto"] = str(upto)
         back_url = f"{reverse(ROUTES[source])}?{back.urlencode()}"

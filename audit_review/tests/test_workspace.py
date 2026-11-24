@@ -365,8 +365,10 @@ def test_an_upto_in_the_future_or_malformed_is_read_as_now(
     client.force_login(reviewer)
     for upto in ("9" * 18, "not-a-number", "-5", "1" * 40):
         assert len(rows_of(client.get(url("access", upto=upto)))) == 1, upto
+    assert rows_of(client.get(url("access", upto=0))) == []
     old = sources.to_marker(timezone.now() - timedelta(days=1))
-    assert rows_of(client.get(url("access", upto=old))) == []
+    event(agent, ticket)
+    assert rows_of(client.get(url("changes", upto=old))) == []
 
 
 def test_the_export_uses_the_reading_of_the_page_it_was_offered_on(
@@ -535,6 +537,28 @@ def test_a_page_of_more_rows_than_fit_keeps_a_query_budget(
     assert response.status_code == 200
     assert len(rows_of(response)) == sources.PAGE_SIZE
     assert len(queries) <= 40, [query["sql"][:120] for query in queries]
+
+
+def test_a_sign_out_written_later_with_an_earlier_time_stays_out_of_an_earlier_reading(
+    client, reviewer, make_user
+):
+    from datetime import timedelta as delta
+
+    person = make_user("limited", "technical")
+    SignInEvent.objects.create(user=person, kind="failed", factor="password")
+    client.force_login(reviewer)
+    first = client.get(url("sign-ins", person=person.pk))
+    upto = first.context["request"].GET["upto"]
+    SignInEvent.objects.create(
+        user=person,
+        kind="signed_out",
+        ending="inactivity",
+        occurred_at=timezone.now() - delta(hours=1),
+    )
+    again = client.get(url("sign-ins", person=person.pk, upto=upto))
+    assert [row.cells[0].text for row in rows_of(again)] == ["Sign-in failed"]
+    export = export_rows(client.get(first.context["export_url"]))
+    assert [line[3] for line in export[1:]] == ["Sign-in failed"]
 
 
 def test_markers_round_trip():
