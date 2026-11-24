@@ -180,6 +180,25 @@ def test_an_account_with_nothing_to_confirm_with_is_never_current(person):
     assert confirmation.current(request_for(http, person)) is False
 
 
+def test_an_error_report_leaves_out_what_was_typed(owner):
+    from allauth.core.context import request_context
+    from django.test import RequestFactory
+    from django.views.debug import SafeExceptionReporterFilter
+
+    from core.lab_profile_forms import SessionLimitsForm
+
+    request = RequestFactory().post(
+        "/", {"confirm_password": PASSWORD, "confirm_code": "123456", "reason": "Kept."}
+    )
+    request.user = owner
+    request.session = {}
+    with request_context(request):
+        SessionLimitsForm(request.POST)
+    shown = SafeExceptionReporterFilter().get_post_parameters(request)
+    assert shown["reason"] == "Kept."
+    assert PASSWORD not in str(dict(shown)) and "123456" not in str(dict(shown))
+
+
 # --- an account's page ---------------------------------------------------------------------------
 
 
@@ -469,6 +488,17 @@ def test_adding_a_role_asks(owner):
     assert not Group.objects.filter(name="Night shift").exists()
     assert http.post(url, {"name": "Night shift", "confirm_password": PASSWORD}).status_code == 302
     assert Group.objects.filter(name="Night shift").exists()
+
+
+def test_a_page_drawn_read_only_does_not_ask(owner):
+    """The scheduled jobs' account's page saves nothing, so it offers no confirmation either."""
+    from jobs.actor import system_account
+
+    http = http_for(owner)
+    page = http.get(reverse("admin:accounts_user_change", args=[system_account().pk]))
+    assert page.status_code == 200
+    html = page.content.decode()
+    assert "Confirm it is you" not in html and 'name="confirm_password"' not in html
 
 
 def test_ending_sessions_does_not_ask(owner, person):

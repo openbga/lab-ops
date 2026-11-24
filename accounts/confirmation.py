@@ -29,7 +29,8 @@ cannot make these changes until it sets a password.
 A password or code not accepted is written to the account's sign-in history as a failed
 re-authentication (accounts.adapter, accounts.signin_log), counts toward the failed sign-in
 limit, and refusals by that limit are recorded as for sign-in. Nothing typed is kept, logged or
-written to an audit event: the fields never count as a change of the form (has_changed).
+written to an audit event: the fields never count as a change of the form (has_changed), and
+the request marks them sensitive, so an error report leaves them out.
 """
 
 import time
@@ -155,6 +156,10 @@ class ConfirmIdentity:
         super().__init__(*args, **kwargs)
         request = context.request
         self.confirm_request = request
+        if request is not None and getattr(request, "sensitive_post_parameters", None) != "__ALL__":
+            # Never shown in an error report, as Django's sensitive_post_parameters marks them.
+            marked = getattr(request, "sensitive_post_parameters", None) or ()
+            request.sensitive_post_parameters = sorted({*marked, PASSWORD_FIELD, CODE_FIELD})
         self.confirmed_now = False
         self.confirm_refused = None
         self.confirming = not current(request)

@@ -1,6 +1,7 @@
 {% extends "admin/auth/user/add_form.html" %}
 {% comment %}
 Add an account (accounts.admin.AccountAdmin.add_form_template): Django's form, with Confirm it is
-you (accounts.confirmation) before the buttons while saving asks for it.
+you (accounts.confirmation) before the buttons while saving asks for it;
+not on a page drawn read only (the scheduled jobs' account), which saves nothing.
 {% endcomment %}
-{% block after_field_sets %}{{ block.super }}{% include "admin/includes/confirm_identity.html" with form=adminform.form %}{% endblock %}
+{% block after_field_sets %}{{ block.super }}{% if add and has_add_permission or change and has_change_permission %}{% include "admin/includes/confirm_identity.html" with form=adminform.form %}{% endif %}{% endblock %}
