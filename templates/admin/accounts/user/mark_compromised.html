@@ -39,7 +39,7 @@ Saving asks the superuser to confirm it is them (accounts.confirmation) unless t
 {% if second_factor %}<li>the account has an authenticator app, so the person signs in with their password and a code and must then choose a new password before anything else;</li>{% else %}<li>the account has no second factor, so its password alone no longer signs it in: {% if outbound_email_enabled %}the person chooses a new one through Forgot your password? on the sign-in page, {% if sign_in_codes %}or signs in with a code emailed to them and is asked for one there, {% endif %}or{% else %}this deployment sends no email, so{% endif %} you set one on the account's password page;</li>{% endif %}
 <li>refuses the marked password as the new one. Any new password lifts the mark.</li>
 </ul>
-<p>The person is not emailed: tell them yourself.</p>
+<p>{% if outbound_email_enabled %}The person is sent an email notice that their password was marked, with what to do next. Tell them yourself too.{% else %}This deployment sends no email, so the person is not told by email: tell them yourself.{% endif %}</p>
 <fieldset class="module aligned">
 <div class="form-row field-reason">
   {{ form.reason.errors }}

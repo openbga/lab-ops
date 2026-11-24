@@ -9,6 +9,7 @@ reveal and the person-key search are POST, and their responses are not cached.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,8 +17,10 @@ from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
+from accounts.acting import hold_actor
 from accounts.roles import require_staff
 from clients.models import Client
+from core import reveal_confirmation, reveal_confirmation_views
 from core.concurrency import reading_account
 from core.ids import whole_number
 from core.lists import list_response
@@ -418,15 +421,22 @@ def attachment_shown(request, pk):
 @login_required
 @require_POST
 def attachment_reveal(request, pk):
-    """The full key of a person-level link: an HTMX fragment, or a small page without JS."""
+    """The full key of a person-level link: an HTMX fragment, or a small page without JS. Where
+    the laboratory asks staff to confirm it is them before the first reveal in a session
+    (core.reveal_confirmation), a session that has not is sent to confirm first, decided in the
+    reveal's transaction before anything is read."""
     require_staff(request.user)
-    attachment = _attachment_for(request.user, pk)
-    if not attachment.is_person:
-        raise Http404
-    try:
-        link = reveal_person_key(actor=request.user, attachment_id=attachment.pk)
-    except ObjectDoesNotExist as error:  # removed, or no longer readable
-        raise Http404 from error
+    with transaction.atomic():
+        hold_actor(request.user)  # before the rule's lock (accounts.acting)
+        if not reveal_confirmation.may_reveal(request):
+            return reveal_confirmation_views.ask(request)
+        attachment = _attachment_for(request.user, pk)
+        if not attachment.is_person:
+            raise Http404
+        try:
+            link = reveal_person_key(actor=request.user, attachment_id=attachment.pk)
+        except ObjectDoesNotExist as error:  # removed, or no longer readable
+            raise Http404 from error
     context = {"link": link, "attachment": attachment, "back": _target_url(attachment)}
     template = (
         "links/_revealed_key.html" if request.headers.get("HX-Request") else "links/revealed.html"

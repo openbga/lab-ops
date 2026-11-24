@@ -4,8 +4,10 @@ factors (docs/safeguards.md).
 
 Which changes ask. Every save in account administration that changes an account (adding one,
 its page, its password page, marking its password as compromised, removing its authenticator) or
-a role (adding one or its page), and a change to the session limits or the second-factor rule on
-Security settings. Ending an account's sessions does not ask: it takes access away and stays quick
+a role (adding one or its page), and a change to the session limits, the second-factor rule or the
+confirmation before revealing patient information on Security settings; and, where the laboratory
+asks for it, the first reveal of patient information in a session (core.reveal_confirmation, on a
+page of its own). Ending an account's sessions does not ask: it takes access away and stays quick
 when a device is lost. Nor do the laboratory's contacts, its profile or its modules.
 
 How. Each form that makes such a change mixes in ConfirmIdentity. When it is built, it asks

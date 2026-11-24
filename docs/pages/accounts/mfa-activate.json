@@ -26,7 +26,8 @@
     "Reloading this page creates new setup details. Use the QR code shown now.",
     "It asks for your password again first unless you confirmed it in the last 5 minutes, even right after signing in.",
     "Keep the recovery codes somewhere private. They let you sign in if you lose the app.",
-    "An authenticator app does not change your laboratory roles."
+    "An authenticator app does not change your laboratory roles.",
+    "Where your laboratory sends email, you get an email when you do this, so you would notice if someone else did."
   ],
   "sections": [
     {
@@ -46,7 +47,7 @@
         },
         {
           "label": "Activate",
-          "description": "Validates the code and creates the TOTP authenticator. If recovery codes do not exist, creates ten eight-digit recovery codes automatically and opens that page; otherwise returns to the MFA overview."
+          "description": "Validates the code and creates the TOTP authenticator. If recovery codes do not exist, creates ten eight-digit recovery codes automatically and opens that page; otherwise returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). Adding an app sends one notice, which also says new recovery codes were issued with it."
         }
       ]
     },
@@ -64,6 +65,9 @@
     "templates/allauth/layouts/manage.html",
     "uv.lock",
     "accounts/enrolment.py",
-    "core/second_factor.py"
+    "core/second_factor.py",
+    "accounts/security_notices.py",
+    "accounts/mfa_views.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

@@ -80,7 +80,7 @@
         },
         {
           "label": "Key",
-          "description": "Person-level links only. It reads that the key is revealed only from a ticket, and recorded. Reveal key is on the ticket's Links section."
+          "description": "Person-level links only. It reads that the key is revealed only from a ticket, and recorded. Reveal key is on the ticket's Links section. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first."
         },
         {
           "label": "Created",

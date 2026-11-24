@@ -4,8 +4,8 @@
     "security-settings"
   ],
   "title": "Security settings",
-  "purpose": "See the laboratory's security and privacy contacts, set the session limits and who must have a second sign-in factor, and see what protects sign-in, sessions and patient information here, with who sets each part.",
-  "summary": "Your security and privacy contacts, the session limits and second sign-in factor rule you set, and what protects sign-in, sessions and patient information here. Only the admin role can open this page.",
+  "purpose": "See the laboratory's security and privacy contacts, set the session limits, who must have a second sign-in factor and whether staff confirm it is them before revealing patient information, and see what protects sign-in, sessions and patient information here, with who sets each part.",
+  "summary": "Your security and privacy contacts, the session limits and sign-in rules you set, and what protects sign-in, sessions and patient information here. Only the admin role can open this page.",
   "tasks": [
     {
       "title": "Record or change a contact",
@@ -29,6 +29,13 @@
       ]
     },
     {
+      "title": "Ask staff to confirm before revealing patient information",
+      "steps": [
+        "Under Revealing patient information select [[Edit]].",
+        "Tick [[Confirm it is you before the first reveal in a session]], explain why in [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
       "title": "Find out who sets a protection",
       "steps": [
         "Find the setting in its group (Sign-in, Sessions, Patient information or Connection) and read [[Set by]].",
@@ -37,7 +44,7 @@
     }
   ],
   "good_to_know": [
-    "You change the contacts, the session limits and the second-factor rule here, each with a reason; the limits and the rule also ask you to confirm it is you. Other values change where Set by says.",
+    "You change the contacts, the session limits, the second-factor rule and the confirmation before revealing here, each with a reason; all but the contacts ask you to confirm it is you.",
     "A shorter limit applies from each session's next request: a session already idle longer is signed out then.",
     "A second-factor rule applies at each account's next sign-in; sessions it did not cover at sign-in are not interrupted.",
     "Values are read from the running application each time the page opens. The page does not rate the deployment or say whether it meets any rule.",
@@ -113,11 +120,24 @@
       ]
     },
     {
+      "title": "Revealing patient information",
+      "paragraphs": [
+        "Whether staff confirm it is them before the first reveal of patient information in each session, as the setting stands when the page opens. Nothing is asked until it is first saved. Edit opens its form; after saving or cancelling you return to this page. Saving it asks you to confirm it is you, as for the session limits.",
+        "When it is asked, the first Reveal of a patient-information value or Reveal key of a person-level link in a browser session sends the person to Confirm it is you (their password, and a code from their authenticator app or a recovery code where they have one) before anything is shown. Later reveals in that session are not asked. A confirmation they gave in that session in the last 5 minutes for another change counts; signing in does not. It is not asked before a search by a person-level key or for what client portal accounts see. Each reveal is recorded either way."
+      ],
+      "items": [
+        {
+          "label": "Confirm it is you before the first reveal in a session",
+          "description": "Asked once in each session, or Not asked."
+        }
+      ]
+    },
+    {
       "title": "Groups of settings",
       "paragraphs": [
-        "Sign-in: how accounts are created, the password rule (15 characters, or 8 for accounts the second-factor rule covers, which it names as the rule stands now), the second sign-in factor (Optional, or whom the rule above requires it of) with the number of active staff and client portal accounts that have one, what changing the second factor asks for, what Changing access and security settings asks for (the person's password, and their second factor where they have one, again before saving a change to an account or a role in the admin console, or to the session limits or the second-factor rule here, unless they gave them in that browser in the last 5 minutes; ending an account's sessions does not ask), the limit on failed sign-ins (counted in the database, so every server process counts the same attempts), sign-in with an emailed code, where sign-ins are recorded, and the sign-in history the database keeps for each account (what it holds, that no entry can be changed or deleted, and that each person reads only their own).",
+        "Sign-in: how accounts are created, the password rule (15 characters, or 8 for accounts the second-factor rule covers, which it names as the rule stands now), the second sign-in factor (Optional, or whom the rule above requires it of) with the number of active staff and client portal accounts that have one, what changing the second factor asks for, what Changing access and security settings asks for (the person's password, and their second factor where they have one, again before saving a change to an account or a role in the admin console, or to the session limits, the second-factor rule or the confirmation before revealing patient information here, unless they gave them in that browser in the last 5 minutes; ending an account's sessions does not ask), the limit on failed sign-ins (counted in the database, so every server process counts the same attempts), sign-in with an emailed code, where sign-ins are recorded, and the sign-in history the database keeps for each account (what it holds, that no entry can be changed or deleted, and that each person reads only their own).",
         "Sessions: sign-out after a period without activity and the longest session (both from Session limits above), what closing the browser does, what deactivating an account and setting a new password do to its sessions, that each person sees where they are signed in and signs out the others (with where the recorded address comes from behind a proxy), that a superuser ends a person's sessions from the admin console with a reason, what marking a password as compromised does and who marks one, that the browser keeps no copy of the pages, and how the session cookie is sent.",
-        "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
+        "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, Confirmation before a reveal (from Revealing patient information above: Asked once in each session or Not asked, with what it asks), how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
       ],
       "items": [
@@ -131,7 +151,7 @@
         },
         {
           "label": "Set by",
-          "description": "Where the value is changed. Session limits, above, and Second sign-in factor, above: you change it on this page. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
+          "description": "Where the value is changed. Session limits, above, Second sign-in factor, above, and Revealing patient information, above: you change it on this page. This release: behaviour written into the application, changed only by a new release. Application configuration: a value in the application's configuration: config/settings.py and config/logging.py in this release, or another settings module a deployment loads instead. Deployment setting: whoever runs the deployment changes it; the environment variable is named under it. Each person: every person decides for their own account. Accounts & roles: a superuser grants it in the administration. Ticket forms: the admin role marks fields on the ticket form setup pages. Not available yet: the application has no such setting."
         },
         {
           "label": "Details",
@@ -144,7 +164,7 @@
       "items": [
         {
           "label": "History",
-          "description": "The newest 20 changes to the security contact, the privacy contact, the session limits and the second sign-in factor rule, shown oldest first: Lab contact changed, with the contact it changed and the name before and after; Lab session limits changed, with the accounts they apply to and each value before and after; or Lab second factor rule changed, with whom it requires a second factor of and whom it did before; then the reason given, the time and the administrator who made it. The laboratory profile's history lists the contact changes too."
+          "description": "The newest 20 changes to the security contact, the privacy contact, the session limits, the second sign-in factor rule and the confirmation before revealing patient information, shown oldest first: Lab contact changed, with the contact it changed and the name before and after; Lab session limits changed, with the accounts they apply to and each value before and after; Lab second factor rule changed, with whom it requires a second factor of and whom it did before; or Lab reveal confirmation changed, with whether the confirmation is asked once in each session or not asked, and what it was before; then the reason given, the time and the administrator who made it. The laboratory profile's history lists the contact changes too."
         }
       ]
     }
@@ -169,6 +189,9 @@
     "core/second_factor.py",
     "templates/core/_second_factor_panel.html",
     "tests/test_second_factor_rule.py",
-    "accounts/confirmation.py"
+    "accounts/confirmation.py",
+    "core/reveal_confirmation.py",
+    "templates/core/_reveal_confirmation_panel.html",
+    "tests/test_reveal_confirmation_rule.py"
   ]
 }

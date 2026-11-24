@@ -145,7 +145,7 @@
         },
         {
           "label": "Reveal key",
-          "description": "Person-level links, for holders of the permission. A POST that replaces the button with the full key. Person-level links have no address: open the person in the source system yourself. A removed person link cannot be revealed. Every reveal is recorded in the audit history, and the key is never in the page until then. The key is hidden again as soon as you leave the page, and it does not come back with Back or Forward: reveal it again, which is recorded again."
+          "description": "Person-level links, for holders of the permission. A POST that replaces the button with the full key. Person-level links have no address: open the person in the source system yourself. A removed person link cannot be revealed. Every reveal is recorded in the audit history, and the key is never in the page until then. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. The key is hidden again as soon as you leave the page, and it does not come back with Back or Forward: reveal it again, which is recorded again."
         },
         {
           "label": "Show to client / Hide from client",

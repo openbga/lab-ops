@@ -1,0 +1,25 @@
+{% load ui %}{% comment %}
+The "Revealing patient information" panel on Security settings (the admin role): whether the
+laboratory asks staff to confirm it is them before the first reveal of patient information in a
+session, as the rule stands when the page is read (core.reveal_confirmation; a rule never saved
+asks nothing). Context: reveal_rule (core.models.RevealConfirmationRule), can_edit_reveal_rule
+(the admin role: Edit opens core/reveal_confirmation_form.html in the form dialog).
+{% endcomment %}
+{% panel title="Revealing patient information" heading_id="reveal-confirmation-heading" table=True flush=True class="mb-3" %}
+  {% fill actions %}{% if can_edit_reveal_rule %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'reveal-confirmation-edit' %}">Edit<span class="visually-hidden"> confirmation before revealing patient information</span></a>{% endif %}{% endfill %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="reveal-confirmation-heading">
+      <thead><tr>
+        <th scope="col">Setting</th>
+        <th scope="col">In force</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row" class="vr-wrap">Confirm it is you before the first reveal in a session</th>
+          <td class="vr-wrap">{% if reveal_rule.first_reveal %}{% status label="Asked once in each session" tone="info" plain=True %}{% else %}<span class="vr-muted">Not asked</span>{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% fill footer %}<p class="vr-muted small mb-0">When it is asked, staff who can view patient information give their password, and a code from their authenticator app or a recovery code where they have one, before they first reveal a patient-information value or a person-level key after signing in. Each reveal is recorded either way. Only the admin role changes this, with a reason.</p>{% endfill %}
+{% endpanel %}

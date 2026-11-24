@@ -18,6 +18,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   </details>
 
+- **Added:** Confirm it is you before revealing patient information (2026-11-24, Security settings)
+
+  Administrators can ask staff to give their password, and a code from their authenticator app or a recovery code if they have one, before their first reveal of patient information in each session.
+
+  <details><summary>Technical notes</summary>
+
+  Migration `core` 0008 adds the `RevealConfirmationRule` table. Its one row is written only when an administrator first saves the setting on Security settings, so an upgraded or new database asks nothing until then. When it is on, the first Reveal of a patient-information value or Reveal key of a person-level link in a browser session goes to the new Confirm it is you page (`/account/confirm-reveal/`); nothing is read, revealed or recorded until the person confirms, and they then choose Reveal again. The confirmation is kept in the session under `_reveal_confirmed` (the account's id), which Django clears at sign-out and at every sign-in, so it lasts until the session ends. A confirmation given in that session within `ACCOUNT_REAUTHENTICATION_TIMEOUT` (5 minutes) for another change, or on allauth's own re-authentication pages with every factor the account has, counts and is remembered for the session; the sign-in does not. Failed confirmations are written to the sign-in history and count toward the failed sign-in limit. Staff without the patient-information permission who post to a reveal address are asked first, then refused as before (404). Not asked before a person-level key search or for what client portal accounts see. Changes to the setting need a reason and the person's confirmation, and are recorded as `lab.reveal_confirmation_changed` in the Security settings history.
+
+  </details>
+
 - **Changed:** Longer passwords, checked against common and expected ones (2026-11-23, Security settings)
 
   New passwords need 15 characters, or 8 where a second sign-in factor is required; each password form says which, and common or predictable ones are refused.
@@ -129,6 +139,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   </details>
 
 ### Medium impact
+
+- **Added:** Email notices when your sign-in factors change (2026-11-24)
+
+  You are emailed when your authenticator app or recovery codes change, or a superuser marks your password as compromised, so you notice a change you did not make.
+
+  <details><summary>Technical notes</summary>
+
+  No migration and no new setting. The notices go through the existing outbox under the topic `accounts.security` and are retried by `run_scheduled_jobs`; with email off, as on the public demonstration, they are recorded as Not sent. They are sent when a superuser marks a password as compromised or removes an authenticator app or recovery codes in the admin console, and when the person adds an authenticator app (one notice, which also says new recovery codes were issued), generates new recovery codes or removes the app on their own two-factor pages. Each names the laboratory, the username, what changed and when (UTC), and the laboratory's security contact from its profile (or "your laboratory's administrator"), with no code, secret, network address, browser or ticket content, and links only to the site's address. They are sent whatever the person chose on Email notices, and not when the account is inactive or has no email address when sent. A password changed by the person or set by a superuser, and an email address change, send no notice. allauth's three two-factor pages that change factors (`mfa_activate_totp`, `mfa_generate_recovery_codes`, `mfa_deactivate_totp`) are now served by `accounts.mfa_views` at the same paths and URL names, included before allauth's URLs; they run allauth's own flow in one transaction that locks the account and also records `account.authenticator_added`, `account.recovery_codes_replaced` or `account.authenticator_removed` audit events with factor ids, types and times only. allauth's own `ACCOUNT_EMAIL_NOTIFICATIONS` is left at its default, off. Scheduled jobs lists a failed or retrying one as an Account notice without saying whose account it is.
+
+  </details>
 
 - **Security:** Failed sign-ins count the same in every server process (2026-11-23, Security settings)
 

@@ -56,6 +56,7 @@ JOBS_BY_NAME = {job.name: job for job in JOBS}
 NOTICE_TOPICS = {
     "desk.request": "desk.notifications.prepare_request_notice",
     "desk.breach": "desk.notifications.prepare_breach_notice",
+    "accounts.security": "accounts.security_notices.prepare_security_notice",
 }
 
 

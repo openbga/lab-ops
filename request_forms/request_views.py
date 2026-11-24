@@ -6,6 +6,7 @@ offered only with `view_patient_information`; request_forms.services checks it a
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -13,7 +14,9 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
+from accounts.acting import hold_actor
 from accounts.roles import require_staff
+from core import reveal_confirmation, reveal_confirmation_views
 from desk.models import ServiceRequest, Status
 from desk.selectors import staff_requests
 
@@ -155,10 +158,17 @@ def edit_values(request, number):
 @require_POST
 def reveal_value(request, pk):
     """One patient-information value: an HTMX fragment, or a small page without JavaScript.
-    Staff holding view_patient_information, on a request they may read; audited; not cached."""
+    Staff holding view_patient_information, on a request they may read; audited; not cached.
+    Where the laboratory asks staff to confirm it is them before the first reveal in a session
+    (core.reveal_confirmation), a session that has not is sent to confirm first, decided in the
+    reveal's transaction before anything is read."""
     require_staff(request.user)
     try:
-        row = services_reveal_value(actor=request.user, value_id=pk)
+        with transaction.atomic():
+            hold_actor(request.user)  # before the rule's lock (accounts.acting)
+            if not reveal_confirmation.may_reveal(request):
+                return reveal_confirmation_views.ask(request)
+            row = services_reveal_value(actor=request.user, value_id=pk)
     except FieldValue.DoesNotExist:
         raise Http404("No such value.") from None
     service_request = row.filled_form.request

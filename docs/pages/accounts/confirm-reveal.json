@@ -1,0 +1,105 @@
+{
+  "id": "accounts-confirm-reveal",
+  "routes": [
+    "account-confirm-reveal"
+  ],
+  "title": "Confirm it is you",
+  "purpose": "Confirm it is you before your first reveal of patient information in a session, where your laboratory asks for it.",
+  "summary": "Your laboratory asks you to confirm it is you before your first reveal of patient information in a session. Confirm once, then reveal as usual until you sign out.",
+  "tasks": [
+    {
+      "title": "Confirm and reveal",
+      "steps": [
+        "Type [[Your password]], and a code in [[Authenticator or recovery code]] if it asks for one.",
+        "Select [[Confirm]]. You return to the page you were on.",
+        "Select [[Reveal]] or [[Reveal key]] again. Nothing was revealed before you confirmed."
+      ]
+    },
+    {
+      "title": "Go back without confirming",
+      "steps": [
+        "Select [[Cancel]]. You return to the page you were on and nothing is revealed."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "You confirm once per session. Later reveals are not asked until you sign out, sign in again or your session ends.",
+    "Each reveal is still recorded with your name and the time, whether or not you were asked.",
+    "If you confirmed for another change in the last 5 minutes, your first reveal is not asked. Signing in does not count.",
+    "A password or code not accepted is listed in your Sign-in history as Re-authentication failed and counts toward the failed sign-in limit.",
+    "Without a password or an authenticator app you cannot confirm, so you cannot reveal while your laboratory asks for this."
+  ],
+  "sections": [
+    {
+      "title": "When this page appears",
+      "paragraphs": [
+        "Your laboratory can ask staff to confirm it is them before the first reveal of patient information in each browser session (Security settings, Revealing patient information). When it does, your first Reveal of a patient-information value on a ticket's form details, or Reveal key of a person-level link on a ticket's Links section, brings you here instead of showing the value. Nothing is read, revealed or recorded by that first select.",
+        "It is not asked before a search by a person-level key, and client portal accounts are never asked: what they may see is shown without a reveal.",
+        "Only staff accounts may open this page; a client portal account is refused. When your laboratory does not ask, or this session has already confirmed, the page sends you straight back to the page you came from.",
+        "Staff without the Can view patient information permission who send a reveal are brought here too, so the answer says nothing about the value. After confirming, their reveal is refused as not found and nothing is recorded."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Your password",
+          "description": "Shown when your account has a password: your own current password. The help under it says what is asked and that you are not asked again before a reveal until you sign out or your session ends. Left empty: Enter your password to confirm it is you. Not accepted: Incorrect password. Accepted, but the code is not: enter your password again with the code (the page does not keep it)."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to confirm it is you. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
+          "label": "Confirm",
+          "description": "Checks what you typed. Accepted: this session is marked as confirmed for reveals, you return to the page you were on with Confirmed. You can reveal patient information until this session ends., and you select Reveal or Reveal key again to see the value. The reveal is not made for you."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the page you were on without confirming. Nothing is revealed."
+        }
+      ]
+    },
+    {
+      "title": "How long it lasts",
+      "paragraphs": [
+        "The confirmation lasts for this browser session: until you select Sign out, sign in again, a session limit signs you out, a new password is set for your account by someone else, or your account is deactivated. It belongs to your account; another account signed in on the same browser is asked for its own.",
+        "A confirmation given in this session within the last 5 minutes for another change that asks (on Security settings, in account administration, on Confirm your password, or with a code before a change to your own two-factor settings), covering every factor your account has, counts too, and is then remembered for reveals for the rest of the session. Signing in does not count.",
+        "The page you return to is the page the reveal was sent from, when it is on this site; otherwise you go to the dashboard."
+      ]
+    },
+    {
+      "title": "Refusals",
+      "paragraphs": [
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type is never stored, logged or put in an audit event."
+      ],
+      "items": [
+        {
+          "label": "Your account has no password to confirm it is you, so you cannot reveal patient information while your laboratory asks for this. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. No fields or Confirm button are shown. Set a password from Change password in the account menu, then reveal again."
+        },
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/reveal_confirmation.py",
+    "core/reveal_confirmation_views.py",
+    "core/lab_profile_forms.py",
+    "templates/core/confirm_before_reveal.html",
+    "accounts/confirmation.py",
+    "request_forms/request_views.py",
+    "links/views.py",
+    "request_forms/tests/test_reveal_confirmation.py",
+    "links/tests/test_person_links.py",
+    "e2e/test_reveal_confirmation.py"
+  ]
+}

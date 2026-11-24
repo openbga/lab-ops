@@ -263,7 +263,9 @@ def notice(ticket, recipient, **extra):
 
 
 def test_event_labels_cover_every_notice_event():
-    assert set(views.EVENT_LABELS) == set(PHRASES)
+    from accounts.security_notices import PRECEDENCE
+
+    assert set(views.EVENT_LABELS) == set(PHRASES) | set(PRECEDENCE)
 
 
 def test_nothing_needs_attention_is_an_empty_state(signed_in):
@@ -323,3 +325,27 @@ def test_counts_and_email_off(signed_in, settings, ticket, agent):
     assert "Email is off on this deployment. Notices are recorded but not sent." in text
     settings.EMAIL_BACKEND = LOCMEM
     assert "Email is off" not in page_text(signed_in.get(reverse(OVERVIEW)))
+
+
+def test_a_notice_about_sign_in_factors_names_no_ticket_and_no_account(signed_in, agent):
+    """A failed notice to a person about their own sign-in factors (accounts.security_notices) is
+    listed as an account notice, without a ticket link and without whose account it was."""
+    agent.first_name, agent.last_name = "Casey", "Agent"
+    agent.save()
+    Notice.objects.create(
+        recipient=agent,
+        topic="accounts.security",
+        object_id=agent.pk,
+        reference="Account",
+        events=["authenticator_added"],
+        data={"by": "self"},
+        status=NoticeStatus.FAILED,
+        attempts=8,
+        last_error="OSError",
+        next_attempt_at=timezone.now(),
+    )
+    response = signed_in.get(reverse(OVERVIEW))
+    text = page_text(response)
+    assert "Account notice" in text and "Authenticator added" in text
+    assert "Not available to you" not in text
+    assert "Casey Agent" not in text and agent.username not in text

@@ -22,8 +22,8 @@
     }
   ],
   "good_to_know": [
-    "Notices are on until you turn them off.",
-    "A notice names only the ticket number, what happened and the laboratory. Sign in to read the ticket.",
+    "Ticket notices are on until you turn them off. Notices about changes to how your account signs in are always sent.",
+    "A ticket notice names only the ticket number, what happened and the laboratory. Sign in to read the ticket.",
     "Service target notices go to the ticket's assignee and its team's leads. When a ticket has neither, every member of the team is told.",
     "When outgoing email is off, the page tells you. You can still save your preference for when delivery is enabled.",
     "This page is for laboratory staff. Client portal accounts always receive their notices and cannot open it."
@@ -48,6 +48,14 @@
         "Notices are recorded with the change that causes them and sent after it is saved; a failed send never undoes the change. A notice the mail server does not accept is retried by the scheduled jobs and marked failed after the eighth attempt. Before each attempt the application checks again that the notice still applies and that you can still read the ticket. Service target notices are sent only when the scheduled jobs run.",
         "The notice carries a link to the sign-in page, which then opens the ticket. It never contains the subject, messages, organization, site, contact, category or any identifier."
       ]
+    },
+    {
+      "title": "Notices about your sign-in factors",
+      "paragraphs": [
+        "These are not ticket notices, and this setting does not turn them off. Where the deployment sends email, you are emailed when a superuser marks your password as compromised or removes your authenticator app or recovery codes, and when an authenticator app is added to your account (one notice, which says new recovery codes were issued with it), new recovery codes are issued (earlier ones no longer work) or your authenticator app is removed with its recovery codes on your own two-factor pages.",
+        "The notice names the laboratory, your username, what changed and when (in UTC), and says an administrator made the change where one did. It tells you whom to contact if you did not make or expect the change: the laboratory's security contact as recorded on its profile, with an email address and phone number where recorded, or your laboratory's administrator when none is recorded. After a compromised mark it also says what to do next. It holds no code, secret, network address, browser or ticket content, and its only link is the site's address.",
+        "It is not sent when your account is inactive or has no email address when it is sent, or when email is off on the deployment. A password you change yourself or one a superuser sets for you, and a change of email address, send no notice."
+      ]
     }
   ],
   "sources": [
@@ -58,6 +66,9 @@
     "core/preferences.py",
     "core/context_processors.py",
     "jobs/outbox.py",
-    "service_levels/jobs.py"
+    "service_levels/jobs.py",
+    "accounts/security_notices.py",
+    "accounts/mfa_views.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

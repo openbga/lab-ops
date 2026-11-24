@@ -17,7 +17,7 @@ rules:
   that organization chosen (Django admin takes initial values from the query string).
 - The identity library's own admin pages are replaced. Authenticator secrets and recovery
   codes are never shown or filterable; a superuser may only remove a lost authenticator, which
-  is audited.
+  is audited and emailed to the account (accounts.security_notices).
   Authentication email addresses are read only here.
 - An account's page shows how many of its sessions are open, and End sessions ends them all with
   a reason (accounts.session_list.end_account_sessions), audited. Their browsers and addresses
@@ -1059,6 +1059,10 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
         return self.render_delete_form(request, context)
 
     def delete_model(self, request, obj):
+        """Remove it, audited, and record the email notice to the account
+        (accounts.security_notices), in the delete view's transaction."""
+        from . import security_notices
+
         user = obj.user
         before = {
             "authenticator_id": obj.pk,
@@ -1073,6 +1077,9 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
             obj=user,
             before=before,
             reason="Django admin; authenticator secret not recorded",
+        )
+        security_notices.record(
+            user, [security_notices.REMOVED], by="administrator", types=[obj.type]
         )
 
 

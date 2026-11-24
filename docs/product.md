@@ -81,7 +81,9 @@ eligible client answers from a ticket the account may read. Dates, times, confir
 patient information must be entered again.
 
 A laboratory can mark a form field as holding patient information. Staff need an explicit
-grant to enter, reveal or correct it. A reveal is audited. A portal account may see a
+grant to enter, reveal or correct it. A reveal is audited. Where the laboratory turns it on, the
+first reveal in a session also asks the person to confirm it is them (Security settings and
+contacts, below). A portal account may see a
 patient-marked value if it may read the ticket and the field was, and still is, visible to
 clients. Enable those fields only when that audience should see the information.
 
@@ -206,6 +208,23 @@ Notices use the ticket number, a fixed event description, the laboratory's name 
 link. Conversation text and attachments stay in the application. Staff may disable their own
 notices. The demonstration disables email.
 
+The account holder also gets an email notice about a change to how their account signs in: when a
+superuser marks their password as compromised, or removes their authenticator app or recovery
+codes in the admin console, and when an authenticator app is added (one notice, which says new
+recovery codes were issued with it), new recovery codes are issued (earlier ones stop working) or
+the app is removed with its recovery codes on the person's own two-factor pages. The notice names
+the laboratory, the account's username, what changed and when (in UTC), and says "an
+administrator" where a superuser made the change. It tells the person to contact the laboratory's
+security contact, with the name, email address and phone number on the profile when the notice is
+sent, or "your laboratory's administrator" when none is recorded, if they did not make or expect
+the change. After a compromised mark it also says what to do next: sign in with the second factor
+and choose a new password, or use Forgot your password? (or an emailed sign-in code, where offered)
+without one, or that a new password has been chosen since. It carries no code, secret, network
+address, browser or ticket content, and its only link is the site's address. These notices are
+sent whatever the person chose under Email notices, and are not sent to an inactive account or one
+without an email address when the notice is sent. A password changed by the person or set by a
+superuser, and a change of email address, send no notice.
+
 Each notice is recorded with the change that raised it and sent once that change is saved. A
 notice the mail server does not accept is retried by the scheduled jobs, after 5, 15 and 30
 minutes and then 1, 2, 4 and 8 hours, and marked failed after the eighth attempt. Before every
@@ -213,7 +232,9 @@ attempt the application checks again that the recipient may still read the ticke
 event still applies: a reply not withdrawn, the ticket still waiting on the client or still
 resolved, the person still the assignee or still responsible for a passed target. It holds what
 that check read until the notice is sent, so a change made meanwhile waits for it; a notice whose
-ticket or recipient is being changed at that moment is tried again a minute later. With email off
+ticket or recipient is being changed at that moment is tried again a minute later. A notice about
+sign-in factors is checked against the account instead: it still exists, is active and has an
+email address. With email off
 when a change is saved, its notices are recorded as not sent and are never sent later.
 
 ### Scheduled jobs
@@ -223,7 +244,8 @@ retries notices, sends service target notices, closes resolved tickets after the
 period and removes typing kept across a sign-out once its 24 hours have passed. Without a scheduler, notices are still sent right after each change, but nothing is
 retried, no target notice is sent and nothing closes automatically. The Scheduled jobs page shows
 administrators when each job last ran, warns when no run happened in the last 30 minutes, and
-lists notices that failed or wait to be retried. Changes the jobs make are recorded under a
+lists notices that failed or wait to be retried; a notice about a person's sign-in factors is
+listed as an Account notice, without saying whose account it is. Changes the jobs make are recorded under a
 "Scheduled jobs" account that cannot sign in. The demonstration has no scheduler.
 
 ## Security settings and contacts
@@ -232,13 +254,15 @@ The laboratory profile records the laboratory's security contact and privacy con
 office, a title, an email address and a phone number. Every staff member reads them on the
 profile. An administrator records, changes or clears a contact with a reason, and the change is
 kept in the profile's history with the details before and after. The application designates no
-one and checks nothing against a contact.
+one and checks nothing against a contact. Email notices about a person's sign-in factors name the
+security contact as whom to contact.
 
 The Security settings page, for administrators, lists what protects sign-in, sessions and patient
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
 It shows the password rule, the failed sign-in limit, sign-in with an emailed code, what changing
 access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information,
+whether staff confirm it is them before the first reveal of patient information in a session,
 how many active staff and portal accounts have a second factor, how many form fields hold patient
 information, and the HTTPS and content security policy settings. It describes this release's
 configuration and follows the deployment settings read from the environment; where a deployment
@@ -312,7 +336,8 @@ factor gets a new password through Forgot your password?, where the deployment s
 a superuser on its password page. Any new password lifts the mark, and the marked password is
 refused as a new one, then and later. Superusers cannot mark their own password, a shared
 demonstration account's or that of an account without a password, and a password changed after the
-marking page was opened is not marked. The person is not emailed; the superuser tells them. Each
+marking page was opened is not marked. Where the deployment sends email, the person is emailed
+that their password was marked and what to do next (Notifications, above). Each
 mark is kept, with who made it, when, the reason and when it was lifted, and is recorded in the
 audit history without the password.
 
@@ -352,8 +377,8 @@ Before a change to access or security settings, the application asks the person 
 confirm it is them: their password, and a code from their authenticator app or a recovery code
 where their account has one (an account without a password gives the code alone). In the admin console it asks a superuser who adds an account or saves
 an account's page, its password page or Mark as compromised, removes an authenticator, or adds or
-saves a role; on Security settings it asks an administrator who saves the session limits or the
-second-factor rule. Once they have confirmed, they are not asked again in that browser for 5
+saves a role; on Security settings it asks an administrator who saves the session limits, the
+second-factor rule or the confirmation before revealing patient information. Once they have confirmed, they are not asked again in that browser for 5
 minutes, unless their password or authenticator app changes meanwhile; signing in does not count,
 and each factor given on a page of its own counts for 5 minutes from when it was given. Without the confirmation nothing is saved and no change is
 recorded, and what else they typed, new passwords aside, stays on the form. A password or code not accepted is kept in
@@ -364,6 +389,22 @@ laboratory's profile, contacts, logo, certificates, modules, retention statement
 A person's own Change password asks for the current password instead, and their own two-factor
 pages ask with their own confirmation, which counts here when it covers every factor the account
 has.
+
+Administrators can also ask staff to confirm it is them before the first reveal of patient
+information in a session. It is off until an administrator turns it on, on Security settings, with
+a reason, and each change is kept in the page's history. When it is on, the first Reveal of a
+patient-marked answer or Reveal key of a person-level link in a browser session takes the person
+to Confirm it is you, with the same password and code as above; nothing is read, revealed or
+recorded until they confirm. They then return to the page they were on and choose Reveal again.
+Later reveals in that session are not asked until it ends: Sign out, a new sign-in, a session limit,
+a new password set for the account or a deactivation. A confirmation given in that session in the
+last 5 minutes for another change counts; the sign-in does not. Failed confirmations are kept in
+Sign-in history and count toward the failed sign-in limit, and an account with neither a password
+nor an authenticator cannot reveal while it is on. Staff without the patient-information grant who
+send a reveal are asked first too, then refused, so the answer says nothing about the value. It is
+not asked before a search by a person-level key, or for what a client portal account sees, which is
+shown without a reveal. Each reveal is recorded whether or not it is asked. No rule the
+application follows requires this confirmation; it is the laboratory's choice.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
