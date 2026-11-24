@@ -155,7 +155,7 @@
       "title": "Who can open it",
       "paragraphs": [
         "Only client portal accounts. Staff accounts are refused. A form that is inactive, not offered to clients, or in a category clients may not raise is not found, as is a form name that does not exist. Answers you give stay with the ticket: later changes to the form never change what you sent.",
-        "Opened with Request again from one of your tickets, the form is filled with those of that ticket's answers, and its site, that the laboratory lets be copied. When something is copied, the laboratory keeps a record that your form was filled from that ticket (with your account and the time, never the answers), which its supervisors can read; when nothing can be copied, the form opens empty and nothing is recorded. Typing put back after you were signed out takes the place of a copied answer; the record still names the ticket."
+        "Opened with Request again from one of your tickets, the form can be filled with some of that ticket's answers and its site. When anything is copied, the laboratory keeps a record that your form was filled from that ticket (with your account and the time, never the answers), which its supervisors can read. Typing put back after you were signed out takes the place of what was copied."
       ]
     }
   ],
