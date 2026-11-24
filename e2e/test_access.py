@@ -113,11 +113,15 @@ def test_role_menu_on_desktop_and_mobile(page: Page, sign_in_as, request, viewpo
     expect(nav).to_be_visible()
     for label in absent:
         expect(nav.get_by_role("link", name=label, exact=True)).to_have_count(0)
+    # The demonstration supervisor also holds "Can review access and audit records" (desk.story):
+    # Audit review, under Oversight, for that account only.
+    reviews = role == "supervisor"
     expect(nav.locator(".vr-nav-heading")).to_have_text(
-        ["Service desk", "Clients", "Quality", "Setup"]
+        ["Service desk", "Clients", "Quality", *(["Oversight"] if reviews else []), "Setup"]
     )
     for label in STAFF_ITEMS + (ADMIN_ONLY if role == "admin" else []):
         expect(nav.get_by_role("link", name=label, exact=True)).to_be_visible()
+    expect(nav.get_by_role("link", name="Audit review", exact=True)).to_have_count(int(reviews))
     destination = "Client organizations"
     link = nav.get_by_role("link", name=destination, exact=True)
     # Keyboard activation works in the responsive menu as well as the desktop rail.
