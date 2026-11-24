@@ -837,6 +837,8 @@ def test_migration_preserves_existing_open_and_ended_sessions():
 
     after = list(AccountSession.objects.filter(user=account).order_by("id").values())
     assert [row.pop("second_factor_required") for row in after] == [False, False]
+    # Accounts 0009 added the sign-in's factor, unknown for these rows.
+    assert [row.pop("factor") for row in after] == ["", ""]
     assert after == before
     assert browser.get(reverse("account-session")).json()["signed_in"] is True
     assert AccountSession.objects.get(pk=ended.pk).ending == AccountSession.Ending.INACTIVITY

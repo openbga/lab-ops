@@ -172,7 +172,8 @@ what protects sign-in, sessions and patient information and who sets each item, 
 administrator sets after how long without activity, and after how long at most, staff and client
 portal sessions are signed out. Pages warn before signing out and offer Stay signed in. Each
 person sees where their account is signed in, from the account menu, and signs out the sessions
-they do not recognize; a superuser ends a person's sessions from the admin console, with a reason,
+they do not recognize; Sign-in history, also in the account menu, lists their own recent sign-ins,
+sign-outs and failed attempts. A superuser ends a person's sessions from the admin console, with a reason,
 and marks a password someone else may know as compromised, which ends its sessions and makes the
 person choose a new one.
 Administrators can publish announcements for staff, clients or the sign-in page. Anyone visiting

@@ -58,7 +58,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 
 from .forms import PasswordGuidance
-from .models import AccountSession, CompromisedPassword, User
+from .models import AccountSession, CompromisedPassword, SignInFactor, User
 
 ACTION = "account.password_marked_compromised"
 CHANGED_ACTION = "account.password_changed"
@@ -205,23 +205,61 @@ def mark_compromised(*, actor, account_id, reason, drawn):
         return Marked(mark, ended, has_second_factor(account))
 
 
+# What a sign-in proved that is more than the password: an emailed code, or a second factor after
+# the password (accounts.models.SignInFactor; not SECOND_FACTOR, which names a failed step).
+BEYOND_PASSWORD = frozenset(
+    {
+        SignInFactor.PASSWORD_AUTHENTICATOR,
+        SignInFactor.PASSWORD_RECOVERY_CODE,
+        SignInFactor.CODE,
+        SignInFactor.CODE_AUTHENTICATOR,
+        SignInFactor.CODE_RECOVERY_CODE,
+    }
+)
+
+
+def beyond_password(factor):
+    """Whether a sign-in that proved `factor` proved more than the password."""
+    return factor in BEYOND_PASSWORD
+
+
 def proved_beyond_password(request, user):
-    """Whether this browser's sign-in of `user` proved more than the password (PROOFS), as allauth
-    recorded its steps in the browser's session. The record is the sign-in's own: signing out, and
-    being signed out, empties the browser's session."""
-    from allauth.account.internal.flows.login import get_authentication_records
+    """Whether this browser's session of `user` proved more than the password (PROOFS) when it
+    signed in: the factor recorded on the session row the browser's session names now (a sign-in
+    earlier in this request may have replaced it), as accounts.sessions.start_session stored it
+    when allauth completed the sign-in, before Django could empty the browser's session for
+    another account; where the row records none (a session an earlier release or Django's own
+    login() started), the steps allauth recorded in the browser's session, read as the sign-in
+    history reads them (accounts.signin_history.sign_in_factor). The record is the sign-in's own:
+    signing out, and being signed out, empties the browser's session. Asked only of a marked
+    account."""
+    from .sessions import SESSION_KEY, _valid_id
+    from .signin_history import sign_in_factor
 
-    if request is None or getattr(request, "session", None) is None:
-        return False
-    records = get_authentication_records(request, user)
-    return any(isinstance(item, dict) and item.get("method") in PROOFS for item in records)
+    browser = getattr(request, "session", None) if request is not None else None
+    session_id = _valid_id(browser.get(SESSION_KEY)) if browser is not None else None
+    if session_id is not None:
+        recorded = (
+            AccountSession.objects.filter(pk=session_id, user_id=user.pk)
+            .values_list("factor", flat=True)
+            .first()
+        )
+        if recorded:
+            return beyond_password(recorded)
+    return beyond_password(sign_in_factor(request, user))
 
 
-def refused_at_sign_in(request, user):
+def refused_at_sign_in(request, user, factor=None):
     """For a sign-in as it starts (accounts.sessions.start_session, which holds the account's
     session-ending lock): whether the account's password is marked and this sign-in proved
-    nothing more than the password, so that its session starts ended."""
-    return is_marked(user.pk) and not proved_beyond_password(request, user)
+    nothing more than the password. `factor` is what the sign-in proved, as allauth read it when
+    it completed the sign-in; without it (Django's own login()), read from the browser's session
+    (the request's earlier session, if any, is not this sign-in's)."""
+    from .signin_history import sign_in_factor
+
+    if factor is None:
+        factor = sign_in_factor(request, user)
+    return is_marked(user.pk) and not beyond_password(factor)
 
 
 def waiting(state):

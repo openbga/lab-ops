@@ -82,7 +82,8 @@
     {
       "title": "Sign-in activity",
       "paragraphs": [
-        "Completed sign-ins, rejected passwords (including rate-limited attempts), rejected sign-in codes and explicit sign-outs are recorded in the deployment’s application logs. A completed sign-in is recorded only after the account's enrolled second factor, if it has one, succeeds. For an account the laboratory requires a second factor of that has none yet, the entry records the password or code sign-in; the session then opens only the setup pages until an authenticator app is added, and the log does not record that step. A sign-in with a password marked as compromised alone is recorded as signed out for that reason, not as completed. The log names a stored account by username when it can identify one; unknown or ambiguous login text is recorded as unknown. Passwords and codes are never included. These operational logs follow the deployment’s log retention and survive database resets; they are separate from laboratory record audit history."
+        "Completed sign-ins, rejected passwords (including rate-limited attempts), rejected sign-in codes and explicit sign-outs are recorded in the deployment’s application logs. A completed sign-in is recorded only after the account's enrolled second factor, if it has one, succeeds. For an account the laboratory requires a second factor of that has none yet, the entry records the password or code sign-in; the session then opens only the setup pages until an authenticator app is added, and the log does not record that step. A sign-in with a password marked as compromised alone is recorded as signed out for that reason, not as completed. The log names a stored account by username when it can identify one; unknown or ambiguous login text is recorded as unknown. Passwords and codes are never included. These operational logs follow the deployment’s log retention and survive database resets; they are separate from laboratory record audit history.",
+        "Each account's sign-ins, sign-outs and failed or refused attempts are also kept in the database, and each person reads their own on Sign-in history in the account menu. The right password for a deactivated account (kept for that account, whatever else the text in Login matches), or a password marked as compromised given on its own, is kept there as Sign-in refused. A wrong password, and an attempt the failed sign-in limit refused before the password was checked, are kept only when the text in Login names exactly one account by username or email address, in any letter case; an attempt that names none or several is kept only in the logs. Attempts the limit refused add at most one entry a minute for the same address. A completed sign-in is kept with what it proved, such as Password and authenticator app. No history entry keeps the password or what was typed in Login. An attempt the per-address request limit stopped before the form was read is not kept there."
       ]
     }
   ],
@@ -113,6 +114,9 @@
     "accounts/sessions.py",
     "accounts/enrolment.py",
     "core/second_factor.py",
-    "accounts/compromised.py"
+    "accounts/compromised.py",
+    "accounts/signin_history.py",
+    "accounts/models.py",
+    "accounts/tests/test_sign_in_history.py"
   ]
 }

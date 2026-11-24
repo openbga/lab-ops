@@ -223,6 +223,57 @@ lift it. `MarkedPasswordValidator` compares a new password with each mark's hash
 in the application: a process of an earlier release, still serving during a deployment or after a
 rollback, neither enforces nor lifts a mark (docs/operations.md).
 
+Each account's sign-in history is a `SignInEvent` row per entry
+([accounts/signin_history.py](../accounts/signin_history.py)): the kind (signed in, sign-in
+refused, sign-in failed, too many failed attempts, re-authentication failed, signed out), the
+factor a sign-in proved or the step an attempt failed at (`SignInFactor`), the session ending, the
+session's id (not a foreign key: the session row is state, this is history), and the browser and
+address as `accounts.sessions.reported_by` gives them. Triggers added by `accounts` migration 0009
+write a row for each `AccountSession` inserted (signed in, or sign-in refused for a row inserted
+already ended, which is how a marked password alone is refused) and for each row whose `ended_at`
+is first set (signed out), with the session row's own times, ending, browser and address, in the
+statement that starts or ends the session. Every path that starts or ends a session, including a
+release still running while the migration applies, therefore leaves its entry in the same
+transaction; such a release's sessions carry no `factor` (the column's database default is blank),
+and their sign-ins show the factor as not recorded. `start_session` stores the factor on the row
+from the steps allauth recorded in the browser's session (`sign_in_factor`: the last password or
+emailed code and the second factor after it, re-authentications left out), read when allauth
+completes the sign-in. After the account's session-ending lock it closes the browser's earlier
+session and the abandoned ones (ending one waits for a change under way that holds it), then
+holds the account's row and reads it as held: an account deactivated while the sign-in was under
+way starts its session ended (`Account deactivated`), refused. A row past a limit is
+ended at the moment its limit passed, so its sign-out entry carries that time even when it is
+written later. The application writes the other kinds, through `accounts.signin_history.record`:
+`accounts.adapter` a password not accepted at sign-in (`authentication_failed`) or on
+re-authentication (`reauthenticate`, which decides it), one refused by the failed sign-in limit
+(`pre_authenticate`) and the right password or emailed code of a deactivated account
+(`pre_login`, for the account it was accepted for); `accounts.signin_log` an emailed code that
+was entered, or a second factor, not accepted, from allauth's signals;
+`accounts.forms.RecordedLockout` a second factor refused by the limit before it was checked; the
+two Change password forms a current password not accepted. A refusal by the limit is written
+only when none for the same account, step and address was written in the last minute, under an
+advisory lock for the account (`SIGN_IN_LOCKOUTS`), so that two at once take turns; the second
+step has no request limit of its own. A password checked by `reauthenticate` belongs to the
+account being re-authenticated (the adapter marks the check, not whoever is signed in). A wrong
+password at sign-in, or one the limit refused, is recorded only for the one account its username
+or email address names in any letter case (`accounts.signin_log.accounts_named`, the sign-in
+log's match), and not at all when it names none or several; a wrong code, or one refused at the
+code step, belongs to the account already identified there; a refused sign-in to the account
+whose password or code was accepted. No history entry holds a submitted identifier, password or
+code (allauth keeps the identifier typed among the sign-in's steps in the browser's session until
+it signs out). The factor is read by `ClosedSignupAdapter.login` before Django signs the browser
+in; a Django `login()` called otherwise records none, and `accounts.compromised` then reads the
+browser's session with the same reader. A third trigger refuses `UPDATE` and `DELETE`
+on `accounts_signinevent`; `reset_demo` empties it with `TRUNCATE`, which row triggers do not see,
+and the account reference has no database constraint (`db_constraint=False`, `DO_NOTHING`): an
+entry outlives its account, and writing one inside a session's start or end takes no lock on the
+account's row. The table has no model permissions and no admin; the
+page (`accounts.session_views.sign_in_history_page`) reads the account's own rows of the last 90
+days by the database's clock, at most 100, newest first, with whether the account is a shared
+demonstration account in the same statement (`signin_history.recent`), and hides the browser and
+address of every row but the current session's for such an account. Where you are signed in reads
+that flag with its sessions in the same way (`session_list.reading`).
+
 What a person was typing is kept across a sign-out by a limit ([accounts/kept.py](../accounts/kept.py)).
 A full-page form drawn with `{% form_page keep=... %}` carries a hidden token signed for its
 account, its session row, the form's key and the names of the fields that may be kept: visible
@@ -435,9 +486,13 @@ state and is refused. An access change that affects several accounts, such as th
 page, takes their gates one at a time in id order: a member it has not reached yet can still
 start a change, which is saved before it. Because a person's own change holds their account before any ticket, it and
 that person's deactivation or removal from a team wait for each other one way, never in a cycle.
-Updates that take no access away, such as a sign-in, the email notice preference or a capability
-added to a role, do not wait for the gate (a sign-in that upgrades the stored password hash saves
-a new password, and waits as a password change does; an update of the account's row still waits a moment for
+Updates that take no access away, such as the email notice preference or a capability added to a
+role, do not wait for the gate. A sign-in takes it shared, after the account's session-ending
+lock, so that it and a deactivation never hold what the other needs: it waits for an access change
+of that account under way (such as `setup_lab` giving the account a role), and an access change
+that starts meanwhile waits for it; the person's own changes, which hold it shared too, are not
+waited for (a sign-in that upgrades the stored password hash saves a new password, and waits as a
+password change does; an update of the account's row still waits a moment for
 a change that holds that row, such as an assignment of a ticket to the person or a notice being
 sent to them; `setup_lab`, giving an existing account a role it lacks, takes the gate as the account
 page does, so each records only its own additions); a save on the account's page and every save of a portal account's

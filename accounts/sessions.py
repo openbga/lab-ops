@@ -74,7 +74,7 @@ from django.utils.cache import add_never_cache_headers
 from django.utils.crypto import constant_time_compare
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from .models import AccountSession
+from .models import AccountSession, SignInEvent
 
 logger = logging.getLogger("lab_ops.signin")
 
@@ -657,32 +657,77 @@ def reported_by(request):
 def start_session(sender, request, user, **kwargs):
     from django.contrib.auth.models import update_last_login
 
+    from .acting import share_access
     from .compromised import refused_at_sign_in
     from .session_list import lock_endings
 
     session = getattr(request, "session", None)
     agent, address = reported_by(request) if session is not None else ("", None)
+    # What the sign-in proved, as allauth's flow read it when it completed the sign-in
+    # (accounts.adapter.ClosedSignupAdapter.login). Django's login() called otherwise (the
+    # application never does; tests do) proved nothing this records: blank, and whether it is
+    # refused for a marked password is decided from the browser's session (accounts.compromised).
+    # Taken once: another login() on the same request did not prove it.
+    proved = request.__dict__.pop("vr_sign_in_factor", None) if request is not None else None
+    factor = proved or ""
     with transaction.atomic():
         # The account's session-ending lock first, as the person's own endings, a new password
-        # saved alone and marking a password as compromised take it, so they take turns; then the
-        # sign-in's time, which writes the account's row (Django's own receiver, disconnected in
-        # accounts.apps so that its hold on the row comes after this lock, also with a transaction
-        # around the request).
+        # saved alone and marking a password as compromised take it, so they take turns. Then its
+        # access gate, shared, as a new password saved alone takes it after that lock
+        # (accounts.acting.share_access): a deactivation under way (which holds the gate, then
+        # the account's row, then ends its sessions) finishes first, and one that starts
+        # afterwards waits for this sign-in, so the two never hold what the other needs. The
+        # person's own changes under way hold the gate shared too, and are not waited for here.
         lock_endings(user.pk)
-        # The account's password is marked as compromised and this sign-in proved nothing more
-        # than the password (accounts.compromised): its session starts ended, so the browser is
-        # signed out at its next request, and the sign-in is not recorded as the last one.
-        refused = refused_at_sign_in(request, user)
-        if not refused:
-            update_last_login(sender, user)
-        record = (
-            None if session is None else _record_session(session, user, agent, address, refused)
+        share_access([user.pk])
+        # Then the sessions this sign-in closes: the browser's earlier session of the account
+        # (signed in again) and the sessions abandoned since and past a limit. Ending one waits
+        # for a change under way that holds it (hold_acting_session), which may still take the
+        # account's row (an assignment to the person), so they are closed before the row is.
+        if session is not None:
+            _close_earlier(session, user)
+        # Then the account's row, held until this commits, read as held: an account deactivated
+        # while the sign-in was under way (its password or code was checked against the account
+        # as read earlier) is refused, and a deactivation that starts now waits for this sign-in
+        # and then ends its session (models.User.save). Django's own last-login receiver, which
+        # writes the row, is disconnected (accounts.apps) so that it comes here, after these.
+        active = (
+            get_user_model()
+            .objects.select_for_update(no_key=True)
+            .filter(pk=user.pk)
+            .values_list("is_active", flat=True)
+            .first()
         )
+        # A refused sign-in's session starts ended, so the browser is signed out at its next
+        # request, and the sign-in is not recorded as the last one: the account is no longer
+        # active, or its password is marked as compromised and this sign-in proved nothing more
+        # than the password (accounts.compromised).
+        if active is None:
+            # The account was deleted while the sign-in was under way (the application never
+            # deletes one): no session starts, and nothing is recorded for an account that is gone.
+            request.vr_sign_in_refused = True
+            return
+        if not active:
+            refused = Ending.DEACTIVATED
+        elif refused_at_sign_in(request, user, proved):
+            refused = Ending.MARKED_COMPROMISED
+        else:
+            refused = None
+            update_last_login(sender, user)
+        if session is not None:
+            record = _record_session(user, agent, address, refused, factor)
+        else:
+            record = None
+            if refused:
+                # No session row, so the database writes no entry: the refusal is written here.
+                from .signin_history import record as record_event
+
+                record_event(user, SignInEvent.Kind.REFUSED, request, factor=factor, ending=refused)
     # The sign-in log's line once the session has started (a start that failed did not complete
     # the sign-in); a refused one is logged as its session's ending once that commits.
     if refused:
         if record is not None:
-            _log_after_commit(Ending.MARKED_COMPROMISED, user, 1)
+            _log_after_commit(refused, user, 1)
         request.vr_sign_in_refused = True  # accounts.adapter: not announced as signed in
     else:
         _log_sign_in(request, user)
@@ -696,27 +741,35 @@ def start_session(sender, request, user, **kwargs):
     session.pop(NEXT_KEY, None)
 
 
-def _record_session(session, user, agent, address, refused):
-    """The sign-in's session row (start_session, in its transaction, after the account's
-    session-ending lock): ended at once when the sign-in is refused."""
+def _close_earlier(session, user):
+    """The sessions a sign-in closes (start_session, in its transaction, after the account's
+    session-ending lock, before its row): this browser's earlier session of the account, when it
+    is open (Django keeps the session's data when the same account signs in again), with the
+    sessions abandoned since and past a limit, locked together in id order; otherwise those
+    abandoned sessions alone."""
     previous = _valid_id(session.get(SESSION_KEY))
     if previous is not None:
-        # Signed in again over an open session in the same browser (Django keeps the
-        # session's data when the account is the same one), with the sessions abandoned
-        # since and past a limit, locked together in id order.
         end_session_rows(user, Ending.SIGNED_IN_AGAIN, session_id=previous, cleanup=True)
     else:
-        close_expired(user)  # sessions abandoned since, past a limit
+        close_expired(user)
+
+
+def _record_session(user, agent, address, refused, factor):
+    """The sign-in's session row (start_session, in its transaction, after the sessions it closes
+    and the account's row): ended at once, with the ending `refused`, when the sign-in is refused.
+    The database writes the sign-in, or its refusal, to the account's sign-in history with the row
+    (accounts migration 0009), with what it proved (`factor`)."""
     # Whether the laboratory's rule requires a second factor of the account as it signs in
     # (accounts.enrolment holds the session to it while the account has none).
     from core.second_factor import requires
 
-    ended = {"ended_at": Now(), "ending": Ending.MARKED_COMPROMISED} if refused else {}
+    ended = {"ended_at": Now(), "ending": refused} if refused else {}
     return AccountSession.objects.create(
         user=user,
         user_agent=agent,
         address=address,
         second_factor_required=requires(user),
+        factor=factor,
         **ended,
     )
 

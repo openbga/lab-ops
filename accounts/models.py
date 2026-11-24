@@ -156,6 +156,19 @@ class User(AbstractUser):
         permissions = list(CAPABILITIES.items())
 
 
+class SignInFactor(models.TextChoices):
+    """What a sign-in proved, or the step at which an attempt failed (accounts.signin_history).
+    A failure at the second step names neither kind of code: the form takes either."""
+
+    PASSWORD = "password", "Password"
+    PASSWORD_AUTHENTICATOR = "password_totp", "Password and authenticator app"
+    PASSWORD_RECOVERY_CODE = "password_recovery", "Password and recovery code"
+    CODE = "code", "Emailed code"
+    CODE_AUTHENTICATOR = "code_totp", "Emailed code and authenticator app"
+    CODE_RECOVERY_CODE = "code_recovery", "Emailed code and recovery code"
+    SECOND_FACTOR = "second_factor", "Authenticator or recovery code"
+
+
 class AccountSession(models.Model):
     """One sign-in of an account, from the moment it signs in until its session ends
     (accounts.sessions). The browser's session carries this row's id; a session whose row is
@@ -197,6 +210,12 @@ class AccountSession(models.Model):
     # that set one up (accounts.enrolment). Decided once at sign-in, so a rule saved later applies
     # from the account's next sign-in. The database's own default, like the two columns above.
     second_factor_required = models.BooleanField(default=False, db_default=False)
+    # What the sign-in proved (accounts.signin_history.sign_in_factor), copied into its sign-in
+    # history entry by the database (migration 0009). Blank where it is not known: a session from
+    # before this was recorded, or one a release still running while this one migrates signed in.
+    factor = models.CharField(
+        max_length=20, choices=SignInFactor.choices, blank=True, db_default=""
+    )
 
     class Meta:
         indexes = [
@@ -216,6 +235,66 @@ class AccountSession(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class SignInEvent(models.Model):
+    """One entry of an account's sign-in history (accounts.signin_history). History: the database
+    refuses to change or delete a row (migration 0009).
+
+    A sign-in, a sign-in that started ended (refused), and a session's end are written by the
+    database itself, in the statement that starts or ends the session row, so that no path that
+    starts or ends a session, a release still running during a deployment included, leaves none.
+    Failed attempts, refusals after too many failed attempts and refused sign-ins that start no
+    session are written by accounts.signin_history.record, called from accounts.adapter,
+    accounts.signin_log and accounts.forms (and the admin console's own password form). Never a
+    password, a code or what was typed as the username or email address."""
+
+    class Kind(models.TextChoices):
+        SIGNED_IN = "signed_in", "Signed in"
+        # The password was right but the sign-in was not let through: why is in `ending`.
+        REFUSED = "refused", "Sign-in refused"
+        FAILED = "failed", "Sign-in failed"
+        LOCKED_OUT = "locked_out", "Too many failed attempts"
+        # A signed-in page asked for the password or a code again, and it was not accepted.
+        REAUTHENTICATION_FAILED = "reauth_failed", "Re-authentication failed"
+        SIGNED_OUT = "signed_out", "Signed out"
+
+    # The account, by id. Not a constraint in the database: an entry outlives its account (accounts
+    # are deactivated, never deleted, by the application; a deletion by other means leaves its
+    # history in place, since the database refuses to delete an entry), and writing one, inside a
+    # session's start or end, takes no lock on the account's row. Read entries by user_id: a join
+    # to the account (select_related, natural keys) leaves out those of a deleted account, and
+    # nothing checks that an id written by a caller names an account.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="sign_in_events",
+    )
+    # When it happened, by the database's clock: a session's sign-in, or its end (for a session
+    # that passed a limit, the moment the limit passed, which can be before the row is written).
+    occurred_at = models.DateTimeField(db_default=Now())
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    # What a sign-in proved, or the step an attempt failed at. Blank for a session's end, and
+    # where it is not known.
+    factor = models.CharField(max_length=20, choices=SignInFactor.choices, blank=True)
+    # Why a session ended, or why a sign-in was refused.
+    ending = models.CharField(max_length=20, choices=AccountSession.Ending.choices, blank=True)
+    # The session's id, for a sign-in, a refused sign-in that started ended and a session's end:
+    # not a foreign key, since the session row is state and this is history.
+    session = models.UUIDField(null=True, blank=True)
+    # As the browser and the deployment reported them (accounts.sessions.reported_by): for a
+    # session's end, those it reported when it signed in.
+    user_agent = models.CharField(max_length=300, blank=True)
+    address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        # Written only by the database and accounts.signin_history: no model permission to grant.
+        default_permissions = ()
+        indexes = [models.Index(fields=["user", "-occurred_at"], name="sign_in_event_recent")]
+
+    def __str__(self):
+        return f"account {self.user_id} {self.kind} {self.occurred_at:%Y-%m-%d %H:%M}"
 
 
 class CompromisedPassword(models.Model):

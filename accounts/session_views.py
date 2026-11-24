@@ -10,6 +10,10 @@ Where you are signed in (accounts.session_list): every signed-in account, staff 
 sees its own open sessions and signs out the others. A shared demonstration account
 (credentials_locked) sees only the session it is using and how many others are open: the others
 belong to other visitors.
+
+Sign-in history (accounts.signin_history): every signed-in account reads its own recent sign-ins,
+failed attempts and sign-outs. A shared demonstration account sees its entries, with the browser
+and address only for the session it is using.
 """
 
 import json
@@ -26,7 +30,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_GET, require_POST
 
-from . import kept, session_list
+from . import kept, session_list, signin_history
 from .sessions import sign_in_url
 
 # The largest body the keep address reads: four copies of kept.MAX_TOTAL characters, each up to
@@ -102,10 +106,9 @@ def _count(number, singular, plural=None):
 @require_GET
 def sessions_page(request):
     current = _current_id(request)
-    rows, now = session_list.reading(request.user)
+    rows, now, locked = session_list.reading(request.user)
     this = next((row for row in rows if row.id == current), None)
     others = [row for row in rows if row.id != current]
-    locked = request.user.credentials_locked
     return render(
         request,
         "accounts/sessions.html",
@@ -120,6 +123,29 @@ def sessions_page(request):
             # The database's clock when the sessions were read, so that the confirmation of Sign
             # out of all other sessions can say how many signed in after the page was opened.
             "drawn_at": now.isoformat(),
+        },
+    )
+
+
+@login_required
+@require_GET
+def sign_in_history_page(request):
+    reading = signin_history.recent(request.user, current=_current_id(request))
+    entries = reading.entries
+    return render(
+        request,
+        "accounts/sign_in_history.html",
+        {
+            "page_title": "Sign-in history",
+            "entries": entries,
+            "attention_count": sum(1 for entry in entries if entry.attention),
+            # As the account stood when its entries were read (signin_history.recent).
+            "locked": reading.locked,
+            "recent_days": signin_history.RECENT_DAYS,
+            "recent_limit": signin_history.RECENT_LIMIT,
+            "empty_body": f"Nothing was recorded for your account in the last "
+            f"{signin_history.RECENT_DAYS} days. Sign-in history starts from the release that "
+            f"added it.",
         },
     )
 

@@ -51,6 +51,7 @@ urlpatterns = [
     path("account/second-factor/", enrolment.enrolment_page, name="account-second-factor"),
     path("account/new-password/", compromised.new_password_page, name="account-new-password"),
     path("account/sessions/", session_views.sessions_page, name="account-sessions"),
+    path("account/sign-ins/", session_views.sign_in_history_page, name="account-sign-ins"),
     path(
         "account/sessions/others/sign-out/",
         session_views.sign_out_other_sessions,

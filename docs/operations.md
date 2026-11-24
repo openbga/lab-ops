@@ -115,6 +115,37 @@ with the copies of the marked passwords' stored hashes; the audit events stay. R
 hasher from `PASSWORD_HASHERS` that a mark's stored hash uses stops that password being refused as
 a new one; Security settings then reports the setting as changed.
 
+## Sign-in history
+
+The `accounts` migration 0009 adds the table `accounts_signinevent`, the column
+`accounts_accountsession.factor` (with a database default, so a release still running during the
+upgrade keeps signing people in) and database triggers: the database writes each session's
+sign-in and sign-out to the history, and refuses to change or delete an entry. A session started by
+the earlier release while the deployment runs shows its sign-in without what it proved. The
+history starts at the upgrade: a session open then shows only its sign-out. While the deployment
+replaces the earlier release's processes, the failed attempts they handle, and the refusals they
+make without starting a session, are not in the history (the earlier release's sign-in log may
+have some of them); a sign-in such a process refuses by starting its session ended (a password
+marked as compromised, given alone) is, since the database writes it. Refusals by the failed
+sign-in limit add at most one entry a minute for each account, step and address, so a flood of
+refused attempts does not add a row each. A wrong password or code that is checked adds one entry
+to the history of the account it is recorded for (at sign-in, a wrong password whose name matches
+no account, or several, adds none; on re-authentication it belongs to the signed-in person). At
+sign-in the failed sign-in limit bounds the passwords and the second factor's codes checked, and
+each emailed sign-in allows a few wrong codes in all, resends included; the account menu's Change
+password has a limit of its own (five a minute for each account), and the admin console's own
+Change password has none. Entries are kept, with
+no retention period and no setting to remove them; accounts are deactivated, not deleted, and an
+account deleted by other means leaves its history in place, under its id. Do not delete accounts:
+if one were deleted and the account id sequence then reset (Django's `loaddata` does), a new
+account could be given the deleted one's id and would list its entries. Reversing migration 0009 deletes the whole history. The
+browser and address recorded are those the request reported; the address follows
+`ALLAUTH_TRUSTED_PROXY_COUNT` or `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (see below), so behind a proxy
+without either, every entry shows the proxy's address. The sign-in log gains one line: a sign-in
+whose session starts ended because its account was deactivated while it was under way is logged
+as `signout.deactivated` once that commits (a refusal before any session starts adds no line);
+its other lines are unchanged.
+
 ## Sign-in limits behind a proxy
 
 Failed sign-ins, password resets and sign-in code requests are rate limited. By default the
@@ -132,8 +163,8 @@ counted for their network address, and the reset those counted for the account's
 Replacing `CACHES` with a per-process cache would give
 each worker its own counters again, and the Security settings page would say the configuration
 changed. The same setting chooses the address recorded for
-each session at sign-in and shown on Where you are signed in; without it, every session shows the
-proxy's address.
+each session at sign-in and shown on Where you are signed in, and for each entry of the sign-in
+history; without it, every session shows the proxy's address.
 
 ## Browser security headers
 
@@ -237,7 +268,7 @@ permissions, organization and site access. It publishes credentials only when it
 that the demonstration was initialized from an empty database.
 
 For a scheduled reset, set `ALLOW_DEMO_RESET=true` **only on the demonstration reset job**.
-The reset erases application records, including sessions and audit history, and reseeds in
+The reset erases application records, including sessions, sign-in history and audit history, and reseeds in
 one transaction. It requires an empty or sealed demonstration database and matching
 migrations. A laboratory initialized with `setup_lab` is ineligible.
 

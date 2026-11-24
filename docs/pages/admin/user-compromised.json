@@ -75,6 +75,7 @@
         "While the mark is open, the password alone no longer signs the account in: a sign-in that gives only the password is signed out at once with a notice. A sign-in that also gives an authenticator code (or a recovery code), or a code emailed to the account's address where the laboratory sends email, reaches only Choose a new password until a new password is saved there.",
         "Any new password lifts the mark: one the person saves on Choose a new password, one set through an emailed reset link, or one you set on the account's password page. The marked password is refused as the new one, then and later. Signing in again with the old password after an upgrade of how passwords are stored does not lift it.",
         "The mark is kept after it is lifted, with when it was made, by whom, the reason and when it was lifted. A copy of the stored form of the marked password is kept with it so that it can be refused; it is never shown, logged or put in the audit history. The account's page shows whether the password is marked now. A password can be marked again after a new one is chosen.",
+        "Each session the mark ends appears in the person's own Sign-in history as Signed out, Password marked as compromised, and each later sign-in with the password alone as Sign-in refused, Password marked as compromised. The reason is not shown there.",
         "Marking takes no access away: roles and capabilities stay. To stop the person signing in at all, clear Active on the account's page.",
         "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark; a process of this release ends such a session at its next request for a page there. Mark passwords once the deployment has finished."
       ]
@@ -86,6 +87,8 @@
     "accounts/models.py",
     "accounts/sessions.py",
     "templates/admin/accounts/user/mark_compromised.html",
-    "accounts/tests/test_compromised_password.py"
+    "accounts/tests/test_compromised_password.py",
+    "accounts/signin_history.py",
+    "accounts/tests/test_sign_in_history.py"
   ]
 }

@@ -248,7 +248,15 @@ def test_access_gate_documentation_matches_setup_role_change(person, settings, o
         assert row.user_id == person.pk and row.ended_at is None
         assert person.password.startswith("pbkdf2_stronger$") == (operation == "hash-upgrade-login")
     if operation == "ordinary-login":
-        assert waited is None
+        # Adopted (sign-in history, second confirmation of review round 1): a sign-in takes the
+        # account's access gate shared after its session-ending lock, so that it and a
+        # deactivation never hold what the other needs; it waits for an access change under way,
+        # such as this role grant, and the architecture says so.
+        assert waited == ("advisory", acting.ACCESS_GATE, "ShareLock")
+        architecture = " ".join(
+            (Path(__file__).resolve().parents[1] / "docs/architecture.md").read_text().split()
+        )
+        assert "A sign-in takes it shared" in architecture
     elif waited == ("advisory", acting.ACCESS_GATE, "ShareLock"):
         if operation == "password":
             assert (

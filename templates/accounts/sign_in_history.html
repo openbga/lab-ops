@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Sign-in history (accounts.session_views.sign_in_history_page), for every signed-in account, staff
+or client portal, reached from the user menu and from Where you are signed in. Lists the account's
+own entries (accounts.signin_history.recent): sign-ins, refused and failed attempts, refusals
+after too many failed attempts and sign-outs, newest first. Context: entries (Entry rows; browser
+and address are None where they are not shown), attention_count (how many listed entries are a
+failure or a refusal), locked (a shared demonstration account: other visitors' browsers and
+addresses are left out), recent_days and recent_limit (how far back and how many), empty_body
+(the empty state's text). Read-only.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">When your account signed in and out, and attempts to sign in to it that failed. Look for anything you do not recognize.</p>{% endblock %}
+{% block content %}
+{% if locked %}
+{% notice tone="info" label="Shared demonstration account" %}Other visitors use this account too, so its history includes their sign-ins. The browser and address are shown only for the session you are using.{% endnotice %}
+{% endif %}
+{% if attention_count and not locked %}
+{% notice tone="warning" label="Check the attempts that failed" %}{{ attention_count }} attempt{{ attention_count|pluralize }} listed below {{ attention_count|pluralize:"was,were" }} not let through. If you do not recognize {{ attention_count|pluralize:"it,them" }}, change your password from the account menu{% if not user.client_id %} and tell your laboratory's security contact{% else %} and tell the laboratory{% endif %}.{% endnotice %}
+{% endif %}
+{% panel title="Recent activity" heading_id="sign-ins-heading" count=entries|length table=True flush=True class="mb-3" %}
+  {% if entries %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="sign-ins-heading">
+      <thead><tr>
+        <th scope="col">When</th>
+        <th scope="col">Event</th>
+        <th scope="col">Details</th>
+        <th scope="col">Browser</th>
+        <th scope="col">Address</th>
+      </tr></thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <th scope="row" class="vr-nowrap"><time datetime="{{ entry.occurred_at|date:'c' }}">{{ entry.occurred_at|date:"Y-m-d H:i" }}</time></th>
+          <td class="vr-wrap">{% if entry.attention %}{% status label=entry.event tone="warning" plain=True %}{% else %}<span class="vr-nowrap">{{ entry.event }}</span>{% endif %}{% if entry.this_session %} {% status label="This browser" tone="info" plain=True %}{% endif %}</td>
+          <td class="vr-wrap">{{ entry.details }}</td>
+          <td class="vr-wrap">{% if entry.browser %}{{ entry.browser }}{% else %}<span class="vr-muted">Not shown</span>{% endif %}</td>
+          <td class="vr-nowrap">{% if entry.address %}{{ entry.address }}{% elif entry.browser %}<span class="vr-muted">Not recorded</span>{% else %}<span class="vr-muted">Not shown</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {% empty_state kind="empty" title="Nothing recorded yet" body=empty_body action_url=None clear_url=None %}
+  {% endif %}
+  {% fill footer %}<p class="vr-muted small mb-0">The last {{ recent_days }} days, the most recent {{ recent_limit }} entries. The browser and the address are as each browser and the network reported them, and can be wrong; a sign-out shows those of the session that ended. See <a href="{% url 'account-sessions' %}">Where you are signed in</a> to sign out a session.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

@@ -1,10 +1,11 @@
-{% load ui %}{% comment %}Signed-in user dropdown for the top bar. Account links resolve with the non-raising url-as form, so an unmounted route just hides. Sign-out is a POST (allauth default). A shared demonstration account (user.credentials_locked) gets a note instead of the password and two-factor links; accounts.middleware refuses those pages. Where you are signed in is for every account (a shared one sees only its own browser there). While the session must add a second sign-in factor first (second_factor_pending, accounts.enrolment), only Two-factor authentication and Sign out are offered; while it must choose a new password (password_change_pending, accounts.compromised), only Sign out.{% endcomment %}
+{% load ui %}{% comment %}Signed-in user dropdown for the top bar. Account links resolve with the non-raising url-as form, so an unmounted route just hides. Sign-out is a POST (allauth default). A shared demonstration account (user.credentials_locked) gets a note instead of the password and two-factor links; accounts.middleware refuses those pages. Where you are signed in and Sign-in history are for every account (a shared one sees only its own browser there, and no other visitor's browser or address in the history). While the session must add a second sign-in factor first (second_factor_pending, accounts.enrolment), only Two-factor authentication and Sign out are offered; while it must choose a new password (password_change_pending, accounts.compromised), only Sign out.{% endcomment %}
 {% url 'account_logout' as logout_url %}
 {% url 'account_change_password' as password_url %}
 {% url 'mfa_index' as mfa_url %}
 {% url 'account_email' as email_url %}
 {% url 'email-notices' as notices_url %}
 {% url 'account-sessions' as sessions_url %}
+{% url 'account-sign-ins' as sign_ins_url %}
 <div class="dropdown">
   <button class="btn btn-sm vr-topbar-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
     {% icon name="person-circle" %}<span class="d-none d-md-inline">{{ user.get_full_name|default:user.get_username }}</span><span class="visually-hidden d-md-none">Account</span>{% icon name="chevron-down" class="vr-caret" %}
@@ -25,6 +26,7 @@
     {% endif %}
     {% if not session_held %}
     {% if sessions_url %}<a class="dropdown-item" href="{{ sessions_url }}">{% icon name="shield-lock" %}Where you are signed in</a>{% endif %}
+    {% if sign_ins_url %}<a class="dropdown-item" href="{{ sign_ins_url }}">{% icon name="clock-history" %}Sign-in history</a>{% endif %}
     {% if notices_url and not user.client_id %}<a class="dropdown-item" href="{{ notices_url }}">{% icon name="envelope" %}Email notices</a>{% endif %}
     {% endif %}
     {% if logout_url %}
