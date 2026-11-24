@@ -17,6 +17,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.test import Client as BrowserClient
 from django.urls import reverse
 
@@ -199,11 +200,19 @@ def test_passwords_that_cannot_be_marked_are_refused(owner, person, case):
     page = browser.get(mark_url(target))
     assert page.status_code == 200 and page.context["refused"] == expected
     assert 'name="reason"' not in page.content.decode()
-    # A save sent anyway (a page drawn before the change) is refused by the service too.
+    # A save sent anyway (a page drawn before the change) is refused before its form is checked
+    # (so no confirmation is asked for); the service refuses it too when it saves.
     drawn = compromised.drawn_password(User.objects.get(pk=target.pk))
     response = browser.post(mark_url(target), {"reason": "Leaked", "drawn": drawn})
     assert response.status_code == 200
-    assert expected in [str(e) for e in response.context["form"].non_field_errors()]
+    assert response.context["refused"] == expected
+    assert 'name="reason"' not in response.content.decode()
+    assert CompromisedPassword.objects.count() == count
+    with pytest.raises(ValidationError) as refused, transaction.atomic():
+        compromised.mark_compromised(
+            actor=owner, account_id=target.pk, reason="Leaked", drawn=drawn
+        )
+    assert expected in refused.value.messages
     assert CompromisedPassword.objects.count() == count
 
 

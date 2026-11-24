@@ -39,6 +39,7 @@ from allauth.mfa.models import Authenticator
 from django import forms
 from django.contrib import admin
 from django.contrib.admin.forms import AdminPasswordChangeForm as AdminSitePasswordChangeForm
+from django.contrib.admin.options import IS_POPUP_VAR
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import (
@@ -730,7 +731,13 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             form = MarkCompromisedForm(request.POST)
         else:
             form = MarkCompromisedForm(initial={"drawn": drawn_password(user)})
-        if request.method == "POST" and form.is_valid():
+        # Whether the mark can be offered at all, before the form (and the confirmation of who is
+        # making it) is checked: a mark refused for the account is not a reason to ask for a
+        # password. The service decides again when it saves.
+        refused = refusal(user, request.user)
+        if refused is None and open_mark(user.pk) is not None:
+            refused = ALREADY_MARKED
+        if request.method == "POST" and refused is None and form.is_valid():
             try:
                 with transaction.atomic():
                     marked = mark_compromised(
@@ -742,6 +749,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     self.log_change(request, user, "Marked the password as compromised.")
             except ValidationError as error:
                 form.add_error(None, error)
+                # Refused by the service as it saved: what the page says now stands on the
+                # account as it is now.
+                refused = refusal(user, request.user)
+                if refused is None and open_mark(user.pk) is not None:
+                    refused = ALREADY_MARKED
             except User.DoesNotExist:
                 raise Http404("No such account.") from None
             else:
@@ -777,9 +789,6 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     f"Marked the password of {user.get_username()} as compromised. {ended} {then}",
                 )
                 return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
-        refused = refusal(user, request.user)
-        if refused is None and open_mark(user.pk) is not None:
-            refused = ALREADY_MARKED
         context = {
             **self.admin_site.each_context(request),
             "title": f"Mark password as compromised: {user.get_username()}",
@@ -868,8 +877,15 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     def user_change_password(self, request, id, form_url=""):
         with transaction.atomic():
             response = super().user_change_password(request, id, form_url)
-            if request.method == "POST" and response.status_code == 302:
+            # Saved: Django sends a saved password to the account's page. A refused submission
+            # (both buttons sent, as without script) comes back to this page, unsaved.
+            saved = request.method == "POST" and response.status_code == 302
+            if saved:
                 user = self.get_object(request, unquote(id))
+                saved = response["Location"] == reverse(
+                    "admin:accounts_user_change", args=[user.pk]
+                )
+            if saved:
                 record_event(
                     actor=request.user,
                     action="account.password_changed",
@@ -1027,7 +1043,7 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
             "opts": self.opts,
             "app_label": self.opts.app_label,
             "preserved_filters": self.get_preserved_filters(request),
-            "is_popup": False,
+            "is_popup": IS_POPUP_VAR in request.POST or IS_POPUP_VAR in request.GET,
             "to_field": None,
             "form": form,
             **(extra_context or {}),

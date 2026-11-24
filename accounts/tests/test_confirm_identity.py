@@ -77,20 +77,33 @@ def with_authenticator(user):
     return secret
 
 
-def records(http, user, *methods, ago=0, reauthenticated=True):
-    """Put re-authentication records in the browser's session, as allauth writes them."""
+def records(http, user, *methods, ago=0, reauthenticated=True, proof=True):
+    """Put re-authentication records in the browser's session, as allauth writes them (an "mfa"
+    record names the account's authenticator app), and, unless `proof` is false, the digest of
+    the password the account has now, as a password re-authentication leaves it."""
     session = http.session
     entries = []
+    app = Authenticator.objects.filter(user=user, type="totp").first()
     for method in methods:
         entry = {"method": method, "at": time.time() - ago}
         if method == "mfa":
-            entry.update(type="totp", id=1)
+            entry.update(type="totp", id=app.pk if app else 0)
         if reauthenticated:
             entry["reauthenticated"] = True
         entries.append(entry)
     session[AUTHENTICATION_METHODS_SESSION_KEY] = entries
     session[USER_KEY] = str(user.pk)
+    state = confirmation.read(user)
+    if proof and state.password:
+        session[confirmation.PASSWORD_PROOF_KEY] = confirmation._password_proof(state.password_hash)
     session.save()
+
+
+def wrong_code(secret):
+    """Six digits no authenticator code of this period or the next accepts."""
+    counter = next(yield_hotp_counters_from_time())
+    accepted = {hotp_value(secret, counter + step) for step in (-1, 0, 1, 2)}
+    return format_hotp_value(next(n for n in range(10**6) if n not in accepted))
 
 
 def page_data(form, **changes):
@@ -274,7 +287,7 @@ def test_an_authenticator_is_asked_for_too(owner, person):
     assert response.status_code == 200
     assert "Enter a code from your authenticator app" in response.content.decode()
     response = account_change(
-        http, person, first_name="Pat", confirm_password=PASSWORD, confirm_code="000000"
+        http, person, first_name="Pat", confirm_password=PASSWORD, confirm_code=wrong_code(secret)
     )
     assert response.status_code == 200 and "Incorrect code." in response.content.decode()
     assert ("reauth_failed", "second_factor") in sign_in_failures(owner)
@@ -594,3 +607,194 @@ def test_no_password_is_checked_for_a_request_that_may_not_make_the_change(perso
     response = http.post(reverse("second-factor-edit"), {"confirm_password": WRONG})
     assert response.status_code == 403
     assert SignInEvent.objects.exclude(kind__in=["signed_in", "signed_out"]).count() == 0
+
+
+# --- what a confirmation stands for --------------------------------------------------------------
+
+
+def role_prompt(http):
+    """The confirmation fields the page that adds a role draws now."""
+    page = http.get(reverse("admin:auth_group_add")).content.decode()
+    return {name for name in ("confirm_password", "confirm_code") if f'name="{name}"' in page}
+
+
+def test_records_without_the_password_proof_do_not_count(person):
+    http = http_for(person)
+    records(http, person, "password", proof=False)
+    assert confirmation.current(request_for(http, person)) is False
+
+
+def test_a_code_proof_counts_only_while_its_authenticator_is_kept(owner):
+    secret = with_authenticator(owner)
+    http = http_for(owner)
+    assert role_prompt(http) == {"confirm_password", "confirm_code"}
+    response = http.post(
+        reverse("admin:auth_group_add"),
+        {"name": "", "confirm_password": PASSWORD, "confirm_code": code_for(secret)},
+    )
+    assert response.status_code == 200  # the name is required: only the confirmation was kept
+    assert role_prompt(http) == set()
+    Authenticator.objects.filter(user=owner).delete()
+    assert role_prompt(http) == set()  # the password given stands; no app to ask about now
+    with_authenticator(owner)  # a different app: the code given was for the one removed
+    assert role_prompt(http) == {"confirm_code"} | {"confirm_password"}
+
+
+def test_a_password_proof_counts_only_while_the_account_keeps_that_password(owner):
+    http = http_for(owner)
+    assert http.post(reverse("account_reauthenticate"), {"password": PASSWORD}).status_code == 302
+    assert role_prompt(http) == set()
+    new = "orchard river birch firelight 317"
+    response = http.post(
+        reverse("account_change_password"),
+        {"oldpassword": PASSWORD, "password1": new, "password2": new},
+    )
+    assert response.status_code == 302  # this browser stays signed in
+    assert role_prompt(http) == {"confirm_password"}
+    assert http.post(reverse("account_reauthenticate"), {"password": new}).status_code == 302
+    assert role_prompt(http) == set()
+
+
+def test_a_password_made_usable_since_the_request_began_is_read_from_the_database(owner, person):
+    """read() takes the account as stored, not the copy the request loaded."""
+    stale = User.objects.get(pk=person.pk)
+    User.objects.filter(pk=person.pk).update(password="!unusable")
+    assert confirmation.read(stale).password is False
+    person.set_password(PASSWORD)
+    person.save(update_fields=["password"])
+    stale.set_unusable_password()  # the copy says no password; the database has one
+    assert confirmation.read(stale).password is True
+
+
+def test_a_refused_code_is_not_drawn_back(owner, person):
+    secret = with_authenticator(owner)
+    http = http_for(owner)
+    code = code_for(secret)
+    response = account_change(
+        http, person, first_name="Pat", confirm_password=WRONG, confirm_code=code
+    )
+    html = response.content.decode()
+    assert response.status_code == 200 and code not in html and WRONG not in html
+
+
+def test_the_fields_carry_no_required_attribute(owner, person):
+    """A page whose confirmation was given in another tab meanwhile can still be sent."""
+    import re
+
+    http = http_for(owner)
+    for url in (
+        reverse("admin:accounts_user_compromised", args=[person.pk]),
+        reverse("admin:auth_user_password_change", args=[person.pk]),
+        reverse("admin:auth_group_add"),
+    ):
+        html = http.get(url).content.decode()
+        field = re.search(r'<input[^>]*name="confirm_password"[^>]*>', html).group(0)
+        assert " required" not in field, url
+
+
+def test_a_page_confirmed_in_another_tab_saves_without_the_fields(owner, person):
+    first, second = http_for(owner), HttpClient()
+    second.cookies = first.cookies  # one browser, two tabs
+    url = reverse("admin:accounts_user_compromised", args=[person.pk])
+    page = first.get(url)
+    assert 'name="confirm_password"' in page.content.decode()
+    assert (
+        account_change(second, person, first_name="Pat", confirm_password=PASSWORD).status_code
+        == 302
+    )
+    data = {
+        "reason": "Typed into a look-alike page.",
+        "drawn": page.context["form"].initial["drawn"],
+    }
+    assert first.post(url, data).status_code == 302
+
+
+def test_a_refused_mark_checks_no_password(owner, person, monkeypatch):
+    from allauth.account.adapter import get_adapter
+
+    from accounts.models import CompromisedPassword
+
+    adapter = type(get_adapter())
+    calls = []
+    original = adapter.reauthenticate
+    monkeypatch.setattr(
+        adapter, "reauthenticate", lambda self, *a: calls.append(1) or original(self, *a)
+    )
+    http = http_for(owner)
+    url = reverse("admin:accounts_user_compromised", args=[person.pk])
+    drawn = http.get(url).context["form"].initial["drawn"]
+    person.set_unusable_password()
+    person.save(update_fields=["password"])
+    response = http.post(url, {"reason": "Late.", "drawn": drawn, "confirm_password": PASSWORD})
+    assert response.status_code == 200 and response.context["refused"]
+    assert calls == [] and not CompromisedPassword.objects.exists()
+    assert sign_in_failures(owner) == []
+
+
+def test_a_wrong_password_on_mark_as_compromised_focuses_the_password(owner, person):
+    http = http_for(owner)
+    url = reverse("admin:accounts_user_compromised", args=[person.pk])
+    drawn = http.get(url).context["form"].initial["drawn"]
+    response = http.post(url, {"reason": "Shared.", "drawn": drawn, "confirm_password": WRONG})
+    form = response.context["form"]
+    assert form.fields["confirm_password"].widget.attrs.get("autofocus") is True
+    assert "autofocus" not in form.fields["reason"].widget.attrs
+    # A refused field of the form's own keeps the focus where it was.
+    response = http.post(url, {"reason": "", "drawn": drawn, "confirm_password": WRONG})
+    assert "autofocus" not in response.context["form"].fields["confirm_password"].widget.attrs
+
+
+def test_removing_an_authenticator_keeps_the_popup(owner, person):
+    with_authenticator(person)
+    factor = Authenticator.objects.get(user=person, type="totp")
+    http = http_for(owner)
+    page = http.get(reverse("admin:mfa_authenticator_delete", args=[factor.pk]), {"_popup": "1"})
+    assert page.context["is_popup"] and 'name="_popup"' in page.content.decode()
+
+
+def test_a_conflicting_password_submission_records_no_change(owner, person):
+    http = http_for(owner)
+    url = reverse("admin:auth_user_password_change", args=[person.pk])
+    original = person.password
+    response = http.post(
+        url, {"usable_password": "false", "set-password": "1", "confirm_password": PASSWORD}
+    )
+    assert response.status_code == 302 and response["Location"] == url
+    person.refresh_from_db()
+    assert person.password == original
+    assert not AuditEvent.objects.filter(action="account.password_changed").exists()
+
+
+def test_every_request_marks_the_fields_sensitive_also_when_refused_early(person):
+    from django.views.debug import SafeExceptionReporterFilter
+
+    http = http_for(person)  # no admin role: refused before the form is built
+    response = http.post(
+        reverse("session-limits-edit", args=["staff"]),
+        {"confirm_password": PASSWORD, "confirm_code": "123456", "reason": "Kept."},
+    )
+    assert response.status_code == 403
+    shown = SafeExceptionReporterFilter().get_post_parameters(response.wsgi_request)
+    assert shown["reason"] == "Kept."
+    assert PASSWORD not in str(dict(shown)) and "123456" not in str(dict(shown))
+
+
+def test_a_confirmation_that_lapses_before_the_save_is_checked_asks_again(
+    owner, person, monkeypatch
+):
+    """Confirmed when the form was built, not when its save is checked: asked again, nothing
+    saved, the fields drawn."""
+    answers = iter([(True, None), (False, confirmation.read(owner))])
+    monkeypatch.setattr(confirmation, "check", lambda request: next(answers))
+    http = http_for(owner)
+    url = reverse("admin:accounts_user_change", args=[person.pk])
+    monkeypatch.setattr(confirmation, "check", lambda request: (True, None))
+    form = http.get(url).context["adminform"].form
+    answers = iter([(True, None), (False, confirmation.read(owner))])
+    monkeypatch.setattr(confirmation, "check", lambda request: next(answers))
+    response = http.post(url, page_data(form, first_name="Pat"))
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert confirmation.AGAIN in html.replace("&#x27;", "'") and 'name="confirm_password"' in html
+    person.refresh_from_db()
+    assert person.first_name == ""

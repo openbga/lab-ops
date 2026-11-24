@@ -144,7 +144,7 @@ def _confirmed_unless_marked(request, monkeypatch):
     had just confirmed it is them (the live server runs in this process). A journey marked
     `confirmation` gets the real check."""
     if request.node.get_closest_marker("confirmation") is None:
-        monkeypatch.setattr("accounts.confirmation.current", lambda request: True)
+        monkeypatch.setattr("accounts.confirmation.check", lambda request: (True, None))
 
 
 @pytest.fixture(autouse=True)

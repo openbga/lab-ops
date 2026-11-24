@@ -53,7 +53,7 @@
       "title": "Confirm it is you",
       "paragraphs": [
         "Yes, I’m sure asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. A Confirm it is you section then appears above the buttons, and nothing is removed until what you type there is accepted. Signing in does not count: only confirming again does. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed asks when you select Yes, I’m sure after the 5 minutes have passed.",
-        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once you have confirmed every factor your account has within the same 5 minutes; a confirmation here counts for those pages as well. An authenticator app added to your account after you confirmed makes the next removal ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot remove a factor until it sets a password.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once you have confirmed every factor your account has within the same 5 minutes; a confirmation here counts for those pages as well. A new password, or a new or different authenticator app, on your account since you confirmed makes the next removal ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot remove a factor until it sets a password.",
         "When the confirmation is missing or not accepted, nothing is removed, and no audit event or administration history entry is written. A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
       ],
       "items": [
@@ -78,8 +78,8 @@
           "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then try again."
         },
         {
-          "label": "Your sign-in factors changed while this page was open. Confirm it is you again.",
-          "description": "An authenticator app was added to or removed from your account while the removal was being checked. Nothing is removed or confirmed. Select Yes, I’m sure again: the page then asks for what your account has now."
+          "label": "Your sign-in factors changed, or your confirmation ran out, while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account, or your confirmation ran out, while the removal was being checked. Nothing is removed. The section now asks for what your account has: fill it in and select Yes, I’m sure again."
         }
       ]
     },

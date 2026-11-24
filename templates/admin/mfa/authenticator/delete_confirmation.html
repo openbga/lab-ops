@@ -15,6 +15,7 @@ Context as Django's, and form (AuthenticatorRemovalForm).
     {% if form.errors %}<p class="errornote">{% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}</p>{{ form.non_field_errors }}{% endif %}
     {% include "admin/includes/confirm_identity.html" with form=form %}
     <input type="hidden" name="post" value="yes">
+    {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
     <input type="submit" value="{% translate 'Yes, I’m sure' %}">
     <a href="#" class="button cancel-link">{% translate "No, take me back" %}</a>
     </div>

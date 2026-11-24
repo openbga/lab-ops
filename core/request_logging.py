@@ -10,7 +10,9 @@ Render's Rndr-Id is validated and logged separately for platform correlation onl
 
 Django's own request/security error records embed the raw path or request details, and
 exception messages can too. The filter below rewrites those records to route, status and
-exception class, and keeps the traceback frames but drops exception messages.
+exception class, and keeps the traceback frames but drops exception messages. The middleware
+also marks the fields a page asks for again to confirm it is you as sensitive, so that a Django
+error report never shows them (accounts.confirmation.mark_sensitive).
 """
 
 import logging
@@ -73,6 +75,11 @@ class RequestLogMiddleware:
 
     def __call__(self, request):
         request_id = request.request_id = uuid.uuid4().hex
+        # The password and code a page asks for again are never shown in an error report, also
+        # when the request is refused before its form is built (accounts.confirmation).
+        from accounts.confirmation import mark_sensitive
+
+        mark_sensitive(request)
         token = _request_id.set(request_id)
         render_id = request.META.get("HTTP_RNDR_ID", "")
         request.render_request_id = render_id if RENDER_REQUEST_ID.fullmatch(render_id) else "-"

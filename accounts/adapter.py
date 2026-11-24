@@ -38,6 +38,14 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             accepted = super().reauthenticate(user, password)
         finally:
             self._reauthenticating = None
+        if accepted:
+            # Which password it was, so that a later change of it asks again (accounts.
+            # confirmation: a re-authentication counts only while the account keeps it).
+            from allauth.core import context
+
+            from .confirmation import remember_password
+
+            remember_password(context.request, user)
         if not accepted:
             from allauth.core import context
 

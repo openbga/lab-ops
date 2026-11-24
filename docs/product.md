@@ -350,11 +350,12 @@ The history starts at the upgrade that added it.
 
 Before a change to access or security settings, the application asks the person making it to
 confirm it is them: their password, and a code from their authenticator app or a recovery code
-where their account has one. In the admin console it asks a superuser who adds an account or saves
+where their account has one (an account without a password gives the code alone). In the admin console it asks a superuser who adds an account or saves
 an account's page, its password page or Mark as compromised, removes an authenticator, or adds or
 saves a role; on Security settings it asks an administrator who saves the session limits or the
 second-factor rule. Once they have confirmed, they are not asked again in that browser for 5
-minutes; signing in does not count. Without the confirmation nothing is saved and no change is
+minutes, unless their password or authenticator app changes meanwhile; signing in does not count,
+and each factor given on a page of its own counts for 5 minutes from when it was given. Without the confirmation nothing is saved and no change is
 recorded, and what else they typed, new passwords aside, stays on the form. A password or code not accepted is kept in
 their Sign-in history and counts toward the failed sign-in limit; what they type is never stored or
 logged. An account with neither a password nor an authenticator cannot make these changes. Ending an
