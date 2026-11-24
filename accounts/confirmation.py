@@ -47,7 +47,12 @@ the password proof is one digest per session, so only a server clock set back be
 re-authentications with different passwords lets the older one's time stand for the newer; a
 confirmation refused before its final reading (a field left empty, a wrong password or code)
 while the account gains or loses a method is drawn again with the fields it asked for (the save is
-refused, and the next form asks for what the account has).
+refused, and the next form asks for what the account has); a failure of the server
+or of the session's storage after a code was accepted can leave it used without the confirmation
+recorded (allauth's own pages too), and an admin console save refused after its form was checked
+can keep the confirmation while its transaction gives the code back: the person confirms again;
+a recovery-code proof stored in the session counts for a replacement app added at the very same
+instant as the app it replaced (app times are compared, not their ids, for a stored proof).
 
 An account with neither a usable password nor an authenticator cannot confirm, so it cannot make
 these changes until it sets a password.
@@ -511,6 +516,18 @@ class ConfirmIdentity:
         # save the session, leaving the code spent and the confirmation unrecorded.
         save = getattr(request.session, "save", None)
         if save is not None:
-            save()
+            from django.contrib.sessions.backends.base import UpdateError
+            from django.contrib.sessions.exceptions import SessionInterrupted
+
+            try:
+                save()
+            except UpdateError:
+                # As Django's session middleware answers it (400): the session was ended, for
+                # example by a sign-out in another tab, while this request was under way. Not
+                # written again with the response.
+                request.session.modified = False
+                raise SessionInterrupted(
+                    "The request's session was deleted before the request completed."
+                ) from None
         self.confirmed_now = True
         return True

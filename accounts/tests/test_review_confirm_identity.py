@@ -1,4 +1,6 @@
-"""Independent confirmation review. All accounts, changes and submitted values are synthetic."""
+"""Independent confirmation review. All accounts, changes and submitted values are synthetic.
+
+Adopted from the review (round 1); factor_code waits out the end of a code's period."""
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -341,8 +343,13 @@ def factor_app(actor):
 
 
 def factor_code(secret):
+    """The app's current code, taken with at least 10 seconds of its period left (changed on
+    adoption: a code taken at the end of a period was refused by the next request)."""
     import time
 
+    left = mfa_settings.TOTP_PERIOD - time.time() % mfa_settings.TOTP_PERIOD
+    if left < 10:
+        time.sleep(left + 0.2)
     counter = int(time.time()) // mfa_settings.TOTP_PERIOD
     return totp.format_hotp_value(totp.hotp_value(secret, counter))
 
