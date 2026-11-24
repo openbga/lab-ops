@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Who opened a ticket (desk.views.request_access), for supervisors: the ticket's access records
+(core.access, desk.opened), newest first, a fixed 25 per page. Each row: when (by the database's
+clock), the person (name and username as they stand now), the capacity they read in, what they
+read (with the file's generated download name or the answer's label) and the request ID. Never
+what was shown. Context: req, page_obj (a Page of desk.opened.Opened rows), record_url,
+history_url, list_url. Read-only; opening it is recorded too.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Each time someone opened this ticket, its audit history, this page or the form details page, downloaded one of its files, was shown a patient-marked answer or saw its entries on a client organization's timeline, newest first.</p>{% endblock %}
+{% block content %}
+<p><a href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
+{% panel title="Access records" heading_id="access-heading" count=page_obj.paginator.count table=True flush=True class="mb-3" %}
+  {% if page_obj.object_list %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-labelledby="access-heading">
+      <thead><tr>
+        <th scope="col">When</th>
+        <th scope="col">Person</th>
+        <th scope="col">Capacity</th>
+        <th scope="col">What</th>
+        <th scope="col">Request ID</th>
+      </tr></thead>
+      <tbody>
+        {% for row in page_obj %}
+        <tr>
+          <th scope="row" class="vr-nowrap"><time datetime="{{ row.occurred_at|date:'c' }}">{{ row.occurred_at|date:"Y-m-d H:i:s" }}</time></th>
+          <td class="vr-wrap"><span>{{ row.person }}<span class="d-block vr-muted small">{{ row.username }}</span></span></td>
+          <td class="vr-nowrap">{{ row.capacity }}</td>
+          <td class="vr-wrap"><span>{{ row.what }}{% if row.detail %}<span class="d-block vr-muted small">{{ row.detail }}</span>{% endif %}</span></td>
+          <td class="vr-wrap">{% if row.request_ref %}<code class="vr-request-id">{{ row.request_ref }}</code>{% else %}<span class="vr-muted">Not recorded</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="access records" fixed_size=True %}
+  {% else %}
+  {% empty_state kind="empty" title="Nothing recorded yet" body="Nobody has opened this ticket since the release that added access records." action_url=None clear_url=None %}
+  {% endif %}
+  {% fill footer %}<p class="vr-muted small mb-0">Records are kept apart from the <a href="{{ history_url }}">audit history</a>, which lists changes, and are never changed or deleted. Lists and searches that show this ticket among others are not recorded.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

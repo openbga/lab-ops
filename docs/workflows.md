@@ -56,6 +56,11 @@ A supervisor can withdraw a reply or attachment from client view with a reason. 
 answer on a ticket form, use **Edit form details**. Give a reason when replacing or clearing a
 value. A protected answer requires the patient-information grant.
 
+Opening a ticket or its form details, downloading a file and revealing a protected answer are
+each recorded with the person and the time, never what they saw; so is a client portal account
+opening its own ticket. A supervisor reads these records, newest first, under **More**, **Who
+opened it**, and the changes under **Audit history**.
+
 ### 4. Assign, take or move a ticket
 
 Choose **Take it** to assign a ticket to yourself if you belong to its team. **Assign** lists

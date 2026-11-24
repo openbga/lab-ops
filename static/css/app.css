@@ -706,6 +706,13 @@ time,
   white-space: nowrap;
 }
 
+/* A request ID (32 hex digits, core.request_logging) breaks anywhere, so a stacked row on a phone
+   keeps it inside its card (Bootstrap's code keeps word-wrap: break-word, which does not shrink). */
+.vr-request-id {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 code,
 kbd,
 pre,

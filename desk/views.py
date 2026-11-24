@@ -29,18 +29,19 @@ from attachments.models import Attachment
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.models import Client
+from core import access
 from core.concurrency import one_reading, reading_account
 from core.grids import GridRequest, chosen_query
 from core.ids import ascii_digits, whole_number
 from core.lists import list_response
-from core.models import AuditEvent
+from core.models import AccessKind, AuditEvent
 from core.preferences import apply_saved_grid, drop_unchosen
 from links.search import request_ids_for_identifier
 from service_levels.templatetags.clocks import clock_parts
 from taxonomy import terms
 from taxonomy.models import RequestCategory
 
-from . import saved_views, services
+from . import opened, saved_views, services
 from .forms import (
     AssignForm,
     BulkForm,
@@ -819,6 +820,7 @@ def request_detail(request, pk):
         request_obj = _request_or_404(reading_account(request), pk)
         context = _detail_context(request, request_obj)
         response = render(request, "desk/request_detail.html", context)
+        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk)
     # Never kept by a shared cache. accounts.sessions also marks it no-store, as every answer to
     # a signed-in session; a browser that restores it from its history anyway shows a revealed
     # key masked again (static/js/app.js, e2e/test_links_journey.py).
@@ -868,6 +870,7 @@ def request_entry(request, pk):
             form.offer_note_only()  # closed meanwhile: as the page shows it
         context = _detail_context(request, request_obj, composer=form)
         response = render(request, "desk/request_detail.html", context, status=400)
+        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk)
     patch_cache_control(response, private=True)  # like the page (request_detail)
     return response
 
@@ -1312,7 +1315,7 @@ def request_history(request, pk):
     file_ids = Attachment.objects.filter(request=request_obj).values_list("pk", flat=True)
     objects |= Q(object_type="attachments.attachment", object_id__in=[str(pk) for pk in file_ids])
     events = AuditEvent.objects.filter(objects).select_related("actor").order_by("occurred_at")
-    return render(
+    response = render(
         request,
         "desk/request_history.html",
         {
@@ -1321,8 +1324,46 @@ def request_history(request, pk):
             "events": audit_changes(events),
             "record_url": _record_url(request_obj, _back(request)),
             "list_url": _queue_url(_back(request)),
+            "access_url": _ticket_page_url("desk:request-access", request_obj, _back(request)),
         },
     )
+    access.note(request, AccessKind.HISTORY, ticket_id=request_obj.pk)
+    return response
+
+
+def _ticket_page_url(name, request_obj, list_query=""):
+    """A ticket's own page `name` (its audit history, who opened it), carrying the queue."""
+    url = reverse(name, args=[request_obj.pk])
+    return f"{url}?{urlencode({'list': list_query})}" if list_query else url
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
+@login_required
+@require_GET
+def request_access(request, pk):
+    """Who opened the ticket (supervisors): its access records, newest first (core.access,
+    desk.opened). The access check, the role and the records come from one reading; opening this
+    page is recorded too."""
+    with one_reading():
+        account = reading_account(request)
+        request_obj = _request_or_404(account, pk)
+        if not is_supervisor(account):
+            raise PermissionDenied("Who opened a ticket is for supervisors.")
+        list_query = _back(request)
+        response = render(
+            request,
+            "desk/request_access.html",
+            {
+                "page_title": f"Who opened {request_obj.number}",
+                "req": request_obj,
+                "page_obj": opened.page(request_obj, request.GET.get("page")),
+                "record_url": _record_url(request_obj, list_query),
+                "history_url": _ticket_page_url("desk:request-history", request_obj, list_query),
+                "list_url": _queue_url(list_query),
+            },
+        )
+        access.note(request, AccessKind.ACCESS, ticket_id=request_obj.pk)
+    return response
 
 
 # ------------------------------------------------------------------------------ saved views

@@ -163,6 +163,7 @@ class ValueRow:
     corrected: bool = False
     retired: bool = False  # the field is no longer on the form
     wide: bool = False  # long text or a list: the whole row
+    value_id: int | None = None  # the value row shown (a portal row; core.access records it)
 
 
 @dataclass
@@ -266,7 +267,17 @@ def client_values(service_request, user):
             continue
         lines = kinds.display(row.kind, row.value)
         if lines:
-            rows.append(ValueRow(label=row.label, lines=lines, wide=row.kind in WIDE_KINDS))
+            rows.append(
+                ValueRow(
+                    label=row.label,
+                    lines=lines,
+                    wide=row.kind in WIDE_KINDS,
+                    # A client sees its own patient information on its tickets; each such answer
+                    # shown is an access record (request_forms.templatetags.request_form_details).
+                    patient=_patient(row),
+                    value_id=row.pk,
+                )
+            )
     return FormDetails(template_label=filled.template_client_label, rows=rows)
 
 

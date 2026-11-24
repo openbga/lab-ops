@@ -29,6 +29,15 @@ _render_request_id = ContextVar("render_request_id", default="-")
 RENDER_REQUEST_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
+def current_request_id():
+    """The ID of the request being served in this context, or "" outside one (a scheduled job, a
+    management command, a migration): what change events and access records store with
+    themselves, so an entry can be matched with the access-log line and the X-Request-ID header
+    of the request that made it."""
+    request_id = _request_id.get()
+    return "" if request_id == "-" else request_id
+
+
 def route_label(request):
     match = getattr(request, "resolver_match", None)
     if match is None:

@@ -29,4 +29,5 @@ urlpatterns = [
         name="entry-withdraw",
     ),
     path("<int:pk>/history/", views.request_history, name="request-history"),
+    path("<int:pk>/access/", views.request_access, name="request-access"),
 ]

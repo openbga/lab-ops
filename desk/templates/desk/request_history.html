@@ -4,11 +4,13 @@
 The audit trail of one request (supervisors): every audit event of the request, its entries, its
 complaint record and its link attachments, oldest first. Payloads carry ids, codes and field
 names, never entry text or person-level keys. Context: req, events (AuditEvent), record_url,
-list_url (the way back to the queue the request page was opened from).
+list_url (the way back to the queue the request page was opened from), access_url (Who opened it,
+the ticket's access records). Opening this page is recorded as an access record (core.access).
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
 {% block content %}
 <p><a href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
+<p class="vr-muted">Changes only. Opening the ticket, its files and its patient-marked answers is listed on <a href="{{ access_url }}">Who opened it</a>.</p>
 {% history_panel events=events title="Audit history" empty_title="No audit events" %}{% for event in events %}
   {% history_item title=event.action|action_label at=event.occurred_at actor=event.actor reason=event.reason changes=event.changes %}
 {% endfor %}

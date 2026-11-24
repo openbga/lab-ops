@@ -25,14 +25,16 @@
     "Only supervisors (and the admin role) can open this page; other staff are refused.",
     "History is never edited. A correction adds a new event.",
     "Events carry codes, numbers and field names, not the words of replies, notes or logged contacts. Read those on the ticket.",
-    "A ticket you may not read answers Not found here too."
+    "A ticket you may not read answers Not found here too.",
+    "Opening a ticket, its files or its patient-marked answers is not a change, so it is not listed here: see [[Who opened it]]. Opening this page is recorded there."
   ],
   "sections": [
     {
       "title": "What is listed",
       "paragraphs": [
         "The page is titled History of followed by the ticket number and shows the History panel Audit history. Events appear oldest first, each with its action, the time, who did it and, when given, the reason.",
-        "Status, priority, category, assignment, complaint marking, investigation decisions and reviewer changes show the recorded previous and new values. A missing earlier value is marked Not recorded. Team, category and staff references use their current names."
+        "Status, priority, category, assignment, complaint marking, investigation decisions and reviewer changes show the recorded previous and new values. A missing earlier value is marked Not recorded. Team, category and staff references use their current names.",
+        "Each change event recorded from this release on also keeps the identifier of the request that made it, the one the server's access log and the X-Request-ID header carry. It is not shown on this page."
       ],
       "items": [
         {
@@ -52,6 +54,10 @@
           "description": "Attachments of links to orders and other records, once links are in use."
         },
         {
+          "label": "Who opened it",
+          "description": "The note above the list links to the ticket's access records: each time someone opened the ticket, its audit history or its form details, downloaded one of its files or was shown a patient-marked answer. Reads are kept apart from the changes listed here. Opening this page adds such a record."
+        },
+        {
           "label": "Back to the ticket",
           "description": "Returns to the ticket page, keeping the list you came from."
         },
@@ -69,6 +75,8 @@
     "desk/templates/desk/request_history.html",
     "templates/includes/history_panel.html",
     "desk/timeline.py",
-    "templates/includes/history_item.html"
+    "templates/includes/history_item.html",
+    "core/access.py",
+    "core/models.py"
   ]
 }

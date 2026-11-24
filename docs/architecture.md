@@ -93,6 +93,32 @@ the mark, without showing its form, when `current` holds, or once the confirmati
 returns to the page on screen; the person reveals again.
 [Confirm before revealing](../core/reveal_confirmation.py)
 
+## Access records
+
+A sensitive read leaves a `core.models.AccessRecord` ([core/access.py](../core/access.py)): the
+account (by id, no database constraint, as for the sign-in history), the capacity (laboratory or
+client, from the account as read for the page; an account's kind never changes), the kind of read,
+the ticket's id, the file or answer read (`object_type`, `object_id`) and the request ID that
+`core.request_logging` generates, never what was shown. The views call `access.note` once access is
+decided and what they show is read: the staff and portal ticket pages (also when drawn again after a
+refused entry or reply), the audit history, Who opened it (`desk.views.request_access`,
+`desk.opened`) and the Form details page, after the drawing; a download after the file's bytes are
+read; a staff reveal after the value is read in the reveal's transaction; and the
+`request_form_details` tag for each patient-marked answer it draws for a portal account
+(`request_forms.selectors.client_values` gives each row's value id and mark); and the client
+timeline for each ticket whose entries its page shows, after the drawing. A refusal raised
+before the note records nothing. `AccessRecordMiddleware`, inside the request log middleware,
+writes what the request noted in one statement once the view has answered, so a page drawn in
+`one_reading` writes after its reading has ended. An answer of 500 or more records nothing; when
+the write fails, the middleware raises and the answer becomes a server error, so nothing read is
+sent without its record. The table is kept apart from `AuditEvent`, so a ticket's history lists its
+changes only; a trigger (core migration 0009, `prevent_record_mutation`) refuses `UPDATE` and
+`DELETE`, and the model has no permissions and no admin. Change events gain the same request ID
+(`AuditEvent.request_ref`, filled from the request being served by the field's default, blank
+outside one, with a database default so that a release still running during the migration keeps
+inserting events).
+[Access records](../core/access.py)
+
 ## Security settings
 
 `core.security_settings` reads what protects sign-in, sessions and patient information from the

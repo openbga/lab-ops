@@ -25,8 +25,10 @@ from django.views.decorators.http import require_http_methods
 from attachments.selectors import with_files
 from attachments.services import add_entry_with_files, create_request_with_files
 from clients.portal import client_required
+from core import access
 from core.concurrency import one_reading, reading_account
 from core.lists import list_response, return_list_params
+from core.models import AccessKind
 from taxonomy import terms
 from taxonomy.choices import Priority
 
@@ -212,7 +214,7 @@ def _request_page(request, number, reply_form):
         reply_form = None
     if reply_form is None and can_reply:
         reply_form = ReplyForm(initial={"expected_revision": service_request.revision})
-    return render(
+    response = render(
         request,
         "desk/portal/request_detail.html",
         {
@@ -238,6 +240,10 @@ def _request_page(request, number, reply_form):
             "is_closed": service_request.status == Status.CLOSED,
         },
     )
+    # Drawn: the ticket is recorded as opened (its form details note each patient-marked answer
+    # they show, request_forms.templatetags). A refused reply drawn again is opened again.
+    access.note(request, AccessKind.TICKET, ticket_id=service_request.pk)
+    return response
 
 
 @transaction.non_atomic_requests  # the service opens its own; the redraw its own reading

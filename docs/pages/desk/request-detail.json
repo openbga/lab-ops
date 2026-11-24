@@ -59,7 +59,8 @@
       "paragraphs": [
         "Every active staff role can open a ticket it may read. A ticket outside your scope, such as one in a restricted category whose team you do not belong to, answers Not found, as if it did not exist. Supervisors (and the admin role) read restricted tickets. Client portal accounts cannot open this page. Opened from the Tickets list, the page keeps the list's filters and the order it showed, so Previous in list and Next in list can step through it and the Tickets breadcrumb returns to it. Opened any other way, such as from Find or the dashboard, it shows no Previous or Next, and the breadcrumb opens the Tickets list with your saved sort and page size.",
         "The page is read at one moment: its details, conversation, links and the ticket revision its forms send agree with each other, and your roles are checked in the same reading. A change saved from it is refused as stale only if the ticket changed after the page opened. When an entry is refused, the page is shown again read the same way, and the entry form keeps what you typed and the revision it was opened with.",
-        "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again."
+        "If a complaint's reviewer is later assigned the ticket, or has recorded or revised its decision, the review no longer counts: the Complaint section says so, closing is refused, and another supervisor reviews it again.",
+        "Each time the page is drawn for you, also when it is drawn again after a refused entry, the application records that you opened the ticket, with the time and your account, never what the page showed. Downloading a file and revealing a patient-marked answer are recorded the same way. Supervisors read these records on Who opened it."
       ]
     },
     {
@@ -83,7 +84,7 @@
         },
         {
           "label": "More",
-          "description": "A menu. Edit category and priority opens that form and Mark as a complaint opens the complaint form; both are hidden on a closed ticket. Unmark complaint appears instead of Mark as a complaint on a complaint, for supervisors only. Audit history is for supervisors."
+          "description": "A menu. Edit category and priority opens that form and Mark as a complaint opens the complaint form; both are hidden on a closed ticket. Unmark complaint appears instead of Mark as a complaint on a complaint, for supervisors only. Audit history and Who opened it are for supervisors: the first lists the ticket's changes, the second each time someone opened the ticket, downloaded its files or was shown a patient-marked answer."
         },
         {
           "label": "Add entry",
@@ -151,7 +152,7 @@
         },
         {
           "label": "Form details",
-          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded in the audit history. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
+          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded in the audit history and on Who opened it. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
         },
         {
           "label": "First response / Resolution",
@@ -336,7 +337,7 @@
       "items": [
         {
           "label": "File list",
-          "description": "Under each reply or note, its files with size and the label Not scanned. The name downloads the file; it is never opened in the application, and the downloaded name is the ticket number and the file's number. Not scanned means no virus scanner has checked the file. Its type was checked from its content (an image must decode, every page or frame of it, a PDF must have a document structure, a Word or Excel file must be a valid package without macros), and it is always downloaded rather than opened here, but it can still carry harmful content. Open it only with up-to-date software, and ask the sender when something looks wrong."
+          "description": "Under each reply or note, its files with size and the label Not scanned. The name downloads the file, and each download is recorded on Who opened it; it is never opened in the application, and the downloaded name is the ticket number and the file's number. Not scanned means no virus scanner has checked the file. Its type was checked from its content (an image must decode, every page or frame of it, a PDF must have a document structure, a Word or Excel file must be a valid package without macros), and it is always downloaded rather than opened here, but it can still carry harmful content. Open it only with up-to-date software, and ask the sender when something looks wrong."
         },
         {
           "label": "Withdraw file",
@@ -375,6 +376,7 @@
     "nonconformance/views.py",
     "accounts/kept.py",
     "static/js/kept-typing.js",
-    "templates/includes/kept_typing.html"
+    "templates/includes/kept_typing.html",
+    "core/access.py"
   ]
 }

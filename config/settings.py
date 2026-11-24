@@ -59,6 +59,9 @@ MIDDLEWARE = [
     "accounts.sessions.NoStoreMiddleware",
     "core.security_headers.SecurityHeadersMiddleware",
     "core.request_logging.RequestLogMiddleware",
+    # Writes the access records a view noted (a ticket opened, a file downloaded, a patient-marked
+    # answer shown) once it has answered; a failed write fails the answer (core.access).
+    "core.access.AccessRecordMiddleware",
     "core.request_limits.RequestBodyLimitMiddleware",
     # Before the HTTPS redirect, CommonMiddleware and the CSRF check: while an optional module is
     # off its addresses do not exist, and every answer of one that is on is never stored

@@ -1,0 +1,105 @@
+{
+  "id": "desk-request-access",
+  "routes": [
+    "desk:request-access"
+  ],
+  "title": "Who opened a ticket",
+  "purpose": "See who opened one ticket, its audit history or its form details, downloaded its files, was shown its patient-marked answers or saw its entries on a client timeline, and when. Supervisors only.",
+  "summary": "Each time someone opened this ticket or its form details, downloaded one of its files or was shown a patient-marked answer, newest first. For supervisors; it never shows what they saw.",
+  "tasks": [
+    {
+      "title": "See who opened a ticket",
+      "steps": [
+        "On the ticket, open the [[More]] menu and select [[Who opened it]].",
+        "Read [[When]], [[Person]] and [[What]] for each row, newest first. Use the pager below the table for older rows."
+      ]
+    },
+    {
+      "title": "Check who saw a patient-marked answer or a file",
+      "steps": [
+        "Look for rows whose [[What]] is Shown a patient-marked answer or Downloaded a file. The line under it names the answer's label or the file's download name."
+      ]
+    },
+    {
+      "title": "Match a row with the server's logs",
+      "steps": [
+        "Give the [[Request ID]] of the row to whoever runs the deployment. The same ID is in the access log line of that request and in the change events it recorded."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only supervisors (and the admin role) can open this page. Opening it, and the audit history, adds a row here too.",
+    "A row records who read what and when, never what was shown: no text, answer or file content.",
+    "Lists, searches and the dashboard that show this ticket among others are not recorded. A client organization's timeline, which shows the start of entries' text, is.",
+    "Rows are never changed or deleted. Nothing is listed from before the release that added access records.",
+    "A client portal account opening its own ticket is listed too, with Client portal in [[Capacity]]."
+  ],
+  "sections": [
+    {
+      "title": "What is recorded",
+      "paragraphs": [
+        "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page or its Form details page; downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal (which also adds a change event to the audit history); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member shown the ticket's entries on its client organization's timeline is recorded once for each timeline page drawn, since that page shows the start of each entry's text.",
+        "A ticket page drawn again after a refused reply, note or contact is recorded as opened again. A page that is refused (Not found, or not permitted), a reveal sent to Confirm it is you first, and a page that failed with a server error record nothing. If the record cannot be written, the page is not shown: the request fails with a server error instead.",
+        "Not recorded: lists, searches, the dashboard, and the pages that only change a ticket, such as Assign or Status, which show its number and subject. The search text is never recorded."
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "When",
+          "description": "The date and time to the second, in the laboratory's time zone, by the database's clock when the record was written, just after the page was drawn."
+        },
+        {
+          "label": "Person",
+          "description": "The account's name, with its username below, as they stand now. A record keeps the account, not its name. An account that no longer exists shows its number."
+        },
+        {
+          "label": "Capacity",
+          "description": "Laboratory staff for a staff account, Client portal for a client portal account. An account's kind never changes."
+        },
+        {
+          "label": "What",
+          "description": "Opened the ticket, Opened the audit history, Opened who opened it, Opened the form details, Downloaded a file, Shown a patient-marked answer, or Shown on the organization's timeline. For a file, the line below gives its download name (the ticket number and the file's number, never the name it was uploaded with); for an answer, the label of its form field."
+        },
+        {
+          "label": "Request ID",
+          "description": "The identifier the server gave the request that read it, also sent to the browser in the X-Request-ID header and written in the server's access log. Change events made from this release on carry the same identifier. Not recorded for a row written without one."
+        },
+        {
+          "label": "Access records",
+          "description": "The panel's title. The number beside it counts every row for this ticket. Twenty-five rows per page, newest first; the pager below the table moves through older rows."
+        },
+        {
+          "label": "Nothing recorded yet",
+          "description": "Shown when nobody has opened the ticket since the release that added access records."
+        },
+        {
+          "label": "Back to the ticket",
+          "description": "The link above the panel returns to the ticket page, keeping the list you came from. The link in the panel's footer opens the audit history."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Supervisors and the admin role, for any ticket they may read. Other staff are refused. A ticket in a restricted category that you may not read answers Not found. Client portal accounts cannot open it. Your account and the records are read together, at one moment, when the page opens.",
+        "The page is read-only. Access records are kept apart from the audit history, which lists changes, and the database refuses to change or delete them. They have no retention period in the application."
+      ]
+    }
+  ],
+  "sources": [
+    "desk/urls.py",
+    "desk/views.py",
+    "desk/opened.py",
+    "desk/permissions.py",
+    "desk/templates/desk/request_access.html",
+    "desk/templates/desk/request_detail.html",
+    "core/access.py",
+    "core/models.py",
+    "core/request_logging.py",
+    "core/migrations/0009_access_records.py",
+    "request_forms/tests/test_access_records.py",
+    "clients/views.py"
+  ]
+}
