@@ -151,19 +151,27 @@ its other lines are unchanged.
 
 The `core` migration 0009 adds the table `core_accessrecord`, a trigger that refuses to change or
 delete a row, and the column `core_auditevent.request_ref` with a database default, so a release
-still running during the upgrade keeps recording change events (without a request ID). Those
-processes write no access records for the pages they serve, so the records start once the new
-release serves every request. Change events recorded before the upgrade keep a blank request ID.
+still running during the upgrade keeps recording change events (without a request ID). A process
+of the new release records the reads it serves from the moment the migration has applied; a process
+of the earlier release, while it still serves requests, records none, so the records are complete
+from the moment no earlier process serves traffic. Change events recorded before the upgrade keep a
+blank request ID.
 
-An access record is written for each ticket page, audit history, Who opened it or Form details page
-drawn, each file downloaded and each patient-marked answer shown, so the table grows by about one
-row per such page view, and one more for each patient-marked answer a portal page shows. It holds
-account and ticket ids, two short codes, the file or answer id and the request ID, never content.
-Records are kept with no retention period and no setting to remove them; accounts and tickets are
-never deleted by the application, and a record of an account deleted by other means stays under its
-id. If a record cannot be written (the database refuses the insert), the page is not sent and the
-request fails with a server error, logged by `lab_ops.request` with its request ID. Reversing
-migration 0009 deletes every access record and every change event's request ID.
+An access record is written for each ticket page, audit history, Who opened it, Form details or
+complaint form page drawn, each file downloaded, each patient-marked answer or person-level key
+shown and each new ticket opened with Request again, so the table grows by about one row per such
+page view, plus one for each patient-marked answer a portal ticket page shows, plus one for each
+ticket whose entries a client organization's timeline page shows (up to 25 for a page). It holds
+account and ticket ids, two short codes, the file, answer or link id and the request ID, never
+content. Records are kept with no retention period and no setting to remove them; accounts and
+tickets are never deleted by the application, and a record of an account deleted by other means
+stays under its id. If a record cannot be written (the database refuses the insert), the page is
+not sent and the request fails with a server error, logged by `lab_ops.request` with its request
+ID. Reversing migration 0009 deletes every access record and every change event's request ID.
+
+Error reports built by Django (a deployment that turns on `ADMINS` mail or another reporter) show
+no value a request posted: `DEFAULT_EXCEPTION_REPORTER_FILTER` is
+`core.request_logging.NoPostedValuesFilter`.
 
 ## Sign-in limits behind a proxy
 

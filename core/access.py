@@ -2,33 +2,42 @@
 
 Recorded: a staff or client portal account opening a ticket's page (also when the page is drawn
 again after a refused reply, note or contact), a ticket's audit history or its Who opened it
-page, the staff Form details page of a ticket; downloading a file; being shown a patient-marked
-answer, whether a staff member reveals it or a portal account's ticket page shows it; a staff
-member revealing a ticket's person-level key; and each ticket whose entries a client
-organization's timeline page shows (the start of their text). Not recorded: rows shown in a list,
-a search or its text, the pages that only change a ticket (their forms show its number and
-subject), and a portal form opened with Request again (it copies some of the client's own answers,
-never patient information, into a new form; the ticket they come from is recorded when opened).
+page, the staff Form details page of a ticket or one of its complaint forms (Record decision,
+Complaint record, Review: they show the complaint's rationale and findings); downloading a file;
+being shown a patient-marked answer, whether a staff member reveals it or a portal account's
+ticket page shows it; a staff member revealing a ticket's person-level key; a portal account
+opening a new ticket with Request again, which copies answers from an earlier ticket; and each
+ticket whose entries a client organization's timeline page shows (the start of their text). Not
+recorded: rows shown in a list, a search or its text, the action pages that show only a ticket's
+number (Assign, Status, Edit category and priority and the like), and a HEAD request, which
+answers without the page.
 
 Each record holds the account, the capacity it read in (laboratory staff or client portal, the
-account as it was read for the page), what was read (the kind, the ticket and, for a file or an
-answer, which one), the request ID (core.request_logging) and the time by the database's clock.
-Never what was shown: no subject, text, file name or value, and nothing about the record is
-logged.
+account as it was read for the page), what was read (the kind, the ticket and, for a file, an
+answer or a person-level link, which one), the request ID (core.request_logging) and the time by
+the database's clock. Never what was shown: no subject, text, file name, value or key, and
+nothing about the record is logged.
 
 A view, or a template tag drawing part of a page, calls `note` once access has been decided and
 what it shows has been read, so a refusal (404, 403) or a redirect to confirm it is you first
-notes nothing. AccessRecordMiddleware writes what the request noted once the view has answered,
-in one statement, after any reading the page was drawn in has ended (a page drawn in
-core.concurrency.one_reading writes nothing inside it). An answer of 500 or more showed nothing
-and records nothing. When the write fails, the answer is not sent: the request fails as a server
-error, so nothing is shown without its record. The record is written after the page was drawn
-and before it is sent; a browser that drops the connection meanwhile still leaves the record.
+notes nothing. Two middlewares write the notes only with the answer they belong to:
+AccessBindMiddleware, the innermost, moves what the view noted onto the answer the view returned,
+and forgets it when the view raised instead (whatever answer the error then becomes);
+AccessRecordMiddleware, outside the session middleware, writes in one statement the notes the
+answer it is about to send still carries, after any reading the page was drawn in has ended (a page
+drawn in core.concurrency.one_reading writes nothing inside it). An answer another layer put in the
+view's place (the session ended in another tab, say, so Django answers 400 instead) carries no
+notes and records nothing; so does an answer of 500 or more. When the write fails, the answer is
+not sent: the request fails as a server error, so nothing is shown without its record. The record
+is written after the page was drawn and before it is sent; a browser that drops the connection
+meanwhile still leaves the record.
 """
 
 from core.models import AccessCapacity, AccessKind, AccessRecord
 
 PENDING = "_vr_access_pending"
+# The notes moved onto the answer the view returned (AccessBindMiddleware).
+CARRIED = "_vr_access_records"
 
 
 def capacity_of(account):
@@ -38,10 +47,11 @@ def capacity_of(account):
 
 
 def note(request, kind, *, ticket_id, target=None, account=None):
-    """Note that the request read `kind` of ticket `ticket_id` (for a file or an answer, `target`,
-    the Attachment or FieldValue), as `account` (by default the request's user: on a page drawn
-    in one reading, the account read in it). Written by AccessRecordMiddleware when the view has
-    answered. The same read noted twice in one request is recorded once."""
+    """Note that the request read `kind` of ticket `ticket_id` (for a file, an answer or a
+    person-level link, `target`: the Attachment, FieldValue or LinkAttachment), as `account` (by
+    default the request's user: on a page drawn in one reading, the account read in it). Written
+    with the answer the view returns (see the module's docstring). The same read noted twice in
+    one request is recorded once."""
     if kind not in AccessKind.values:
         raise ValueError(f"Unknown access kind {kind!r}.")
     account = account if account is not None else request.user
@@ -62,30 +72,55 @@ def note(request, kind, *, ticket_id, target=None, account=None):
 
 
 def noted(request):
-    """What the request has noted so far and not yet written (for tests and the middleware)."""
+    """What the request has noted so far and not yet bound to an answer (for tests)."""
     return list(request.__dict__.get(PENDING, {}).values())
 
 
-def write(request):
-    """Write what the request noted, in one statement, and forget it. Raises what the database
-    raises: the caller must not send what was read without its record."""
-    pending = request.__dict__.pop(PENDING, None)
-    if pending:
-        AccessRecord.objects.bulk_create(pending.values())
+def write(request, records=None):
+    """Write `records` (by default what `request` has noted and not yet bound to an answer) in one
+    statement. Raises what the database raises: the caller must not send what was read without
+    its record."""
+    if records is None:
+        records = list(request.__dict__.pop(PENDING, {}).values())
+    if records:
+        AccessRecord.objects.bulk_create(records)
 
 
-class AccessRecordMiddleware:
-    """Writes each request's access records once its view has answered (see the module's
-    docstring). Placed inside RequestLogMiddleware, so a failed write is logged with the request's
-    ID, and outside everything that draws or replaces an answer."""
+class AccessBindMiddleware:
+    """The innermost middleware: binds what the view noted to the answer it returned, and forgets
+    it when the view raised (process_exception runs before Django turns the exception into an
+    error answer)."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        if response.status_code >= 500:
-            request.__dict__.pop(PENDING, None)  # nothing was shown
+        pending = request.__dict__.pop(PENDING, None)
+        if pending:
+            setattr(response, CARRIED, list(pending.values()))
+        return response
+
+    def process_exception(self, request, exception):
+        request.__dict__.pop(PENDING, None)
+
+
+class AccessRecordMiddleware:
+    """Writes the access records the answer about to be sent carries (see the module's
+    docstring). Placed inside RequestLogMiddleware, so a failed write is logged with the request's
+    ID, and outside the session middleware and everything else that can put another answer in the
+    view's place."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        carried = getattr(response, CARRIED, None)
+        if not carried:
             return response
-        write(request)
+        setattr(response, CARRIED, None)
+        if request.method == "HEAD" or response.status_code >= 500:
+            return response  # nothing of the page is sent
+        write(request, carried)
         return response

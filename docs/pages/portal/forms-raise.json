@@ -154,7 +154,8 @@
     {
       "title": "Who can open it",
       "paragraphs": [
-        "Only client portal accounts. Staff accounts are refused. A form that is inactive, not offered to clients, or in a category clients may not raise is not found, as is a form name that does not exist. Answers you give stay with the ticket: later changes to the form never change what you sent."
+        "Only client portal accounts. Staff accounts are refused. A form that is inactive, not offered to clients, or in a category clients may not raise is not found, as is a form name that does not exist. Answers you give stay with the ticket: later changes to the form never change what you sent.",
+        "Opened with Request again from one of your tickets, the form is filled with some of that ticket's answers, and the laboratory keeps a record that you opened them (with your account and the time, never the answers), which its supervisors can read."
       ]
     }
   ],
@@ -175,6 +176,7 @@
     "request_forms/tests/test_values.py",
     "accounts/kept.py",
     "static/js/kept-typing.js",
-    "templates/includes/kept_typing.html"
+    "templates/includes/kept_typing.html",
+    "core/access.py"
   ]
 }

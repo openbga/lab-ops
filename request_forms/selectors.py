@@ -299,7 +299,14 @@ def value_history(filled_form):
 def repeat_values(template, user, number, defn=None):
     """What "Request again" copies from this portal account's earlier request `number`, raised
     with the same form: ({field key: initial form value}, site or None), or None when the
-    account cannot see such a request.
+    account cannot see such a request (repeat_from, without the request it was copied from)."""
+    found = repeat_from(template, user, number, defn=defn)
+    return None if found is None else found[:2]
+
+
+def repeat_from(template, user, number, defn=None):
+    """repeat_values, with the earlier request the values were copied from:
+    ({field key: initial form value}, site or None, request), or None.
 
     Copied: the current values of client fields still on the form that the laboratory lets be
     copied, and only as the form still accepts them (an option or item no longer offered is
@@ -362,7 +369,7 @@ def repeat_values(template, user, number, defn=None):
     site = earlier.site
     if site is not None and not portal_sites(user).filter(pk=site.pk).exists():
         site = None
-    return values, site
+    return values, site, earlier
 
 
 def revealable_value(user, value_id):

@@ -1,3 +1,5 @@
+import functools
+import operator
 import uuid
 
 from django.conf import settings
@@ -304,6 +306,17 @@ class AccessKind(models.TextChoices):
     PATIENT_ANSWER = "patient_answer", "Shown a patient-marked answer"
     TIMELINE = "timeline", "Shown on the organization's timeline"
     PERSON_KEY = "person_key", "Shown a person-level key"
+    COMPLAINT = "complaint", "Opened a complaint form"
+    REPEAT = "repeat", "Answers copied with Request again"
+
+
+# What an access record's object is for each kind (AccessRecord.object_type): every other kind is
+# about the ticket's own page and names no object.
+ACCESS_OBJECTS = {
+    AccessKind.FILE: "attachments.attachment",
+    AccessKind.PATIENT_ANSWER: "request_forms.fieldvalue",
+    AccessKind.PERSON_KEY: "links.linkattachment",
+}
 
 
 class AccessCapacity(models.TextChoices):
@@ -345,8 +358,8 @@ class AccessRecord(models.Model):
     kind = models.CharField(max_length=20, choices=Kind.choices)
     # The ticket read, by id (core depends on no other application). Every kind is about a ticket.
     ticket_id = models.BigIntegerField()
-    # What on the ticket, for a file (attachments.attachment), an answer
-    # (request_forms.fieldvalue) or a person-level link (links.linkattachment); blank otherwise.
+    # What on the ticket, for a file, an answer or a person-level link (ACCESS_OBJECTS); blank
+    # for every other kind.
     object_type = models.CharField(max_length=100, blank=True)
     object_id = models.CharField(max_length=64, blank=True)
     request_ref = models.CharField("request ID", max_length=32, blank=True)
@@ -367,8 +380,16 @@ class AccessRecord(models.Model):
                 name="access_record_capacity",
             ),
             models.CheckConstraint(
-                condition=models.Q(object_type="", object_id="")
-                | (~models.Q(object_type="") & ~models.Q(object_id="")),
+                condition=models.Q(
+                    ~models.Q(kind__in=list(ACCESS_OBJECTS)), object_type="", object_id=""
+                )
+                | functools.reduce(
+                    operator.or_,
+                    (
+                        models.Q(kind=kind, object_type=object_type) & ~models.Q(object_id="")
+                        for kind, object_type in ACCESS_OBJECTS.items()
+                    ),
+                ),
                 name="access_record_object",
             ),
         ]

@@ -4,7 +4,7 @@
     "desk:request-access"
   ],
   "title": "Who opened a ticket",
-  "purpose": "See who opened one ticket, its audit history or its form details, downloaded its files, was shown its patient-marked answers or saw its entries on a client timeline, and when. Supervisors only.",
+  "purpose": "See who opened one ticket, its audit history, its form details or its complaint forms, downloaded its files, was shown its patient-marked answers or person-level key, or saw its answers or entries elsewhere, and when. Supervisors only.",
   "summary": "Each time someone opened this ticket or its form details, downloaded one of its files or was shown a patient-marked answer, newest first. For supervisors; it never shows what they saw.",
   "tasks": [
     {
@@ -38,9 +38,10 @@
     {
       "title": "What is recorded",
       "paragraphs": [
-        "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page or its Form details page; downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal (which also adds a change event to the audit history); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member shown the ticket's entries on its client organization's timeline is recorded once for each timeline page drawn, since that page shows the start of each entry's text. A staff member who reveals the ticket's person-level key with Reveal key is recorded the same way (the key is never shown here).",
-        "A ticket page drawn again after a refused reply, note or contact is recorded as opened again. A page that is refused (Not found, or not permitted), a reveal sent to Confirm it is you first, and a page that failed with a server error record nothing. If the record cannot be written, the page is not shown: the request fails with a server error instead.",
-        "Not recorded: lists, searches, the dashboard, the pages that only change a ticket, such as Assign or Status, which show its number and subject, and a client's new ticket started with Request again, which copies some of their own answers (never patient information) from an earlier ticket. The search text is never recorded."
+        "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page, its Form details page or one of its complaint forms (Investigation decision, Findings and outcome, Review complaint: they show the complaint's rationale and findings); downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal, which also records a change event (kept with the form's answers, so the ticket's audit history does not list it); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member who reveals the ticket's person-level key with Reveal key is recorded the same way (the key is never shown here).",
+        "Two other pages show part of a ticket and are recorded for it: a client organization's timeline, once for each ticket whose entries a page of it shows (it shows the start of each entry's text), and a client's new ticket started with Request again from this ticket, which copies some of the client's own answers (never patient information) into the new form.",
+        "A ticket page drawn again after a refused reply, note or contact is recorded as opened again. A page that is refused (Not found, or not permitted), a reveal sent to Confirm it is you first, a page that failed with a server error, a page answered in place of the one drawn (for example when the session was signed out in another tab while it was drawn) and a HEAD request, which answers without the page, record nothing. If the record cannot be written, the page is not shown: the request fails with a server error instead.",
+        "Not recorded: lists, searches, the dashboard, and the action pages that show only the ticket's number, such as Assign, Status and Edit category and priority. The search text is never recorded."
       ]
     },
     {
@@ -60,7 +61,7 @@
         },
         {
           "label": "What",
-          "description": "Opened the ticket, Opened the audit history, Opened who opened it, Opened the form details, Downloaded a file, Shown a patient-marked answer, Shown a person-level key, or Shown on the organization's timeline. For a file, the line below gives its download name (the ticket number and the file's number, never the name it was uploaded with); for an answer, the label of its form field; for a person-level key, the link's number, never the key or its masked form."
+          "description": "Opened the ticket, Opened the audit history, Opened who opened it, Opened the form details, Opened a complaint form, Downloaded a file, Shown a patient-marked answer, Shown a person-level key, Shown on the organization's timeline, or Answers copied with Request again. For a file, the line below gives its download name (the ticket number and the file's number, never the name it was uploaded with); for an answer, the label of its form field; for a person-level key, the link's number, never the key or its masked form."
         },
         {
           "label": "Request ID",
@@ -68,7 +69,7 @@
         },
         {
           "label": "Access records",
-          "description": "The panel's title. The number beside it counts every row for this ticket. Twenty-five rows per page, newest first; the pager below the table moves through older rows."
+          "description": "The panel's title. The number beside it counts the rows for this ticket recorded when you opened the page. Twenty-five rows per page, newest first; the pager below the table moves through older rows, as they stood when you opened the first page, so a row recorded since (your own visit included) never moves another to the next page. Open the page again from the ticket to see newer rows."
         },
         {
           "label": "Nothing recorded yet",
@@ -101,6 +102,8 @@
     "core/migrations/0009_access_records.py",
     "request_forms/tests/test_access_records.py",
     "clients/views.py",
-    "links/views.py"
+    "links/views.py",
+    "request_forms/portal_views.py",
+    "request_forms/selectors.py"
   ]
 }

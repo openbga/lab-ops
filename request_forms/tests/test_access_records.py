@@ -379,24 +379,86 @@ def test_a_failed_write_fails_the_answer_and_shows_nothing(client, agent, ticket
     assert ticket.subject not in response.content.decode()
 
 
-def _middleware_request(user, status):
-    request = RequestFactory().get("/")
+def _through_middlewares(user, *, status=200, method="get", replace=False, raises=False):
+    """A request through the two access middlewares around a view that notes the same read twice
+    and answers `status` (or raises); `replace`: a layer between them answers in its place, as
+    Django's session middleware does when the session was deleted in another tab."""
+    request = getattr(RequestFactory(), method)("/")
     request.user = user
     request.request_id = "a" * 32
-    access.note(request, "ticket", ticket_id=1)
-    access.note(request, "ticket", ticket_id=1)  # the same read twice: one record
-    return access.AccessRecordMiddleware(lambda _: HttpResponse(status=status))(request)
+
+    def view(request):
+        access.note(request, "ticket", ticket_id=1)
+        access.note(request, "ticket", ticket_id=1)  # the same read twice: one record
+        if raises:
+            raise RuntimeError("synthetic failure after noting")
+        return HttpResponse(status=status)
+
+    bind = access.AccessBindMiddleware(view)
+
+    def inner(request):
+        try:
+            response = bind(request)
+        except RuntimeError as error:
+            bind.process_exception(request, error)  # as Django's handler does for a view
+            return HttpResponse(status=500)
+        return HttpResponse(status=400) if replace else response
+
+    return access.AccessRecordMiddleware(inner)(request)
 
 
 @pytest.mark.parametrize("status", [200, 302, 400, 404])
-def test_the_middleware_writes_what_was_noted_once_unless_the_answer_failed(agent, status):
-    _middleware_request(agent, status)
+def test_the_answer_a_view_returned_carries_its_records_once(agent, status):
+    _through_middlewares(agent, status=status)
     assert [(r.kind, r.request_ref) for r in records()] == [("ticket", "a" * 32)]
 
 
-def test_the_middleware_writes_nothing_for_a_server_error(agent):
-    _middleware_request(agent, 500)
+def test_an_answer_put_in_the_views_place_records_nothing(agent):
+    assert _through_middlewares(agent, replace=True).status_code == 400
     assert records() == []
+
+
+def test_a_view_that_raised_after_noting_records_nothing(agent):
+    assert _through_middlewares(agent, raises=True).status_code == 500
+    assert records() == []
+
+
+def test_a_server_error_or_a_head_request_records_nothing(agent):
+    _through_middlewares(agent, status=500)
+    _through_middlewares(agent, method="head")
+    assert records() == []
+
+
+def test_a_head_request_for_a_ticket_records_nothing(client, agent, portal_user, ticket):
+    login(client, agent)
+    assert client.head(reverse("desk:request-detail", args=[ticket.pk])).status_code == 200
+    client.logout()
+    login(client, portal_user)
+    assert client.head(reverse("portal:request-detail", args=[ticket.number])).status_code == 200
+    assert records() == []
+
+
+def test_complaint_forms_and_request_again_are_recorded(
+    client, agent, admin, portal_user, ticket, pickup
+):
+    from desk import services
+
+    marked = services.set_complaint(
+        actor=admin,
+        request=ticket,
+        expected_revision=reread(ticket).revision,
+        is_complaint=True,
+        reason="Synthetic",
+    )
+    login(client, admin)
+    response = client.get(reverse("desk:complaint-decision", args=[marked.pk]))
+    assert response.status_code == 200
+    client.logout()
+    login(client, portal_user)
+    again = reverse("portal_forms:raise", args=[pickup.key]) + f"?again={ticket.number}"
+    assert client.get(again).status_code == 200
+    got = [(r.kind, r.ticket_id, r.capacity) for r in records()]
+    assert got == [("complaint", ticket.pk, "laboratory"), ("repeat", ticket.pk, "client")]
 
 
 def test_an_unknown_kind_is_refused_when_noted(agent):

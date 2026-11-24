@@ -9,7 +9,7 @@ the ticket's access records). Opening this page is recorded as an access record 
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
 {% block content %}
-<p><a href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
+<p><a class="vr-back-link" href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
 <p class="vr-muted">Changes only. Opening the ticket, its files and its patient-marked answers is listed on <a href="{{ access_url }}">Who opened it</a>.</p>
 {% history_panel events=events title="Audit history" empty_title="No audit events" %}{% for event in events %}
   {% history_item title=event.action|action_label at=event.occurred_at actor=event.actor reason=event.reason changes=event.changes %}

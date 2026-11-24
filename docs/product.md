@@ -418,22 +418,24 @@ application follows requires this confirmation; it is the laboratory's choice.
 
 Sensitive reads leave an access record. Each time a staff or client portal account opens a
 ticket's page (also when it is drawn again after a refused reply, note or contact), its audit
-history, its Who opened it page or its Form details page, downloads one of its files, or is shown
-one of its patient-marked answers (staff by revealing it, which also records a change event; a
-client portal account on its own ticket's page, where such answers are shown without a reveal), is
-shown its person-level key (a staff reveal, which also records a change event), or is shown its
-entries on a client organization's timeline (once per ticket for each page drawn),
-the application records the account, the time by the database's clock, the capacity it read in
-(laboratory staff or client portal), the ticket, the file or answer, and the server's ID for the
-request. A record never holds what was shown: no subject, text, answer, file name or content. A
-read that is refused records nothing, and a page whose record cannot be written is not shown.
-Records are kept apart from the change history, so a ticket's audit history still lists only its
-changes; the database refuses to change or delete them, and they have no retention period.
-Supervisors read a ticket's records, newest first, on its Who opened it page, from the ticket's
-More menu. Rows shown in a list or a search, and the search text, are not recorded. Each change
-event recorded from this release on also keeps the ID of the request that made it, which the
-server's access log line and the X-Request-ID response header carry; events of scheduled jobs and
-commands have none.
+history, its Who opened it page, its Form details page or one of its complaint forms (which show
+the complaint's rationale and findings), downloads one of its files, is shown one of its
+patient-marked answers (staff by revealing it, which also records a change event; a client portal
+account on its own ticket's page, where such answers are shown without a reveal) or its
+person-level key (a staff reveal, which also records a change event), is shown its entries on a
+client organization's timeline (once per ticket for each page drawn) or opens a new ticket with
+Request again from it, the application records the account, the time by the database's clock, the
+capacity it read in (laboratory staff or client portal), the ticket, the file, answer or link, and
+the server's ID for the request. A record never holds what was shown: no subject, text, answer,
+file name, key or content. A read that is refused records nothing, nor does a HEAD request or a
+page replaced before it was sent (a session signed out in another tab while it was drawn); a page
+whose record cannot be written is not shown. Records are kept apart from the change history, so a
+ticket's audit history still lists only its changes; the database refuses to change or delete
+them, and they have no retention period. Supervisors read a ticket's records, newest first, on its
+Who opened it page, from the ticket's More menu. Rows shown in a list or a search, the search text
+and the action pages that show only a ticket's number are not recorded. Each change event recorded
+from this release on also keeps the ID of the request that made it, which the server's access log
+line and the X-Request-ID response header carry; events of scheduled jobs and commands have none.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

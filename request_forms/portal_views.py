@@ -13,13 +13,15 @@ from django.views.decorators.cache import never_cache
 
 from attachments.services import attach_to_new_request
 from clients.portal import client_required
+from core import access
 from core.concurrency import one_reading
+from core.models import AccessKind
 from desk.models import EntryKind
 from taxonomy.choices import Priority
 
 from . import definition
 from .forms import PortalRaiseForm
-from .selectors import portal_templates, repeat_values
+from .selectors import portal_templates, repeat_from
 from .services import FORM_CHANGED, create_request_with_form, is_form_changed, offered_in_portal
 
 # The request's own fields, kept when a changed form is drawn again (they mean the same whatever
@@ -100,10 +102,12 @@ def raise_request(request, key):
     again = (request.GET.get("again") or "").strip()
     copied, initial = None, {}
     if again and request.method != "POST":
-        repeat = repeat_values(template, request.user, again, defn=defn)
+        repeat = repeat_from(template, request.user, again, defn=defn)
         if repeat is None:
             raise Http404("No such ticket.")
-        copied, site = repeat
+        copied, site, earlier = repeat
+        # Its answers are shown in the new form: the earlier ticket is read (core.access).
+        access.note(request, AccessKind.REPEAT, ticket_id=earlier.pk)
         if site is not None:
             initial["site"] = site.pk
     form = PortalRaiseForm(

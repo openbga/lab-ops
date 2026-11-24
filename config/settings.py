@@ -53,14 +53,18 @@ INSTALLED_APPS = [
     "jobs",
     "nonconformance",
 ]
+# Error reports show no posted value (ticket text, answers, passwords): core.request_logging.
+DEFAULT_EXCEPTION_REPORTER_FILTER = "core.request_logging.NoPostedValuesFilter"
+
 MIDDLEWARE = [
     # Outermost: marks every answer to a signed-in session not to be stored, whichever layer drew
     # or replaced it (accounts.sessions).
     "accounts.sessions.NoStoreMiddleware",
     "core.security_headers.SecurityHeadersMiddleware",
     "core.request_logging.RequestLogMiddleware",
-    # Writes the access records a view noted (a ticket opened, a file downloaded, a patient-marked
-    # answer shown) once it has answered; a failed write fails the answer (core.access).
+    # Writes the access records the answer carries (a ticket opened, a file downloaded, a
+    # patient-marked answer shown) before it is sent; a failed write fails the answer
+    # (core.access).
     "core.access.AccessRecordMiddleware",
     "core.request_limits.RequestBodyLimitMiddleware",
     # Before the HTTPS redirect, CommonMiddleware and the CSRF check: while an optional module is
@@ -88,6 +92,9 @@ MIDDLEWARE = [
     "accounts.compromised.PasswordChangeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
+    # Innermost: binds the access records a view noted to the answer it returned, so that an
+    # answer another layer puts in its place records nothing (core.access).
+    "core.access.AccessBindMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"

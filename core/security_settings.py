@@ -56,7 +56,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "1343ca9f1c85e73c09ac621c7e8b2ba55fc8e49fd0080964466d1688a4ada3bb"
+RELEASE_SETTINGS_SHA256 = "4cd6c874b5a9e75fd70fce162d7aef741e3524cca0a4af95d20a4d07064a1088"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)

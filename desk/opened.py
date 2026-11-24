@@ -34,10 +34,25 @@ class Opened:
     request_ref: str
 
 
-def page(ticket, number):
+def newest(ticket):
+    """The id of `ticket`'s newest access record, or 0: what a first page is drawn as of."""
+    return (
+        AccessRecord.objects.filter(ticket_id=ticket.pk)
+        .order_by("-id")
+        .values_list("id", flat=True)
+    ).first() or 0
+
+
+def page(ticket, number, upto=None):
     """Page `number` (as typed: Django's get_page settles anything else) of `ticket`'s access
-    records, newest first, as Opened rows."""
-    records = AccessRecord.objects.filter(ticket_id=ticket.pk).order_by("-occurred_at", "-id")
+    records with an id up to `upto` (by default its newest), newest first, as Opened rows. The
+    pages of one reading are all drawn as of the first (its `upto` travels in the pager's links),
+    so records written since, this page's own visit included, never move a row to the next."""
+    if upto is None:
+        upto = newest(ticket)
+    records = AccessRecord.objects.filter(ticket_id=ticket.pk, id__lte=upto).order_by(
+        "-occurred_at", "-id"
+    )
     page_obj = Paginator(records, PAGE_SIZE).get_page(number)
     rows = list(page_obj.object_list)
     accounts = {

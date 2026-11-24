@@ -907,11 +907,14 @@ def _action_form(
     template=None,
     extra=None,
     reread=None,
+    access_kind=None,
 ):
     """Render and handle one of the request page's action forms (the shared form dialog).
     `extra` adds to the template's context. `reread` reads the request again for a refused form
     (default: _request_or_404), so a page that draws more than the ticket (a complaint and its
-    record) draws it all from that one new reading."""
+    record) draws it all from that one new reading. `access_kind`, for a form that shows what the
+    ticket records (a complaint's rationale and findings), notes the drawn page as read
+    (core.access)."""
     record_url = _record_url(request_obj, _back(request))
     if request.method == "POST" and form.is_valid():
         try:
@@ -958,6 +961,8 @@ def _action_form(
         },
     )
     add_never_cache_headers(response)  # a refused form shows what was typed again
+    if access_kind:
+        access.note(request, access_kind, ticket_id=request_obj.pk)
     return response
 
 
@@ -1166,6 +1171,7 @@ def complaint_decision(request, pk):
         request_obj,
         form,
         title="Investigation decision",
+        access_kind=AccessKind.COMPLAINT,
         reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Record decision",
         apply=apply,
@@ -1205,6 +1211,7 @@ def complaint_record(request, pk):
         request_obj,
         form,
         title="Findings and outcome",
+        access_kind=AccessKind.COMPLAINT,
         reread=lambda: _complaint_or_404(request, pk)[0],
         submit_label="Save record",
         apply=apply,
@@ -1234,6 +1241,7 @@ def complaint_review(request, pk):
         request_obj,
         form,
         title="Review complaint",
+        access_kind=AccessKind.COMPLAINT,
         submit_label="Approve review",
         apply=apply,
         template="desk/complaint_review.html",
@@ -1350,13 +1358,18 @@ def request_access(request, pk):
         if not is_supervisor(account):
             raise PermissionDenied("Who opened a ticket is for supervisors.")
         list_query = _back(request)
+        # Every page of one reading is drawn as of the first: the pager's links carry `upto`.
+        upto = whole_number(request.GET.get("upto")) or opened.newest(request_obj)
+        query = request.GET.copy()
+        query["upto"] = str(upto)
+        request.GET = query
         response = render(
             request,
             "desk/request_access.html",
             {
                 "page_title": f"Who opened {request_obj.number}",
                 "req": request_obj,
-                "page_obj": opened.page(request_obj, request.GET.get("page")),
+                "page_obj": opened.page(request_obj, request.GET.get("page"), upto),
                 "record_url": _record_url(request_obj, list_query),
                 "history_url": _ticket_page_url("desk:request-history", request_obj, list_query),
                 "list_url": _queue_url(list_query),

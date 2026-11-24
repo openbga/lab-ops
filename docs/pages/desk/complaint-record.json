@@ -83,6 +83,9 @@
           "label": "Refusals",
           "description": "Saving with nothing changed (\"Change at least one detail before saving.\"), and a record whose complaint was already reviewed (\"This complaint has been reviewed; its record no longer changes.\")."
         }
+      ],
+      "paragraphs": [
+        "Opening this form, and drawing it again after a refused save, is recorded with your account and the time (never what the form shows), and supervisors read it on the ticket's Who opened it."
       ]
     }
   ],
@@ -93,6 +96,7 @@
     "desk/services.py",
     "desk/templates/desk/request_detail.html",
     "nonconformance/selectors.py",
-    "nonconformance/views.py"
+    "nonconformance/views.py",
+    "core/access.py"
   ]
 }

@@ -152,7 +152,7 @@
         },
         {
           "label": "Form details",
-          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded in the audit history and on Who opened it. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
+          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded as a change event (kept with the form's answers, not listed in the ticket's audit history) and on Who opened it. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
         },
         {
           "label": "First response / Resolution",
