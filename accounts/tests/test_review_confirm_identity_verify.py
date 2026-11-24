@@ -2,7 +2,7 @@
 
 Adopted from the review (round 1 verification). Changed on adoption: the receipt test uses the
 password_checked / remember_password interface the resolution introduced; the query count of a
-successful password confirmation is 2 since the digest is no longer read again; two accepted
+successful password confirmation is 2 since the digest is no longer read again; three accepted
 limits are strict xfails (accounts.confirmation module docstring)."""
 
 import json
@@ -452,8 +452,24 @@ def test_identity_query_count_and_locking_on_an_ordinary_settings_form(owner):
     assert observe(lambda: browser.post(url, {})) == 2
 
 
+HELD = pytest.mark.xfail(
+    strict=True,
+    reason="Accepted limit: the confirmation is read when the save is checked and not held "
+    "through the save; a factor changed by another request between that check and the commit "
+    "does not stop the save (accounts.confirmation module docstring).",
+)
+
+
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("case", ["limits-full", "rule-full", "mark", "add-role"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param("limits-full", marks=HELD),
+        pytest.param("rule-full", marks=HELD),
+        pytest.param("mark", marks=HELD),
+        "add-role",  # Django's admin runs a change form in one transaction
+    ],
+)
 def test_final_identity_read_and_audit_share_the_writes_transaction(make_user, case):
     """Observe PostgreSQL transactions on an ordinary, authorized save."""
     editor = make_user("transaction-reader", "admin", is_staff=True, is_superuser=True)

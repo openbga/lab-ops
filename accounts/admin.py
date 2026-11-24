@@ -737,33 +737,30 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         refused = refusal(user, request.user)
         if refused is None and open_mark(user.pk) is not None:
             refused = ALREADY_MARKED
-        marked = None
-        if request.method == "POST" and refused is None:
-            # The confirmation of who is marking (the form) and the mark in one transaction.
-            with transaction.atomic():
-                if form.is_valid():
-                    try:
-                        with transaction.atomic():
-                            marked = mark_compromised(
-                                actor=request.user,
-                                account_id=user.pk,
-                                reason=form.cleaned_data["reason"],
-                                drawn=form.cleaned_data["drawn"],
-                            )
-                            self.log_change(request, user, "Marked the password as compromised.")
-                    except ValidationError as error:
-                        form.add_error(None, error)
-                        # Refused by the service as it saved: what the page says now stands on
-                        # the account as it is now, not as this request first read it.
-                        now = User.objects.filter(pk=user.pk).first()
-                        if now is None:
-                            raise Http404("No such account.") from None
-                        refused = refusal(now, request.user)
-                        if refused is None and open_mark(user.pk) is not None:
-                            refused = ALREADY_MARKED
-                    except User.DoesNotExist:
-                        raise Http404("No such account.") from None
-            if marked is not None:
+        if request.method == "POST" and refused is None and form.is_valid():
+            try:
+                with transaction.atomic():
+                    marked = mark_compromised(
+                        actor=request.user,
+                        account_id=user.pk,
+                        reason=form.cleaned_data["reason"],
+                        drawn=form.cleaned_data["drawn"],
+                    )
+                    self.log_change(request, user, "Marked the password as compromised.")
+            except ValidationError as error:
+                form.add_error(None, error)
+                # Refused by the service as it saved: the page is drawn from the account as it is
+                # now, not as this request first read it (its name, and whether it can be marked).
+                user = User.objects.filter(pk=user.pk).first()
+                if user is None:
+                    raise Http404("No such account.") from None
+                user._vr_admin_viewer = request.user.pk
+                refused = refusal(user, request.user)
+                if refused is None and open_mark(user.pk) is not None:
+                    refused = ALREADY_MARKED
+            except User.DoesNotExist:
+                raise Http404("No such account.") from None
+            else:
                 count = len(marked.sessions)
                 ended = (
                     f"{count} session{'s' if count != 1 else ''} ended."

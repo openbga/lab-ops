@@ -30,17 +30,24 @@ in the session, never the password); a code only while the account keeps the aut
 came from (allauth records its id) and when it was given after the account's newest
 authenticator app was added. So an authenticator added or replaced, or a password changed (the
 account's own Change password keeps its browser signed in), since the last confirmation asks
-again. A form confirmed when it was built is checked again as its save is checked; where a view
-saves outside Django's admin, which runs a change form in one transaction, the form is checked
-and the change saved in one transaction too (core.security_settings_views, the Mark as
-compromised page).
+again. A form confirmed when it was built is checked again as its save is checked, and a form
+that asks accepts what was typed only if, when it is checked, the account still has the password
+that was checked, the newest app it had when the form asked and the authenticator the code came
+from.
 
-Accepted limits: two tabs re-authenticating at the same moment in one browser can each write the
-session over the other (Django keeps a session whole), so one factor is asked for again; a view
-that names its own sensitive fields replaces the list mark_sensitive set (allauth's sign-in pages,
-which post no confirmation). An account with neither a
-usable password nor an authenticator cannot confirm, so it cannot make these changes until it
-sets a password.
+Accepted limits, each pinned by a strict xfail in the review tests: the confirmation is read when
+the save is checked and not held through the save, so a factor changed by another request between
+that check and the commit does not stop the save; two tabs re-authenticating at the same moment in
+one browser can each write the session over the other (Django keeps a session whole), so one factor
+is asked for again; a view that names its own sensitive fields replaces the list mark_sensitive set
+(allauth's sign-in pages, which post no confirmation); Django's filter of a traceback's variables
+does not read the everything marker its admin add and password views set before a form is built
+(a refusal there is a 403, for which no error report is made, and this deployment sends none);
+the password proof is one digest per session, so only a server clock set back between two
+re-authentications with different passwords lets the older one's time stand for the newer.
+
+An account with neither a usable password nor an authenticator cannot confirm, so it cannot make
+these changes until it sets a password.
 
 A password or code not accepted is written to the account's sign-in history as a failed
 re-authentication (accounts.adapter, accounts.signin_log), counts toward the failed sign-in
@@ -181,10 +188,12 @@ def remember_password(sender, request=None, method=None, reauthenticated=False, 
     asked for again."""
     if method != "password" or not reauthenticated or request is None:
         return
+    if getattr(request, "session", None) is None:
+        return
     checked = getattr(request, CHECKED, None)
-    if checked and getattr(request, "session", None) is not None:
+    if checked:
         request.session[PASSWORD_PROOF_KEY] = _password_proof(checked)
-    elif getattr(request, "session", None) is not None:
+    else:
         request.session.pop(PASSWORD_PROOF_KEY, None)
 
 
@@ -344,6 +353,7 @@ class ConfirmIdentity:
     def _ask(self, state):
         """Ask for the factors `state` (Factors) has: add their fields, the first with the help."""
         self.confirming = True
+        self.confirm_state = state
         self.confirm_with = password, code = state.asks()
         if not (password or code):
             self.confirm_refused = NO_METHOD
@@ -466,7 +476,15 @@ class ConfirmIdentity:
                     self.add_error(CODE_FIELD, message)
                 return False
         state = read(user)
-        kept = code_form is None or code_form.authenticator.pk in state.authenticators
+        given = getattr(request, CHECKED, None) if PASSWORD_FIELD in self.fields else None
+        kept = (
+            # The password checked is the one the account has now,
+            (PASSWORD_FIELD not in self.fields or given == state.password_hash)
+            # its newest app is the one it had when the form asked,
+            and state.app_since == self.confirm_state.app_since
+            # and the code came from an authenticator it still has.
+            and (code_form is None or code_form.authenticator.pk in state.authenticators)
+        )
         if state.asks() != self.confirm_with or not kept:
             # The account gained or lost a factor since the form asked (an authenticator added in
             # another tab), or the code came from an authenticator it no longer has: what was given
@@ -475,7 +493,7 @@ class ConfirmIdentity:
                 self.fields.pop(name, None)
                 self._bound_fields_cache.pop(name, None)
             self._ask(state)
-            self.add_error(None, AGAIN)
+            self.add_error(None, self.confirm_refused or AGAIN)
             return False
         if PASSWORD_FIELD in self.fields:
             reauthenticate_by_password(request)

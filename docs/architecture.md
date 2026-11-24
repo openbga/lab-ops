@@ -67,9 +67,14 @@ not count), the form adds the password and code fields and checks them before it
 so nothing is locked, decided or saved for a request that has not confirmed; the view's access
 check comes first, so a refused request checks no password. Each factor proved is recorded as
 allauth records a re-authentication, so allauth's own re-authentication pages and these forms read
-the same records. Failures go through the adapter and allauth's signals into the sign-in history,
-as below. The confirmation fields never count as a changed field. Ending sessions does not ask.
-Tests run as confirmed unless marked `confirmation` (the root and e2e `conftest.py`).
+the same records; a password re-authentication counts only while the account keeps the password
+that was checked (a keyed digest of its hash in the session), a code only while it keeps the
+authenticator the code came from and when it was given after its newest app was added. Failures go
+through the adapter and allauth's signals into the sign-in history, as below. The confirmation
+fields never count as a changed field. Ending sessions does not ask. The confirmation is read
+when the save is checked and not held through the save: a factor changed by another request
+between that check and the commit does not stop that save. Tests run as confirmed unless marked
+`confirmation` (the root and e2e `conftest.py`).
 [Confirm it is you](../accounts/confirmation.py)
 
 ## Security settings
