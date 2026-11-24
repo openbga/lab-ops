@@ -49,6 +49,9 @@ testpaths = [
     "jobs/tests",
     "nonconformance/tests",
 ]
+markers = [
+    "confirmation: runs Confirm it is you (accounts.confirmation) for real instead of as confirmed",
+]
 
 [tool.ruff]
 line-length = 100
@@ -56,6 +59,11 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+# The browser journeys import their own e2e/conftest.py (e2e/pytest.ini puts e2e on the path), not
+# the repository root's conftest.py, so the name sorts as it did before the root one existed.
+known-third-party = ["conftest"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/migrations/*.py" = ["E501"]

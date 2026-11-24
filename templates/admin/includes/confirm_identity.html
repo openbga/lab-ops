@@ -1,0 +1,20 @@
+{% comment %}
+Confirm it is you (accounts.confirmation) in an admin console form, before its buttons: Your password
+and, where the account has an authenticator app, Authenticator or recovery code, the first
+field's help saying why and for how long. Drawn only while the form asks (form.confirm_fields is
+empty once confirmed). Parameters: form (a ConfirmIdentity form).
+{% endcomment %}
+{% with fields=form.confirm_fields %}{% if fields %}
+<fieldset class="module aligned confirm-identity" aria-labelledby="confirm-identity-heading">
+  <h2 id="confirm-identity-heading" class="fieldset-heading">Confirm it is you</h2>
+  {% for field in fields %}
+  <div class="form-row{% if field.errors %} errors{% endif %} field-{{ field.name }}">
+    {{ field.errors }}
+    <div>
+      <div class="flex-container">{{ field.label_tag }} {{ field }}</div>
+      {% if field.help_text %}<div class="help" id="{{ field.auto_id }}_helptext"><div>{{ field.help_text }}</div></div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</fieldset>
+{% endif %}{% endwith %}

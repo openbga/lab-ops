@@ -9,6 +9,7 @@ account's password cannot be marked now, or None: then no form is offered), seco
 account has an authenticator now: what the person must do next depends on it), open_count (its
 sessions open when the page was drawn, counted only), outbound_email_enabled (the deployment sends
 email, so Forgot your password? works), sign_in_codes (emailed sign-in codes are offered too).
+Saving asks the superuser to confirm it is them (accounts.confirmation) unless they did recently.
 {% endcomment %}
 {% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}{% endblock %}
 {% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
@@ -46,6 +47,7 @@ email, so Forgot your password? works), sign_in_codes (emailed sign-in codes are
   <div class="help" id="{{ form.reason.id_for_label }}_helptext"><p>{{ form.reason.help_text }}</p></div>
 </div>
 </fieldset>
+{% include "admin/includes/confirm_identity.html" with form=form %}
 <div class="submit-row">
   <button type="submit" class="button default">Mark as compromised</button>
 </div>

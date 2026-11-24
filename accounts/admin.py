@@ -25,6 +25,10 @@ rules:
 - An account's page shows whether its password is marked as compromised, and Mark as compromised
   marks it, with a reason (accounts.compromised.mark_compromised), audited: its sessions end and
   the person must choose a new password before anything else.
+- Every save here that changes an account or a role (adding either, their pages, an account's
+  password page, Mark as compromised, removing an authenticator) asks the superuser to confirm it
+  is them, unless they did in the last few minutes (accounts.confirmation). Ending sessions does
+  not ask.
 """
 
 import hashlib
@@ -45,7 +49,7 @@ from django.contrib.auth.forms import (
 )
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import connection, transaction
+from django.db import connection, router, transaction
 from django.db.models import Count, Prefetch
 from django.db.models.constants import LOOKUP_SEP
 from django.forms.models import model_to_dict
@@ -57,6 +61,7 @@ from django.utils.html import format_html
 
 from core.audit import record_event
 
+from .confirmation import ConfirmIdentity
 from .forms import PasswordGuidance
 from .models import User
 from .roles import CAPABILITIES, ROLES
@@ -323,7 +328,7 @@ class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
         return context
 
 
-class AccountChangeForm(AccessRules, UserChangeForm):
+class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
     # The account as drawn: a save is refused when it has changed since (AccessRules).
     drawn = DrawnStateField(required=False)
 
@@ -344,7 +349,7 @@ class AccountChangeForm(AccessRules, UserChangeForm):
             password.help_text = ReservedPasswordWidget.explanation
 
 
-class AccountCreationForm(PasswordGuidance, AccessRules, AdminUserCreationForm):
+class AccountCreationForm(ConfirmIdentity, PasswordGuidance, AccessRules, AdminUserCreationForm):
     # A new account's first password: the rule for an account not yet saved.
     guidance_own = False
 
@@ -362,7 +367,7 @@ class EndSessionsForm(forms.Form):
     )
 
 
-class MarkCompromisedForm(forms.Form):
+class MarkCompromisedForm(ConfirmIdentity, forms.Form):
     reason = forms.CharField(
         # The page's one field: focused when it opens, and again when a save is refused.
         widget=forms.Textarea(attrs={"rows": 3, "cols": 60, "autofocus": True}),
@@ -376,7 +381,7 @@ class MarkCompromisedForm(forms.Form):
     drawn = forms.CharField(widget=forms.HiddenInput)
 
 
-class AccountPasswordForm(PasswordGuidance, AdminPasswordChangeForm):
+class AccountPasswordForm(ConfirmIdentity, PasswordGuidance, AdminPasswordChangeForm):
     """The account's password page. It saves the password only: the account was read when the
     request began, and a full save would put back what changed since, such as a deactivation
     committed while the new password was being checked and hashed."""
@@ -440,6 +445,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     form = AccountChangeForm
     add_form = AccountCreationForm
     change_password_form = AccountPasswordForm
+    # Django's own templates, with Confirm it is you (accounts.confirmation) before the buttons.
+    add_form_template = "admin/accounts/user/add_form.html"
+    change_user_password_template = "admin/accounts/user/change_password.html"
 
     def has_change_permission(self, request, obj=None):
         # The scheduled jobs' account is shown, never changed (its password page included).
@@ -874,10 +882,15 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 admin.site.unregister(Group)
 
 
+class RoleGroupForm(ConfirmIdentity, forms.ModelForm):
+    """A role's page: saving asks the superuser to confirm it is them (accounts.confirmation)."""
+
+
 @admin.register(Group)
 class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
     """Group permissions grant capabilities, so edits are audited and role names fixed."""
 
+    form = RoleGroupForm
     actions = None
     list_display = ("name", "members", "grants")
 
@@ -931,6 +944,10 @@ class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
             )
 
 
+class AuthenticatorRemovalForm(ConfirmIdentity, forms.Form):
+    """Removing an authenticator: the superuser confirms it is them (accounts.confirmation)."""
+
+
 admin.site.unregister(Authenticator)
 
 
@@ -965,6 +982,57 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return self._allowed(request)
+
+    # Django's confirmation page, with Confirm it is you (accounts.confirmation) in its form.
+    delete_confirmation_template = "admin/mfa/authenticator/delete_confirmation.html"
+
+    def delete_view(self, request, object_id, extra_context=None):
+        """Django's delete view, with the superuser's confirmation (AuthenticatorRemovalForm)
+        checked after the access and the record, and before anything is removed."""
+        if request.method in ("GET", "HEAD", "OPTIONS", "TRACE"):
+            return self._removal_view(request, object_id, extra_context)
+        with transaction.atomic(using=router.db_for_write(self.model)):
+            return self._removal_view(request, object_id, extra_context)
+
+    def _removal_view(self, request, object_id, extra_context):
+        obj = self.get_object(request, unquote(object_id))
+        if not self.has_delete_permission(request, obj):
+            raise PermissionDenied
+        if obj is None:
+            return self._get_obj_does_not_exist_redirect(request, self.opts, object_id)
+        deleted_objects, model_count, perms_needed, protected = self.get_deleted_objects(
+            [obj], request
+        )
+        posted = request.method == "POST"
+        form = AuthenticatorRemovalForm(request.POST if posted else None)
+        if posted and not protected and form.is_valid():
+            if perms_needed:
+                raise PermissionDenied
+            obj_display = str(obj)
+            obj_id = obj.pk
+            self.log_deletions(request, [obj])
+            self.delete_model(request, obj)
+            return self.response_delete(request, obj_display, obj_id)
+        object_name = str(self.opts.verbose_name)
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Cannot delete " + object_name if perms_needed or protected else "Delete",
+            "subtitle": None,
+            "object_name": object_name,
+            "object": obj,
+            "deleted_objects": deleted_objects,
+            "model_count": dict(model_count).items(),
+            "perms_lacking": perms_needed,
+            "protected": protected,
+            "opts": self.opts,
+            "app_label": self.opts.app_label,
+            "preserved_filters": self.get_preserved_filters(request),
+            "is_popup": False,
+            "to_field": None,
+            "form": form,
+            **(extra_context or {}),
+        }
+        return self.render_delete_form(request, context)
 
     def delete_model(self, request, obj):
         user = obj.user

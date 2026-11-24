@@ -139,6 +139,15 @@ def _plain_static_storage(settings):
 
 
 @pytest.fixture(autouse=True)
+def _confirmed_unless_marked(request, monkeypatch):
+    """Journeys that are not about Confirm it is you (accounts.confirmation) save as if the person
+    had just confirmed it is them (the live server runs in this process). A journey marked
+    `confirmation` gets the real check."""
+    if request.node.get_closest_marker("confirmation") is None:
+        monkeypatch.setattr("accounts.confirmation.current", lambda request: True)
+
+
+@pytest.fixture(autouse=True)
 def _fresh_login_rate_limits():
     """Sign-in attempts are rate limited per client address in the shared cache, a database table
     the test database's flush between journeys does not empty (core.cache). The journeys sign in

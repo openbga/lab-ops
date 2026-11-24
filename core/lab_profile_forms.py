@@ -2,6 +2,7 @@
 
 from django import forms
 
+from accounts.confirmation import ConfirmIdentity
 from accounts.roles import ROLE_LABELS, ROLES
 
 from .lab_profile import IDENTITY_FIELDS, MAX_LOGO_SIDE, MIN_LOGO_SIDE
@@ -140,10 +141,11 @@ class ModuleSwitchForm(forms.Form):
     )
 
 
-class SessionLimitsForm(GroupedForm, forms.Form):
+class SessionLimitsForm(ConfirmIdentity, GroupedForm, forms.Form):
     """Set one audience's session limits (core.session_limits.save_limits), with a reason.
     `expected_revision` is the limits' revision the form showed: a change saved in between
-    refuses this one. The bounds are checked again when saving."""
+    refuses this one. The bounds are checked again when saving. Saving asks the person to
+    confirm it is them (accounts.confirmation)."""
 
     inactivity_minutes = forms.IntegerField(
         label="Sign out after no activity for",
@@ -181,10 +183,11 @@ class SessionLimitsForm(GroupedForm, forms.Form):
 ROLE_CHOICES = [(role, ROLE_LABELS[role]) for role in ROLES]
 
 
-class SecondFactorRuleForm(GroupedForm, forms.Form):
+class SecondFactorRuleForm(ConfirmIdentity, GroupedForm, forms.Form):
     """Set who must have a second sign-in factor (core.second_factor.save_rule), with a reason.
     `expected_revision` is the rule's revision the form showed: a change saved in between refuses
-    this one. The roles are checked again when saving."""
+    this one. The roles are checked again when saving. Saving asks the person to confirm it is
+    them (accounts.confirmation)."""
 
     staff = forms.BooleanField(
         label="Every staff account",
