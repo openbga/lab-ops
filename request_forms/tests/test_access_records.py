@@ -556,3 +556,26 @@ def test_a_cutoff_in_the_address_never_reaches_past_the_newest_record(client, ca
     future = client.get(url, {"upto": str(10**12)})
     assert len(future.context["page_obj"].object_list) == 3
     assert client.get(url, {"upto": "0"}).context["page_obj"].object_list == []
+
+
+def test_a_page_that_signs_the_browser_out_while_drawn_is_recorded_for_its_account(
+    client, agent, ticket, monkeypatch
+):
+    """request.user turns anonymous when the page's drawing signs the browser out; the record
+    names the account the request was made by (core.access ACCOUNT)."""
+    from django.contrib.auth import logout
+
+    from desk import views
+
+    original = views._detail_context
+
+    def drawn_then_signed_out(request, request_obj, composer=None):
+        context = original(request, request_obj, composer)
+        logout(request)
+        return context
+
+    monkeypatch.setattr(views, "_detail_context", drawn_then_signed_out)
+    login(client, agent)
+    response = client.get(reverse("desk:request-detail", args=[ticket.pk]))
+    assert response.status_code == 200
+    assert [(r.account_id, r.kind) for r in records()] == [(agent.pk, "ticket")]

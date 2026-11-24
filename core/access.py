@@ -36,6 +36,10 @@ meanwhile still leaves the record.
 from core.models import AccessCapacity, AccessKind, AccessRecord
 
 PENDING = "_vr_access_pending"
+# The account the request was made by, as it stood when its view was called (AccessBindMiddleware):
+# a page that signs the browser out while it is drawn (request.user then turns anonymous) is still
+# recorded for the account it was drawn for.
+ACCOUNT = "_vr_access_account"
 # The notes moved onto the answer the view returned (AccessBindMiddleware).
 CARRIED = "_vr_access_records"
 
@@ -54,7 +58,10 @@ def note(request, kind, *, ticket_id, target=None, account=None):
     one request is recorded once."""
     if kind not in AccessKind.values:
         raise ValueError(f"Unknown access kind {kind!r}.")
-    account = account if account is not None else request.user
+    if account is None:
+        account = request.__dict__.get(ACCOUNT) or request.user
+    if getattr(account, "pk", None) is None:
+        return  # nobody was signed in: nothing of a ticket was drawn
     object_type, object_id = ("", "") if target is None else (target._meta.label_lower, target.pk)
     pending = request.__dict__.setdefault(PENDING, {})
     key = (account.pk, kind, int(ticket_id), object_type, str(object_id))
@@ -102,6 +109,12 @@ class AccessBindMiddleware:
         if pending:
             setattr(response, CARRIED, list(pending.values()))
         return response
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            request.__dict__[ACCOUNT] = user
+        return None
 
     def process_exception(self, request, exception):
         request.__dict__.pop(PENDING, None)

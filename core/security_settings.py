@@ -56,7 +56,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "34538bcaba1cc67f5344e8301e323e1a09440fca898f5b0b89e268d1956b6ce3"
+RELEASE_SETTINGS_SHA256 = "29250ef87a3fe02065226e347395b0d02b0291e4e3483f56437f8f5220352bfa"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -103,8 +103,8 @@ RELEASE = {
             "accounts.sessions.NoStoreMiddleware",
             "core.security_headers.SecurityHeadersMiddleware",
             "core.request_logging.RequestLogMiddleware",
-            "core.access.AccessRecordMiddleware",
             "core.request_limits.RequestBodyLimitMiddleware",
+            "core.access.AccessRecordMiddleware",
             "core.modules.ModuleAddressMiddleware",
             "django.middleware.security.SecurityMiddleware",
             "whitenoise.middleware.WhiteNoiseMiddleware",
