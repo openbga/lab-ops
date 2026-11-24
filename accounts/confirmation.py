@@ -44,7 +44,10 @@ is asked for again; a view that names its own sensitive fields replaces the list
 does not read the everything marker its admin add and password views set before a form is built
 (a refusal there is a 403, for which no error report is made, and this deployment sends none);
 the password proof is one digest per session, so only a server clock set back between two
-re-authentications with different passwords lets the older one's time stand for the newer.
+re-authentications with different passwords lets the older one's time stand for the newer; a
+confirmation refused before its final reading (a field left empty, a wrong password or code)
+while the account gains or loses a method is drawn again with the fields it asked for (the save is
+refused, and the next form asks for what the account has).
 
 An account with neither a usable password nor an authenticator cannot confirm, so it cannot make
 these changes until it sets a password.
@@ -103,6 +106,8 @@ class Factors:
     app: bool = False
     # When the account's newest authenticator app was added (a timestamp), or None.
     app_since: float | None = None
+    # The ids of its authenticator apps.
+    apps: frozenset = frozenset()
 
     @property
     def password(self):
@@ -137,19 +142,21 @@ def read(user):
         User.objects.filter(pk=user.pk)
         .annotate(
             ids=ArrayAgg("authenticator__id", filter=offered, default=[]),
+            app_ids=ArrayAgg("authenticator__id", filter=apps, default=[]),
             since=Max("authenticator__created_at", filter=apps),
         )
-        .values_list("password", "ids", "since")
+        .values_list("password", "ids", "app_ids", "since")
         .first()
     )
     if row is None:
         return NOTHING
-    stored, ids, since = row
+    stored, ids, app_ids, since = row
     return Factors(
         password_hash=stored if is_password_usable(stored) else None,
         authenticators=frozenset(ids),
         app=since is not None,
         app_since=since.timestamp() if since is not None else None,
+        apps=frozenset(app_ids),
     )
 
 
@@ -480,8 +487,8 @@ class ConfirmIdentity:
         kept = (
             # The password checked is the one the account has now,
             (PASSWORD_FIELD not in self.fields or given == state.password_hash)
-            # its newest app is the one it had when the form asked,
-            and state.app_since == self.confirm_state.app_since
+            # its apps are the ones it had when the form asked,
+            and state.apps == self.confirm_state.apps
             # and the code came from an authenticator it still has.
             and (code_form is None or code_form.authenticator.pk in state.authenticators)
         )
@@ -499,5 +506,11 @@ class ConfirmIdentity:
             reauthenticate_by_password(request)
         if code_form is not None:
             code_form.save()
+        # Written now, not only with the response: a code used here (a recovery code is spent) is
+        # already committed outside a transaction, and a response that fails afterwards would not
+        # save the session, leaving the code spent and the confirmation unrecorded.
+        save = getattr(request.session, "save", None)
+        if save is not None:
+            save()
         self.confirmed_now = True
         return True

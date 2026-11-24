@@ -746,6 +746,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         reason=form.cleaned_data["reason"],
                         drawn=form.cleaned_data["drawn"],
                     )
+                    # Named as the service read it, not as this request first read it.
+                    user = User.objects.get(pk=user.pk)
                     self.log_change(request, user, "Marked the password as compromised.")
             except ValidationError as error:
                 form.add_error(None, error)
