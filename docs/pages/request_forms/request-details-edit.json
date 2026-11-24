@@ -44,7 +44,7 @@
       "items": [
         {
           "label": "The form's fields",
-          "description": "One input for each active field you may fill, with the field's label, help text and rules as on the form: short and long text, number, date, date and time, time of day, one choice or several, yes or no, a confirmation box, or quantities for an item list. Staff without Can view patient information do not get the patient information fields."
+          "description": "One input for each active field you may fill, with the field's label, help text and rules as on the form: short and long text, number, date, date and time, time of day, one choice or several, yes or no, a confirmation box, or quantities for an item list. Staff without Can view patient information do not get the patient information fields. A recorded patient-information value is never filled in: see it with Reveal on the ticket, where the laboratory may ask you to confirm it is you before the first reveal in a session."
         },
         {
           "label": "Patient information",

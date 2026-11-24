@@ -47,6 +47,7 @@ SOURCES = {
     "unavailable": "Not available yet",
     "session-limits": "Session limits, above",
     "second-factor": "Second sign-in factor, above",
+    "reveal-confirmation": "Revealing patient information, above",
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
@@ -613,9 +614,10 @@ def _sign_in(facts):
                 "release",
                 "Saving a change to an account or a role in account administration (adding one, "
                 "its page, an account's password page, marking a password as compromised, "
-                "removing an authenticator), or to the session limits or the second-factor rule "
-                "on this page, asks for the person's password where they have one, and a code "
-                "from their authenticator app or a recovery code where they have one, unless "
+                "removing an authenticator), or to the session limits, the second-factor rule or "
+                "the confirmation before revealing patient information on this page, asks for "
+                "the person's password where they have one, and a code from their authenticator "
+                "app or a recovery code where they have one, unless "
                 "they gave them in the last "
                 f"{duration_text(account_settings.REAUTHENTICATION_TIMEOUT)} in that browser and "
                 "still have that password and that app. A "
@@ -894,8 +896,9 @@ def _sessions(facts):
                 "through an emailed link, or a password a superuser sets, also lifts the mark; "
                 "the marked password cannot "
                 "be chosen again. Superusers cannot mark their own password, a shared "
-                "demonstration account's or one of an account without a password. The person is "
-                "not emailed. Each mark is kept in the audit history.",
+                "demonstration account's or one of an account without a password. Where the "
+                "deployment sends email, the person is sent a notice of the mark. Each mark is "
+                "kept in the audit history.",
             ),
         ),
         _fact(
@@ -953,6 +956,40 @@ def _sessions(facts):
     ]
 
 
+def _reveal_confirmation_rule():
+    """The confirmation before revealing as it stands (a database reading,
+    core.reveal_confirmation)."""
+    from .reveal_confirmation import rule
+
+    return rule()
+
+
+def _reveal_confirmation():
+    """Whether staff confirm it is them before the first reveal in a session."""
+    from .reveal_confirmation import summary
+
+    on = _reveal_confirmation_rule().first_reveal
+    return Fact(
+        "patient-reveal-confirmation",
+        "Confirmation before a reveal",
+        summary(on),
+        "reveal-confirmation",
+        "Staff confirm it is them before the first reveal in each session: their password and, "
+        "where they have an authenticator app, a code from it or a recovery code (an account "
+        "without a password gives the code alone). A confirmation given in the last "
+        f"{duration_text(_reauthentication_window())} for another change counts."
+        if on
+        else "A reveal asks for nothing more than the permission. The admin role can ask staff to "
+        "confirm it is them before the first reveal in each session.",
+    )
+
+
+def _reauthentication_window():
+    from accounts.confirmation import window
+
+    return window()
+
+
 def _patient(facts):
     holders = patient_capability_holders()
     marked = _patient_fields()
@@ -974,6 +1011,7 @@ def _patient(facts):
             "An administrator marks a field as holding patient information. Staff who can view "
             "patient information reveal its values one at a time, and each reveal is recorded.",
         ),
+        _reveal_confirmation(),
         Fact(
             "person-links",
             "Person-level links",

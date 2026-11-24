@@ -262,15 +262,21 @@ def test_normal_mark_and_replacement_keep_credentials_out_of_records_and_notices
     old_hash = review_person.password
     with django_capture_on_commit_callbacks(execute=True):
         administrator, result = submit_review_mark(review_owner, review_person)
-    assert not mail.outbox
+    # The mark's email notice to the account (accounts.security_notices) is the only email it
+    # sends, and it carries neither the reason nor the password or its hash.
+    assert [m.to for m in mail.outbox] == [[review_person.email]]
+    notice = mail.outbox[0].subject + mail.outbox[0].body
+    assert "marked as compromised" in notice
+    for secret in (REASON, PASSWORD, old_hash):
+        assert secret not in notice
     admin_page = administrator.get(result.url)
     enter_with_email(client, review_person)
     page = reverse("account-new-password")
     rendered = client.get(page)
     assert REASON not in rendered.content.decode()
-    # The requested sign-in code is the only email in this journey.
+    # The requested sign-in code is the only other email in this journey.
     mail_count = len(mail.outbox)
-    assert mail_count == 1
+    assert mail_count == 2
     with django_capture_on_commit_callbacks(execute=True):
         saved = client.post(
             page,

@@ -17,7 +17,7 @@ rules:
   that organization chosen (Django admin takes initial values from the query string).
 - The identity library's own admin pages are replaced. Authenticator secrets and recovery
   codes are never shown or filterable; a superuser may only remove a lost authenticator, which
-  is audited.
+  is audited and emailed to the account (accounts.security_notices).
   Authentication email addresses are read only here.
 - An account's page shows how many of its sessions are open, and End sessions ends them all with
   a reason (accounts.session_list.end_account_sessions), audited. Their browsers and addresses
@@ -769,12 +769,17 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     if count
                     else "No session was open."
                 )
-                if marked.second_factor:
+                if not user.is_active:
+                    then = (
+                        "The account is deactivated, so it cannot sign in until it is made "
+                        "active again, and then must choose a new password."
+                    )
+                elif marked.second_factor:
                     then = (
                         "Tell the person to sign in with their password and an authenticator "
                         "code: they will be asked to choose a new password."
                     )
-                elif mail_enabled():
+                elif mail_enabled() and user.email:
                     by_code = (
                         "or to sign in with a code emailed to them and choose a new password, "
                         if sign_in_codes
@@ -784,6 +789,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         "The account has no second factor, so its password no longer signs it "
                         "in. Tell the person to use Forgot your password? on the sign-in page, "
                         f"{by_code}or set a new password for them on the account's password page."
+                    )
+                elif mail_enabled():
+                    then = (
+                        "The account has no second factor and no email address, so set a new "
+                        "password for them on the account's password page."
                     )
                 else:
                     then = (
@@ -807,6 +817,12 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             "refused": refused,
             "second_factor": has_second_factor(user),
             "sign_in_codes": sign_in_codes,
+            # Whether the mark's email notice would be sent, as accounts.security_notices decides
+            # at sending: email on, the account active and with an address.
+            "notice_sent": mail_enabled() and user.is_active and bool(user.email),
+            # Whether the person can choose a new password by email: email on and an address.
+            "email_recovery": mail_enabled() and bool(user.email),
+            "active": user.is_active,
             "open_count": open_count(user),
         }
         request.current_app = self.admin_site.name
@@ -1059,6 +1075,10 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
         return self.render_delete_form(request, context)
 
     def delete_model(self, request, obj):
+        """Remove it, audited, and record the email notice to the account
+        (accounts.security_notices), in the delete view's transaction."""
+        from . import security_notices
+
         user = obj.user
         before = {
             "authenticator_id": obj.pk,
@@ -1073,6 +1093,9 @@ class AuthenticatorAdmin(SuperuserOnly, admin.ModelAdmin):
             obj=user,
             before=before,
             reason="Django admin; authenticator secret not recorded",
+        )
+        security_notices.record(
+            user, [security_notices.REMOVED], by="administrator", types=[obj.type]
         )
 
 

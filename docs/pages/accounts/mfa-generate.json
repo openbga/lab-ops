@@ -24,7 +24,8 @@
   "good_to_know": [
     "Generating new codes invalidates every earlier code, used or not.",
     "Your authenticator app keeps working.",
-    "Generating again replaces the set again. Keep only the latest set."
+    "Generating again replaces the set again. Keep only the latest set.",
+    "Where your laboratory sends email, you get an email when you do this, so you would notice if someone else did."
   ],
   "sections": [
     {
@@ -36,7 +37,7 @@
         },
         {
           "label": "Generate",
-          "description": "Requires sign-in, recent reauthentication and an existing non-recovery authenticator. Replaces the recovery-code record under a user lock with ten new eight-digit single-use codes, invalidating the previous set, then opens Recovery Codes."
+          "description": "Requires sign-in, recent reauthentication and an existing non-recovery authenticator. Replaces the recovery-code record under a user lock with ten new eight-digit single-use codes, invalidating the previous set, then opens Recovery Codes. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). The notice says new recovery codes were issued and earlier ones no longer work."
         }
       ]
     },
@@ -51,6 +52,9 @@
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "accounts/security_notices.py",
+    "accounts/mfa_views.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

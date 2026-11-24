@@ -6,7 +6,8 @@ the email notices that need attention. Overview page: no breadcrumbs, no primary
 Context: scheduler ("never" | "stale" | "running"), latest_start, jobs (label, summary, started_at,
 outcome, tone, error, failures, did), settings (jobs.models.JobSettings), counts (waiting,
 retrying, failed, sent, not_sent), notices (created_at, ticket_id, reference, recipient, events,
-failed, attempts, last_error, next_attempt_at; reference and recipient are blank when the reader
+failed, attempts, last_error, next_attempt_at, account (a notice about a person's sign-in factors:
+"Account notice", whose account not shown); reference and recipient are blank when the reader
 may not open the ticket), mail_enabled.
 {% endcomment %}
 {% block page_intro %}<p class="vr-page-intro">The jobs that run in the background, their settings, and email notices that could not be sent.</p>{% endblock %}
@@ -75,7 +76,7 @@ may not open the ticket), mail_enabled.
       {% for notice in notices %}
       <tr>
         <th scope="row" class="vr-nowrap"><time datetime="{{ notice.created_at|date:'c' }}">{{ notice.created_at|date:"Y-m-d H:i" }}</time></th>
-        <td class="vr-nowrap">{% if notice.ticket_id %}<a class="vr-id" href="{% url 'desk:request-detail' notice.ticket_id %}">{{ notice.reference }}</a>{% else %}<span class="vr-muted">Not available to you</span>{% endif %}</td>
+        <td class="vr-nowrap">{% if notice.ticket_id %}<a class="vr-id" href="{% url 'desk:request-detail' notice.ticket_id %}">{{ notice.reference }}</a>{% elif notice.account %}<span class="vr-muted">Account notice</span>{% else %}<span class="vr-muted">Not available to you</span>{% endif %}</td>
         <td>{% if notice.ticket_id %}{{ notice.recipient }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
         <td>{{ notice.events }}</td>
         <td class="vr-nowrap">{% if notice.failed %}{% status label="Failed" tone="danger" plain=True %}{% else %}{% status label="Waiting to retry" tone="progress" plain=True %}{% endif %}</td>

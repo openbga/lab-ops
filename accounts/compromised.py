@@ -12,7 +12,8 @@ opened (the page carries a keyed fingerprint of the password it was drawn with, 
 It records the mark (accounts.models.CompromisedPassword, with a copy of the stored hash so that
 the same password is refused as a new one), ends every open session of the account
 (Ending.MARKED_COMPROMISED) and records one audit event, `account.password_marked_compromised`,
-with the reason, the mark and the sessions ended: never the password or its hash.
+with the reason, the mark and the sessions ended: never the password or its hash. It also records
+an email notice to the account (accounts.security_notices), sent once the mark commits.
 
 Signing in while marked: the password alone no longer opens a session. A sign-in that proved only
 the password (Django's and allauth's authentication succeed, as for any password) has its session
@@ -33,8 +34,9 @@ superuser on the account's password page. The marked password itself is refused 
 (accounts.passwords.MarkedPasswordValidator). A hash upgraded when the person signs in is not a
 password chosen, and lifts nothing.
 
-Nothing here emails the person: the superuser tells them. The page that marks it says what they
-must do, which depends on whether the account has a second factor.
+Where the deployment sends email, the notice tells the person their password was marked and what
+to do; the superuser tells them too. The page that marks it says what they must do, which depends
+on whether the account has a second factor.
 
 Basis: NIST SP 800-63B-4 §3.1.1.2 (verifiers force a change of password where there is evidence of
 compromise; compromised passwords are refused when one is chosen) and §4.3 (a compromised
@@ -165,6 +167,7 @@ def mark_compromised(*, actor, account_id, reason, drawn):
     from core.audit import record_event
     from core.second_factor import has_second_factor
 
+    from . import security_notices
     from .acting import hold_actor
     from .session_list import lock_endings
     from .sessions import end_session_ids
@@ -201,6 +204,9 @@ def mark_compromised(*, actor, account_id, reason, drawn):
             obj=account,
             after={"mark": mark.pk, "sessions": ended, "count": len(ended)},
             reason=reason,
+        )
+        security_notices.record(
+            account, [security_notices.COMPROMISED], by="administrator", mark=mark.pk
         )
         return Marked(mark, ended, has_second_factor(account))
 

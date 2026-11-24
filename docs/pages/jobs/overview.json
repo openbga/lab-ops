@@ -34,7 +34,7 @@
     "When email is off on this deployment, notices are recorded but never sent, even after email is turned on.",
     "A complaint stays resolved until its review is recorded, whatever the period.",
     "Automatic changes are recorded under the Scheduled jobs account, which nobody can sign in as.",
-    "A notice shows its error's name only, never the mail server's message."
+    "A notice shows its error's name only, never the mail server's message. An account notice does not say whose account it was."
   ],
   "sections": [
     {
@@ -112,7 +112,7 @@
     {
       "title": "Email notices",
       "paragraphs": [
-        "Every email notice is recorded with the change that raised it and sent once that change is saved. Before each attempt the application checks that the notice still applies and that the recipient may still read the ticket; a notice that no longer applies is marked not sent."
+        "Every email notice is recorded with the change that raised it and sent once that change is saved. Before each attempt the application checks that the notice still applies and that the recipient may still read the ticket; a notice that no longer applies is marked not sent. A notice to a person about a change to their sign-in factors is about no ticket: it is checked against the account instead (it still exists, is active and has an email address), and it is sent whatever the person chose on Email notices."
       ],
       "items": [
         {
@@ -145,7 +145,7 @@
         },
         {
           "label": "Ticket",
-          "description": "The ticket number, which opens the ticket. Not available to you when you may not open the ticket; the page then also hides who the notice was for."
+          "description": "The ticket number, which opens the ticket. Not available to you when you may not open the ticket; the page then also hides who the notice was for. Account notice for a notice to a person about their own sign-in factors: the page shows a dash under For and does not say whose account it was."
         },
         {
           "label": "For",
@@ -153,7 +153,7 @@
         },
         {
           "label": "Notice",
-          "description": "What the notice was about: Reply, Waiting on client, Resolved, Assigned, Client reply, First-response target passed or Resolution target passed."
+          "description": "What the notice was about: Reply, Waiting on client, Resolved, Assigned, Client reply, First-response target passed or Resolution target passed for a ticket; Password marked as compromised, Authenticator removed, Authenticator added or New recovery codes for an account notice. One account notice can list two, such as Authenticator added, New recovery codes when an app was added with new recovery codes."
         },
         {
           "label": "Status",
@@ -191,6 +191,8 @@
     "desk/notifications.py",
     "service_levels/jobs.py",
     "docs/product.md",
-    "accounts/kept.py"
+    "accounts/kept.py",
+    "accounts/security_notices.py",
+    "jobs/tests/test_pages.py"
   ]
 }

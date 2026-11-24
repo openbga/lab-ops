@@ -234,3 +234,75 @@ class SecondFactorRuleForm(ConfirmIdentity, GroupedForm, forms.Form):
         ),
         ("Reason for the change", ["reason"]),
     )
+
+
+class RevealConfirmationRuleForm(ConfirmIdentity, GroupedForm, forms.Form):
+    """Turn on or off the confirmation before the first reveal of patient information in a session
+    (core.reveal_confirmation.save_rule), with a reason. `expected_revision` is the rule's revision
+    the form showed: a change saved in between refuses this one. Saving asks the person to confirm
+    it is them (accounts.confirmation)."""
+
+    first_reveal = forms.BooleanField(
+        label="Confirm it is you before the first reveal in a session",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Staff who can view patient information confirm it is them before they first "
+        "reveal a patient-information value or a person-level key in each session: their "
+        "password and, where they have an authenticator app, a code from it or a recovery code "
+        "(an account without a password gives the code alone). Later reveals in that session "
+        "are not asked.",
+    )
+    reason = forms.CharField(
+        label="Reason",
+        max_length=2000,
+        help_text="Kept with the change in the history on Security settings.",
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
+    groups = (
+        ("Revealing patient information", ["first_reveal"]),
+        ("Reason for the change", ["reason"]),
+    )
+
+
+class ConfirmBeforeRevealForm(ConfirmIdentity, GroupedForm, forms.Form):
+    """Confirm it is you before revealing patient information (core.reveal_confirmation): the
+    confirmation's fields only, and the page to return to."""
+
+    next = forms.CharField(required=False, widget=forms.HiddenInput)
+    groups = ()
+
+    def _ask(self, state):
+        super()._ask(state)
+        # Nothing is saved here: the messages for a field left empty say what it is for.
+        from accounts.confirmation import CODE_FIELD, PASSWORD_FIELD
+
+        if PASSWORD_FIELD in self.fields:
+            self.fields[PASSWORD_FIELD].error_messages["required"] = (
+                "Enter your password to confirm it is you."
+            )
+        if CODE_FIELD in self.fields:
+            self.fields[CODE_FIELD].error_messages["required"] = (
+                "Enter a code from your authenticator app, or a recovery code, to confirm it is "
+                "you."
+            )
+        if self.confirm_refused:
+            self.confirm_refused = (
+                "Your account has no password to confirm it is you, so you cannot reveal "
+                "patient information while your laboratory asks for this. Set a password on "
+                "Change password first."
+            )
+
+    def confirmation_help(self):
+        password, code = self.confirm_with or (False, False)
+        asked = (
+            "your password and a code from your authenticator app (or a recovery code)"
+            if password and code
+            else "a code from your authenticator app (or a recovery code)"
+            if code
+            else "your password"
+        )
+        return (
+            f"Enter {asked}. Once you have confirmed, you are not asked again before a reveal "
+            "until you sign out or your session ends."
+        )

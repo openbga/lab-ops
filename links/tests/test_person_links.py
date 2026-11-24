@@ -365,3 +365,47 @@ def test_key_absent_from_audit_timeline_urls_and_logs(holder, lis, service_reque
     assert PATIENT_KEY not in timeline and "Heron" not in timeline
     assert PATIENT_KEY not in caplog.text
     assert str(attachment.link) == "Patient link"
+
+
+@pytest.mark.confirmation
+def test_reveal_asks_to_confirm_first_where_the_laboratory_asks(holder, person, client):
+    """Where the laboratory asks staff to confirm it is them before the first reveal of patient
+    information in a session (core.reveal_confirmation), a person-level key is not read or recorded
+    until the session has confirmed; then it is revealed as before."""
+    from accounts import confirmation
+    from core import reveal_confirmation
+    from core.models import RevealConfirmationRule
+
+    RevealConfirmationRule.objects.create(pk=1, first_reveal=True, revision=1)
+    url = reverse("link_records:attachment-reveal", args=[person.pk])
+    client.login(username=holder.username, password=PASSWORD)
+    ticket = reverse("desk:request-detail", args=[person.request_id])
+    asked = client.post(
+        url, HTTP_HX_REQUEST="true", HTTP_HX_CURRENT_URL="http://testserver" + ticket
+    )
+    assert asked.status_code == 204 and PATIENT_KEY not in asked.content.decode()
+    assert asked["HX-Redirect"].startswith(reverse("account-confirm-reveal") + "?next=")
+    plain = client.post(url)
+    assert plain.status_code == 302 and PATIENT_KEY not in plain.content.decode()
+    assert not AuditEvent.objects.filter(action="external_link.person_revealed").exists()
+    done = client.post(
+        reverse("account-confirm-reveal"),
+        {"next": ticket, confirmation.PASSWORD_FIELD: PASSWORD},
+    )
+    assert done.status_code == 302 and done["Location"] == ticket
+    assert client.session[reveal_confirmation.SESSION_KEY][0] == holder.pk
+    response = client.post(url, HTTP_HX_REQUEST="true")
+    assert response.status_code == 200 and PATIENT_KEY in response.content.decode()
+    assert AuditEvent.objects.filter(action="external_link.person_revealed").count() == 1
+
+
+@pytest.mark.confirmation
+def test_confirmation_asked_before_a_reveal_is_not_asked_before_a_search(holder, person, client):
+    """A search by a person-level key shows nothing the searcher did not type, so it is not
+    asked to confirm."""
+    from core.models import RevealConfirmationRule
+
+    RevealConfirmationRule.objects.create(pk=1, first_reveal=True, revision=1)
+    client.login(username=holder.username, password=PASSWORD)
+    response = client.post(reverse("link_records:person-search"), {"key": PATIENT_KEY})
+    assert response.status_code == 200

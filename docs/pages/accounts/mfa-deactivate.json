@@ -24,7 +24,8 @@
     "Your recovery codes are deleted too when no other authenticator remains.",
     "Removing the app does not change your password or laboratory roles.",
     "You may be asked to confirm your password or a code first.",
-    "If your laboratory requires a second factor of your account, you set up a new app before you can go on."
+    "If your laboratory requires a second factor of your account, you set up a new app before you can go on.",
+    "Where your laboratory sends email, you get an email when you do this, so you would notice if someone else did."
   ],
   "sections": [
     {
@@ -32,7 +33,7 @@
       "items": [
         {
           "label": "Deactivate",
-          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview."
+          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). The notice says the app was removed, with its recovery codes when they go too. If the removal fails, nothing is removed, no audit event or notice is recorded, and the Authenticator app deactivated. message is not shown."
         }
       ]
     },
@@ -50,6 +51,9 @@
     "templates/allauth/layouts/manage.html",
     "uv.lock",
     "accounts/enrolment.py",
-    "core/second_factor.py"
+    "core/second_factor.py",
+    "accounts/security_notices.py",
+    "accounts/mfa_views.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

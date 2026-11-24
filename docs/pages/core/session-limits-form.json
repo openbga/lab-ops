@@ -12,7 +12,7 @@
       "steps": [
         "Enter [[Sign out after no activity for]] in minutes (5 to 60) and [[Longest session]] in hours (1 to 24).",
         "Explain why in [[Reason]].",
-        "If [[Confirm it is you]] is shown, type [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Save changes]]. You return to Security settings."
       ]
     },
@@ -28,7 +28,7 @@
     "Only activity that reaches the server counts: opening a page, saving, searching or Stay signed in. Typing on a page does not.",
     "If someone saved these limits after you opened the form, your change is refused and what you typed stays. Reload and compare before saving again.",
     "Your reason is kept with the change in the history on Security settings, with each value before and after.",
-    "Saving asks for your password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
+    "Saving asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
   ],
   "sections": [
     {
@@ -73,7 +73,7 @@
     {
       "title": "Confirm it is you",
       "paragraphs": [
-        "Saving asks you to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. The Confirm it is you section then follows Reason, in the dialog or on the full page, and nothing is saved until what you type there is accepted. Signing in does not count: only confirming again does. Once you have confirmed, neither these forms nor the other pages that ask (the second sign-in factor rule, and account administration for a superuser) ask again in this browser for 5 minutes. A form opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Saving asks you to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. The Confirm it is you section then follows Reason, in the dialog or on the full page, and nothing is saved until what you type there is accepted. Signing in does not count: only confirming again does, and a new sign-in, even in the same browser, starts without one. Once you have confirmed, neither these forms nor the other pages that ask (the second sign-in factor rule, and account administration for a superuser) ask again in this browser for 5 minutes. A form opened while you were confirmed and saved after the 5 minutes passed asks then.",
         "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once every factor your account has was given there within the last 5 minutes: each counts for 5 minutes from when it was given, so the earlier one runs out first. A confirmation here counts for those pages as well. A new password, or a new or different authenticator app, on your account since you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot save the limits until it sets a password.",
         "When the confirmation is missing or not accepted, nothing is saved and no audit event is written; the limits and the reason you typed stay in the form. A confirmation accepted while a value is refused is kept: the form shows that value's error without the section, and saving again within the 5 minutes does not ask.",
         "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."

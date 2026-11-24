@@ -74,8 +74,24 @@ through the adapter and allauth's signals into the sign-in history, as below. Th
 fields never count as a changed field. Ending sessions does not ask. The confirmation is read
 when the save is checked and not held through the save: a factor changed by another request
 between that check and the commit does not stop that save. Tests run as confirmed unless marked
-`confirmation` (the root and e2e `conftest.py`).
+`confirmation` (the root and e2e `conftest.py`). `start_session` drops the re-authentication
+records at every sign-in, even of the same account in the same browser, so a confirmation never
+outlives the sign-in it was given in.
 [Confirm it is you](../accounts/confirmation.py)
+
+Where the laboratory turns it on (`core.models.RevealConfirmationRule`, one row written when an
+administrator first saves it, so a database never saved asks nothing), the views that reveal a
+patient-marked answer or a person-level key ask for the same confirmation once per browser session.
+Each decides in the reveal's transaction, after holding the acting account and before reading
+anything: `may_reveal` takes the rule's advisory lock shared (a save takes it exclusive), and passes
+when the rule is off, the session carries this sign-in's mark, or `accounts.confirmation.current`
+holds, which then sets the mark. The mark names the account and the sign-in's session row
+(`accounts.sessions.SESSION_KEY`), so it lasts for that sign-in only: a sign-out empties the
+session, and a new sign-in, even of the same account in the same browser, has a new row. Otherwise
+the view answers with a redirect (`HX-Redirect` under HTMX) to `account-confirm-reveal`, which sets
+the mark, without showing its form, when `current` holds, or once the confirmation is accepted, and
+returns to the page on screen; the person reveals again.
+[Confirm before revealing](../core/reveal_confirmation.py)
 
 ## Security settings
 
@@ -588,6 +604,17 @@ rows waits; the ticket is waited for briefly and the rest are taken without wait
 needs. A failed attempt is counted and retried later; delivery is
 at least once. [Service clocks](../service_levels/hooks.py), [notifications](../desk/notifications.py)
 and [the outbox](../jobs/outbox.py)
+
+Notices about a person's sign-in factors use the same outbox under the topic `accounts.security`:
+the compromised mark, the admin console's authenticator removal and the person's own two-factor
+pages record one notice per change, with event codes, the actor kind, factor types and the time,
+and the reference "Account". allauth's Activate, Generate and Deactivate views are served by
+`accounts.mfa_views` at allauth's paths and names (`accounts/mfa_urls.py`, included before
+allauth's URLs), running allauth's flow in one transaction that locks the account's row first and
+records the audit event and the notice with it. At each attempt the handler holds the account's
+row shared and sends only while it exists, is active and has an email address, worded from a fixed
+allow-list with the security contact read then; the person's notice preferences do not apply.
+[Security notices](../accounts/security_notices.py) and [two-factor views](../accounts/mfa_views.py)
 
 ## Scheduled jobs
 

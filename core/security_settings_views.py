@@ -18,9 +18,9 @@ from django.urls import reverse
 
 from accounts.roles import ROLE_LABELS, require_role
 
-from . import lab_profile, second_factor, security_settings, session_limits
+from . import lab_profile, reveal_confirmation, second_factor, security_settings, session_limits
 from .concurrency import one_reading, reading_account
-from .lab_profile_forms import SecondFactorRuleForm, SessionLimitsForm
+from .lab_profile_forms import RevealConfirmationRuleForm, SecondFactorRuleForm, SessionLimitsForm
 from .lab_profile_views import (
     CONTACT_ACTION,
     HISTORY_LIMIT,
@@ -54,6 +54,8 @@ def security_settings_page(request):
             "second_factor_covered": covered,
             "second_factor_missing": missing,
             "can_edit_second_factor": second_factor.can_manage(reader),
+            "reveal_rule": reveal_confirmation.rule(),
+            "can_edit_reveal_rule": reveal_confirmation.can_manage(reader),
             # The contact form needs the laboratory row; without it there is nothing to edit.
             "can_edit_contacts": lab is not None and lab_profile.can_manage(reader),
             # The page header names the laboratory from this reading too.
@@ -63,6 +65,7 @@ def security_settings_page(request):
                 ("contacts-heading", "Security and privacy contacts"),
                 ("limits-heading", "Session limits"),
                 ("second-factor-heading", "Second sign-in factor"),
+                ("reveal-confirmation-heading", "Revealing patient information"),
                 *[(f"security-{group.key}-heading", group.title) for group in groups],
                 ("about-heading", "About this page"),
                 ("history-heading", "History"),
@@ -123,12 +126,33 @@ def rule_label(event):
     return text
 
 
+def reveal_rule_label(event):
+    """What a lab.reveal_confirmation_changed event set, from the event alone: "Confirm it is you
+    before the first reveal in a session: asked once in each session (was: not asked)"."""
+    before, after = event.before or {}, event.after or {}
+    now = after.get("first_reveal")
+    was = before.get("first_reveal")
+    if not isinstance(now, bool):
+        return "Confirm it is you before the first reveal in a session"
+    text = "Confirm it is you before the first reveal in a session: "
+    text += reveal_confirmation.summary(now).lower()
+    if isinstance(was, bool) and was != now:
+        text += f" (was: {reveal_confirmation.summary(was).lower()})"
+    return text
+
+
 def history(limit=HISTORY_LIMIT):
-    """The newest changes to the security and privacy contacts, the session limits and the
-    second-factor rule, newest first, each with `detail` naming what changed."""
+    """The newest changes to the security and privacy contacts, the session limits, the
+    second-factor rule and the confirmation before revealing patient information, newest first,
+    each with `detail` naming what changed."""
     events = list(
         AuditEvent.objects.filter(
-            action__in=(CONTACT_ACTION, session_limits.ACTION, second_factor.ACTION)
+            action__in=(
+                CONTACT_ACTION,
+                session_limits.ACTION,
+                second_factor.ACTION,
+                reveal_confirmation.ACTION,
+            )
         )
         .select_related("actor")
         .order_by("-occurred_at")[:limit]
@@ -138,6 +162,8 @@ def history(limit=HISTORY_LIMIT):
             event.detail = contact_label(event)
         elif event.action == second_factor.ACTION:
             event.detail = rule_label(event)
+        elif event.action == reveal_confirmation.ACTION:
+            event.detail = reveal_rule_label(event)
         else:
             event.detail = limits_label(event)
     return events
@@ -218,6 +244,46 @@ def second_factor_edit(request):
         "core/second_factor_form.html",
         {
             "page_title": "Edit second sign-in factor rule",
+            "form": form,
+            "cancel_url": reverse("security-settings"),
+        },
+    )
+
+
+@login_required
+def reveal_confirmation_edit(request):
+    """Turn on or off the confirmation before the first reveal of patient information in a session
+    (the admin role), with a reason. The initial value and the revision the form carries come from
+    one reading of the rule; a change saved in between is refused with the input kept."""
+    require_role(request.user, *reveal_confirmation.MANAGER_ROLES)
+    rule = reveal_confirmation.rule()
+    form = RevealConfirmationRuleForm(
+        request.POST if request.method == "POST" else None,
+        initial={"first_reveal": rule.first_reveal, "expected_revision": rule.revision},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            _, changed = reveal_confirmation.save_rule(
+                actor=request.user,
+                first_reveal=form.cleaned_data["first_reveal"],
+                expected_revision=form.cleaned_data["expected_revision"],
+                reason=form.cleaned_data["reason"],
+            )
+        except ValidationError as exc:
+            _service_errors(form, exc)
+        else:
+            if changed:
+                messages.success(
+                    request, "Confirmation before revealing patient information saved."
+                )
+            else:
+                messages.info(request, "No changes to save.")
+            return redirect("security-settings")
+    return render(
+        request,
+        "core/reveal_confirmation_form.html",
+        {
+            "page_title": "Edit confirmation before revealing patient information",
             "form": form,
             "cancel_url": reverse("security-settings"),
         },

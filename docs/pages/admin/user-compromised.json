@@ -11,24 +11,25 @@
       "title": "Mark a password someone else may know",
       "steps": [
         "Type why in [[Reason]], for example the person typed it into a page posing as the laboratory's.",
-        "If [[Confirm it is you]] is shown, type your own password in [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Mark as compromised]]. You return to the account's page, which shows the mark."
       ]
     },
     {
       "title": "Tell the person what to do",
       "steps": [
+        "A deactivated account cannot sign in until it is made active again; you can set a new password for it on its password page either way.",
         "With an authenticator app: they sign in with their password and a code, and choose a new password.",
-        "Without one: where the laboratory sends email, they use Forgot your password? (or an emailed sign-in code, where offered); in any case you can set a new password on the account's password page."
+        "Without one: if email is on and the account has an address, they use Forgot your password? (or an emailed sign-in code, where offered); or you set a new password on its password page."
       ]
     }
   ],
   "good_to_know": [
-    "The person is not emailed. Tell them yourself; the page says what they must do for this account.",
+    "The page says whether the person will get an email notice of the mark with what to do next. Tell them yourself either way.",
     "A sign-in with the marked password alone is signed out at once. Without an authenticator app the person uses Forgot your password?, an emailed sign-in code, or a password you set.",
     "Any new password lifts the mark, and the marked password cannot be chosen again.",
     "The reason is kept in the audit history and is not shown to the person. Do not put patient information in it.",
-    "Marking asks for your own password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Your reason stays if it is refused."
+    "Marking asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes. Your reason stays if it is refused."
   ],
   "sections": [
     {
@@ -42,7 +43,7 @@
       "items": [
         {
           "label": "What marking does",
-          "description": "The effects for this account: how many of its sessions are open when the page opens (counted only), and what the person must do next, which depends on whether the account has an authenticator app now and whether this deployment sends email."
+          "description": "The effects for this account: how many of its sessions are open when the page opens (counted only), and what the person must do next. A deactivated account cannot sign in until it is made active again, and then must choose a new password (after setting up a second factor first where the laboratory requires one). An active account with an authenticator app signs in with its password and a code and must then choose a new password. One without a second factor no longer signs in with its password: where this deployment sends email and the account has an email address, the person uses Forgot your password? (or an emailed sign-in code, where offered); otherwise the page says the account has no email address, or that this deployment sends no email, and you set a new password on the account's password page."
         },
         {
           "label": "Reason",
@@ -65,7 +66,7 @@
     {
       "title": "Confirm it is you",
       "paragraphs": [
-        "Mark as compromised asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. Nothing is marked until what you type under Confirm it is you is accepted. Signing in does not count: only confirming again does. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Mark as compromised asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. Nothing is marked until what you type under Confirm it is you is accepted. Signing in does not count: only confirming again does, and a new sign-in, even in the same browser, starts without one. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed and saved after the 5 minutes passed asks then.",
         "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once every factor your account has was given there within the last 5 minutes: each counts for 5 minutes from when it was given, so the earlier one runs out first. A confirmation here counts for those pages as well. A new password, or a new or different authenticator app, on your account since you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot mark a password until it sets one.",
         "When the confirmation is missing or not accepted, nothing is marked, no session ends, and no audit event or administration history entry is written; your reason stays on the page. A confirmation accepted while the reason is refused is kept: the page shows the reason's error without the section, and marking within the 5 minutes does not ask again.",
         "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
@@ -94,7 +95,7 @@
       "items": [
         {
           "label": "Mark as compromised",
-          "description": "Once you have confirmed it is you (see Confirm it is you), records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what to tell the person, which depends on whether the account has an authenticator app and whether this deployment sends email. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
+          "description": "Once you have confirmed it is you (see Confirm it is you), records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what comes next: for a deactivated account, The account is deactivated, so it cannot sign in until it is made active again, and then must choose a new password.; otherwise what to tell the person, which depends on whether the account has an authenticator app, whether this deployment sends email and whether the account has an email address. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
         },
         {
           "label": "Back to the account",
@@ -114,7 +115,8 @@
         "The mark is kept after it is lifted, with when it was made, by whom, the reason and when it was lifted. A copy of the stored form of the marked password is kept with it so that it can be refused; it is never shown, logged or put in the audit history. The account's page shows whether the password is marked now. A password can be marked again after a new one is chosen.",
         "Each session the mark ends appears in the person's own Sign-in history as Signed out, Password marked as compromised, and each later sign-in with the password alone as Sign-in refused, Password marked as compromised. The reason is not shown there.",
         "Marking takes no access away: roles and capabilities stay. To stop the person signing in at all, clear Active on the account's page.",
-        "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark; a process of this release ends such a session at its next request for a page there. Mark passwords once the deployment has finished."
+        "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark; a process of this release ends such a session at its next request for a page there. Mark passwords once the deployment has finished.",
+        "Where the deployment sends email, marking records one email notice to the account in the same change, sent once it is saved and retried by the scheduled jobs. It names the laboratory, the username, that an administrator marked the password and when (UTC), and what to do next, which depends on whether the account has a second factor and whether a new password was chosen before it was sent; and it tells the person to contact the laboratory's security contact, or its administrator when none is recorded, if they did not expect it. It holds no reason, code or address. It is not sent when the account is inactive or has no email address when it is sent, and it is recorded as not sent when email is off. Above the reason, the page says which applies, from the account as it stands when the page opens: The person is sent an email notice that their password was marked, with what to do next, if the account is still active and has an email address when the notice is sent. Tell them yourself too. (email on, account active with an email address); The account is deactivated or has no email address at present, so the email notice reaches the person only if that changes before it is sent: tell them yourself. (email on otherwise); or This deployment sends no email, so the person is not told by email: tell them yourself. After marking, the message for an account without a second factor offers Forgot your password? (and an emailed sign-in code, where offered) only when the deployment sends email and the account has an email address; with email on but no address it reads The account has no second factor and no email address, so set a new password for them on the account's password page."
       ]
     }
   ],
@@ -129,6 +131,8 @@
     "accounts/tests/test_sign_in_history.py",
     "accounts/confirmation.py",
     "templates/admin/includes/confirm_identity.html",
-    "accounts/tests/test_confirm_identity.py"
+    "accounts/tests/test_confirm_identity.py",
+    "accounts/security_notices.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

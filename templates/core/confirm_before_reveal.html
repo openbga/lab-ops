@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Confirm it is you before revealing patient information (core.reveal_confirmation_views): the
+laboratory asks staff for their password, and their authenticator code where they have one, before
+the first reveal of a patient-information value or a person-level key in each session. Confirmed,
+it returns to the page the reveal was sent from, where the person reveals again. Context:
+page_title, form (core.lab_profile_forms.ConfirmBeforeRevealForm: its confirm_fields, or
+confirm_refused when the account has nothing to confirm with), cancel_url (the page to return to).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Your laboratory asks you to confirm it is you before you first reveal patient information in a session.</p>{% endblock %}
+{% block content %}
+{% if form.confirm_refused %}{% notice tone="warning" %}{{ form.confirm_refused }}{% endnotice %}{% endif %}
+{% form_page form=form cancel_url=cancel_url submit_label="Confirm" class="vr-narrow" no_required_note=form.confirm_refused no_submit=form.confirm_refused %}
+  <p class="vr-form-note">Each reveal is still recorded with your name and the time. Nothing is revealed until you choose Reveal again.</p>
+  {% form_sections form=form %}
+{% endform_page %}
+{% endblock %}

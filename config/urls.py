@@ -12,6 +12,7 @@ from core import (
     lab_profile_views,
     lookups,
     preferences,
+    reveal_confirmation_views,
     security_settings_views,
     views,
 )
@@ -52,6 +53,11 @@ urlpatterns = [
     path("account/new-password/", compromised.new_password_page, name="account-new-password"),
     path("account/sessions/", session_views.sessions_page, name="account-sessions"),
     path("account/sign-ins/", session_views.sign_in_history_page, name="account-sign-ins"),
+    path(
+        "account/confirm-reveal/",
+        reveal_confirmation_views.confirm_before_reveal,
+        name="account-confirm-reveal",
+    ),
     path(
         "account/sessions/others/sign-out/",
         session_views.sign_out_other_sessions,
@@ -121,6 +127,11 @@ urlpatterns = [
         name="second-factor-edit",
     ),
     path(
+        "lab/security/reveal-confirmation/",
+        security_settings_views.reveal_confirmation_edit,
+        name="reveal-confirmation-edit",
+    ),
+    path(
         "lab/security/sessions/<slug:audience>/",
         security_settings_views.session_limits_edit,
         name="session-limits-edit",
@@ -128,6 +139,9 @@ urlpatterns = [
     path("ready/", views.ready, name="ready"),
     path("lookups/<slug:name>/", lookups.lookup, name="lookup"),
     path("preferences/", preferences.preference, name="preference"),
+    # allauth's pages that change the person's sign-in factors, at its paths and names, with the
+    # audit event and the email notice in the change's transaction (accounts.mfa_views).
+    path("accounts/2fa/", include("accounts.mfa_urls")),
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("clients/", include("clients.urls")),

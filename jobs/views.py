@@ -21,7 +21,8 @@ from .services import update_settings
 TITLE = "Scheduled jobs"
 SETTINGS_TITLE = "Edit scheduled job settings"
 
-# What a notice was about, by event code (the keys of desk.notifications.PHRASES).
+# What a notice was about, by event code (the keys of desk.notifications.PHRASES, then the
+# events of accounts.security_notices).
 EVENT_LABELS = {
     "reply": "Reply",
     "waiting_client": "Waiting on client",
@@ -30,6 +31,10 @@ EVENT_LABELS = {
     "client_reply": "Client reply",
     "first_response_breached": "First-response target passed",
     "resolution_breached": "Resolution target passed",
+    "password_marked_compromised": "Password marked as compromised",
+    "authenticator_removed": "Authenticator removed",
+    "authenticator_added": "Authenticator added",
+    "recovery_codes_replaced": "New recovery codes",
 }
 
 # A job's last-run counts in words: key -> (one, many). Keys not listed are left out.
@@ -102,11 +107,16 @@ def recipient_label(user):
 
 
 def _notice(notice):
+    from accounts.security_notices import TOPIC as ACCOUNT_TOPIC
+
     named = notice.ticket_id is not None
     recipient = notice.recipient
     return {
         "created_at": notice.created_at,
         "ticket_id": notice.ticket_id,
+        # A notice to a person about their own sign-in factors (accounts.security_notices): about
+        # no ticket, and the page does not say whose account it was.
+        "account": notice.topic == ACCOUNT_TOPIC,
         "reference": notice.reference if named else "",
         "recipient": recipient_label(recipient) if named else "",
         "events": ", ".join(EVENT_LABELS.get(code, "Other") for code in notice.events),

@@ -36,7 +36,8 @@
     "Your laboratory may require a second factor of your account. Then, after signing in without one, you set it up before anything else.",
     "Viewing codes and the other actions here may ask you to confirm your password or a code first.",
     "Each recovery code works once, as an alternative to an app code.",
-    "Security keys and passkeys are not offered."
+    "Security keys and passkeys are not offered.",
+    "Adding or removing your app, or generating new recovery codes, sends you an email where your laboratory sends email."
   ],
   "sections": [
     {
@@ -70,7 +71,8 @@
       "title": "Enrollment and sensitive actions",
       "paragraphs": [
         "Successful first app activation automatically creates recovery codes if none exist and opens their page. Sensitive MFA actions and code viewing/downloading require recent reauthentication, normally within five minutes. The overview itself does not require a fresh check. An unverified email address does not stop activation: sign-up is closed, so every account is one the laboratory created.",
-        "When the laboratory requires a second factor of your account and this session was sent to set one up, this page opens while the rest stays closed, and once the app is active it shows Continue, which goes on to the page you were opening when you signed in. Deactivating the app in such a session sends it back to Set up a second sign-in factor."
+        "When the laboratory requires a second factor of your account and this session was sent to set one up, this page opens while the rest stays closed, and once the app is active it shows Continue, which goes on to the page you were opening when you signed in. Deactivating the app in such a session sends it back to Set up a second sign-in factor.",
+        "Activating an authenticator app, generating new recovery codes and deactivating the app each record an audit event on your account (ids, types and times, never a secret or code) and, where the deployment sends email, email you a notice of the change, whatever you chose on Email notices. Viewing or downloading codes sends nothing."
       ]
     }
   ],
@@ -83,6 +85,9 @@
     "core/context_processors.py",
     "accounts/enrolment.py",
     "core/second_factor.py",
-    "templates/accounts/second_factor_required.html"
+    "templates/accounts/second_factor_required.html",
+    "accounts/security_notices.py",
+    "accounts/mfa_views.py",
+    "accounts/tests/test_security_notices.py"
   ]
 }

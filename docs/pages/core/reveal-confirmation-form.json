@@ -1,0 +1,127 @@
+{
+  "id": "core-reveal-confirmation-form",
+  "routes": [
+    "reveal-confirmation-edit"
+  ],
+  "title": "Edit confirmation before revealing patient information",
+  "purpose": "Choose whether staff confirm it is them before the first reveal of patient information in each session, with a reason.",
+  "summary": "Choose whether staff confirm it is them before their first reveal of patient information in each session. Only the admin role can do this, with a reason.",
+  "tasks": [
+    {
+      "title": "Ask staff to confirm before revealing",
+      "steps": [
+        "Tick [[Confirm it is you before the first reveal in a session]].",
+        "Explain why in [[Reason]].",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
+        "Select [[Save changes]]. You return to Security settings."
+      ]
+    },
+    {
+      "title": "Stop asking",
+      "steps": [
+        "Clear the tick, give a [[Reason]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Go back without saving",
+      "steps": [
+        "Select [[Cancel]]. Nothing changes."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "It applies from each session's next reveal. A session that has already confirmed is not asked again until it ends.",
+    "A staff account with neither a password nor an authenticator app cannot confirm, so it cannot reveal while this is on.",
+    "Each reveal is recorded whether or not this is on. It adds a confirmation; it does not change who may reveal.",
+    "If someone saved this after you opened the form, your change is refused and what you chose stays. Reload and compare.",
+    "Saving asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "Only the admin role may open this form; other staff roles, client portal accounts and a superuser without the role are refused. It opens from Edit on the Revealing patient information panel of Security settings, as a dialog or a full page, and returns there. Your role is checked again as your account stands when you save."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Confirm it is you before the first reveal in a session",
+          "description": "Ticked: staff who can view patient information confirm it is them before their first Reveal of a patient-information value or Reveal key of a person-level link after each sign-in: their password and, where they have an authenticator app, a code from it or a recovery code (an account without a password gives the code alone). Later reveals in that sign-in are not asked; a new sign-in, even of the same account in the same browser, asks again. Clear: a reveal asks for nothing more than the permission. Not ticked until the setting is first saved."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, up to 2,000 characters. Kept with the change in the history on Security settings."
+        },
+        {
+          "label": "Your password",
+          "description": "Under Confirm it is you, after the reason, while saving asks for it, and shown when your account has a password: your own current password. The help under it says what saving asks for and that you are not asked again in this browser for 5 minutes. Left empty: Enter your password to save this change. Not accepted: Incorrect password. Accepted, but the code is not: Enter your password again with the code (the page does not keep it)."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Under Confirm it is you, shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to save this change. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
+          "label": "Save changes",
+          "description": "Once you have confirmed it is you (see Confirm it is you), saves the setting with an audit event naming you, the setting before and after, and your reason, and shows Confirmation before revealing patient information saved. Saving the setting unchanged records nothing and shows No changes to save."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to Security settings without saving."
+        }
+      ]
+    },
+    {
+      "title": "Confirm it is you",
+      "paragraphs": [
+        "Saving asks you to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. The Confirm it is you section then follows Reason for the change, in the dialog or on the full page, and nothing is saved until what you type there is accepted. Signing in does not count: only confirming again does. Signing in again, even with the same account in the same browser, drops earlier confirmations. Once you have confirmed, neither this form nor the other pages that ask (the session limits, the second-factor rule, and account administration for a superuser) ask again in this browser for 5 minutes. A form opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once every factor your account has was given there within the last 5 minutes. A new password, or a new or different authenticator app, on your account since you confirmed makes the next save ask again. An account with neither a password nor an authenticator app cannot confirm, so it cannot save this setting until it sets a password.",
+        "When the confirmation is missing or not accepted, nothing is saved and no audit event is written; your tick and reason stay in the form. A confirmation accepted while another field is refused is kept: the form shows that field's error without the section, and saving again within the 5 minutes does not ask.",
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
+      ],
+      "items": [
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        },
+        {
+          "label": "Your account has no password to confirm it is you, so this change cannot be saved. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then save again."
+        },
+        {
+          "label": "Your sign-in factors changed, or your confirmation ran out, while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account, or your confirmation ran out, while your save was being checked. Nothing is saved. The section now asks for what your account has: fill it in and save again."
+        }
+      ]
+    },
+    {
+      "title": "Rules and states",
+      "paragraphs": [
+        "Nothing is asked until the setting is first saved. A deployment that never saves it reveals as before, with the permission alone.",
+        "The setting applies from each session's next reveal. A session that has already confirmed for reveals is not asked again until it ends, even if the setting is turned off and on again. Turning it off lets every session reveal without asking from its next reveal.",
+        "Each reveal reads the setting as it stands when the reveal is decided. A save waits for reveals already under way, and a reveal that starts while a save waits reads the setting as saved.",
+        "The form carries the revision of the setting it showed. A change saved by someone else in between refuses yours, keeps your choice and asks you to reload and compare. That is checked only once you have confirmed it is you.",
+        "It is not asked before a search by a person-level key, which the person searching typed, or for what a client portal account sees of its own tickets, which is shown without a reveal.",
+        "Whether to ask is the laboratory's decision. No rule the application follows requires it, and it is off by default."
+      ]
+    }
+  ],
+  "sources": [
+    "config/urls.py",
+    "core/security_settings_views.py",
+    "core/reveal_confirmation.py",
+    "core/lab_profile_forms.py",
+    "core/models.py",
+    "templates/core/reveal_confirmation_form.html",
+    "templates/core/_reveal_confirmation_panel.html",
+    "tests/test_reveal_confirmation_rule.py",
+    "accounts/confirmation.py",
+    "templates/includes/form_sections.html",
+    "request_forms/tests/test_reveal_confirmation.py"
+  ]
+}

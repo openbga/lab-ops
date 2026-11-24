@@ -245,6 +245,29 @@ class SecondFactorRule(models.Model):
         return "Second sign-in factor"
 
 
+class RevealConfirmationRule(models.Model):
+    """Whether staff confirm it is them before the first reveal of patient information in a
+    session (core.reveal_confirmation applies it to every reveal). One row, written the first time
+    an administrator saves the rule, never by a migration, so an empty database stays empty
+    (core.demo); until then nothing is asked. `revision` is the stale-edit check of the form."""
+
+    first_reveal = models.BooleanField(
+        "Confirm it is you before the first reveal in a session", default=False
+    )
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1), name="reveal_confirmation_rule_single"
+            ),
+        ]
+
+    def __str__(self):
+        return "Confirmation before revealing patient information"
+
+
 class AuditEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     occurred_at = models.DateTimeField(auto_now_add=True)
