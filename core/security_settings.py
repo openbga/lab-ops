@@ -609,7 +609,7 @@ def _sign_in(facts):
             lambda: Fact(
                 "confirm-before-changes",
                 "Changing access and security settings",
-                "Needs the password, and the second factor, again",
+                "Asks again for the password and second factor the person has",
                 "release",
                 "Saving a change to an account or a role in account administration (adding one, "
                 "its page, an account's password page, marking a password as compromised, "

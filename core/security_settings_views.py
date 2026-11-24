@@ -143,6 +143,23 @@ def history(limit=HISTORY_LIMIT):
     return events
 
 
+def _saved(form, save):
+    """Check `form` and, when it is valid, call `save` (a service returning (row, changed)), in one
+    transaction: the confirmation of who is saving (accounts.confirmation, checked with the form)
+    and the change commit together. A refusal by the service puts its errors on the form. True
+    when saved; form.changed then says whether anything changed."""
+    with transaction.atomic():
+        if not form.is_valid():
+            return False
+        try:
+            with transaction.atomic():
+                _, form.changed = save()
+        except ValidationError as exc:
+            _service_errors(form, exc)
+            return False
+    return True
+
+
 @login_required
 def session_limits_edit(request, audience):
     """Set the staff or the client portal session limits (the admin role), with a reason. The
@@ -157,23 +174,21 @@ def session_limits_edit(request, audience):
         request.POST if request.method == "POST" else None,
         initial={**session_limits.values(limit), "expected_revision": limit.revision},
     )
-    if request.method == "POST" and form.is_valid():
-        try:
-            _, changed = session_limits.save_limits(
-                actor=request.user,
-                audience=audience,
-                new={name: form.cleaned_data[name] for name in session_limits.FIELDS},
-                expected_revision=form.cleaned_data["expected_revision"],
-                reason=form.cleaned_data["reason"],
-            )
-        except ValidationError as exc:
-            _service_errors(form, exc)
+    if request.method == "POST" and _saved(
+        form,
+        lambda: session_limits.save_limits(
+            actor=request.user,
+            audience=audience,
+            new={name: form.cleaned_data[name] for name in session_limits.FIELDS},
+            expected_revision=form.cleaned_data["expected_revision"],
+            reason=form.cleaned_data["reason"],
+        ),
+    ):
+        if form.changed:
+            messages.success(request, f"{label} session limits saved.")
         else:
-            if changed:
-                messages.success(request, f"{label} session limits saved.")
-            else:
-                messages.info(request, "No changes to save.")
-            return redirect("security-settings")
+            messages.info(request, "No changes to save.")
+        return redirect("security-settings")
     return render(
         request,
         "core/session_limits_form.html",
@@ -197,22 +212,20 @@ def second_factor_edit(request):
         request.POST if request.method == "POST" else None,
         initial={**second_factor.values(rule), "expected_revision": rule.revision},
     )
-    if request.method == "POST" and form.is_valid():
-        try:
-            _, changed = second_factor.save_rule(
-                actor=request.user,
-                new={name: form.cleaned_data[name] for name in second_factor.FIELDS},
-                expected_revision=form.cleaned_data["expected_revision"],
-                reason=form.cleaned_data["reason"],
-            )
-        except ValidationError as exc:
-            _service_errors(form, exc)
+    if request.method == "POST" and _saved(
+        form,
+        lambda: second_factor.save_rule(
+            actor=request.user,
+            new={name: form.cleaned_data[name] for name in second_factor.FIELDS},
+            expected_revision=form.cleaned_data["expected_revision"],
+            reason=form.cleaned_data["reason"],
+        ),
+    ):
+        if form.changed:
+            messages.success(request, "Second sign-in factor rule saved.")
         else:
-            if changed:
-                messages.success(request, "Second sign-in factor rule saved.")
-            else:
-                messages.info(request, "No changes to save.")
-            return redirect("security-settings")
+            messages.info(request, "No changes to save.")
+        return redirect("security-settings")
     return render(
         request,
         "core/second_factor_form.html",

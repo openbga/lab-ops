@@ -24,11 +24,21 @@ read one record. check() counts only re-authentications, never the sign-in itsel
 each factor the account has now (read from the database, never the request's copy of the account),
 each proved within the last ACCOUNT_REAUTHENTICATION_TIMEOUT seconds (5 minutes in this release)
 and still standing for what the account has: a password re-authentication only while the account
-keeps that password (remember_password keeps a keyed digest of its stored hash in the session,
-never the password), a code only while the account keeps the authenticator it came from (allauth
-records its id). So an authenticator added or replaced, or a password changed (the account's own
-Change password keeps its browser signed in), since the last confirmation asks again. A form
-confirmed when it was built is checked again as its save is checked. An account with neither a
+keeps the password that was checked (password_checked keeps the hash the check accepted on the
+request, and remember_password, when allauth records the re-authentication, a keyed digest of it
+in the session, never the password); a code only while the account keeps the authenticator it
+came from (allauth records its id) and when it was given after the account's newest
+authenticator app was added. So an authenticator added or replaced, or a password changed (the
+account's own Change password keeps its browser signed in), since the last confirmation asks
+again. A form confirmed when it was built is checked again as its save is checked; where a view
+saves outside Django's admin, which runs a change form in one transaction, the form is checked
+and the change saved in one transaction too (core.security_settings_views, the Mark as
+compromised page).
+
+Accepted limits: two tabs re-authenticating at the same moment in one browser can each write the
+session over the other (Django keeps a session whole), so one factor is asked for again; a view
+that names its own sensitive fields replaces the list mark_sensitive set (allauth's sign-in pages,
+which post no confirmation). An account with neither a
 usable password nor an authenticator cannot confirm, so it cannot make these changes until it
 sets a password.
 
@@ -84,6 +94,8 @@ class Factors:
     password_hash: str | None = None
     authenticators: frozenset = frozenset()
     app: bool = False
+    # When the account's newest authenticator app was added (a timestamp), or None.
+    app_since: float | None = None
 
     @property
     def password(self):
@@ -104,7 +116,7 @@ def read(user):
     from allauth.mfa import app_settings as mfa_settings
     from django.contrib.auth.hashers import is_password_usable
     from django.contrib.postgres.aggregates import ArrayAgg
-    from django.db.models import Q
+    from django.db.models import Max, Q
 
     from core.second_factor import second_factor_types
 
@@ -113,22 +125,24 @@ def read(user):
     if user is None or not getattr(user, "is_authenticated", False):
         return NOTHING
     offered = Q(authenticator__type__in=list(mfa_settings.SUPPORTED_TYPES))
+    apps = Q(authenticator__type__in=second_factor_types())
     row = (
         User.objects.filter(pk=user.pk)
         .annotate(
             ids=ArrayAgg("authenticator__id", filter=offered, default=[]),
-            types=ArrayAgg("authenticator__type", filter=offered, default=[]),
+            since=Max("authenticator__created_at", filter=apps),
         )
-        .values_list("password", "ids", "types")
+        .values_list("password", "ids", "since")
         .first()
     )
     if row is None:
         return NOTHING
-    stored, ids, types = row
+    stored, ids, since = row
     return Factors(
         password_hash=stored if is_password_usable(stored) else None,
         authenticators=frozenset(ids),
-        app=any(kind in second_factor_types() for kind in types),
+        app=since is not None,
+        app_since=since.timestamp() if since is not None else None,
     )
 
 
@@ -146,17 +160,40 @@ def _password_proof(password_hash):
     return salted_hmac("accounts.confirmation.password", password_hash).hexdigest()
 
 
-def remember_password(request, user):
-    """After a password asked for again was accepted (accounts.adapter.ClosedSignupAdapter.
-    reauthenticate, on these forms and on allauth's re-authentication page): which password it was,
-    as a keyed digest of its stored hash read now, kept in the browser's session. A password
-    re-authentication counts only while the account still has that password, so a password changed
-    since (the account's own Change password keeps its browser signed in) is asked for again."""
-    if request is None or getattr(request, "session", None) is None:
+CHECKED = "_vr_password_checked"
+
+
+def password_checked(request, password_hash):
+    """A password asked for again was accepted (accounts.adapter.ClosedSignupAdapter.
+    reauthenticate, on these forms and on allauth's re-authentication page): the stored hash it was
+    checked against (after any upgrade the check made), kept on the request until the
+    re-authentication is recorded (remember_password). Nothing is written to the session yet: a
+    confirmation refused at its code leaves it as it was."""
+    if request is not None:
+        setattr(request, CHECKED, password_hash)
+
+
+def remember_password(sender, request=None, method=None, reauthenticated=False, **kwargs):
+    """allauth recorded a step (authentication_step_completed): for a password re-authentication,
+    which password it was, as a keyed digest of the hash password_checked kept, in the browser's
+    session. A password re-authentication counts only while the account still has that password,
+    so a password changed since (the account's own Change password keeps its browser signed in) is
+    asked for again."""
+    if method != "password" or not reauthenticated or request is None:
         return
-    state = read(user)
-    if state.password:
-        request.session[PASSWORD_PROOF_KEY] = _password_proof(state.password_hash)
+    checked = getattr(request, CHECKED, None)
+    if checked and getattr(request, "session", None) is not None:
+        request.session[PASSWORD_PROOF_KEY] = _password_proof(checked)
+    elif getattr(request, "session", None) is not None:
+        request.session.pop(PASSWORD_PROOF_KEY, None)
+
+
+def connect():
+    from allauth.account.signals import authentication_step_completed
+
+    authentication_step_completed.connect(
+        remember_password, dispatch_uid="accounts.confirmation.remember_password"
+    )
 
 
 def _fresh(request, user, state):
@@ -180,7 +217,13 @@ def _fresh(request, user, state):
         method = item.get("method")
         if method == "password" and password_kept:
             proved.add("password")
-        elif method == "mfa" and item.get("id") in state.authenticators:
+        elif (
+            method == "mfa"
+            and item.get("id") in state.authenticators
+            and (state.app_since is None or at >= state.app_since)
+        ):
+            # A code from an authenticator the account still has, given after its newest app was
+            # added: a recovery code given before a new app was set up does not stand for it.
             proved.add("mfa")
     return proved
 
@@ -209,11 +252,15 @@ def current(request):
 
 def mark_sensitive(request):
     """Mark the confirmation's fields as Django's sensitive_post_parameters does, so that an error
-    report never shows them. Every request, before any view (core.request_logging), so also one
-    refused before its form is built."""
+    report never shows them: every request, before any view (core.request_logging), so also one
+    refused before its form is built, and again when a form that asks is built, after a view's own
+    sensitive_post_parameters replaced the list (allauth's sign-in pages name theirs; they carry no
+    confirmation)."""
     marked = getattr(request, "sensitive_post_parameters", None)
     if marked == "__ALL__":
-        return
+        # A view marked everything (Django's admin password and add pages). Django's filter of a
+        # traceback's variables reads the marker as a list of names, so name them all.
+        marked = request.POST.keys()
     request.sensitive_post_parameters = sorted({*(marked or ()), PASSWORD_FIELD, CODE_FIELD})
 
 
@@ -341,7 +388,7 @@ class ConfirmIdentity:
             ok, state = check(self.confirm_request)
             if not ok:
                 self._ask(state)
-                self.add_error(None, AGAIN)
+                self.add_error(None, self.confirm_refused or AGAIN)
                 self._focus_confirmation()
                 return self.cleaned_data
         elif not self._confirm():
@@ -357,12 +404,13 @@ class ConfirmIdentity:
         own = [name for name in self.errors if name not in (PASSWORD_FIELD, CODE_FIELD, "__all__")]
         if own:
             return
+        names = [name for name in (PASSWORD_FIELD, CODE_FIELD) if name in self.fields]
+        refused = [name for name in names if name in self.errors]
+        if not (refused or names):
+            return
         for field in self.fields.values():
             field.widget.attrs.pop("autofocus", None)
-        for name in (PASSWORD_FIELD, CODE_FIELD):
-            if name in self.fields:
-                self.fields[name].widget.attrs["autofocus"] = True
-                break
+        self.fields[(refused or names)[0]].widget.attrs["autofocus"] = True
 
     def _post_clean(self):
         # Nor what a form checks after clean() (a model form's instance, a new password against
@@ -411,13 +459,18 @@ class ConfirmIdentity:
                 data={"code": self.cleaned_data[CODE_FIELD]}, user=user
             )
             if not code_form.is_valid():
+                if PASSWORD_FIELD in self.fields:
+                    # Not kept by the page: it is asked for again with the next code.
+                    self.add_error(PASSWORD_FIELD, "Enter your password again with the code.")
                 for message in code_form.errors.get("code", ["Incorrect code."]):
                     self.add_error(CODE_FIELD, message)
                 return False
         state = read(user)
-        if state.asks() != self.confirm_with:
+        kept = code_form is None or code_form.authenticator.pk in state.authenticators
+        if state.asks() != self.confirm_with or not kept:
             # The account gained or lost a factor since the form asked (an authenticator added in
-            # another tab): what was asked is no longer what it has, so ask again for what it has.
+            # another tab), or the code came from an authenticator it no longer has: what was given
+            # no longer stands for what it has, so ask again for what it has.
             for name in (PASSWORD_FIELD, CODE_FIELD):
                 self.fields.pop(name, None)
                 self._bound_fields_cache.pop(name, None)

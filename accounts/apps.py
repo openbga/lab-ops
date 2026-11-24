@@ -5,7 +5,9 @@ class AccountsConfig(AppConfig):
     name = "accounts"
 
     def ready(self):
-        from . import acting, sessions, signin_log  # noqa: F401
+        from . import acting, confirmation, sessions, signin_log  # noqa: F401
+
+        confirmation.connect()  # which password a password re-authentication was
 
         acting.connect()  # removals that take access away take the access gate
         # The sign-in's time is saved by accounts.sessions.start_session, after the account's
