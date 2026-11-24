@@ -59,6 +59,7 @@
       "title": "Availability",
       "paragraphs": [
         "Requires sign-in and an available password authentication method. Without a usable password, redirects to an available factor method; if no reauthentication method exists the request is denied. A stored pending operation can resume after success; a separate pending challenge is not required merely to open this page. MFA-sensitive operations require recent reauthentication; the default recent interval is five minutes.",
+        "A password confirmed here also counts, for the same five minutes, on the forms that ask you to Confirm it is you before a change to access or security settings (account administration, the session limits and the second sign-in factor rule), once every factor your account has was confirmed in that time: with an authenticator app, a code too. After a confirmation on those forms, the pages that send you here do not ask again within those five minutes.",
         "A password not accepted here is kept in your Sign-in history as Re-authentication failed (Password not accepted), and one the failed sign-in limit refused before it was checked as Too many failed attempts (Refused before the password was checked; at most once a minute for the same address). The password is never kept."
       ]
     }
@@ -70,6 +71,8 @@
     "uv.lock",
     "accounts/adapter.py",
     "accounts/signin_history.py",
-    "accounts/tests/test_sign_in_history.py"
+    "accounts/tests/test_sign_in_history.py",
+    "accounts/confirmation.py",
+    "accounts/tests/test_confirm_identity.py"
   ]
 }

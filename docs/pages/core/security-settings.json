@@ -37,7 +37,7 @@
     }
   ],
   "good_to_know": [
-    "You change the contacts, the session limits and the second sign-in factor rule here, each in its own form with a reason. Every other value is changed where Set by says.",
+    "You change the contacts, the session limits and the second-factor rule here, each with a reason; the limits and the rule also ask you to confirm it is you. Other values change where Set by says.",
     "A shorter limit applies from each session's next request: a session already idle longer is signed out then.",
     "A second-factor rule applies at each account's next sign-in; sessions it did not cover at sign-in are not interrupted.",
     "Values are read from the running application each time the page opens. The page does not rate the deployment or say whether it meets any rule.",
@@ -73,7 +73,7 @@
     {
       "title": "Session limits",
       "paragraphs": [
-        "After how long without activity a session is signed out, and how long a session may last at most, for staff accounts and for client portal accounts. Limits never saved show the starting values, 30 minutes and 12 hours. The server checks both on every request; a page warns 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before the longest session ends.",
+        "After how long without activity a session is signed out, and how long a session may last at most, for staff accounts and for client portal accounts. Saving either audience's limits asks you to confirm it is you (your password, and a code if you have an authenticator app) unless you did in this browser in the last 5 minutes. Limits never saved show the starting values, 30 minutes and 12 hours. The server checks both on every request; a page warns 2 minutes before signing out for no activity, with Stay signed in, and 5 minutes before the longest session ends.",
         "Opening a page, saving, searching or Stay signed in counts as activity. Reading or typing on a page does not. Signing in again returns to the page. When a limit signs a person out, what they were typing in a ticket's reply, note or logged contact, a new ticket logged by staff, a portal reply, a new portal ticket or a nonconformance form is kept for 24 hours, for them in that browser only, and comes back in that form when they sign in again (a nonconformance form's save is refused if the record changed since); typing in other forms is lost. The admin console does not warn before signing out."
       ],
       "items": [
@@ -94,7 +94,7 @@
     {
       "title": "Second sign-in factor",
       "paragraphs": [
-        "Which accounts the laboratory requires to have a second sign-in factor (an authenticator app, with recovery codes), as the rule stands when the page opens. Nothing is required until the rule is first saved. Edit opens the rule's form; after saving or cancelling you return to this page.",
+        "Which accounts the laboratory requires to have a second sign-in factor (an authenticator app, with recovery codes), as the rule stands when the page opens. Nothing is required until the rule is first saved. Edit opens the rule's form; after saving or cancelling you return to this page. Saving it asks you to confirm it is you, as for the session limits.",
         "Whether the rule covers an account is decided when it signs in. An account it covers without an authenticator app is sent to Set up a second sign-in factor after signing in and opens nothing else first. A session the rule did not cover at sign-in is not interrupted; a session it covered is sent to set one up whenever its account has none while the rule still covers it. Recovery codes alone do not count."
       ],
       "items": [
@@ -115,7 +115,7 @@
     {
       "title": "Groups of settings",
       "paragraphs": [
-        "Sign-in: how accounts are created, the password rule (15 characters, or 8 for accounts the second-factor rule covers, which it names as the rule stands now), the second sign-in factor (Optional, or whom the rule above requires it of) with the number of active staff and client portal accounts that have one, what changing the second factor asks for, the limit on failed sign-ins (counted in the database, so every server process counts the same attempts), sign-in with an emailed code, where sign-ins are recorded, and the sign-in history the database keeps for each account (what it holds, that no entry can be changed or deleted, and that each person reads only their own).",
+        "Sign-in: how accounts are created, the password rule (15 characters, or 8 for accounts the second-factor rule covers, which it names as the rule stands now), the second sign-in factor (Optional, or whom the rule above requires it of) with the number of active staff and client portal accounts that have one, what changing the second factor asks for, what Changing access and security settings asks for (the person's password, and their second factor where they have one, again before saving a change to an account or a role in the admin console, or to the session limits or the second-factor rule here, unless they gave them in that browser in the last 5 minutes; ending an account's sessions does not ask), the limit on failed sign-ins (counted in the database, so every server process counts the same attempts), sign-in with an emailed code, where sign-ins are recorded, and the sign-in history the database keeps for each account (what it holds, that no entry can be changed or deleted, and that each person reads only their own).",
         "Sessions: sign-out after a period without activity and the longest session (both from Session limits above), what closing the browser does, what deactivating an account and setting a new password do to its sessions, that each person sees where they are signed in and signs out the others (with where the recorded address comes from behind a proxy), that a superuser ends a person's sessions from the admin console with a reason, what marking a password as compromised does and who marks one, that the browser keeps no copy of the pages, and how the session cookie is sent.",
         "Patient information: how many active staff accounts can view patient information, how many active ticket form fields are marked as holding patient information, how person-level links and the client portal show it, and where it is kept out of.",
         "Connection: whether HTTPS is required and which content security policy is in force."
@@ -168,6 +168,7 @@
     "accounts/kept.py",
     "core/second_factor.py",
     "templates/core/_second_factor_panel.html",
-    "tests/test_second_factor_rule.py"
+    "tests/test_second_factor_rule.py",
+    "accounts/confirmation.py"
   ]
 }

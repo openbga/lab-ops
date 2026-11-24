@@ -101,7 +101,7 @@
     {
       "title": "Role, preservation and edit rules",
       "paragraphs": [
-        "Client-linked users cannot have Staff status, Superuser status, any groups or direct permissions in the supported account forms. An active internal admin group grants the supervisor, client services, account manager and technical operations. A capability needs an explicit permission; no role implies one. User deletion is disabled. Forms prevent demoting/deactivating the last active superuser. User/group and administrator password changes have attributed audit events without password values."
+        "Client-linked users cannot have Staff status, Superuser status, any groups or direct permissions in the supported account forms. An active internal admin group grants the supervisor, client services, account manager and technical operations. A capability needs an explicit permission; no role implies one. User deletion is disabled. Forms prevent demoting/deactivating the last active superuser. User/group and administrator password changes have attributed audit events without password values. Saving a new or existing account, an account's password, a mark of its password as compromised or a group asks you to confirm it is you (your password, and a code if you have an authenticator app) unless you did in this browser in the last 5 minutes; ending an account's sessions does not."
       ]
     }
   ],
@@ -113,6 +113,7 @@
     "config/settings.py",
     "uv.lock",
     "accounts/tests/test_admin.py",
-    "templates/admin/base_site.html"
+    "templates/admin/base_site.html",
+    "accounts/confirmation.py"
   ]
 }

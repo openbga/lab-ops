@@ -63,7 +63,7 @@
         {"label": "Sign-in refused", "description": "The password, or an emailed code, was accepted, but the sign-in was not let through. Details: Password marked as compromised (the password alone was given while a superuser had marked it; the session ended as it started) or Account deactivated (the right password or an emailed code was given for a deactivated account, or the account was deactivated while the sign-in was under way; no usable session started). Recorded for the account the password or code was accepted for."},
         {"label": "Sign-in failed", "description": "An attempt to sign in was not accepted. Details: Password not accepted; Authenticator or recovery code not accepted (the second step, which takes either kind of code); Emailed code not accepted."},
         {"label": "Too many failed attempts", "description": "The failed sign-in limit refused the attempt before the password or code was checked, at sign-in or when a page asked for it again. Details: Refused before the password was checked, or Refused before the code was checked. Recorded at most once a minute for the same step and address: more refused attempts in that minute add no entry."},
-        {"label": "Re-authentication failed", "description": "While you were signed in, a page asked for your password or a code again and it was not accepted: the confirmation asked before a change such as setting up or removing an authenticator app, or the current password on Change password (also the admin console's own Change password). Details: Password not accepted, or Authenticator or recovery code not accepted."},
+        {"label": "Re-authentication failed", "description": "While you were signed in, a page asked for your password or a code again and it was not accepted: the confirmation asked before a change such as setting up or removing an authenticator app, Confirm it is you before saving a change to an account or a role in the admin console or to the session limits or the second sign-in factor rule on Security settings, or the current password on Change password (also the admin console's own Change password). Details: Password not accepted, or Authenticator or recovery code not accepted."},
         {"label": "Signed out", "description": "A session ended. Details says why: With Sign out (Sign out in the account menu, or Log out in the admin console); No activity; Longest session reached; Account deactivated; New password; Signed in again in the same browser; Signed out from another session (from Where you are signed in); Ended by an administrator; Password marked as compromised; A change found it past a limit (a change being saved found the session past a session limit, and the browser was signed out)."}
       ]
     },
@@ -72,7 +72,7 @@
       "paragraphs": [
         "Every session's start and end is recorded, whichever way the session ended. A failed attempt, or one refused by the failed sign-in limit, is recorded only when the username or email address given names exactly one account, in any letter case; an attempt that names no account, or more than one, is not recorded in anyone's history and stays only in the deployment's sign-in log. A refused sign-in is recorded for the account whose password or emailed code was accepted. Failed codes and re-authentication failures belong to the account already identified at that step.",
         "No entry holds a password, a code, or what was typed as the username or email address.",
-        "Not recorded: an attempt that the per-address request limit stopped before the form was read, an emailed code form sent without a code, a code entered after its emailed sign-in had expired, a request for an emailed code, and attempts handled by the earlier release's processes while a deployment replaces them (the sessions they start and end are recorded).",
+        "Not recorded: an attempt that the per-address request limit stopped before the form was read, a Confirm it is you refused because the account tried too many times within a minute, an emailed code form sent without a code, a code entered after its emailed sign-in had expired, a request for an emailed code, and attempts handled by the earlier release's processes while a deployment replaces them (the sessions they start and end are recorded).",
         "The browser and the address are what the request reported. They describe where the request seemed to come from and prove nothing on their own."
       ]
     },
@@ -117,6 +117,8 @@
     "templates/includes/user_menu.html",
     "config/urls.py",
     "accounts/tests/test_sign_in_history.py",
-    "accounts/admin.py"
+    "accounts/admin.py",
+    "accounts/confirmation.py",
+    "accounts/tests/test_confirm_identity.py"
   ]
 }

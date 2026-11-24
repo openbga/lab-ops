@@ -58,6 +58,20 @@ explicit capability and produces an audit event that omits the key. A non-person
 an HTTPS URL only on the external system's configured host. The application does not fetch
 records from that URL. [Product access rules](product.md#roles-and-capabilities)
 
+A form that changes roles, capabilities, security settings or another account's sign-in factors
+mixes in `accounts.confirmation.ConfirmIdentity`: in the account administration the account, new
+account, password, compromised-password, authenticator-removal and role forms, and the session
+limits and second-factor rule forms. Unless the browser's session holds a re-authentication of
+every factor the account has now, each within `ACCOUNT_REAUTHENTICATION_TIMEOUT` (the sign-in does
+not count), the form adds the password and code fields and checks them before its own `clean()`,
+so nothing is locked, decided or saved for a request that has not confirmed; the view's access
+check comes first, so a refused request checks no password. Each factor proved is recorded as
+allauth records a re-authentication, so allauth's own re-authentication pages and these forms read
+the same records. Failures go through the adapter and allauth's signals into the sign-in history,
+as below. The confirmation fields never count as a changed field. Ending sessions does not ask.
+Tests run as confirmed unless marked `confirmation` (the root and e2e `conftest.py`).
+[Confirm it is you](../accounts/confirmation.py)
+
 ## Security settings
 
 `core.security_settings` reads what protects sign-in, sessions and patient information from the

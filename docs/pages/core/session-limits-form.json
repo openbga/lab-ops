@@ -11,7 +11,9 @@
       "title": "Change the limits",
       "steps": [
         "Enter [[Sign out after no activity for]] in minutes (5 to 60) and [[Longest session]] in hours (1 to 24).",
-        "Explain why in [[Reason]] and select [[Save changes]]. You return to Security settings."
+        "Explain why in [[Reason]].",
+        "If [[Confirm it is you]] is shown, type [[Your password]], and a code from your authenticator app if it asks for one.",
+        "Select [[Save changes]]. You return to Security settings."
       ]
     },
     {
@@ -25,7 +27,8 @@
     "The new limits apply to every session of these accounts from its next request. A session already idle longer than a shortened limit is signed out then.",
     "Only activity that reaches the server counts: opening a page, saving, searching or Stay signed in. Typing on a page does not.",
     "If someone saved these limits after you opened the form, your change is refused and what you typed stays. Reload and compare before saving again.",
-    "Your reason is kept with the change in the history on Security settings, with each value before and after."
+    "Your reason is kept with the change in the history on Security settings, with each value before and after.",
+    "Saving asks for your password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Signing in does not count."
   ],
   "sections": [
     {
@@ -50,8 +53,16 @@
           "description": "Required, up to 2,000 characters. Kept with the change in the history on Security settings."
         },
         {
+          "label": "Your password",
+          "description": "Under Confirm it is you, after Reason, while saving asks for it, and shown when your account has a password: your own current password. The help under it says what saving asks for and that you are not asked again in this browser for 5 minutes. Left empty: Enter your password to save this change. Not accepted: Incorrect password."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Under Confirm it is you, shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to save this change. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
           "label": "Save changes",
-          "description": "Saves both values with an audit event naming you, the values before and after, and your reason. Saving the same values records nothing and shows No changes to save."
+          "description": "Once you have confirmed it is you (see Confirm it is you), saves both values with an audit event naming you, the values before and after, and your reason. Saving the same values records nothing and shows No changes to save."
         },
         {
           "label": "Cancel",
@@ -60,10 +71,37 @@
       ]
     },
     {
+      "title": "Confirm it is you",
+      "paragraphs": [
+        "Saving asks you to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. The Confirm it is you section then follows Reason, in the dialog or on the full page, and nothing is saved until what you type there is accepted. Signing in does not count: only confirming again does. Once you have confirmed, neither these forms nor the other pages that ask (the second sign-in factor rule, and account administration for a superuser) ask again in this browser for 5 minutes. A form opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once you have confirmed every factor your account has within the same 5 minutes; a confirmation here counts for those pages as well. An authenticator app added to your account after you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot save the limits until it sets a password.",
+        "When the confirmation is missing or not accepted, nothing is saved and no audit event is written; the limits and the reason you typed stay in the form. A confirmation accepted while a value is refused is kept: the form shows that value's error without the section, and saving again within the 5 minutes does not ask.",
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
+      ],
+      "items": [
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        },
+        {
+          "label": "Your account has no password to confirm it is you, so this change cannot be saved. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then save again."
+        },
+        {
+          "label": "Your sign-in factors changed while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account while your save was being checked. Nothing is saved or confirmed. Save again: the form then asks for what your account has now."
+        }
+      ]
+    },
+    {
       "title": "Rules and states",
       "paragraphs": [
         "A value outside its bounds is refused under its field: Choose from 5 to 60 minutes, or Choose from 1 to 24 hours.",
-        "The form carries the revision of the limits it showed. A change saved by someone else in between refuses yours, keeps what you typed and asks you to reload and compare.",
+        "The form carries the revision of the limits it showed. A change saved by someone else in between refuses yours, keeps what you typed and asks you to reload and compare. That is checked only once you have confirmed it is you.",
         "The limits are the laboratory's choice. The application sets no period by rule; the bounds keep both values within a published recommendation."
       ]
     }
@@ -76,6 +114,10 @@
     "core/models.py",
     "templates/core/session_limits_form.html",
     "accounts/sessions.py",
-    "tests/test_session_limits.py"
+    "tests/test_session_limits.py",
+    "accounts/confirmation.py",
+    "templates/includes/form_sections.html",
+    "accounts/tests/test_confirm_identity.py",
+    "e2e/test_confirm_identity.py"
   ]
 }

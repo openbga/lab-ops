@@ -26,7 +26,8 @@
     "Members are added on each user's account, not on this form.",
     "Built-in group names are read only.",
     "Changes are recorded in the audit history. A later save by someone else replaces yours.",
-    "Groups cannot be deleted."
+    "Groups cannot be deleted.",
+    "Saving, here or on Add group, asks for [[Your password]], and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes."
   ],
   "sections": [
     {
@@ -52,11 +53,46 @@
       ]
     },
     {
+      "title": "Confirm it is you",
+      "paragraphs": [
+        "Every save of a group, new or existing, asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. The Confirm it is you section then appears before the buttons, and nothing is saved until what you type there is accepted. Signing in does not count: only confirming again does. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once you have confirmed every factor your account has within the same 5 minutes; a confirmation here counts for those pages as well. An authenticator app added to your account after you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot save here until it sets a password.",
+        "When the confirmation is missing or not accepted, nothing is saved, and no audit event or administration history entry is written; the name and permissions you chose stay on the page. A confirmation accepted while another field is refused is kept: the page shows that field's error without the section, and saving again within the 5 minutes does not ask.",
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type in these fields is never stored, logged or put in an audit event, and the administration history does not list it among the changed fields."
+      ],
+      "items": [
+        {
+          "label": "Your password",
+          "description": "Shown when your account has a password: your own current password. The help under it says what saving asks for and that you are not asked again in this browser for 5 minutes. Left empty: Enter your password to save this change. Not accepted: Incorrect password."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to save this change. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        },
+        {
+          "label": "Your account has no password to confirm it is you, so this change cannot be saved. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then save again."
+        },
+        {
+          "label": "Your sign-in factors changed while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account while your save was being checked. Nothing is saved or confirmed. Save again: the page then asks for what your account has now."
+        }
+      ]
+    },
+    {
       "title": "Save and navigation",
       "items": [
         {
           "label": "Save",
-          "description": "Validates and saves, then returns to the model list with preserved filters, except the user-creation flow described separately."
+          "description": "Asks you to confirm it is you first, unless you did in this browser in the last 5 minutes (see Confirm it is you); so do Save and continue editing and Save and add another. Validates and saves, then returns to the model list with preserved filters, except the user-creation flow described separately."
         },
         {
           "label": "Save and continue editing",
@@ -89,6 +125,10 @@
     "core/admin.py",
     "config/settings.py",
     "uv.lock",
-    "accounts/tests/test_admin.py"
+    "accounts/tests/test_admin.py",
+    "accounts/confirmation.py",
+    "templates/admin/auth/group/change_form.html",
+    "templates/admin/includes/confirm_identity.html",
+    "accounts/tests/test_confirm_identity.py"
   ]
 }

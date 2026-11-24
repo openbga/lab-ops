@@ -616,7 +616,7 @@ def _sign_in(facts):
                 "removing an authenticator), or to the session limits or the second-factor rule "
                 "on this page, asks for the person's password, and a code from their "
                 "authenticator app or a recovery code where they have one, unless they gave "
-                "both in the last "
+                "them in the last "
                 f"{duration_text(account_settings.REAUTHENTICATION_TIMEOUT)} in that browser. A "
                 "password or code not accepted is kept in their sign-in history. An account with "
                 "neither cannot make these changes. Ending an account's sessions does not ask.",

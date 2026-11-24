@@ -11,6 +11,7 @@
       "title": "Mark a password someone else may know",
       "steps": [
         "Type why in [[Reason]], for example the person typed it into a page posing as the laboratory's.",
+        "If [[Confirm it is you]] is shown, type your own password in [[Your password]], and a code from your authenticator app if it asks for one.",
         "Select [[Mark as compromised]]. You return to the account's page, which shows the mark."
       ]
     },
@@ -26,7 +27,8 @@
     "The person is not emailed. Tell them yourself; the page says what they must do for this account.",
     "A sign-in with the marked password alone is signed out at once. Without an authenticator app the person uses Forgot your password?, an emailed sign-in code, or a password you set.",
     "Any new password lifts the mark, and the marked password cannot be chosen again.",
-    "The reason is kept in the audit history and is not shown to the person. Do not put patient information in it."
+    "The reason is kept in the audit history and is not shown to the person. Do not put patient information in it.",
+    "Marking asks for your own password, and a code if you have an authenticator app, unless you confirmed in this browser in the last 5 minutes. Your reason stays if it is refused."
   ],
   "sections": [
     {
@@ -47,8 +49,43 @@
           "description": "Required, at most 1,000 characters; spaces alone are refused. Recorded with the mark in the audit history. Not shown to the person."
         },
         {
+          "label": "Your password",
+          "description": "Under Confirm it is you, after Reason, while marking asks for it, and shown when your account has a password: your own current password, not the account's. The help under it says what saving asks for and that you are not asked again in this browser for 5 minutes. Left empty: Enter your password to save this change. Not accepted: Incorrect password."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Under Confirm it is you, shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to save this change. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
           "label": "Refused",
           "description": "Instead of the form, a notice when the password cannot be marked: your own account (change your own password instead), a shared demonstration account (its password is published on purpose), an account without a password, or one already marked."
+        }
+      ]
+    },
+    {
+      "title": "Confirm it is you",
+      "paragraphs": [
+        "Mark as compromised asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. Nothing is marked until what you type under Confirm it is you is accepted. Signing in does not count: only confirming again does. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once you have confirmed every factor your account has within the same 5 minutes; a confirmation here counts for those pages as well. An authenticator app added to your account after you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot mark a password until it sets one.",
+        "When the confirmation is missing or not accepted, nothing is marked, no session ends, and no audit event or administration history entry is written; your reason stays on the page. A confirmation accepted while the reason is refused is kept: the page shows the reason's error without the section, and marking within the 5 minutes does not ask again.",
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
+      ],
+      "items": [
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        },
+        {
+          "label": "Your account has no password to confirm it is you, so this change cannot be saved. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then mark again."
+        },
+        {
+          "label": "Your sign-in factors changed while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account while your save was being checked. Nothing is marked or confirmed. Select Mark as compromised again: the page then asks for what your account has now."
         }
       ]
     },
@@ -57,7 +94,7 @@
       "items": [
         {
           "label": "Mark as compromised",
-          "description": "Records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what to tell the person, which depends on whether the account has an authenticator app and whether this deployment sends email. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
+          "description": "Once you have confirmed it is you (see Confirm it is you), records the mark, ends every session of the account open when you save, including any that signed in after the page opened, and records one audit event with your reason and the sessions ended. Each browser goes to the sign-in page at its next request, with a notice saying what to do, and anything typed there and not saved is lost. Returns to the account's page with how many sessions ended and what to tell the person, which depends on whether the account has an authenticator app and whether this deployment sends email. Refused, with nothing recorded, when the account's password changed after the page opened (open the page again), when it was marked meanwhile, or when it can no longer be marked."
         },
         {
           "label": "Back to the account",
@@ -89,6 +126,9 @@
     "templates/admin/accounts/user/mark_compromised.html",
     "accounts/tests/test_compromised_password.py",
     "accounts/signin_history.py",
-    "accounts/tests/test_sign_in_history.py"
+    "accounts/tests/test_sign_in_history.py",
+    "accounts/confirmation.py",
+    "templates/admin/includes/confirm_identity.html",
+    "accounts/tests/test_confirm_identity.py"
   ]
 }

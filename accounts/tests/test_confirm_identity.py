@@ -63,6 +63,11 @@ def http_for(user):
 
 
 def code_for(secret):
+    """The app's current code, taken with at least 10 seconds of its period left, so that a test
+    sending it in several requests does not cross into the next period."""
+    left = 30 - time.time() % 30
+    if left < 10:
+        time.sleep(left + 0.2)
     return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
 
 
@@ -498,7 +503,7 @@ def test_a_page_drawn_read_only_does_not_ask(owner):
     page = http.get(reverse("admin:accounts_user_change", args=[system_account().pk]))
     assert page.status_code == 200
     html = page.content.decode()
-    assert "Confirm it is you" not in html and 'name="confirm_password"' not in html
+    assert 'id="confirm-identity-heading"' not in html and 'name="confirm_password"' not in html
 
 
 def test_ending_sessions_does_not_ask(owner, person):
