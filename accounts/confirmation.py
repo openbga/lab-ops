@@ -52,7 +52,9 @@ or of the session's storage after a code was accepted can leave it used without 
 recorded (allauth's own pages too), and an admin console save refused after its form was checked
 can keep the confirmation while its transaction gives the code back: the person confirms again;
 a recovery-code proof stored in the session counts for a replacement app added at the very same
-instant as the app it replaced (app times are compared, not their ids, for a stored proof).
+instant as the app it replaced (app times are compared, not their ids, for a stored proof); a
+session interrupted while a confirmation is recorded can be written again by the response, which is
+interrupted the same way (400).
 
 An account with neither a usable password nor an authenticator cannot confirm, so it cannot make
 these changes until it sets a password.
@@ -524,7 +526,9 @@ class ConfirmIdentity:
             except UpdateError:
                 # As Django's session middleware answers it (400): the session was ended, for
                 # example by a sign-out in another tab, while this request was under way. Not
-                # written again with the response.
+                # marked for writing again with the response; where the response writes it anyway
+                # (notices kept in the session, SESSION_SAVE_EVERY_REQUEST), that write is
+                # interrupted the same way and the answer stays 400.
                 request.session.modified = False
                 raise SessionInterrupted(
                     "The request's session was deleted before the request completed."
