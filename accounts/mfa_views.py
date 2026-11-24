@@ -167,7 +167,10 @@ class GenerateRecoveryCodesView(recovery_code_views.GenerateRecoveryCodesView):
 
 # Each view's own transaction is the change's whole transaction, also where a deployment wraps
 # every request in one (ATOMIC_REQUESTS): it commits, or fails, before the response is made, so a
-# removal that fails at its commit takes allauth's message back with it.
+# removal that fails at its commit takes allauth's message back with it. Accepted limit: with
+# ATOMIC_REQUESTS (this release does not set it), a removal resumed by allauth's re-authentication
+# page runs inside that page's request transaction, which commits after this view returns, so a
+# failure at that commit leaves allauth's message.
 activate_totp = transaction.non_atomic_requests(ActivateTOTPView.as_view())
 deactivate_totp = transaction.non_atomic_requests(DeactivateTOTPView.as_view())
 generate_recovery_codes = transaction.non_atomic_requests(GenerateRecoveryCodesView.as_view())

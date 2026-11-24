@@ -772,7 +772,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 if not user.is_active:
                     then = (
                         "The account is deactivated, so it cannot sign in until it is made "
-                        "active again; a new password is then needed before anything else."
+                        "active again, and then must choose a new password."
                     )
                 elif marked.second_factor:
                     then = (
