@@ -21,6 +21,15 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
     # while it checks it: what the checks it calls decide is about that account, whatever the
     # credentials name and whoever else is signed in.
     _reauthenticating = None
+    # The account authenticate() accepted while reauthenticate checked: its stored hash is the
+    # password that was checked (after any upgrade the check made), for accounts.confirmation.
+    _verified = None
+
+    def authenticate(self, request, **credentials):
+        user = super().authenticate(request, **credentials)
+        if self._reauthenticating is not None:
+            self._verified = user
+        return user
 
     def authentication_failed(self, request, **credentials):
         # A password not accepted (allauth calls this when no account accepted it, so not for a
@@ -34,10 +43,21 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
         # The password asked for again of the signed-in account (allauth's re-authentication
         # page): not accepted when no account accepted it, or when another account did.
         self._reauthenticating = user
+        self._verified = None
         try:
             accepted = super().reauthenticate(user, password)
         finally:
             self._reauthenticating = None
+        if accepted:
+            # Which password it was, kept for the request until the re-authentication is recorded
+            # (accounts.confirmation: it counts only while the account keeps that password).
+            from allauth.core import context
+
+            from .confirmation import password_checked
+
+            verified = self._verified
+            if verified is not None and verified.pk == user.pk:
+                password_checked(context.request, verified.password)
         if not accepted:
             from allauth.core import context
 

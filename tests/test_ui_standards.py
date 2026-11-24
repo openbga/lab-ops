@@ -143,8 +143,16 @@ RULES = {
         "Inputs through form fields or the shared includes (row_select, grid_search, select_all)",
         re.compile(r"""<input\b(?![^>]*\btype=["']hidden["'])"""),
         # allauth/elements/field.html is allauth's counterpart of the Django widget templates:
-        # it renders the hand-written fields of allauth's own pages as Bootstrap controls.
-        {"templates/includes/", "templates/django/forms/", "templates/allauth/elements/field.html"},
+        # it renders the hand-written fields of allauth's own pages as Bootstrap controls. The two
+        # admin console templates repeat Django's own page (its buttons and the username field for
+        # password managers) to place Confirm it is you inside it (accounts.confirmation).
+        {
+            "templates/includes/",
+            "templates/django/forms/",
+            "templates/allauth/elements/field.html",
+            "templates/admin/accounts/user/change_password.html",
+            "templates/admin/mfa/authenticator/delete_confirmation.html",
+        },
     ),
     "required-note": (
         "The required-fields sentence only through includes/required_note.html",

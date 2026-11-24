@@ -10,6 +10,9 @@ Sign in with the account the laboratory provides. A superuser creates accounts i
 roles**. Staff and client portal accounts are distinct. Users can enroll an authenticator and
 save recovery codes; where the laboratory requires one of their account, they set it up at sign-in
 before anything else. Password resets and sign-in codes depend on the deployment's email settings.
+Saving a change to an account or a role, the session limits or the second-factor rule asks the
+person making it for their password again, and a code where their account has an authenticator
+app, unless they confirmed in that browser in the last 5 minutes.
 [Sign-in configuration](operations.md#sign-in-limits-behind-a-proxy)
 
 ## Roles and capabilities

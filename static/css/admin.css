@@ -99,6 +99,14 @@ html[data-theme="dark"] {
   }
 }
 
+/* Phone widths in a popup (an account or a role added from another page): Django sizes each field
+   row for its page's 15 px side padding, and a popup's is 20 px, so the rows end inside it too. */
+@media (max-width: 767px) {
+  .popup .aligned .form-row > div {
+    width: calc(100vw - 40px);
+  }
+}
+
 /* Phone widths: the header's buttons (Help, the theme switch, Log out) are touch targets of at
    least 44 px too. */
 @media (max-width: 767px) {

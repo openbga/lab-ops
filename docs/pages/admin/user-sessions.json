@@ -50,6 +50,7 @@
       "title": "Rules and records",
       "paragraphs": [
         "Ending sessions takes no access away: the account keeps its roles and capabilities and can sign in again, with its password or, where the laboratory sends email, a sign-in code sent to its address, unless it is deactivated. Setting a new password ends its sessions too but does not stop a sign-in with an emailed code. A change the person is saving at that moment finishes first; one they start afterwards from an ended session is refused and their browser is signed out.",
+        "Ending sessions does not ask you to confirm it is you, unlike saving the account's page or marking its password as compromised: it only takes access away, and stays quick when a device is lost.",
         "Each ending is recorded as an audit event on the account, with your reason, how many sessions ended and their identifiers, never their browsers or addresses; the administration history of the account also lists it. The sign-in log records it once it is saved.",
         "Each session ended also appears in the person's own Sign-in history as Signed out, Ended by an administrator, or as ended by a session limit when it had already passed one. Your reason is not shown there."
       ]
@@ -62,6 +63,8 @@
     "templates/admin/accounts/user/end_sessions.html",
     "tests/test_session_list.py",
     "accounts/signin_history.py",
-    "accounts/tests/test_sign_in_history.py"
+    "accounts/tests/test_sign_in_history.py",
+    "accounts/confirmation.py",
+    "accounts/tests/test_confirm_identity.py"
   ]
 }

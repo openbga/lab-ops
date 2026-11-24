@@ -596,6 +596,34 @@ def _sign_in(facts):
             ),
         ),
         _fact(
+            "confirm-before-changes",
+            "Changing access and security settings",
+            # accounts.confirmation: the window, the password check and the code check.
+            [
+                "ACCOUNT_REAUTHENTICATION_TIMEOUT",
+                "ACCOUNT_ADAPTER",
+                "AUTHENTICATION_BACKENDS",
+                "MFA_FORMS",
+                "MFA_SUPPORTED_TYPES",
+            ],
+            lambda: Fact(
+                "confirm-before-changes",
+                "Changing access and security settings",
+                "Asks again for the password and second factor the person has",
+                "release",
+                "Saving a change to an account or a role in account administration (adding one, "
+                "its page, an account's password page, marking a password as compromised, "
+                "removing an authenticator), or to the session limits or the second-factor rule "
+                "on this page, asks for the person's password where they have one, and a code "
+                "from their authenticator app or a recovery code where they have one, unless "
+                "they gave them in the last "
+                f"{duration_text(account_settings.REAUTHENTICATION_TIMEOUT)} in that browser and "
+                "still have that password and that app. A "
+                "password or code not accepted is kept in their sign-in history. An account with "
+                "neither cannot make these changes. Ending an account's sessions does not ask.",
+            ),
+        ),
+        _fact(
             "failed-sign-ins",
             "Failed sign-ins",
             [

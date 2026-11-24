@@ -237,8 +237,8 @@ one and checks nothing against a contact.
 The Security settings page, for administrators, lists what protects sign-in, sessions and patient
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
-It shows the password rule, the failed sign-in limit, sign-in with an emailed code, the session
-limits and what ends a session, how many active staff accounts with a role can view patient information,
+It shows the password rule, the failed sign-in limit, sign-in with an emailed code, what changing
+access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information,
 how many active staff and portal accounts have a second factor, how many form fields hold patient
 information, and the HTTPS and content security policy settings. It describes this release's
 configuration and follows the deployment settings read from the environment; where a deployment
@@ -335,8 +335,8 @@ attempts that failed (a password, an authenticator or recovery code, or an email
 accepted), attempts refused by the failed sign-in limit before the password or code was checked,
 sign-ins refused because the account is deactivated (also when it was deactivated while the
 sign-in was under way) or the password alone was given while marked as compromised, and a password
-or code not accepted when a signed-in page asked for it again (the re-authentication pages, and the
-current password on Change password). Each entry shows the browser and the address the request
+or code not accepted when a signed-in page asked for it again (the re-authentication pages, Confirm
+it is you, and the current password on Change password). Each entry shows the browser and the address the request
 reported; a sign-out shows those its session reported at sign-in. A warning above the list counts
 the failures and refusals shown. A wrong password, or one the failed sign-in limit refused, is kept
 only when the username or email address given names exactly one account; one that names no
@@ -347,6 +347,23 @@ typed. A shared demonstration account sees its entries, with
 the browser and address only for the session it is using. Entries are kept with no retention
 period and are never changed or deleted; nobody reads another person's history in this release.
 The history starts at the upgrade that added it.
+
+Before a change to access or security settings, the application asks the person making it to
+confirm it is them: their password, and a code from their authenticator app or a recovery code
+where their account has one (an account without a password gives the code alone). In the admin console it asks a superuser who adds an account or saves
+an account's page, its password page or Mark as compromised, removes an authenticator, or adds or
+saves a role; on Security settings it asks an administrator who saves the session limits or the
+second-factor rule. Once they have confirmed, they are not asked again in that browser for 5
+minutes, unless their password or authenticator app changes meanwhile; signing in does not count,
+and each factor given on a page of its own counts for 5 minutes from when it was given. Without the confirmation nothing is saved and no change is
+recorded, and what else they typed, new passwords aside, stays on the form. A password or code not accepted is kept in
+their Sign-in history and counts toward the failed sign-in limit; what they type is never stored or
+logged. An account with neither a password nor an authenticator cannot make these changes. Ending an
+account's sessions does not ask, so it stays quick when a device is lost, and neither do the
+laboratory's profile, contacts, logo, certificates, modules, retention statement or announcements.
+A person's own Change password asks for the current password instead, and their own two-factor
+pages ask with their own confirmation, which counts here when it covers every factor the account
+has.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
