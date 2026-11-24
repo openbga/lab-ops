@@ -52,14 +52,19 @@ def capacity_of(account):
 
 def note(request, kind, *, ticket_id, target=None, account=None):
     """Note that the request read `kind` of ticket `ticket_id` (for a file, an answer or a
-    person-level link, `target`: the Attachment, FieldValue or LinkAttachment), as `account` (by
-    default the request's user: on a page drawn in one reading, the account read in it). Written
+    person-level link, `target`: the Attachment, FieldValue or LinkAttachment), as `account`, the
+    account the view decided access for and drew the page for (on a page drawn in one reading,
+    the account read in it), taken before drawing: a page whose drawing signs the browser out or
+    in as another account is still recorded for that account. Written
     with the answer the view returns (see the module's docstring). The same read noted twice in
     one request is recorded once."""
     if kind not in AccessKind.values:
         raise ValueError(f"Unknown access kind {kind!r}.")
     if account is None:
-        account = request.__dict__.get(ACCOUNT) or request.user
+        # Views pass the account they decided access for; otherwise the signed-in account, or,
+        # when the page signed the browser out while it was drawn, the one the request was made by.
+        user = getattr(request, "user", None)
+        account = user if getattr(user, "pk", None) is not None else request.__dict__.get(ACCOUNT)
     if getattr(account, "pk", None) is None:
         return  # nobody was signed in: nothing of a ticket was drawn
     object_type, object_id = ("", "") if target is None else (target._meta.label_lower, target.pk)

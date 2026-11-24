@@ -36,12 +36,15 @@ def request_page(service_request):
 @login_required
 @require_GET
 def download(request, pk):
+    reader = request.user  # the account the file is sent to (core.access)
     try:
-        attachment = readable_attachment(request.user, pk)
+        attachment = readable_attachment(reader, pk)
         data = file_bytes(attachment)
     except ObjectDoesNotExist as error:
         raise Http404 from error
-    access.note(request, AccessKind.FILE, ticket_id=attachment.request_id, target=attachment)
+    access.note(
+        request, AccessKind.FILE, ticket_id=attachment.request_id, target=attachment, account=reader
+    )
     response = HttpResponse(bytes(data), content_type=attachment.content_type)
     response["Content-Disposition"] = f'attachment; filename="{attachment.download_name}"'
     response["Content-Length"] = str(attachment.size)
