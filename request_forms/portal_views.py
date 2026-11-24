@@ -10,6 +10,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods
 
 from attachments.services import attach_to_new_request
 from clients.portal import client_required
@@ -89,6 +90,7 @@ def _not_offered(request):
 
 @never_cache  # a failed submission re-renders typed values, patient information included
 @client_required
+@require_http_methods(["GET", "HEAD", "POST"])  # no other method draws or copies the form
 def raise_request(request, key):
     template = portal_templates(request.user).filter(key=key).first()
     if template is None:
