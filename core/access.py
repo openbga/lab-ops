@@ -59,8 +59,9 @@ def note(request, kind, *, ticket_id, target=None, account=None):
     The same read noted twice in one request is recorded once."""
     if kind not in AccessKind.values:
         raise ValueError(f"Unknown access kind {kind!r}.")
-    if account is None:
-        account = request.__dict__.get(ACCOUNT) or getattr(request, "user", None)
+    # The account captured when the view was called wins; `account` only stands in for it where
+    # no middleware captured one (no shipped view passes it).
+    account = request.__dict__.get(ACCOUNT) or account or getattr(request, "user", None)
     if getattr(account, "pk", None) is None:
         return  # nobody was signed in: nothing of a ticket was drawn
     object_type, object_id = ("", "") if target is None else (target._meta.label_lower, target.pk)
