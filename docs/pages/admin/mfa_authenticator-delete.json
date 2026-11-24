@@ -26,7 +26,7 @@
     "Only this factor goes. The account, its roles and its other factors stay.",
     "The removal is recorded in the account's audit history. If that record cannot be written, nothing is removed.",
     "The owner can enroll a new factor from their own Two-factor authentication pages. If the laboratory requires one of them, their next sign-in sends them to set one up first.",
-    "Removing asks for your own password, and a code from your own authenticator app if you have one, unless you confirmed in this browser in the last 5 minutes.",
+    "Removing asks you to confirm it is you (your password, a code, or both, as the page asks), unless you confirmed in this browser in the last 5 minutes.",
     "Where this deployment sends email, the owner is emailed that an administrator removed the factor, whatever they chose on Email notices."
   ],
   "sections": [
@@ -53,7 +53,7 @@
     {
       "title": "Confirm it is you",
       "paragraphs": [
-        "Yes, I’m sure asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. A Confirm it is you section then appears above the buttons, and nothing is removed until what you type there is accepted. Signing in does not count: only confirming again does. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed asks when you select Yes, I’m sure after the 5 minutes have passed.",
+        "Yes, I’m sure asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. A Confirm it is you section then appears above the buttons, and nothing is removed until what you type there is accepted. Signing in does not count: only confirming again does, and a new sign-in, even in the same browser, starts without one. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed asks when you select Yes, I’m sure after the 5 minutes have passed.",
         "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once every factor your account has was given there within the last 5 minutes: each counts for 5 minutes from when it was given, so the earlier one runs out first. A confirmation here counts for those pages as well. A new password, or a new or different authenticator app, on your account since you confirmed makes the next removal ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot remove a factor until it sets a password.",
         "When the confirmation is missing or not accepted, nothing is removed, and no audit event or administration history entry is written. A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
       ],

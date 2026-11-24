@@ -33,7 +33,7 @@
       "items": [
         {
           "label": "Deactivate",
-          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). The notice says the app was removed, with its recovery codes when they go too."
+          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). The notice says the app was removed, with its recovery codes when they go too. If the removal fails, nothing is removed, no audit event or notice is recorded, and the Authenticator app deactivated. message is not shown."
         }
       ]
     },

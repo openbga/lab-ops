@@ -739,11 +739,21 @@ def start_session(sender, request, user, **kwargs):
     from .enrolment import NEXT_KEY
 
     session.pop(NEXT_KEY, None)
-    # Nor a confirmation before revealing patient information given in an earlier sign-in
-    # (core.reveal_confirmation, which also names the sign-in's row in it).
+    # Nor a confirmation given in an earlier sign-in: allauth's re-authentication records, which
+    # Confirm it is you counts for 5 minutes (accounts.confirmation), and the confirmation before
+    # revealing patient information (core.reveal_confirmation, which also names the sign-in's row).
+    # Django keeps the session's data when the same account signs in again; the records of how
+    # this sign-in itself was made are kept.
+    from allauth.account.internal.flows.login import AUTHENTICATION_METHODS_SESSION_KEY
+
     from core.reveal_confirmation import SESSION_KEY as REVEAL_KEY
 
     session.pop(REVEAL_KEY, None)
+    records = session.get(AUTHENTICATION_METHODS_SESSION_KEY)
+    if isinstance(records, list):
+        kept = [r for r in records if not (isinstance(r, dict) and r.get("reauthenticated"))]
+        if len(kept) != len(records):
+            session[AUTHENTICATION_METHODS_SESSION_KEY] = kept
 
 
 def _close_earlier(session, user):

@@ -74,7 +74,9 @@ through the adapter and allauth's signals into the sign-in history, as below. Th
 fields never count as a changed field. Ending sessions does not ask. The confirmation is read
 when the save is checked and not held through the save: a factor changed by another request
 between that check and the commit does not stop that save. Tests run as confirmed unless marked
-`confirmation` (the root and e2e `conftest.py`).
+`confirmation` (the root and e2e `conftest.py`). `start_session` drops the re-authentication
+records at every sign-in, even of the same account in the same browser, so a confirmation never
+outlives the sign-in it was given in.
 [Confirm it is you](../accounts/confirmation.py)
 
 Where the laboratory turns it on (`core.models.RevealConfirmationRule`, one row written when an

@@ -333,14 +333,15 @@ account in on its own: a sign-in with it alone is signed out at once, with a not
 do. A sign-in that also gives the account's authenticator code, or a code emailed to its address,
 opens only Choose a new password until a new password is saved there, after setting up a second
 sign-in factor first where the laboratory requires one of the account and it has none. An account without a second
-factor gets a new password through Forgot your password?, where the deployment sends email, or from
-a superuser on its password page. Any new password lifts the mark, and the marked password is
+factor gets a new password through Forgot your password?, where the deployment sends email and the
+account has an email address, or from a superuser on its password page. Any new password lifts the mark, and the marked password is
 refused as a new one, then and later. Superusers cannot mark their own password, a shared
 demonstration account's or that of an account without a password, and a password changed after the
 marking page was opened is not marked. Where the deployment sends email, the person is emailed
 that their password was marked and what to do next (Notifications, above); the marking page says
-whether that notice will be sent, or why not (email off, or the account deactivated or without an
-email address), and asks the superuser to tell the person too. Each
+whether the notice can reach the person (it is sent only if the account is active and has an email
+address when it is sent), or why not (email off, or the account deactivated or without an email
+address at present), and asks the superuser to tell the person too. Each
 mark is kept, with who made it, when, the reason and when it was lifted, and is recorded in the
 audit history without the password.
 
@@ -382,7 +383,9 @@ where their account has one (an account without a password gives the code alone)
 an account's page, its password page or Mark as compromised, removes an authenticator, or adds or
 saves a role; on Security settings it asks an administrator who saves the session limits, the
 second-factor rule or the confirmation before revealing patient information. Once they have confirmed, they are not asked again in that browser for 5
-minutes, unless their password or authenticator app changes meanwhile; signing in does not count,
+minutes, unless their password or authenticator app changes meanwhile or they sign in again (a new
+sign-in, even of the same account in the same browser, drops the earlier confirmations); signing in
+does not count,
 and each factor given on a page of its own counts for 5 minutes from when it was given. Without the confirmation nothing is saved and no change is
 recorded, and what else they typed, new passwords aside, stays on the form. A password or code not accepted is kept in
 their Sign-in history and counts toward the failed sign-in limit; what they type is never stored or

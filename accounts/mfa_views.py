@@ -92,8 +92,27 @@ class ActivateTOTPView(totp_views.ActivateTOTPView):
         return response
 
 
+def _queued_messages(request):
+    """The messages queued for the next page so far (Django's message storage), or None."""
+    storage = getattr(request, "_messages", None)
+    queued = getattr(storage, "_queued_messages", None)
+    return queued if isinstance(queued, list) else None
+
+
 class DeactivateTOTPView(totp_views.DeactivateTOTPView):
     def form_valid(self, form):
+        # allauth queues "Authenticator app deactivated." as it removes, before this transaction
+        # commits: a removal that rolls back takes the message back with it.
+        queued = _queued_messages(self.request)
+        before_messages = list(queued) if queued is not None else None
+        try:
+            return self._remove(form)
+        except BaseException:
+            if queued is not None:
+                queued[:] = before_messages
+            raise
+
+    def _remove(self, form):
         with transaction.atomic():
             account = _lock_account(self.request)
             before = _factors(account, [TOTP, RECOVERY_CODES])

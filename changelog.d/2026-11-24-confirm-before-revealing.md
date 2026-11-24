@@ -6,7 +6,7 @@ title: Confirm it is you before revealing patient information
 area: Security settings
 link: security-settings
 ---
-Administrators can ask staff to confirm it is them before their first reveal of patient information after signing in: their password, and an authenticator or recovery code where they have an app.
+Administrators can ask staff to confirm it is them (their password and, where they have an authenticator app, a code from it or a recovery code; an account without a password gives the code alone) before their first reveal of patient information in each session.
 
 ## Technical notes
 

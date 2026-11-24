@@ -64,7 +64,7 @@
       "title": "How long it lasts",
       "paragraphs": [
         "The confirmation lasts for this sign-in: until you select Sign out, sign in again (even with the same account in the same browser), a session limit signs you out, a new password is set for your account by someone else, or your account is deactivated. It belongs to your account and this sign-in; another account signed in on the same browser is asked for its own.",
-        "A confirmation given in this sign-in within the last 5 minutes for another change that asks (on Security settings, in account administration, on Confirm your password, or with a code before a change to your own two-factor settings), covering every factor your account has, counts too, and is then remembered for reveals for the rest of the sign-in, whether you reveal or open this page. Signing in does not count.",
+        "A confirmation given in this sign-in within the last 5 minutes for another change that asks (on Security settings, in account administration, on Confirm your password, or with a code before a change to your own two-factor settings), covering every factor your account has, counts too, and is then remembered for reveals for the rest of the sign-in, whether you reveal or open this page. Signing in does not count. A confirmation from an earlier sign-in never counts: signing in again drops it.",
         "The page you return to is the page the reveal was sent from, when it is on this site; otherwise you go to the dashboard."
       ]
     },

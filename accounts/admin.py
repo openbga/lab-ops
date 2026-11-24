@@ -774,7 +774,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         "Tell the person to sign in with their password and an authenticator "
                         "code: they will be asked to choose a new password."
                     )
-                elif mail_enabled():
+                elif mail_enabled() and user.email:
                     by_code = (
                         "or to sign in with a code emailed to them and choose a new password, "
                         if sign_in_codes
@@ -784,6 +784,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         "The account has no second factor, so its password no longer signs it "
                         "in. Tell the person to use Forgot your password? on the sign-in page, "
                         f"{by_code}or set a new password for them on the account's password page."
+                    )
+                elif mail_enabled():
+                    then = (
+                        "The account has no second factor and no email address, so set a new "
+                        "password for them on the account's password page."
                     )
                 else:
                     then = (
