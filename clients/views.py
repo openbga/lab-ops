@@ -462,8 +462,7 @@ def _describe_entry(item):
 
 @login_required
 def client_timeline(request, pk):
-    reader = request.user  # the account the timeline is drawn for (core.access)
-    require_staff(reader)
+    require_staff(request.user)
     client = get_object_or_404(Client, pk=pk)
     form = TimelineFilter(request.GET, client=client)
     valid = form.is_valid()
@@ -500,7 +499,5 @@ def client_timeline(request, pk):
     # shows is recorded, once (core.access).
     for item in page_obj.object_list:
         if "entry" in item:
-            access.note(
-                request, AccessKind.TIMELINE, ticket_id=item["entry"].request_id, account=reader
-            )
+            access.note(request, AccessKind.TIMELINE, ticket_id=item["entry"].request_id)
     return response

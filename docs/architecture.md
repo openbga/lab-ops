@@ -96,8 +96,10 @@ returns to the page on screen; the person reveals again.
 ## Access records
 
 A sensitive read leaves a `core.models.AccessRecord` ([core/access.py](../core/access.py)): the
-account (by id, no database constraint, as for the sign-in history), the capacity (laboratory or
-client, from the account as read for the page; an account's kind never changes), the kind of read,
+account that made the request, as signed in when its view was called (`AccessBindMiddleware`
+keeps it in `process_view`, so a page that signs the browser out while it is drawn is still
+recorded for it; by id, no database constraint, as for the sign-in history), the capacity
+(laboratory or client; an account's kind never changes), the kind of read,
 the ticket's id, the file, answer or person-level link read (`object_type`, `object_id`, checked
 against the kind by a constraint) and the request ID that `core.request_logging` generates, never
 what was shown. The views call `access.note` once access is decided and what they show is read:
@@ -129,8 +131,9 @@ given out before a write commits); its pages never show a record written after t
 records of the ticket. Request again decides from its reading of the earlier ticket whether it
 copied something: a site deactivated before the form reads its sites again, or typing kept across a
 sign-out given back over the copied answers (accounts.kept), leaves the notice and the record
-although the form shows none of them. This release's views draw their pages at once; a deployment's own
-template-response hook or post-render callback that replaces or rewrites a deferred page leaves the
+although the form shows none of them. Code that signs another account in during a request (nothing in this
+release does) does not change the account recorded. This release's views draw their pages at once;
+a deployment's own template-response hook or post-render callback that replaces or rewrites a deferred page leaves the
 records with the answer Django ends with, whatever it shows.
 [Access records](../core/access.py)
 

@@ -192,8 +192,7 @@ def request_detail(request, number, reply_form=None):
 
 
 def _request_page(request, number, reply_form):
-    reader = request.user  # as read for the page (request_detail), drawn for (core.access)
-    service_request = _portal_request(reader, number)
+    service_request = _portal_request(request.user, number)
     # Also drawn by a refused reply: the help is this page's (core.page_docs).
     request.documentation_page = ("portal:request-detail", {"number": number})
     follow_up_of = service_request.follow_up_of
@@ -243,7 +242,7 @@ def _request_page(request, number, reply_form):
     )
     # Drawn: the ticket is recorded as opened (its form details note each patient-marked answer
     # they show, request_forms.templatetags). A refused reply drawn again is opened again.
-    access.note(request, AccessKind.TICKET, ticket_id=service_request.pk, account=reader)
+    access.note(request, AccessKind.TICKET, ticket_id=service_request.pk)
     return response
 
 

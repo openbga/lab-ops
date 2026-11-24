@@ -111,7 +111,7 @@ def raise_request(request, key):
         repeated = bool(copied) or site is not None
         if repeated:
             # What it copied is shown in the new form: the earlier ticket is read (core.access).
-            access.note(request, AccessKind.REPEAT, ticket_id=earlier.pk, account=request.user)
+            access.note(request, AccessKind.REPEAT, ticket_id=earlier.pk)
         if site is not None:
             initial["site"] = site.pk
     form = PortalRaiseForm(

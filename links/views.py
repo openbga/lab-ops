@@ -425,8 +425,7 @@ def attachment_reveal(request, pk):
     the laboratory asks staff to confirm it is them before the first reveal in a session
     (core.reveal_confirmation), a session that has not is sent to confirm first, decided in the
     reveal's transaction before anything is read."""
-    reader = request.user  # the account the key is revealed to (core.access)
-    require_staff(reader)
+    require_staff(request.user)
     with transaction.atomic():
         hold_actor(request.user)  # before the rule's lock (accounts.acting)
         if not reveal_confirmation.may_reveal(request):
@@ -439,13 +438,7 @@ def attachment_reveal(request, pk):
         except ObjectDoesNotExist as error:  # removed, or no longer readable
             raise Http404 from error
     # Recorded besides its change event, as a patient-marked answer's reveal (core.access).
-    access.note(
-        request,
-        AccessKind.PERSON_KEY,
-        ticket_id=attachment.request_id,
-        target=attachment,
-        account=reader,
-    )
+    access.note(request, AccessKind.PERSON_KEY, ticket_id=attachment.request_id, target=attachment)
     context = {"link": link, "attachment": attachment, "back": _target_url(attachment)}
     template = (
         "links/_revealed_key.html" if request.headers.get("HX-Request") else "links/revealed.html"

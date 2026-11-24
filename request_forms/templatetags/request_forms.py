@@ -78,7 +78,6 @@ def request_form_details(context, service_request, embedded=False):
                     AccessKind.PATIENT_ANSWER,
                     ticket_id=service_request.pk,
                     target=FieldValue(pk=row.value_id),
-                    account=user,  # the account the details were drawn for
                 )
     again_url = ""
     if details is not None and not staff:

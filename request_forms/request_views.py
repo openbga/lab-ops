@@ -84,8 +84,7 @@ def _earlier_values(filled, user):
 @never_cache  # a failed submission re-renders typed values, patient information included
 @login_required
 def edit_values(request, number):
-    reader = request.user  # the account the page is drawn for (core.access)
-    require_staff(reader)
+    require_staff(request.user)
     service_request = get_object_or_404(staff_requests(request.user), number=number)
     filled = FilledForm.objects.filter(request=service_request).select_related("template").first()
     if filled is None:
@@ -154,7 +153,7 @@ def edit_values(request, number):
             "crumbs": [(number, back), ("Form details", None)],
         },
     )
-    access.note(request, AccessKind.FORM_DETAILS, ticket_id=service_request.pk, account=reader)
+    access.note(request, AccessKind.FORM_DETAILS, ticket_id=service_request.pk)
     return response
 
 
@@ -167,8 +166,7 @@ def reveal_value(request, pk):
     Where the laboratory asks staff to confirm it is them before the first reveal in a session
     (core.reveal_confirmation), a session that has not is sent to confirm first, decided in the
     reveal's transaction before anything is read."""
-    reader = request.user  # the account the value is revealed to (core.access)
-    require_staff(reader)
+    require_staff(request.user)
     try:
         with transaction.atomic():
             hold_actor(request.user)  # before the rule's lock (accounts.acting)
@@ -180,9 +178,7 @@ def reveal_value(request, pk):
     service_request = row.filled_form.request
     # Recorded besides its change event (request_forms.services.reveal_value): the access records
     # list every patient-marked answer shown, to staff and to portal accounts alike.
-    access.note(
-        request, AccessKind.PATIENT_ANSWER, ticket_id=service_request.pk, target=row, account=reader
-    )
+    access.note(request, AccessKind.PATIENT_ANSWER, ticket_id=service_request.pk, target=row)
     context = {
         "row": row,
         "lines": kinds.display(row.kind, row.value),

@@ -53,7 +53,7 @@
         },
         {
           "label": "Person",
-          "description": "The account's name, with its username below, as they stand now. A record keeps the account, not its name. An account that no longer exists shows its number."
+          "description": "The account that opened, downloaded or was shown it: the account signed in when the page was asked for. Its name, with its username below, as they stand now. A record keeps the account, not its name. An account that no longer exists shows its number."
         },
         {
           "label": "Capacity",

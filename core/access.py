@@ -12,11 +12,11 @@ recorded: rows shown in a list, a search or its text, the action pages that show
 number (Assign, Status, Edit category and priority and the like), and a HEAD request, which
 answers without the page.
 
-Each record holds the account, the capacity it read in (laboratory staff or client portal, the
-account as it was read for the page), what was read (the kind, the ticket and, for a file, an
-answer or a person-level link, which one), the request ID (core.request_logging) and the time by
-the database's clock. Never what was shown: no subject, text, file name, value or key, and
-nothing about the record is logged.
+Each record holds the account that made the request (as signed in when its view was called), the
+capacity it read in (laboratory staff or client portal; an account's kind never changes), what was
+read (the kind, the ticket and, for a file, an answer or a person-level link, which one), the
+request ID (core.request_logging) and the time by the database's clock. Never what was shown: no
+subject, text, file name, value or key, and nothing about the record is logged.
 
 A view, or a template tag drawing part of a page, calls `note` once access has been decided and
 what it shows has been read, so a refusal (404, 403) or a redirect to confirm it is you first
@@ -36,9 +36,10 @@ meanwhile still leaves the record.
 from core.models import AccessCapacity, AccessKind, AccessRecord
 
 PENDING = "_vr_access_pending"
-# The account the request was made by, as it stood when its view was called (AccessBindMiddleware):
-# a page that signs the browser out while it is drawn (request.user then turns anonymous) is still
-# recorded for the account it was drawn for.
+# The account the request was made by, as signed in when its view was called (AccessBindMiddleware):
+# every record of the request names it. A page that signs the browser out while it is drawn
+# (request.user then turns anonymous) is still recorded for it. Not covered: code that signs
+# another account in during the request (nothing in this release does) is not followed.
 ACCOUNT = "_vr_access_account"
 # The notes moved onto the answer the view returned (AccessBindMiddleware).
 CARRIED = "_vr_access_records"
@@ -52,19 +53,14 @@ def capacity_of(account):
 
 def note(request, kind, *, ticket_id, target=None, account=None):
     """Note that the request read `kind` of ticket `ticket_id` (for a file, an answer or a
-    person-level link, `target`: the Attachment, FieldValue or LinkAttachment), as `account`, the
-    account the view decided access for and drew the page for (on a page drawn in one reading,
-    the account read in it), taken before drawing: a page whose drawing signs the browser out or
-    in as another account is still recorded for that account. Written
-    with the answer the view returns (see the module's docstring). The same read noted twice in
-    one request is recorded once."""
+    person-level link, `target`: the Attachment, FieldValue or LinkAttachment). The record names
+    the account that made the request (ACCOUNT), or `account` where a caller without the
+    middleware gives one. Written with the answer the view returns (see the module's docstring).
+    The same read noted twice in one request is recorded once."""
     if kind not in AccessKind.values:
         raise ValueError(f"Unknown access kind {kind!r}.")
     if account is None:
-        # Views pass the account they decided access for; otherwise the signed-in account, or,
-        # when the page signed the browser out while it was drawn, the one the request was made by.
-        user = getattr(request, "user", None)
-        account = user if getattr(user, "pk", None) is not None else request.__dict__.get(ACCOUNT)
+        account = request.__dict__.get(ACCOUNT) or getattr(request, "user", None)
     if getattr(account, "pk", None) is None:
         return  # nobody was signed in: nothing of a ticket was drawn
     object_type, object_id = ("", "") if target is None else (target._meta.label_lower, target.pk)

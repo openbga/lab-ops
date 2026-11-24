@@ -817,11 +817,10 @@ def request_detail(request, pk):
     # carries the revision of the timeline, details and links it shows, so a change committed
     # while the page is drawn is either shown with its revision or not at all.
     with one_reading():
-        reader = reading_account(request)
-        request_obj = _request_or_404(reader, pk)
+        request_obj = _request_or_404(reading_account(request), pk)
         context = _detail_context(request, request_obj)
         response = render(request, "desk/request_detail.html", context)
-        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk, account=reader)
+        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk)
     # Never kept by a shared cache. accounts.sessions also marks it no-store, as every answer to
     # a signed-in session; a browser that restores it from its history anyway shows a revealed
     # key masked again (static/js/app.js, e2e/test_links_journey.py).
@@ -866,13 +865,12 @@ def request_entry(request, pk):
     # Scope again before anything about the request is rendered: it may have left the actor's
     # scope while the form was validated. Drawn from one reading, like the page.
     with one_reading():
-        reader = reading_account(request)
-        request_obj = _request_or_404(reader, pk)
+        request_obj = _request_or_404(reading_account(request), pk)
         if request_obj.status == Status.CLOSED:
             form.offer_note_only()  # closed meanwhile: as the page shows it
         context = _detail_context(request, request_obj, composer=form)
         response = render(request, "desk/request_detail.html", context, status=400)
-        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk, account=reader)
+        access.note(request, AccessKind.TICKET, ticket_id=request_obj.pk)
     patch_cache_control(response, private=True)  # like the page (request_detail)
     return response
 
@@ -917,7 +915,6 @@ def _action_form(
     record) draws it all from that one new reading. `access_kind`, for a form that shows what the
     ticket records (a complaint's rationale and findings), notes the drawn page as read
     (core.access)."""
-    reader = request.user  # the account the form is drawn for (core.access)
     record_url = _record_url(request_obj, _back(request))
     if request.method == "POST" and form.is_valid():
         try:
@@ -965,7 +962,7 @@ def _action_form(
     )
     add_never_cache_headers(response)  # a refused form shows what was typed again
     if access_kind:
-        access.note(request, access_kind, ticket_id=request_obj.pk, account=reader)
+        access.note(request, access_kind, ticket_id=request_obj.pk)
     return response
 
 
@@ -1306,7 +1303,6 @@ def entry_withdraw(request, pk, entry_pk):
 @login_required
 def request_history(request, pk):
     """The audit trail of a request, its entries, its complaint record and its links."""
-    reader = request.user  # the account the page is drawn for (core.access)
     request_obj = _request_or_404(request.user, pk)
     if not is_supervisor(request.user):
         raise PermissionDenied("A ticket's audit history is for supervisors.")
@@ -1339,7 +1335,7 @@ def request_history(request, pk):
             "access_url": _ticket_page_url("desk:request-access", request_obj, _back(request)),
         },
     )
-    access.note(request, AccessKind.HISTORY, ticket_id=request_obj.pk, account=reader)
+    access.note(request, AccessKind.HISTORY, ticket_id=request_obj.pk)
     return response
 
 
@@ -1382,7 +1378,7 @@ def request_access(request, pk):
                 "list_url": _queue_url(list_query),
             },
         )
-        access.note(request, AccessKind.ACCESS, ticket_id=request_obj.pk, account=account)
+        access.note(request, AccessKind.ACCESS, ticket_id=request_obj.pk)
     return response
 
 
