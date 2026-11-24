@@ -45,7 +45,8 @@ ACTION = "lab.reveal_confirmation_changed"
 # takes shared. First keys 19553 to 19561 name other locks (accounts.acting, accounts.kept,
 # accounts.signin_history, core.second_factor and their neighbours).
 RULE_LOCK = (19562, 0)
-# The browser's session confirmed it is them for reveals: the account's id.
+# The browser's sign-in confirmed it is them for reveals: [the account's id, the id of the
+# sign-in's session row (accounts.sessions.SESSION_KEY)].
 SESSION_KEY = "_reveal_confirmed"
 LABEL = "Confirm it is you before the first reveal of patient information in a session"
 
@@ -115,21 +116,36 @@ def history(limit=20):
     )
 
 
-def confirmed(request):
-    """Whether this browser's session confirmed it is them for reveals (remember())."""
+def _sign_in(request):
+    """[account id, id of the sign-in's session row] for the signed-in request, or None: what a
+    mark names, so that it stands for this sign-in only (accounts.sessions gives every sign-in a
+    new row, also when the same account signs in again in this browser and Django keeps the
+    session's data)."""
+    from accounts.sessions import SESSION_KEY as SIGN_IN_KEY
+
     user = getattr(request, "user", None)
     session = getattr(request, "session", None)
     if session is None or getattr(user, "pk", None) is None:
-        return False
-    value = session.get(SESSION_KEY)
-    return isinstance(value, int) and not isinstance(value, bool) and value == user.pk
+        return None
+    sign_in = session.get(SIGN_IN_KEY)
+    if not isinstance(sign_in, str) or not sign_in:
+        return None
+    return [user.pk, sign_in]
+
+
+def confirmed(request):
+    """Whether this browser's sign-in confirmed it is them for reveals (remember())."""
+    sign_in = _sign_in(request)
+    return sign_in is not None and request.session.get(SESSION_KEY) == sign_in
 
 
 def remember(request):
-    """Record in the browser's session that its account confirmed it is them for reveals. Django
-    empties the session at every sign-in of another account and at every sign-out, so it lasts
-    for this sign-in."""
-    request.session[SESSION_KEY] = request.user.pk
+    """Record in the browser's session that this sign-in of its account confirmed it is them for
+    reveals. It names the account and the sign-in's session row, so it lasts for this sign-in:
+    a sign-out empties the session, and a new sign-in, even of the same account, has a new row."""
+    sign_in = _sign_in(request)
+    if sign_in is not None:
+        request.session[SESSION_KEY] = sign_in
 
 
 def may_reveal(request):

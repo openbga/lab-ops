@@ -393,7 +393,7 @@ def test_reveal_asks_to_confirm_first_where_the_laboratory_asks(holder, person, 
         {"next": ticket, confirmation.PASSWORD_FIELD: PASSWORD},
     )
     assert done.status_code == 302 and done["Location"] == ticket
-    assert client.session[reveal_confirmation.SESSION_KEY] == holder.pk
+    assert client.session[reveal_confirmation.SESSION_KEY][0] == holder.pk
     response = client.post(url, HTTP_HX_REQUEST="true")
     assert response.status_code == 200 and PATIENT_KEY in response.content.decode()
     assert AuditEvent.objects.filter(action="external_link.person_revealed").count() == 1

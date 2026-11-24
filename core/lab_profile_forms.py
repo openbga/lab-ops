@@ -246,10 +246,11 @@ class RevealConfirmationRuleForm(ConfirmIdentity, GroupedForm, forms.Form):
         label="Confirm it is you before the first reveal in a session",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        help_text="Staff who can view patient information give their password, and a code from "
-        "their authenticator app or a recovery code where they have one, before they first "
-        "reveal a patient-information value or a person-level key in each session. Later reveals "
-        "in that session are not asked.",
+        help_text="Staff who can view patient information confirm it is them before they first "
+        "reveal a patient-information value or a person-level key in each session: their "
+        "password and, where they have an authenticator app, a code from it or a recovery code "
+        "(an account without a password gives the code alone). Later reveals in that session "
+        "are not asked.",
     )
     reason = forms.CharField(
         label="Reason",

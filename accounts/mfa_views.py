@@ -2,8 +2,11 @@
 change, its audit event and the email notice to the account committed together.
 
 allauth adds an authenticator app (Activate), issues new recovery codes (Generate) and removes the
-app with its recovery codes (Deactivate), and announces each with a signal and a message once the
-change has committed; its removal is not atomic at all. These views run allauth's own form_valid
+app with its recovery codes (Deactivate). Its Activate and Generate send their signal and message
+once the change has committed; its Deactivate is not atomic on its own and sends its
+`authenticator_removed` signals as it removes, which now happens inside this transaction, so a
+receiver of that signal can see a removal that then rolls back (nothing in this application
+receives it; allauth's own pages behaved the same before). These views run allauth's own form_valid
 inside one transaction that first locks the account's row, so two changes of one account's
 factors take turns, and decide again from what the account has under that lock: an app added
 meanwhile (Activate goes to Deactivate, as allauth does before the form), an app removed meanwhile

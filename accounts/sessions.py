@@ -739,6 +739,11 @@ def start_session(sender, request, user, **kwargs):
     from .enrolment import NEXT_KEY
 
     session.pop(NEXT_KEY, None)
+    # Nor a confirmation before revealing patient information given in an earlier sign-in
+    # (core.reveal_confirmation, which also names the sign-in's row in it).
+    from core.reveal_confirmation import SESSION_KEY as REVEAL_KEY
+
+    session.pop(REVEAL_KEY, None)
 
 
 def _close_earlier(session, user):

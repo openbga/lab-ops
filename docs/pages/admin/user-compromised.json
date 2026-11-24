@@ -24,7 +24,7 @@
     }
   ],
   "good_to_know": [
-    "Where this deployment sends email, the person is emailed that their password was marked and what to do. Tell them yourself as well.",
+    "The page says whether the person will get an email notice of the mark with what to do next. Tell them yourself either way.",
     "A sign-in with the marked password alone is signed out at once. Without an authenticator app the person uses Forgot your password?, an emailed sign-in code, or a password you set.",
     "Any new password lifts the mark, and the marked password cannot be chosen again.",
     "The reason is kept in the audit history and is not shown to the person. Do not put patient information in it.",
@@ -115,7 +115,7 @@
         "Each session the mark ends appears in the person's own Sign-in history as Signed out, Password marked as compromised, and each later sign-in with the password alone as Sign-in refused, Password marked as compromised. The reason is not shown there.",
         "Marking takes no access away: roles and capabilities stay. To stop the person signing in at all, clear Active on the account's page.",
         "Marks are enforced and lifted only by server processes running this release. While a deployment is still replacing processes of an earlier release, or after a rollback to one, a marked password can sign in on its own there and a password set there does not lift the mark; a process of this release ends such a session at its next request for a page there. Mark passwords once the deployment has finished.",
-        "Where the deployment sends email, marking records one email notice to the account in the same change, sent once it is saved and retried by the scheduled jobs. It names the laboratory, the username, that an administrator marked the password and when (UTC), and what to do next, which depends on whether the account has a second factor and whether a new password was chosen before it was sent; and it tells the person to contact the laboratory's security contact, or its administrator when none is recorded, if they did not expect it. It holds no reason, code or address. It is not sent when the account is inactive or has no email address when it is sent, and it is recorded as not sent when email is off. The page itself still says the person is not emailed."
+        "Where the deployment sends email, marking records one email notice to the account in the same change, sent once it is saved and retried by the scheduled jobs. It names the laboratory, the username, that an administrator marked the password and when (UTC), and what to do next, which depends on whether the account has a second factor and whether a new password was chosen before it was sent; and it tells the person to contact the laboratory's security contact, or its administrator when none is recorded, if they did not expect it. It holds no reason, code or address. It is not sent when the account is inactive or has no email address when it is sent, and it is recorded as not sent when email is off. Above the reason, the page says which applies, as the notice will decide when it is sent: The person is sent an email notice that their password was marked, with what to do next. Tell them yourself too. (email on, account active with an email address); The account is deactivated or has no email address, so no email notice is sent: tell the person yourself.; or This deployment sends no email, so the person is not told by email: tell them yourself."
       ]
     }
   ],

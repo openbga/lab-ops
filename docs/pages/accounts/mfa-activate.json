@@ -47,7 +47,7 @@
         },
         {
           "label": "Activate",
-          "description": "Validates the code and creates the TOTP authenticator. If recovery codes do not exist, creates ten eight-digit recovery codes automatically and opens that page; otherwise returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). Adding an app sends one notice, which also says new recovery codes were issued with it."
+          "description": "Validates the code and creates the TOTP authenticator. If recovery codes do not exist, creates ten eight-digit recovery codes automatically and opens that page; otherwise returns to the MFA overview. Where the deployment sends email, the account's email address gets a notice of the change, whatever was chosen on Email notices, and the change is recorded in the audit history (ids, type and times only). Adding an app sends one notice. It mentions new recovery codes only when the app was added with new ones; an account that already had recovery codes keeps that set."
         }
       ]
     },

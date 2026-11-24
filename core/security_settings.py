@@ -967,9 +967,10 @@ def _reveal_confirmation():
         "Confirmation before a reveal",
         summary(on),
         "reveal-confirmation",
-        "Staff give their password, and a code from their authenticator app or a recovery code "
-        "where they have one, before the first reveal in each session. A confirmation given in "
-        f"the last {duration_text(_reauthentication_window())} for another change counts."
+        "Staff confirm it is them before the first reveal in each session: their password and, "
+        "where they have an authenticator app, a code from it or a recovery code (an account "
+        "without a password gives the code alone). A confirmation given in the last "
+        f"{duration_text(_reauthentication_window())} for another change counts."
         if on
         else "A reveal asks for nothing more than the permission. The admin role can ask staff to "
         "confirm it is them before the first reveal in each session.",

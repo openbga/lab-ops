@@ -82,11 +82,13 @@ administrator first saves it, so a database never saved asks nothing), the views
 patient-marked answer or a person-level key ask for the same confirmation once per browser session.
 Each decides in the reveal's transaction, after holding the acting account and before reading
 anything: `may_reveal` takes the rule's advisory lock shared (a save takes it exclusive), and passes
-when the rule is off, the session carries the account's mark, or `accounts.confirmation.current`
-holds, which then sets the mark. Otherwise the view answers with a redirect (`HX-Redirect` under
-HTMX) to `account-confirm-reveal`, which sets the mark once the confirmation is accepted and returns
-to the page on screen; the person reveals again. Django empties the session, and with it the mark,
-at sign-out and at every sign-in.
+when the rule is off, the session carries this sign-in's mark, or `accounts.confirmation.current`
+holds, which then sets the mark. The mark names the account and the sign-in's session row
+(`accounts.sessions.SESSION_KEY`), so it lasts for that sign-in only: a sign-out empties the
+session, and a new sign-in, even of the same account in the same browser, has a new row. Otherwise
+the view answers with a redirect (`HX-Redirect` under HTMX) to `account-confirm-reveal`, which sets
+the mark, without showing its form, when `current` holds, or once the confirmation is accepted, and
+returns to the page on screen; the person reveals again.
 [Confirm before revealing](../core/reveal_confirmation.py)
 
 ## Security settings

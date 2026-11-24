@@ -153,7 +153,7 @@ def test_password_confirms_for_the_session(client, capable, value, asked):
     assert client.post(reveal_url(row), HTTP_HX_REQUEST="true").status_code == 204
     done = client.post(CONFIRM, {"next": back, confirmation.PASSWORD_FIELD: PASSWORD})
     assert done.status_code == 302 and done["Location"] == back
-    assert client.session[reveal_confirmation.SESSION_KEY] == capable.pk
+    assert client.session[reveal_confirmation.SESSION_KEY][0] == capable.pk
     response = client.post(reveal_url(row), HTTP_HX_REQUEST="true")
     assert response.status_code == 200 and PATIENT_SENTINEL in response.content.decode()
     assert AuditEvent.objects.filter(action=ACTION, actor=capable).count() == 1
@@ -184,7 +184,7 @@ def test_recent_confirmation_for_another_change_counts(client, capable, value, a
     reauthenticated(client, capable, "password")
     response = client.post(reveal_url(row), HTTP_HX_REQUEST="true")
     assert response.status_code == 200 and PATIENT_SENTINEL in response.content.decode()
-    assert client.session[reveal_confirmation.SESSION_KEY] == capable.pk
+    assert client.session[reveal_confirmation.SESSION_KEY][0] == capable.pk
 
 
 def test_expired_confirmation_and_the_sign_in_do_not_count(client, capable, value, asked):
@@ -227,15 +227,14 @@ def test_session_mark_of_another_account_does_not_count(client, capable, agent, 
     _, row = value
     login(client, capable)
     session = client.session
-    session[reveal_confirmation.SESSION_KEY] = agent.pk
+    session[reveal_confirmation.SESSION_KEY] = [agent.pk, session["_account_session"]]
     session.save()
     assert client.post(reveal_url(row), HTTP_HX_REQUEST="true").status_code == 204
-    session = client.session
-    session[reveal_confirmation.SESSION_KEY] = True  # a stored value of another type
-    session.save()
-    assert not reveal_confirmation.confirmed(
-        type("R", (), {"session": client.session, "user": type("U", (), {"pk": 1})()})
-    )
+    for stored in (capable.pk, True, [capable.pk, "an-earlier-sign-in"], [capable.pk]):
+        session = client.session
+        session[reveal_confirmation.SESSION_KEY] = stored  # an earlier format or sign-in
+        session.save()
+        assert client.post(reveal_url(row), HTTP_HX_REQUEST="true").status_code == 204, stored
 
 
 def test_sign_in_again_asks_again(client, capable, value, asked):

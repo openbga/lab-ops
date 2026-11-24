@@ -18,6 +18,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
+from accounts import confirmation
 from accounts.roles import require_staff
 
 from . import reveal_confirmation
@@ -77,6 +78,11 @@ def confirm_before_reveal(request):
     back = _on_this_site(request, (request.POST if posted else request.GET).get("next", ""))
     back = back or reverse("dashboard")
     if not reveal_confirmation.asks(request):
+        return redirect(back)
+    if confirmation.current(request):
+        # Confirmed for another change within the window, here or in another tab: it counts, as
+        # it does for a reveal, so there is nothing to ask.
+        reveal_confirmation.remember(request)
         return redirect(back)
     form = ConfirmBeforeRevealForm(request.POST if posted else None, initial={"next": back})
     if posted and form.is_valid():

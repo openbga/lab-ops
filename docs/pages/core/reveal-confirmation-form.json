@@ -12,7 +12,7 @@
       "steps": [
         "Tick [[Confirm it is you before the first reveal in a session]].",
         "Explain why in [[Reason]].",
-        "If [[Confirm it is you]] is shown, type [[Your password]], and a code from your authenticator app if it asks for one.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Save changes]]. You return to Security settings."
       ]
     },
@@ -48,7 +48,7 @@
       "items": [
         {
           "label": "Confirm it is you before the first reveal in a session",
-          "description": "Ticked: staff who can view patient information give their password, and a code from their authenticator app or a recovery code where they have one, before their first Reveal of a patient-information value or Reveal key of a person-level link in each browser session. Later reveals in that session are not asked. Clear: a reveal asks for nothing more than the permission. Not ticked until the setting is first saved."
+          "description": "Ticked: staff who can view patient information confirm it is them before their first Reveal of a patient-information value or Reveal key of a person-level link after each sign-in: their password and, where they have an authenticator app, a code from it or a recovery code (an account without a password gives the code alone). Later reveals in that sign-in are not asked; a new sign-in, even of the same account in the same browser, asks again. Clear: a reveal asks for nothing more than the permission. Not ticked until the setting is first saved."
         },
         {
           "label": "Reason",

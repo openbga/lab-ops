@@ -10,7 +10,7 @@
     {
       "title": "Confirm and reveal",
       "steps": [
-        "Type [[Your password]], and a code in [[Authenticator or recovery code]] if it asks for one.",
+        "Type what the page asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
         "Select [[Confirm]]. You return to the page you were on.",
         "Select [[Reveal]] or [[Reveal key]] again. Nothing was revealed before you confirmed."
       ]
@@ -23,7 +23,7 @@
     }
   ],
   "good_to_know": [
-    "You confirm once per session. Later reveals are not asked until you sign out, sign in again or your session ends.",
+    "You confirm once per sign-in. Later reveals are not asked until you sign out, sign in again or your session ends.",
     "Each reveal is still recorded with your name and the time, whether or not you were asked.",
     "If you confirmed for another change in the last 5 minutes, your first reveal is not asked. Signing in does not count.",
     "A password or code not accepted is listed in your Sign-in history as Re-authentication failed and counts toward the failed sign-in limit.",
@@ -35,7 +35,7 @@
       "paragraphs": [
         "Your laboratory can ask staff to confirm it is them before the first reveal of patient information in each browser session (Security settings, Revealing patient information). When it does, your first Reveal of a patient-information value on a ticket's form details, or Reveal key of a person-level link on a ticket's Links section, brings you here instead of showing the value. Nothing is read, revealed or recorded by that first select.",
         "It is not asked before a search by a person-level key, and client portal accounts are never asked: what they may see is shown without a reveal.",
-        "Only staff accounts may open this page; a client portal account is refused. When your laboratory does not ask, or this session has already confirmed, the page sends you straight back to the page you came from.",
+        "Only staff accounts may open this page; a client portal account is refused. When your laboratory does not ask, or this sign-in has already confirmed, the page sends you straight back to the page you came from. It also sends you straight back, without showing the form, when you confirmed it is you in the last 5 minutes for another change (here or in another tab): that confirmation is recorded for reveals for the rest of this sign-in.",
         "Staff without the Can view patient information permission who send a reveal are brought here too, so the answer says nothing about the value. After confirming, their reveal is refused as not found and nothing is recorded."
       ]
     },
@@ -44,7 +44,7 @@
       "items": [
         {
           "label": "Your password",
-          "description": "Shown when your account has a password: your own current password. The help under it says what is asked and that you are not asked again before a reveal until you sign out or your session ends. Left empty: Enter your password to confirm it is you. Not accepted: Incorrect password. Accepted, but the code is not: enter your password again with the code (the page does not keep it)."
+          "description": "Shown when your account has a password: your own current password. An account without a password but with an authenticator app gives only the code. The help under it says what is asked and that you are not asked again before a reveal until you sign out or your session ends. Left empty: Enter your password to confirm it is you. Not accepted: Incorrect password. Accepted, but the code is not: enter your password again with the code (the page does not keep it)."
         },
         {
           "label": "Authenticator or recovery code",
@@ -52,7 +52,7 @@
         },
         {
           "label": "Confirm",
-          "description": "Checks what you typed. Accepted: this session is marked as confirmed for reveals, you return to the page you were on with Confirmed. You can reveal patient information until this session ends., and you select Reveal or Reveal key again to see the value. The reveal is not made for you."
+          "description": "Checks what you typed. Accepted: this sign-in is marked as confirmed for reveals, you return to the page you were on with Confirmed. You can reveal patient information until this session ends., and you select Reveal or Reveal key again to see the value. The reveal is not made for you."
         },
         {
           "label": "Cancel",
@@ -63,8 +63,8 @@
     {
       "title": "How long it lasts",
       "paragraphs": [
-        "The confirmation lasts for this browser session: until you select Sign out, sign in again, a session limit signs you out, a new password is set for your account by someone else, or your account is deactivated. It belongs to your account; another account signed in on the same browser is asked for its own.",
-        "A confirmation given in this session within the last 5 minutes for another change that asks (on Security settings, in account administration, on Confirm your password, or with a code before a change to your own two-factor settings), covering every factor your account has, counts too, and is then remembered for reveals for the rest of the session. Signing in does not count.",
+        "The confirmation lasts for this sign-in: until you select Sign out, sign in again (even with the same account in the same browser), a session limit signs you out, a new password is set for your account by someone else, or your account is deactivated. It belongs to your account and this sign-in; another account signed in on the same browser is asked for its own.",
+        "A confirmation given in this sign-in within the last 5 minutes for another change that asks (on Security settings, in account administration, on Confirm your password, or with a code before a change to your own two-factor settings), covering every factor your account has, counts too, and is then remembered for reveals for the rest of the sign-in, whether you reveal or open this page. Signing in does not count.",
         "The page you return to is the page the reveal was sent from, when it is on this site; otherwise you go to the dashboard."
       ]
     },

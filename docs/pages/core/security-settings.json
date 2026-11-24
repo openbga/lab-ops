@@ -123,7 +123,7 @@
       "title": "Revealing patient information",
       "paragraphs": [
         "Whether staff confirm it is them before the first reveal of patient information in each session, as the setting stands when the page opens. Nothing is asked until it is first saved. Edit opens its form; after saving or cancelling you return to this page. Saving it asks you to confirm it is you, as for the session limits.",
-        "When it is asked, the first Reveal of a patient-information value or Reveal key of a person-level link in a browser session sends the person to Confirm it is you (their password, and a code from their authenticator app or a recovery code where they have one) before anything is shown. Later reveals in that session are not asked. A confirmation they gave in that session in the last 5 minutes for another change counts; signing in does not. It is not asked before a search by a person-level key or for what client portal accounts see. Each reveal is recorded either way."
+        "When it is asked, the first Reveal of a patient-information value or Reveal key of a person-level link in a browser session sends the person to Confirm it is you (their password and, where they have an authenticator app, a code from it or a recovery code (an account without a password gives the code alone)) before anything is shown. Later reveals in that sign-in are not asked; a new sign-in asks again. A confirmation they gave in that session in the last 5 minutes for another change counts; signing in does not. It is not asked before a search by a person-level key or for what client portal accounts see. Each reveal is recorded either way."
       ],
       "items": [
         {

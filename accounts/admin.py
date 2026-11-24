@@ -807,6 +807,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             "refused": refused,
             "second_factor": has_second_factor(user),
             "sign_in_codes": sign_in_codes,
+            # Whether the mark's email notice would be sent, as accounts.security_notices decides
+            # at sending: email on, the account active and with an address.
+            "notice_sent": mail_enabled() and user.is_active and bool(user.email),
             "open_count": open_count(user),
         }
         request.current_app = self.admin_site.name

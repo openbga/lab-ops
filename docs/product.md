@@ -210,8 +210,9 @@ notices. The demonstration disables email.
 
 The account holder also gets an email notice about a change to how their account signs in: when a
 superuser marks their password as compromised, or removes their authenticator app or recovery
-codes in the admin console, and when an authenticator app is added (one notice, which says new
-recovery codes were issued with it), new recovery codes are issued (earlier ones stop working) or
+codes in the admin console, and when an authenticator app is added (one notice, which mentions
+new recovery codes when the app was added with new ones; an account that already had recovery
+codes keeps them), new recovery codes are issued (earlier ones stop working) or
 the app is removed with its recovery codes on the person's own two-factor pages. The notice names
 the laboratory, the account's username, what changed and when (in UTC), and says "an
 administrator" where a superuser made the change. It tells the person to contact the laboratory's
@@ -337,7 +338,9 @@ a superuser on its password page. Any new password lifts the mark, and the marke
 refused as a new one, then and later. Superusers cannot mark their own password, a shared
 demonstration account's or that of an account without a password, and a password changed after the
 marking page was opened is not marked. Where the deployment sends email, the person is emailed
-that their password was marked and what to do next (Notifications, above). Each
+that their password was marked and what to do next (Notifications, above); the marking page says
+whether that notice will be sent, or why not (email off, or the account deactivated or without an
+email address), and asks the superuser to tell the person too. Each
 mark is kept, with who made it, when, the reason and when it was lifted, and is recorded in the
 audit history without the password.
 
@@ -394,9 +397,11 @@ Administrators can also ask staff to confirm it is them before the first reveal 
 information in a session. It is off until an administrator turns it on, on Security settings, with
 a reason, and each change is kept in the page's history. When it is on, the first Reveal of a
 patient-marked answer or Reveal key of a person-level link in a browser session takes the person
-to Confirm it is you, with the same password and code as above; nothing is read, revealed or
+to Confirm it is you: their password and, where they have an authenticator app, a code from it or
+a recovery code (an account without a password gives the code alone). Nothing is read, revealed or
 recorded until they confirm. They then return to the page they were on and choose Reveal again.
-Later reveals in that session are not asked until it ends: Sign out, a new sign-in, a session limit,
+Later reveals are not asked for the rest of that sign-in: Sign out, a new sign-in (even of the same
+account in the same browser), a session limit,
 a new password set for the account or a deactivation. A confirmation given in that session in the
 last 5 minutes for another change counts; the sign-in does not. Failed confirmations are kept in
 Sign-in history and count toward the failed sign-in limit, and an account with neither a password
