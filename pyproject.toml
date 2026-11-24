@@ -48,6 +48,7 @@ testpaths = [
     "attachments/tests",
     "jobs/tests",
     "nonconformance/tests",
+    "audit_review/tests",
 ]
 markers = [
     "confirmation: runs Confirm it is you (accounts.confirmation) for real instead of as confirmed",
