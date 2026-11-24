@@ -1,0 +1,184 @@
+{
+  "id": "audit-review-workspace",
+  "routes": [
+    "audit_review:changes",
+    "audit_review:access",
+    "audit_review:sign-ins",
+    "audit_review:uses"
+  ],
+  "title": "Audit review",
+  "purpose": "Review who changed, opened, downloaded or was shown what, and who signed in, across every record and account, filter it, and export it. For holders of the review capability only.",
+  "summary": "Every change, sensitive read and sign-in across the application, newest first, in four tabs. Filter by person, ticket, organization, action and dates, and export the result. Your own use is recorded too.",
+  "tasks": [
+    {
+      "title": "Review what one person did",
+      "steps": [
+        "Choose them in [[Person]] and select [[Apply]].",
+        "Move between [[Changes]], [[Access records]] and [[Sign-ins]] and choose them again on each tab."
+      ]
+    },
+    {
+      "title": "Review everything about one ticket",
+      "steps": [
+        "Under [[More filters]], type its number in [[Ticket number]], such as REQ-000123, and select [[Apply]].",
+        "Do the same on [[Changes]] and on [[Access records]]."
+      ]
+    },
+    {
+      "title": "Review a period",
+      "steps": [
+        "Under [[More filters]], set [[From]] and [[To]]. Both days are included, in the laboratory's time zone."
+      ]
+    },
+    {
+      "title": "Export what you reviewed",
+      "steps": [
+        "Filter the list, then select [[Export CSV]]. The file holds every matching row as the list stood when its first page opened.",
+        "Above 10,000 rows there is no Export CSV: narrow the filters first."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Rows say who did what to which record and when. What changed or what was shown stays on the record's own pages.",
+    "Each page you open here and each export is recorded, and other reviewers see it under [[Workspace use]].",
+    "Nothing here can be changed or removed, by you or anyone else.",
+    "Rows recorded after you opened the first page are not listed. Open the tab again from the menu to see them.",
+    "The browser and address of a shared demonstration account are never shown: they may be another visitor's."
+  ],
+  "sections": [
+    {
+      "title": "The four lists",
+      "items": [
+        {
+          "label": "Changes",
+          "description": "Every change event of the change history: a ticket logged, assigned or closed, an entry added, a file withdrawn, a form's answers corrected or a patient-marked answer revealed, an organization, contact, site or portal access changed, a setting saved, an account changed. One row per event, newest first."
+        },
+        {
+          "label": "Access records",
+          "description": "Every sensitive read the application records: a staff or client portal account opening a ticket, its audit history, its Who opened it page, its form details or a complaint form; downloading a file; being shown a patient-marked answer or a person-level key; being shown a ticket's entries on an organization's timeline; and answers copied with Request again. Lists and searches are not recorded."
+        },
+        {
+          "label": "Sign-ins",
+          "description": "Every account's sign-ins, sign-outs (with why the session ended), refused sign-ins, failed attempts at a password or code, refusals after too many failed attempts, and failed re-authentications. Attempts that named no single account are not here: they stay in the server's sign-in log."
+        },
+        {
+          "label": "Workspace use",
+          "description": "Each page of these four lists that someone opened and each export, with who, when, which list, the filters, how many rows matched and the request ID. Opening this tab is recorded too."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "When",
+          "description": "The date and time to the second, in the laboratory's time zone. For an access record, a sign-in event and a workspace use, by the database's clock when the record was written."
+        },
+        {
+          "label": "Person",
+          "description": "The account that made the change, read, signed in or used this workspace: its name with its username below, as they stand now. A record keeps the account, not its name. An account that no longer exists shows its number."
+        },
+        {
+          "label": "Action",
+          "description": "On Changes: what the change was, such as Ticket created, Entry added or Client updated."
+        },
+        {
+          "label": "Record",
+          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record or the ticket's form) is named by the ticket's number, an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
+        },
+        {
+          "label": "What",
+          "description": "On Access records: what was read, with the file's download name (the ticket number and the file's number, never the name it was uploaded with), the answer's field label or the link's number below. On Workspace use: Viewed a page or Exported, with the list below."
+        },
+        {
+          "label": "Capacity",
+          "description": "On Access records: Laboratory staff or Client portal."
+        },
+        {
+          "label": "Ticket",
+          "description": "On Access records: the ticket's number, with its client organization below."
+        },
+        {
+          "label": "Event",
+          "description": "On Sign-ins: Signed in, Signed out, Sign-in refused, Sign-in failed, Too many failed attempts or Re-authentication failed, with what the sign-in proved, what failed or why the session ended below."
+        },
+        {
+          "label": "Browser and Address",
+          "description": "On Sign-ins: as the browser and the deployment reported them, which is not proof of anything. For a shared demonstration account both read Not shown: shared demonstration account."
+        },
+        {
+          "label": "Client organization",
+          "description": "On Sign-ins: the organization of a client portal account; empty for staff."
+        },
+        {
+          "label": "Filters and Rows",
+          "description": "On Workspace use: the filters the use applied, with names as they stand now (or that a filter was not accepted), the page number after the first, and how many rows matched."
+        },
+        {
+          "label": "Request ID",
+          "description": "The identifier the server gave the request, also in its X-Request-ID header and its access log line. Not recorded for changes made outside a request (scheduled jobs, commands) or before the release that added it."
+        }
+      ]
+    },
+    {
+      "title": "Filters, pages and exports",
+      "items": [
+        {
+          "label": "Person",
+          "description": "Any account, staff or client portal, active or not. Type part of a name, username or email address."
+        },
+        {
+          "label": "Client organization",
+          "description": "On Changes: the organization's own record, its contacts, sites, portal access, links and portal accounts, and its tickets and their parts. On Access records: reads of its tickets. On Sign-ins: its portal accounts. Not on Workspace use."
+        },
+        {
+          "label": "Action, What and Event",
+          "description": "One kind of row. On Changes the choices are the actions recorded so far."
+        },
+        {
+          "label": "Ticket number",
+          "description": "Under More filters, on Changes and Access records: the ticket's number as shown, such as REQ-000123, or its number alone. On Changes it takes the ticket and its parts. A number that names no ticket is refused."
+        },
+        {
+          "label": "From and To",
+          "description": "Under More filters: days in the laboratory's time zone, both included. To must not be before From."
+        },
+        {
+          "label": "A filter that is not accepted",
+          "description": "Lists nothing until it is corrected. The use is recorded without the values typed."
+        },
+        {
+          "label": "Pages",
+          "description": "Fifty rows per page, newest first. Every page, and the export, is drawn as the list stood when its first page opened, so new rows (your own use included) never move a row to the next page. A row whose recording was still being saved in another request at that very moment can still appear on a later page. Open the tab again from the menu to see newer rows."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of every matching row, with the same columns, the line under a cell in its own column, and times with their offset. Shown when 1 to 10,000 rows match. A cell that a spreadsheet would read as a formula starts with an apostrophe. If the list has grown past 10,000 rows when you select it, nothing is exported and the list says so."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, given to the person or to a role group in the admin console. No role has it otherwise, the admin role included, and superuser status is not enough. Client portal accounts never hold it. Everyone else is refused, and nothing is recorded for them.",
+        "The workspace is read-only. It shows a ticket's number and organization whatever its category; opening the ticket still needs access to it. Your account, its role and capability and the rows are read together, at one moment, when the page opens.",
+        "Each page shown and each export is recorded with the page or file, before it is sent: if the record cannot be written, nothing is shown or exported. A refused request, a filter that sends you back, and a page that fails record nothing. These records, like the change history, access records and sign-in history, are never changed or deleted."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/views.py",
+    "audit_review/sources.py",
+    "audit_review/forms.py",
+    "audit_review/models.py",
+    "audit_review/permissions.py",
+    "audit_review/lookups.py",
+    "audit_review/templates/audit_review/workspace.html",
+    "audit_review/tests/test_workspace.py",
+    "accounts/roles.py",
+    "accounts/signin_history.py",
+    "core/access.py",
+    "core/models.py",
+    "desk/opened.py"
+  ]
+}

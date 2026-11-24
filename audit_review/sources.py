@@ -319,6 +319,14 @@ def _changes(events, _accounts_read):
                 owner[(object_type, str(pk))] = ticket_id
     tickets = _tickets(set(owner.values()))
     organizations = _organizations(by_type)
+    # An account changed is named by its username as it stands now.
+    user_type = get_user_model()._meta.label_lower
+    usernames = {
+        str(pk): username
+        for pk, username in get_user_model()
+        .objects.filter(pk__in=[int(pk) for pk in by_type.get(user_type, ()) if pk.isdigit()])
+        .values_list("pk", "username")
+    }
     cells = []
     for event in events:
         ticket_id = owner.get((event.object_type, event.object_id))
@@ -327,8 +335,11 @@ def _changes(events, _accounts_read):
             if event.object_type != "desk.servicerequest":
                 record.text = f"{_type_label(event.object_type)} on {record.text}"
         else:
+            name = usernames.get(event.object_id) if event.object_type == user_type else None
             record = Cell(
-                f"{_type_label(event.object_type)} {event.object_id}",
+                f"Account {name}"
+                if name
+                else f"{_type_label(event.object_type)} {event.object_id}",
                 organizations.get((event.object_type, event.object_id), ""),
             )
         cells.append([Cell(action_label(event.action)), record, _request_cell(event.request_ref)])

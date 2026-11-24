@@ -22,6 +22,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
+| `audit_review` | The read-only audit review workspace over the change history, access records and sign-in history, its exports and the record of its own use |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -136,6 +137,31 @@ release does) does not change the account recorded. This release's views draw th
 a deployment's own template-response hook or post-render callback that replaces or rewrites a deferred page leaves the
 records with the answer Django ends with, whatever it shows.
 [Access records](../core/access.py)
+
+## Audit review workspace
+
+`audit_review` reads `AuditEvent`, `AccessRecord` and `SignInEvent` and its own `WorkspaceUse` and
+writes only the last. Its views (`audit_review.views`) decide access, the filters' choices and the
+rows in one reading (`one_reading`, `reading_account`): an active staff account with a laboratory
+role and the `review_audit_records` capability (`audit_review.permissions`; `has_capability` reads
+the grant on the account or a group). Each list (`audit_review.sources`) orders by
+`(-occurred_at, -pk)` over a new `-occurred_at` index per table (core 0010, accounts 0010) and is
+read up to `upto`, the reading's `statement_timestamp()` in microseconds, which the pager's and the
+export's links carry and the view clamps to now; as for Who opened it, a row whose write was under
+way in another request at that moment can still take a place in the later pages. The ticket and
+organization filters on Changes match `object_type` and `object_id` against subqueries of the
+ticket's parts (`TICKET_PARTS`) and the organization's records, cast to text. Rows are built from
+ids and codes: names as they stand now, never `before`, `after` or `reason`; access rows reuse
+`desk.opened.describe`, which names a file or an answer only when it belongs to the record's ticket.
+The export is the same reading as CSV (UTF-8 with a byte order mark, formula-leading cells prefixed
+with an apostrophe), at most `EXPORT_LIMIT` rows, built in memory. Each page shown and each export
+hands a `WorkspaceUse` to `core.access.keep`, so it is written by `AccessRecordMiddleware` with the
+answer on the access records' terms (none for a refusal, a redirect, HEAD or a 500, and a failed
+write fails the answer); `core.access.write` writes each table in one statement, in one transaction
+when there are several. A trigger (audit_review migration 0001) refuses `UPDATE` and `DELETE`. The
+sidebar shows Audit review from `accounts.roles.roles_and_capabilities`, which reads the role groups
+and the capabilities in one statement (`CAPABILITY_ITEMS` in `core.templatetags.navigation`).
+[Audit review](../audit_review/views.py)
 
 ## Security settings
 

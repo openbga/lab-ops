@@ -20,7 +20,11 @@ app, unless they confirmed in that browser in the last 5 minutes.
 Staff can work tickets within their scope. Supervisors can work across restricted teams and
 review eligible complaints. Client portal accounts belong to one organization. The separate
 **Can view patient information** grant controls staff access to person-level links and marked
-form answers. [Full access table](product.md#roles-and-capabilities)
+form answers. The **Can review access and audit records** grant opens **Audit review**, under
+Oversight in the sidebar: choose **Changes**, **Access records**, **Sign-ins** or **Workspace use**,
+narrow it by person, organization, action, ticket number or days, and select **Export CSV** to keep
+what was reviewed. Each page opened there and each export is itself recorded.
+[Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys
 

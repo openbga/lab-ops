@@ -216,6 +216,13 @@ def test_sign_ins_show_browser_and_address_except_for_shared_demonstration_accou
     assert content.count("192.0.2.10") == 1
 
 
+def test_a_changed_account_is_named_by_its_username(client, reviewer, agent):
+    event(agent, reviewer, action="account.updated")
+    client.force_login(reviewer)
+    [row] = rows_of(client.get(url("changes", action="account.updated")))
+    assert row.cells[1].text == "Account reviewer"
+
+
 def test_a_record_of_an_account_that_no_longer_exists_shows_its_number(
     client, reviewer, clinic, make_ticket
 ):

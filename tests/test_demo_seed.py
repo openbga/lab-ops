@@ -41,7 +41,10 @@ def test_demo_seed_creates_synthetic_records_and_preserves_existing_data(
         for code in CAPABILITIES
         if has_capability(user, code)
     }
-    assert holders == {("demo_supervisor", "view_patient_information")}
+    assert holders == {
+        ("demo_supervisor", "view_patient_information"),
+        ("demo_supervisor", "review_audit_records"),
+    }
 
     organizations = {c.account_number: c for c in Client.objects.all()}
     assert set(organizations) == {

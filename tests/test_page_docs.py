@@ -19,6 +19,10 @@ from core.page_docs import (
 # Actions/downloads are explained on their invoking page, not a second endpoint.
 NON_PAGE_ROUTES = {
     "attachments:download": "Binary file download from a ticket entry's file list",
+    "audit_review:changes-export": "CSV download of the audit review's Changes list",
+    "audit_review:access-export": "CSV download of the audit review's Access records list",
+    "audit_review:sign-ins-export": "CSV download of the audit review's Sign-ins list",
+    "audit_review:uses-export": "CSV download of the audit review's Workspace use list",
     "health": "JSON process health probe",
     "ready": "JSON database readiness probe",
     "lookup": "JSON option lookup for remote selects (core/lookups.py)",
