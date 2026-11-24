@@ -9,7 +9,7 @@ what was shown. Context: req, page_obj (a Page of desk.opened.Opened rows), reco
 history_url, list_url. Read-only; opening it is recorded too.
 {% endcomment %}
 {% block breadcrumbs %}{% breadcrumbs section="Tickets" section_url=list_url current=req.number %}{% endblock %}
-{% block page_intro %}<p class="vr-page-intro">Each time someone opened this ticket, its audit history, this page or the form details page, downloaded one of its files, was shown a patient-marked answer or saw its entries on a client organization's timeline, newest first.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Each time someone opened this ticket, its audit history, this page or the form details page, downloaded one of its files, was shown a patient-marked answer or a person-level key, or saw its entries on a client organization's timeline, newest first.</p>{% endblock %}
 {% block content %}
 <p><a href="{{ record_url }}">{% icon name="arrow-left" %}Back to {{ req.number }}</a></p>
 {% panel title="Access records" heading_id="access-heading" count=page_obj.paginator.count table=True flush=True class="mb-3" %}

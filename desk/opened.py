@@ -76,6 +76,8 @@ def _opened(row, accounts, files, answers):
         detail = files.get(row.object_id) or f"File {row.object_id}"
     elif row.kind == AccessKind.PATIENT_ANSWER:
         detail = answers.get(row.object_id) or f"Answer {row.object_id}"
+    elif row.kind == AccessKind.PERSON_KEY:
+        detail = f"Link {row.object_id}"  # never the key or its masked label
     return Opened(
         occurred_at=row.occurred_at,
         person=person,

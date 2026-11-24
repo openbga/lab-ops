@@ -103,7 +103,7 @@ the ticket's id, the file or answer read (`object_type`, `object_id`) and the re
 decided and what they show is read: the staff and portal ticket pages (also when drawn again after a
 refused entry or reply), the audit history, Who opened it (`desk.views.request_access`,
 `desk.opened`) and the Form details page, after the drawing; a download after the file's bytes are
-read; a staff reveal after the value is read in the reveal's transaction; and the
+read; a staff reveal of an answer or a person-level key after it is read in the reveal's transaction; and the
 `request_form_details` tag for each patient-marked answer it draws for a portal account
 (`request_forms.selectors.client_values` gives each row's value id and mark); and the client
 timeline for each ticket whose entries its page shows, after the drawing. A refusal raised

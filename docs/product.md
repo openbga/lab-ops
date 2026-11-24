@@ -420,8 +420,9 @@ Sensitive reads leave an access record. Each time a staff or client portal accou
 ticket's page (also when it is drawn again after a refused reply, note or contact), its audit
 history, its Who opened it page or its Form details page, downloads one of its files, or is shown
 one of its patient-marked answers (staff by revealing it, which also records a change event; a
-client portal account on its own ticket's page, where such answers are shown without a reveal), or
-is shown its entries on a client organization's timeline (once per ticket for each page drawn),
+client portal account on its own ticket's page, where such answers are shown without a reveal), is
+shown its person-level key (a staff reveal, which also records a change event), or is shown its
+entries on a client organization's timeline (once per ticket for each page drawn),
 the application records the account, the time by the database's clock, the capacity it read in
 (laboratory staff or client portal), the ticket, the file or answer, and the server's ID for the
 request. A record never holds what was shown: no subject, text, answer, file name or content. A

@@ -38,7 +38,7 @@
     {
       "title": "What is recorded",
       "paragraphs": [
-        "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page or its Form details page; downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal (which also adds a change event to the audit history); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member shown the ticket's entries on its client organization's timeline is recorded once for each timeline page drawn, since that page shows the start of each entry's text.",
+        "The application writes an access record each time a staff or client portal account opens this ticket's page, its audit history, this page or its Form details page; downloads one of its files; or is shown one of its patient-marked answers. Staff are shown such an answer only when they select Reveal (which also adds a change event to the audit history); a client portal account is shown its own client-visible answers on its ticket page, and each such answer shown is recorded on every visit. A staff member shown the ticket's entries on its client organization's timeline is recorded once for each timeline page drawn, since that page shows the start of each entry's text. A staff member who reveals the ticket's person-level key with Reveal key is recorded the same way (the key is never shown here).",
         "A ticket page drawn again after a refused reply, note or contact is recorded as opened again. A page that is refused (Not found, or not permitted), a reveal sent to Confirm it is you first, and a page that failed with a server error record nothing. If the record cannot be written, the page is not shown: the request fails with a server error instead.",
         "Not recorded: lists, searches, the dashboard, and the pages that only change a ticket, such as Assign or Status, which show its number and subject. The search text is never recorded."
       ]
@@ -60,7 +60,7 @@
         },
         {
           "label": "What",
-          "description": "Opened the ticket, Opened the audit history, Opened who opened it, Opened the form details, Downloaded a file, Shown a patient-marked answer, or Shown on the organization's timeline. For a file, the line below gives its download name (the ticket number and the file's number, never the name it was uploaded with); for an answer, the label of its form field."
+          "description": "Opened the ticket, Opened the audit history, Opened who opened it, Opened the form details, Downloaded a file, Shown a patient-marked answer, Shown a person-level key, or Shown on the organization's timeline. For a file, the line below gives its download name (the ticket number and the file's number, never the name it was uploaded with); for an answer, the label of its form field; for a person-level key, the link's number, never the key or its masked form."
         },
         {
           "label": "Request ID",
@@ -100,6 +100,7 @@
     "core/request_logging.py",
     "core/migrations/0009_access_records.py",
     "request_forms/tests/test_access_records.py",
-    "clients/views.py"
+    "clients/views.py",
+    "links/views.py"
   ]
 }

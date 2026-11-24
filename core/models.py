@@ -303,6 +303,7 @@ class AccessKind(models.TextChoices):
     FILE = "file", "Downloaded a file"
     PATIENT_ANSWER = "patient_answer", "Shown a patient-marked answer"
     TIMELINE = "timeline", "Shown on the organization's timeline"
+    PERSON_KEY = "person_key", "Shown a person-level key"
 
 
 class AccessCapacity(models.TextChoices):
@@ -316,7 +317,8 @@ class AccessCapacity(models.TextChoices):
 class AccessRecord(models.Model):
     """One sensitive read (core.access): a staff or portal account opened a ticket, its audit
     history, who opened it or its form details, downloaded a file, was shown a patient-marked
-    answer, or was shown the ticket's entries on its client organization's timeline. Who, when,
+    answer or a person-level key, or was shown the ticket's entries on its client organization's
+    timeline. Who, when,
     in which capacity, which record and the request ID; never what was shown.
 
     History, kept apart from the change history (AuditEvent) so that a record's changes stay
@@ -343,8 +345,8 @@ class AccessRecord(models.Model):
     kind = models.CharField(max_length=20, choices=Kind.choices)
     # The ticket read, by id (core depends on no other application). Every kind is about a ticket.
     ticket_id = models.BigIntegerField()
-    # What on the ticket, for a file (attachments.attachment) or an answer
-    # (request_forms.fieldvalue); blank for the ticket's own pages.
+    # What on the ticket, for a file (attachments.attachment), an answer
+    # (request_forms.fieldvalue) or a person-level link (links.linkattachment); blank otherwise.
     object_type = models.CharField(max_length=100, blank=True)
     object_id = models.CharField(max_length=64, blank=True)
     request_ref = models.CharField("request ID", max_length=32, blank=True)

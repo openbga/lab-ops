@@ -61,6 +61,7 @@ class Migration(migrations.Migration):
                             ("file", "Downloaded a file"),
                             ("patient_answer", "Shown a patient-marked answer"),
                             ("timeline", "Shown on the organization's timeline"),
+                            ("person_key", "Shown a person-level key"),
                         ],
                         max_length=20,
                     ),
@@ -102,6 +103,7 @@ class Migration(migrations.Migration):
                                     "file",
                                     "patient_answer",
                                     "timeline",
+                                    "person_key",
                                 ],
                             )
                         ),

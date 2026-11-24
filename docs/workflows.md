@@ -104,7 +104,7 @@ From a ticket or organization, add a link, choose its source system and type, th
 source identifier. If clients should see a non-person link, select **Show to client** where
 offered. Web addresses must use HTTPS on the configured system host. For a patient, participant
 or donor link, staff with the explicit grant can enter the source key and a masked label.
-Revealing it records an audit event. Open the source system separately to look up that person.
+Revealing it records an audit event and an access record. Open the source system separately to look up that person.
 
 ### 9. Look up a client or contact
 
