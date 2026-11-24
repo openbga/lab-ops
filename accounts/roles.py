@@ -23,7 +23,11 @@ ROLE_LABELS = {
 # codename: label. Each is a permission declared in accounts.User.Meta.permissions.
 CAPABILITIES = {
     "view_patient_information": "Can view patient information",
+    # The audit review workspace (audit_review): change history, access records, sign-in history
+    # and the workspace's own use, filtered and exported. Read-only: it changes nothing it shows.
+    "review_audit_records": "Can review access and audit records",
 }
+REVIEW_CAPABILITY = "review_audit_records"
 
 
 def effective_roles(user):
@@ -56,6 +60,29 @@ def held_roles(user, *, nowait=False, mode="share"):
     if not user.is_authenticated or not user.is_active or user.client_id is not None:
         return set()
     return expand_roles(hold_group_names(user.pk, nowait=nowait, mode=mode))
+
+
+def roles_and_capabilities(user):
+    """effective_roles of `user` and the capabilities it holds (directly or through a group), read
+    in one statement: the shell's sidebar shows items for both on every page. Each column of the
+    statement holds one kind of name, so a group named like a capability grants nothing."""
+    from django.contrib.auth.models import Group, Permission
+    from django.db.models import CharField, Q, Value
+
+    if not user.is_authenticated or not user.is_active or user.client_id is not None:
+        return set(), set()
+    blank = Value("", output_field=CharField())
+    groups = Group.objects.filter(user=user).values_list("name", blank)
+    grants = Permission.objects.filter(
+        Q(user=user) | Q(group__user=user),
+        content_type__app_label="accounts",
+        codename__in=list(CAPABILITIES),
+    ).values_list(blank, "codename")
+    rows = list(groups.union(grants))
+    return (
+        expand_roles(name for name, _ in rows if name),
+        {codename for _, codename in rows if codename},
+    )
 
 
 def has_role(user, *roles):

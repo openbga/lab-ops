@@ -161,4 +161,5 @@ urlpatterns = [
     # Optional modules (core.modules): their pages answer 404 while the module is off.
     # Optional module: its addresses are Not found while it is off (core.modules).
     path("quality/", include("nonconformance.urls")),
+    path("audit-review/", include("audit_review.urls")),
 ]

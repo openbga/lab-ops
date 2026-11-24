@@ -292,7 +292,11 @@ class AuditEvent(models.Model):
 
     class Meta:
         ordering = ["occurred_at", "id"]
-        indexes = [models.Index(fields=["object_type", "object_id", "occurred_at"])]
+        indexes = [
+            models.Index(fields=["object_type", "object_id", "occurred_at"]),
+            # Every change, newest first: the audit review workspace (audit_review).
+            models.Index(fields=["-occurred_at"], name="audit_event_recent"),
+        ]
 
 
 class AccessKind(models.TextChoices):
@@ -370,6 +374,8 @@ class AccessRecord(models.Model):
         indexes = [
             models.Index(fields=["ticket_id", "-occurred_at"], name="access_record_ticket"),
             models.Index(fields=["account", "-occurred_at"], name="access_record_account"),
+            # Every record, newest first: the audit review workspace (audit_review).
+            models.Index(fields=["-occurred_at"], name="access_record_recent"),
         ]
         constraints = [
             models.CheckConstraint(

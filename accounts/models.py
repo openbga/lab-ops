@@ -291,7 +291,11 @@ class SignInEvent(models.Model):
     class Meta:
         # Written only by the database and accounts.signin_history: no model permission to grant.
         default_permissions = ()
-        indexes = [models.Index(fields=["user", "-occurred_at"], name="sign_in_event_recent")]
+        indexes = [
+            models.Index(fields=["user", "-occurred_at"], name="sign_in_event_recent"),
+            # Every account's entries, newest first: the audit review workspace (audit_review).
+            models.Index(fields=["-occurred_at"], name="sign_in_event_all_recent"),
+        ]
 
     def __str__(self):
         return f"account {self.user_id} {self.kind} {self.occurred_at:%Y-%m-%d %H:%M}"

@@ -177,7 +177,11 @@ def test_the_clean_seed_reads_exactly_what_it_announces(demo_env):
         user = User.objects.get(username=name)
         assert seed_demo.held_reach(user) == seed_demo.seeded_reach(name), name
     supervisor = seed_demo.seeded_reach("demo_supervisor")
-    assert supervisor == {"patient information": True, "restricted tickets": True}
+    assert supervisor == {
+        "patient information": True,
+        "restricted tickets": True,
+        "audit review": True,
+    }
     assert seed_demo.seeded_reach("demo_technical")["restricted tickets"] is False
     assert seed_demo.seeded_reach("demo_client_water")["sites"] == {"NORTH"}
     whole = seed_demo.seeded_reach("demo_client")

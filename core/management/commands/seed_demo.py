@@ -58,7 +58,8 @@ ACCOUNTS_ANNOUNCEMENT = "Demo accounts"
 ANNOUNCED_ACCOUNTS = (
     (
         "demo_supervisor",
-        "supervisor: every ticket, restricted ones too, complaints awaiting review, patient links",
+        "supervisor: every ticket, restricted ones too, complaints awaiting review, patient "
+        "links, audit review",
     ),
     ("demo_client_services", "client services: the desk queues, calls, replies and assignments"),
     ("demo_account_manager", "account manager: organizations, sites, contacts, portal access"),
@@ -391,7 +392,7 @@ def seeded_authority(username):
     organization).
     """
     from clients.seed import DEMO_PORTAL_ACCOUNTS
-    from desk.story import CAPABILITY, CAPABILITY_HOLDER
+    from desk.story import CAPABILITY, CAPABILITY_HOLDER, REVIEW_CAPABILITY, REVIEW_HOLDER
     from teams.seed import DEMO_MEMBERS
 
     portal = {row[0]: (row[3], row[4], row[5]) for row in DEMO_PORTAL_ACCOUNTS}
@@ -401,7 +402,8 @@ def seeded_authority(username):
     roles = {role for role in ROLES if username == f"demo_{role}"}
     return {
         "roles": roles,
-        "capabilities": {CAPABILITY} if username == CAPABILITY_HOLDER else set(),
+        "capabilities": ({CAPABILITY} if username == CAPABILITY_HOLDER else set())
+        | ({REVIEW_CAPABILITY} if username == REVIEW_HOLDER else set()),
         "teams": {
             (slug, lead)
             for slug, _, members in DEMO_MEMBERS
@@ -454,13 +456,16 @@ def seeded_reach(username):
     whole-organization grant.
     """
     from clients.models import ClientSite
+    from desk.story import CAPABILITY, REVIEW_CAPABILITY
 
     authority = seeded_authority(username)
-    patient = bool(authority["capabilities"])
+    patient = CAPABILITY in authority["capabilities"]
     if authority["portal"] is None:
         return {
             "patient information": patient,
             "restricted tickets": bool(authority["roles"] & SUPERVISING_ROLES),
+            "audit review": REVIEW_CAPABILITY in authority["capabilities"]
+            and bool(authority["roles"]),
         }
     code, _, sites = authority["portal"]
     if sites is None:
@@ -479,6 +484,7 @@ def seeded_reach(username):
 
 def held_reach(user):
     """What `user` can read now, evaluated with the selectors every page uses."""
+    from audit_review.permissions import may_review
     from clients.portal import current_access
     from desk.portal_scope import portal_requests, portal_sites, raised_by
     from desk.selectors import staff_requests
@@ -499,7 +505,11 @@ def held_reach(user):
             )
         except PermissionDenied:
             reads_restricted = None
-        return {"patient information": patient, "restricted tickets": reads_restricted}
+        return {
+            "patient information": patient,
+            "restricted tickets": reads_restricted,
+            "audit review": may_review(user),
+        }
     others = portal_requests(user).exclude(raised_by(user))
     sites = frozenset(portal_sites(user).values_list("code", flat=True))
     access = current_access(user)

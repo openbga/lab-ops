@@ -260,3 +260,8 @@ def _address_text(address):
         return ipaddress.ip_address(str(address).split("/", 1)[0]).compressed
     except ValueError:
         return str(address)
+
+
+# For the audit review workspace (audit_review.sources), which lists every account's entries.
+event_details = _details
+address_text = _address_text

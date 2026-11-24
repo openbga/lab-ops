@@ -200,6 +200,7 @@ def test_one_page_gives_one_answer_about_the_release_files():
                   for audience in ("staff", "portal")]
         with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
                             patient_capability_holders=lambda: 0, _patient_fields=lambda: 0,
+                            review_capability_holders=lambda: 0,
                             _session_limits=lambda: limits,
                             _second_factor_rule=lambda: SecondFactorRule(pk=1),
                             _reveal_confirmation_rule=lambda: RevealConfirmationRule(pk=1)):
@@ -253,7 +254,10 @@ def test_menu_context_keeps_roles_and_client_management_from_view(page, client, 
     # Supply distinguishable values from the later template context processor. The two
     # snapshot values supplied by the views must take precedence in the rendered response.
     alternate_roles = {"account_manager"} if role == "technical" else {"technical"}
-    monkeypatch.setattr(context_processors, "effective_roles", lambda user: alternate_roles)
+    # Adapted (audit review): the context processor reads the roles with the capabilities.
+    monkeypatch.setattr(
+        context_processors, "roles_and_capabilities", lambda user: (alternate_roles, set())
+    )
     response = client.get(reverse(page))
     assert response.status_code == 200
     expected = {"admin", *OPERATIONAL_ROLES} if role == "admin" else {"technical"}

@@ -93,6 +93,11 @@ NON_PAGE_ROUTES = {
     "dataimport:template",
     # Attachments (M2-B): a binary download
     "attachments:download",
+    # Audit review: CSV exports of its lists
+    "audit_review:changes-export",
+    "audit_review:access-export",
+    "audit_review:sign-ins-export",
+    "audit_review:uses-export",
 }
 
 # Items whose label is not the title (h1) of the page they open, with the title expected. The
@@ -123,7 +128,12 @@ def modules_on(db):
 
 @pytest.fixture
 def admin_user(staff):
-    return staff("nav-admin", "admin")
+    """The admin role, also holding the review capability, so that every destination opens."""
+    admin = staff("nav-admin", "admin")
+    admin.user_permissions.add(
+        Permission.objects.get(content_type__app_label="accounts", codename="review_audit_records")
+    )
+    return admin
 
 
 @pytest.fixture
@@ -238,7 +248,8 @@ ROLE_MENUS = {
     "client_services": COMMON_MENU | {"import"},  # spreadsheet import (M2-A)
     "account_manager": COMMON_MENU | {"import"},
     "technical": COMMON_MENU,
-    "admin": STAFF_KEYS - {"accounts-roles"},
+    # Audit review also needs its capability (test_the_review_capability_adds_audit_review).
+    "admin": STAFF_KEYS - {"accounts-roles", "audit-review"},
 }
 
 
@@ -293,7 +304,7 @@ def test_combined_roles_and_revocations_change_the_next_menu(client, staff):
 
 
 @pytest.mark.parametrize("group_grant", [False, True])
-def test_a_capability_grant_changes_no_menu_item(client, staff, group_grant):
+def test_the_patient_capability_changes_no_menu_item(client, staff, group_grant):
     supervisor = staff("capability-menu", "supervisor")
     permission = Permission.objects.get(
         content_type__app_label="accounts", codename="view_patient_information"
@@ -304,6 +315,32 @@ def test_a_capability_grant_changes_no_menu_item(client, staff, group_grant):
     grants.add(permission)
     assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
     grants.remove(permission)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
+
+
+@pytest.mark.parametrize("group_grant", [False, True])
+def test_the_review_capability_adds_audit_review(client, staff, group_grant):
+    supervisor = staff("review-menu", "supervisor")
+    permission = Permission.objects.get(
+        content_type__app_label="accounts", codename="review_audit_records"
+    )
+    grants = supervisor.groups.get().permissions if group_grant else supervisor.user_permissions
+    client.force_login(supervisor)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
+    grants.add(permission)
+    with_review = ROLE_MENUS["supervisor"] | {"audit-review"}
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(with_review)
+    assert 'id="vr-nav-oversight"' in region(
+        client.get(reverse("dashboard")).content, '<nav class="vr-sidenav'
+    )
+    grants.remove(permission)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
+
+
+def test_a_group_named_like_the_capability_grants_no_menu_item(client, staff):
+    supervisor = staff("review-group-name", "supervisor")
+    supervisor.groups.add(Group.objects.create(name="review_audit_records"))
+    client.force_login(supervisor)
     assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
 
 

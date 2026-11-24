@@ -31,7 +31,12 @@ notes and records nothing; so does an answer of 500 or more. When the write fail
 not sent: the request fails as a server error, so nothing is shown without its record. The record
 is written after the page was drawn and before it is sent; a browser that drops the connection
 meanwhile still leaves the record.
+
+`keep` hands the same two middlewares a row of another append-only history table, written with the
+answer on the same terms (the audit review workspace's record of its own use, audit_review).
 """
+
+from django.db import transaction
 
 from core.models import AccessCapacity, AccessKind, AccessRecord
 
@@ -80,19 +85,42 @@ def note(request, kind, *, ticket_id, target=None, account=None):
     )
 
 
+def request_account(request):
+    """The account the request was made by, as signed in when its view was called (ACCOUNT), or
+    the request's user where no middleware captured one; None when nobody is signed in."""
+    account = request.__dict__.get(ACCOUNT) or getattr(request, "user", None)
+    return account if getattr(account, "pk", None) is not None else None
+
+
+def keep(request, record):
+    """Write `record`, an unsaved row of another append-only history table, with the answer the
+    view returns, as the access records `note` adds are (see the module's docstring): bound to that
+    answer, forgotten when the view raises, not written for a HEAD request or an answer of 500 or
+    more, and written before the answer is sent, which fails if the write fails."""
+    request.__dict__.setdefault(PENDING, {})[("kept", id(record))] = record
+
+
 def noted(request):
     """What the request has noted so far and not yet bound to an answer (for tests)."""
     return list(request.__dict__.get(PENDING, {}).values())
 
 
 def write(request, records=None):
-    """Write `records` (by default what `request` has noted and not yet bound to an answer) in one
-    statement. Raises what the database raises: the caller must not send what was read without
-    its record."""
+    """Write `records` (by default what `request` has noted and kept and not yet bound to an
+    answer): one statement for each table, in one transaction when there are several. Raises what
+    the database raises: the caller must not send what was read without its record."""
     if records is None:
         records = list(request.__dict__.pop(PENDING, {}).values())
-    if records:
-        AccessRecord.objects.bulk_create(records)
+    by_model = {}
+    for record in records:
+        by_model.setdefault(type(record), []).append(record)
+    if len(by_model) == 1:
+        [(model, rows)] = by_model.items()
+        model.objects.bulk_create(rows)
+    elif by_model:
+        with transaction.atomic():  # all of them or none
+            for model, rows in by_model.items():
+                model.objects.bulk_create(rows)
 
 
 class AccessBindMiddleware:

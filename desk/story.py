@@ -36,6 +36,10 @@ from .models import ComplaintDecision, EntryKind, ServiceRequest, Status
 CALENDAR = "Laboratory hours"  # service_levels.seed
 CAPABILITY = "view_patient_information"
 CAPABILITY_HOLDER = "demo_supervisor"
+# "Can review access and audit records" (audit_review), for the same account: the supervisor's
+# work includes reviewing who opened and changed what.
+REVIEW_CAPABILITY = "review_audit_records"
+REVIEW_HOLDER = "demo_supervisor"
 
 # Who does what in the story.
 AGENT, LEAD, TECH, MANAGER = (
@@ -868,19 +872,28 @@ def _when(start, minutes, calendar, now):
 
 
 def grant_capability():
-    """ "Can view patient information" for demo_supervisor only, audited like an admin grant."""
-    holder = User.objects.get(username=CAPABILITY_HOLDER)
-    permission = Permission.objects.get(codename=CAPABILITY, content_type__app_label="accounts")
-    if holder.user_permissions.filter(pk=permission.pk).exists():
-        return
-    holder.user_permissions.add(permission)
-    record_event(
-        actor=User.objects.get(username="demo_admin"),
-        action="account.capability_granted",
-        obj=holder,
-        after={"capability": CAPABILITY},
-        reason="Demonstration seed: the supervisor sees patient links",
-    )
+    """ "Can view patient information" and "Can review access and audit records" for
+    demo_supervisor only, each audited like an admin grant."""
+    for codename, username, reason in (
+        (CAPABILITY, CAPABILITY_HOLDER, "Demonstration seed: the supervisor sees patient links"),
+        (
+            REVIEW_CAPABILITY,
+            REVIEW_HOLDER,
+            "Demonstration seed: the supervisor reviews access and audit records",
+        ),
+    ):
+        holder = User.objects.get(username=username)
+        permission = Permission.objects.get(codename=codename, content_type__app_label="accounts")
+        if holder.user_permissions.filter(pk=permission.pk).exists():
+            continue
+        holder.user_permissions.add(permission)
+        record_event(
+            actor=User.objects.get(username="demo_admin"),
+            action="account.capability_granted",
+            obj=holder,
+            after={"capability": codename},
+            reason=reason,
+        )
 
 
 def _fresh(request):

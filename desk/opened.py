@@ -54,25 +54,32 @@ def page(ticket, number, upto=None):
         "-occurred_at", "-id"
     )
     page_obj = Paginator(records, PAGE_SIZE).get_page(number)
-    rows = list(page_obj.object_list)
+    page_obj.object_list = describe(page_obj.object_list)
+    return page_obj
+
+
+def describe(records):
+    """`records` (AccessRecord rows, of one ticket or of several) as Opened rows. A file or an
+    answer is named only when it belongs to the record's own ticket."""
+    rows = list(records)
     accounts = {
         account.pk: account
         for account in get_user_model().objects.filter(pk__in={row.account_id for row in rows})
     }
-    files = _ids(rows, FILE)
+    tickets = {row.ticket_id for row in rows}
     files = {
-        str(attachment.pk): attachment.download_name
-        for attachment in Attachment.objects.filter(request=ticket, pk__in=files).select_related(
-            "request"
-        )
+        (attachment.request_id, str(attachment.pk)): attachment.download_name
+        for attachment in Attachment.objects.filter(
+            request__in=tickets, pk__in=_ids(rows, FILE)
+        ).select_related("request")
     }
-    answers = _ids(rows, ANSWER)
     answers = {
-        str(value.pk): value.label
-        for value in FieldValue.objects.filter(filled_form__request=ticket, pk__in=answers)
+        (request_id, str(pk)): label
+        for pk, request_id, label in FieldValue.objects.filter(
+            filled_form__request__in=tickets, pk__in=_ids(rows, ANSWER)
+        ).values_list("pk", "filled_form__request_id", "label")
     }
-    page_obj.object_list = [_opened(row, accounts, files, answers) for row in rows]
-    return page_obj
+    return [_opened(row, accounts, files, answers) for row in rows]
 
 
 def _ids(rows, object_type):
@@ -87,10 +94,11 @@ def _opened(row, accounts, files, answers):
         person = account.get_full_name() or account.get_username()
         username = account.get_username()
     detail = ""
+    key = (row.ticket_id, row.object_id)
     if row.kind == AccessKind.FILE:
-        detail = files.get(row.object_id) or f"File {row.object_id}"
+        detail = files.get(key) or f"File {row.object_id}"
     elif row.kind == AccessKind.PATIENT_ANSWER:
-        detail = answers.get(row.object_id) or f"Answer {row.object_id}"
+        detail = answers.get(key) or f"Answer {row.object_id}"
     elif row.kind == AccessKind.PERSON_KEY:
         detail = f"Link {row.object_id}"  # never the key or its masked label
     return Opened(
