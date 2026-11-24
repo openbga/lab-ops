@@ -3,9 +3,20 @@
 from django.db import migrations, models
 
 
+def remove_capability(apps, schema_editor):
+    """Reversed: the capability goes with its grants, to people and to groups, so that applying
+    the migration again gives it to nobody. (Django creates the permission after a forward
+    migration and never removes one.)"""
+    Permission = apps.get_model("auth", "Permission")
+    Permission.objects.filter(
+        content_type__app_label="accounts", codename="review_audit_records"
+    ).delete()
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("accounts", "0009_sign_in_history"),
+        ("auth", "0012_alter_user_first_name_max_length"),
     ]
 
     operations = [
@@ -22,6 +33,7 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "users",
             },
         ),
+        migrations.RunPython(migrations.RunPython.noop, remove_capability),
         migrations.AddIndex(
             model_name="signinevent",
             index=models.Index(fields=["-occurred_at"], name="sign_in_event_all_recent"),

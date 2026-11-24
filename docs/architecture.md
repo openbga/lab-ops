@@ -150,8 +150,11 @@ read as of `upto` (`sources.newest`), which the pager's and the export's links c
 clamps to what is newest now: the newest id for the tables whose ids follow the order rows are
 written (a sign-out by a session limit is written with the earlier moment the limit passed, so a
 time would let it into an earlier reading), and for `AuditEvent`, whose ids are random, the moment
-by the application's clock, which also times each event. As for Who opened it, a row whose write
-was under way in another request at that moment can still take a place in the later pages. The ticket and
+by the application's clock, which also times each event, taken before the reading's snapshot. As
+for Who opened it, a row whose write was under way in another request at that moment can still take
+a place in the later pages; so can a change saved by a process whose clock runs behind. The
+organization filter reads which accounts and tickets belong to the organization at each page and
+export, so an account moved since the first page counts for its new organization. The ticket and
 organization filters on Changes match `object_type` and `object_id` against subqueries of the
 ticket's parts (`TICKET_PARTS`) and the organization's records, cast to text. Rows are built from
 ids and codes: names as they stand now, never `before`, `after` or `reason`; access rows reuse

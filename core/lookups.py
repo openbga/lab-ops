@@ -18,8 +18,9 @@ from django import forms
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import EmptyPage, Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.urls import reverse
@@ -165,24 +166,30 @@ def search(queryset, fields, text):
     return queryset
 
 
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
 @login_required
 @require_GET
 def lookup(request, name):
-    """JSON page of options: {"results": [{"value", "text"}], "more": bool}."""
+    """JSON page of options: {"results": [{"value", "text"}], "more": bool}. The access check,
+    the count and the options come from one reading, so `more` describes the options sent."""
+    from core.concurrency import one_reading
+
     entry = LOOKUPS.get(name)
     if entry is None:
         raise Http404("No such lookup.")
-    queryset = entry.queryset(request)
-    queryset = search(queryset, entry.search_fields, request.GET.get("q", "")[:MAX_QUERY])
-    paginator = Paginator(queryset.order_by(*entry.ordering), entry.page_size)
-    try:
-        page = paginator.page(request.GET.get("page") or 1)
-    except EmptyPage:
-        return JsonResponse({"results": [], "more": False})
-    except ValueError:
-        page = paginator.page(1)
-    results = [{"value": entry.value(obj), "text": entry.label(obj)} for obj in page]
-    return JsonResponse({"results": results, "more": page.has_next()})
+    with one_reading():
+        queryset = entry.queryset(request)
+        queryset = search(queryset, entry.search_fields, request.GET.get("q", "")[:MAX_QUERY])
+        paginator = Paginator(queryset.order_by(*entry.ordering), entry.page_size)
+        try:
+            page = paginator.page(request.GET.get("page") or 1)
+        except EmptyPage:
+            return JsonResponse({"results": [], "more": False})
+        except ValueError:
+            page = paginator.page(1)
+        results = [{"value": entry.value(obj), "text": entry.label(obj)} for obj in page]
+        more = page.has_next()
+    return JsonResponse({"results": results, "more": more})
 
 
 class RemoteSelect(forms.Select):
@@ -211,7 +218,12 @@ class RemoteSelect(forms.Select):
         if not self.allow_multiple_selected and field.empty_label is not None:
             options.append(self.create_option(name, "", field.empty_label, not selected, 0))
         to_field = field.to_field_name or "pk"
-        chosen = field.queryset.filter(**{f"{to_field}__in": selected}) if selected else []
+        try:
+            chosen = (
+                list(field.queryset.filter(**{f"{to_field}__in": selected})) if selected else []
+            )
+        except TypeError, ValueError, ValidationError:
+            chosen = []  # a value the field cannot read selects nothing; the form says why
         for obj in chosen:
             option_value = field.prepare_value(obj)
             options.append(

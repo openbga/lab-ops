@@ -84,7 +84,7 @@
         },
         {
           "label": "Record",
-          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record or the ticket's form) is named by the ticket's number, an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
+          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record or the ticket's form) is named by the ticket's number (the line below is empty for a ticket logged without an organization), an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
         },
         {
           "label": "What",
@@ -104,7 +104,7 @@
         },
         {
           "label": "Browser and Address",
-          "description": "On Sign-ins: as the browser and the deployment reported them, which is not proof of anything. For a shared demonstration account both read Not shown: shared demonstration account."
+          "description": "On Sign-ins: as the browser and the deployment reported them, which is not proof of anything. For a shared demonstration account both read Not shown: shared demonstration account, and for an account that no longer exists, whose kind cannot be read, Not shown: the account no longer exists."
         },
         {
           "label": "Client organization",
@@ -129,7 +129,7 @@
         },
         {
           "label": "Client organization",
-          "description": "On Changes: the organization's own record, its contacts, sites, portal access, links and portal accounts, and its tickets and their parts. On Access records: reads of its tickets. On Sign-ins: its portal accounts. Not on Workspace use."
+          "description": "On Changes: the organization's own record, its contacts, sites, portal access, links and portal accounts, and its tickets and their parts. On Access records: reads of its tickets. On Sign-ins: its portal accounts. Not on Workspace use. Which accounts and tickets belong to the organization is read as they stand when each page, or the export, is drawn: a portal account moved to another organization since the first page no longer counts for this one."
         },
         {
           "label": "Action, What and Event",
@@ -137,7 +137,7 @@
         },
         {
           "label": "Ticket number",
-          "description": "Under More filters, on Changes and Access records: the ticket's number as shown, such as REQ-000123, or its number alone. On Changes it takes the ticket and its parts. A number that names no ticket is refused."
+          "description": "Under More filters, on Changes and Access records: the ticket's number as shown, such as REQ-000123, or its number alone. On Changes it takes the ticket and its parts: its entries, complaint record, files, links, form and service clock. A number that names no ticket is refused."
         },
         {
           "label": "From and To",
@@ -149,7 +149,11 @@
         },
         {
           "label": "Pages",
-          "description": "Fifty rows per page, newest first. Every page, and the export, is drawn as the list stood when its first page opened, so new rows (your own use included) never move a row to the next page. A row whose recording was still being saved in another request at that very moment can still appear on a later page. Open the tab again from the menu to see newer rows."
+          "description": "Fifty rows per page, newest first. Every page, and the export, is drawn as the list stood when its first page opened, so new rows (your own use included) never move a row to the next page. A row whose recording was still being saved in another request at that very moment can still appear on a later page. Open the tab again from the menu to see newer rows. On Changes the moment is read by the application server's clock, which also times each change: a change saved by a server whose clock runs behind can also appear on later pages."
+        },
+        {
+          "label": "Columns",
+          "description": "Choose which columns show and in which order; When always shows. The choice is saved for your account, for each list."
         },
         {
           "label": "Export CSV",

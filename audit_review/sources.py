@@ -15,7 +15,7 @@ credentials are locked) are left out: they may be another visitor's.
 """
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
@@ -34,6 +34,7 @@ from desk import opened
 from desk.models import ComplaintReview, RequestEntry, ServiceRequest
 from links.models import LinkAttachment
 from request_forms.models import FilledForm
+from service_levels.models import RequestClock
 
 from .models import Source, UseKind, WorkspaceUse
 
@@ -41,6 +42,7 @@ PAGE_SIZE = 50
 # An export holds at most this many rows; a larger result is narrowed first.
 EXPORT_LIMIT = 10_000
 NOT_SHOWN = "Not shown: shared demonstration account"
+NOT_SHOWN_GONE = "Not shown: the account no longer exists"
 NOT_RECORDED = "Not recorded"
 
 
@@ -171,7 +173,7 @@ def rows_for(source, cleaned, upto):
         records = records.filter(**{_ACTION_FIELD[source]: action})
     if start := cleaned.get("date_from"):
         records = records.filter(occurred_at__gte=_day_start(start))
-    if end := cleaned.get("date_to"):
+    if (end := cleaned.get("date_to")) and end < date.max:  # date.max: no later day to stop at
         records = records.filter(occurred_at__lt=_day_start(end + timedelta(days=1)))
     ticket = cleaned.get("ticket")
     organization = cleaned.get("organization")
@@ -215,7 +217,8 @@ def _text_ids(model, **lookup):
     )
 
 
-# Change events about a ticket: on the ticket itself or one of its parts, by the part's model.
+# Change events about a ticket: on the ticket itself or one of its parts (its entries, complaint
+# record, files, links, form and service clock), by the part's model.
 TICKET_PARTS = {
     "desk.servicerequest": (ServiceRequest, "pk__in"),
     "desk.requestentry": (RequestEntry, "request__in"),
@@ -223,12 +226,13 @@ TICKET_PARTS = {
     "attachments.attachment": (Attachment, "request__in"),
     "links.linkattachment": (LinkAttachment, "request__in"),
     "request_forms.filledform": (FilledForm, "request__in"),
+    "service_levels.requestclock": (RequestClock, "request__in"),
 }
 
 
 def ticket_objects(tickets):
-    """Change events on the tickets of `tickets` (a ServiceRequest queryset) or one of their parts:
-    their entries, complaint record, files, links and form."""
+    """Change events on the tickets of `tickets` (a ServiceRequest queryset) or one of their parts
+    (TICKET_PARTS)."""
     condition = Q()
     for object_type, (model, lookup) in TICKET_PARTS.items():
         condition |= Q(
@@ -301,7 +305,8 @@ def _tickets(ids):
 def _ticket_cell(ticket, ticket_id):
     if ticket is None:
         return Cell(f"Ticket {ticket_id}", "")
-    return Cell(str(ticket), ticket.client.name)
+    # A ticket logged for an anonymous caller or an internal problem has no organization.
+    return Cell(str(ticket), ticket.client.name if ticket.client_id else "")
 
 
 def _changes(events, _accounts_read):
@@ -397,8 +402,10 @@ def _sign_ins(events, accounts):
     cells = []
     for event in events:
         account = accounts.get(event.user_id)
-        shared = account is not None and account.credentials_locked
-        if shared:
+        if account is None:
+            # Whether it was a shared demonstration account can no longer be read.
+            browser = address = NOT_SHOWN_GONE
+        elif account.credentials_locked:
             browser = address = NOT_SHOWN
         else:
             browser = browser_label(event.user_agent) or NOT_RECORDED

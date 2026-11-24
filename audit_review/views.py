@@ -28,6 +28,7 @@ from core.concurrency import one_reading, reading_account
 from core.grids import active_filters
 from core.ids import whole_number
 from core.lists import toolbar_context
+from dataimport.importing import FORMULA_STARTS
 
 from .forms import ReviewFilter
 from .models import Source, UseKind, WorkspaceUse
@@ -77,10 +78,17 @@ INTROS = {
 NOT_FILTERS = ("page", "upto")
 
 
-def _upto(request, source):
-    """What the reading is drawn as of (audit_review.sources.newest): `upto` from the address,
-    never beyond what is newest now."""
-    now = newest(source)
+def _before_reading(source):
+    """For Changes, the moment now, taken before the reading's snapshot (audit_review.sources.
+    newest): a change saved after it is left out of this reading's pages and export, even one
+    committed before the snapshot. None for the other lists, whose newest id is read in it."""
+    return newest(source) if source == Source.CHANGES else None
+
+
+def _upto(request, source, before):
+    """What the reading is drawn as of: `upto` from the address, never beyond what is newest now
+    (`before`, or the newest id in the reading)."""
+    now = before if before is not None else newest(source)
     upto = whole_number(request.GET.get("upto", ""), max_digits=19)
     return now if upto is None else min(upto, now)
 
@@ -118,11 +126,12 @@ def _use(request, kind, source, form, rows, page=None):
 @require_GET
 def workspace(request, source):
     source = Source(source)
+    before = _before_reading(source)
     with one_reading():
         account = reading_account(request)
         require_reviewer(account)
         form = ReviewFilter(source, request.GET)
-        upto = _upto(request, source)
+        upto = _upto(request, source, before)
         chips = _chips(request, form)
         if form.is_valid():
             records = rows_for(source, form.cleaned_data, upto)
@@ -142,6 +151,7 @@ def workspace(request, source):
             {
                 "page_title": TITLES[source],
                 "source": source,
+                "grid": f"audit_review.{source.value}",
                 "noun": NOUNS[source],
                 "intro": INTROS[source],
                 "columns": COLUMNS[source],
@@ -166,11 +176,12 @@ def workspace(request, source):
 def export(request, source):
     """The list as filtered, every row as of the reading's moment, as a CSV file."""
     source = Source(source)
+    before = _before_reading(source)
     with one_reading():
         account = reading_account(request)
         require_reviewer(account)
         form = ReviewFilter(source, request.GET)
-        upto = _upto(request, source)
+        upto = _upto(request, source, before)
         back = request.GET.copy()
         back["upto"] = str(upto)
         back_url = f"{reverse(ROUTES[source])}?{back.urlencode()}"
@@ -194,15 +205,14 @@ def export(request, source):
     return response
 
 
-# A cell a spreadsheet would read as a formula starts with one of these, possibly after spaces
-# (and the full-width forms of the signs): it is written with an apostrophe in front, which
-# spreadsheets show as text (OWASP, CSV injection).
-FORMULA_START = ("=", "+", "-", "@", "\t", "\r", "\n", "＝", "＋", "－", "＠")
-
-
 def _cell(value):
+    """A cell a spreadsheet would read as a formula, by the rule the directory import warns of
+    (dataimport.importing.FORMULA_STARTS, also after leading spaces), is written with an
+    apostrophe in front, which spreadsheets show as text (OWASP, CSV injection)."""
     text = str(value)
-    return "'" + text if text.lstrip(" ").startswith(FORMULA_START) else text
+    if text.startswith(FORMULA_STARTS) or text.strip().startswith(FORMULA_STARTS):
+        return "'" + text
+    return text
 
 
 def _csv(source, rows):

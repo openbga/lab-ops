@@ -444,8 +444,8 @@ superuser grants to a person or to a role group and no role has otherwise, open 
 sidebar's Oversight section. It has four lists, each newest first, 50 rows a page: Changes (every
 change event), Access records (every sensitive read), Sign-ins (every account's sign-in history)
 and Workspace use (the workspace's own record of its use). Each is filtered by person (any
-account), client organization, action and days in the laboratory's time zone, and Changes and
-Access records also by ticket number; on Changes a ticket takes its parts (entries, files, links,
+account), action and days in the laboratory's time zone, all but Workspace use also by client
+organization, and Changes and Access records also by ticket number; on Changes a ticket takes its parts (entries, files, links,
 the complaint record and the ticket's form) and an organization its own record, contacts, sites,
 portal access and portal accounts and its tickets. Every page, and the export, is drawn as the list
 stood when its first page opened. Export CSV gives every matching row, at most 10,000, as a
