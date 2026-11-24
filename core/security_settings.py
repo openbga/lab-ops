@@ -728,7 +728,8 @@ def _sign_in(facts):
                 "account, and a refused sign-in for the account whose password or code was "
                 "accepted. The database refuses to change or delete an entry, and entries have "
                 "no retention period. Each person reads their own entries of the last 90 days on "
-                "Sign-in history; no page shows another person's.",
+                "Sign-in history; staff who can review access and audit records read every "
+                "account's in Audit review.",
             ),
         ),
     ]

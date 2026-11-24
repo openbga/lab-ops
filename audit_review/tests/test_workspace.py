@@ -427,6 +427,13 @@ def test_cells_a_spreadsheet_would_run_as_formulas_are_written_as_text(
     assert row[2] == "'-sly"
 
 
+@pytest.mark.parametrize("text", [" =1+1", "＝1+1", "+1", "@SUM(A1)", "\t=1", "plain"])
+def test_the_formula_guard(text):
+    from audit_review.views import _cell
+
+    assert _cell(text) == (text if text == "plain" else "'" + text)
+
+
 def test_a_result_larger_than_an_export_holds_is_refused_and_records_nothing(
     client, reviewer, agent, clinic, make_ticket, monkeypatch
 ):

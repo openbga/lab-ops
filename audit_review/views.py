@@ -193,14 +193,15 @@ def export(request, source):
     return response
 
 
-# A cell a spreadsheet would read as a formula starts with one of these: it is written with an
-# apostrophe in front, which spreadsheets show as text (OWASP, CSV injection).
-FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+# A cell a spreadsheet would read as a formula starts with one of these, possibly after spaces
+# (and the full-width forms of the signs): it is written with an apostrophe in front, which
+# spreadsheets show as text (OWASP, CSV injection).
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r", "\n", "＝", "＋", "－", "＠")
 
 
 def _cell(value):
     text = str(value)
-    return "'" + text if text.startswith(FORMULA_START) else text
+    return "'" + text if text.lstrip(" ").startswith(FORMULA_START) else text
 
 
 def _csv(source, rows):
