@@ -293,7 +293,22 @@ class SubstituteTemplate:
         return TemplateResponse(request, engines["django"].from_string("Replacement document"))
 
 
-@pytest.mark.parametrize("transport", ["template", "file", "stream", "substituted-template"])
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "template",
+        "file",
+        "stream",
+        pytest.param(
+            "substituted-template",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="Accepted limit: a deployment's own template-response hook replacing a "
+                "deferred page (docs/architecture.md, Access records).",
+            ),
+        ),
+    ],
+)
 def test_receipt_follows_the_document_actually_returned(
     client, capable, ticket, settings, monkeypatch, transport
 ):

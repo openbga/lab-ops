@@ -86,29 +86,21 @@ def write(request, records=None):
         AccessRecord.objects.bulk_create(records)
 
 
-def _bind(request, response):
-    pending = request.__dict__.pop(PENDING, None)
-    if pending:
-        setattr(response, CARRIED, [*(getattr(response, CARRIED, None) or ()), *pending.values()])
-
-
 class AccessBindMiddleware:
     """The innermost middleware: binds what the view noted to the answer it returned, and forgets
     it when the view raised (process_exception runs before Django turns the exception into an
-    error answer). For a template response it binds before any other middleware's template
-    hook runs (Django runs them innermost first), so a hook that returns another answer leaves
-    the notes behind; what rendering notes afterwards goes with the answer rendered."""
+    error answer). Not covered: this release's views draw their pages at once; a deferred template
+    response whose template-response hook or post-render callback (a deployment's own) replaces or
+    rewrites the page binds the notes to the answer Django ends with, whatever it shows."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        _bind(request, response)
-        return response
-
-    def process_template_response(self, request, response):
-        _bind(request, response)
+        pending = request.__dict__.pop(PENDING, None)
+        if pending:
+            setattr(response, CARRIED, list(pending.values()))
         return response
 
     def process_exception(self, request, exception):

@@ -100,13 +100,14 @@ def raise_request(request, key):
     if not offered_in_portal(defn, request.user):
         return _not_offered(request)
     again = (request.GET.get("again") or "").strip()
-    copied, initial = None, {}
+    copied, initial, repeated = None, {}, False
     if again and request.method != "POST":
         repeat = repeat_from(template, request.user, again, defn=defn)
         if repeat is None:
             raise Http404("No such ticket.")
         copied, site, earlier = repeat
-        if copied or site is not None:
+        repeated = bool(copied) or site is not None
+        if repeated:
             # What it copied is shown in the new form: the earlier ticket is read (core.access).
             access.note(request, AccessKind.REPEAT, ticket_id=earlier.pk)
         if site is not None:
@@ -181,8 +182,9 @@ def raise_request(request, key):
                 "template": form.template,  # as the form's definition read it
                 "form": form,
                 "asks_patient_information": bool(patient_fields),
-                # The notice names the earlier ticket only when something was copied from it.
-                "again": again if copied or initial.get("site") else "",
+                # The notice names the earlier ticket only when something was copied from it (a
+                # site deactivated while the page is drawn is still counted: docs/architecture.md).
+                "again": again if repeated else "",
                 # What was typed is kept for this form, and apart for it copying an earlier
                 # ticket ("Request again", also when drawn again after a refused save).
                 "keep_id": f"{form.template.pk}-again-{slugify(again)[:30]}"

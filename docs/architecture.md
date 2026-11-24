@@ -126,7 +126,11 @@ outside one, with a database default so that a release still running during the 
 inserting events). Not covered: a record whose write was under way, in another
 request, when Who opened it drew its first page can still take a place in the later pages (ids are
 given out before a write commits); its pages never show a record written after that, and only
-records of the ticket.
+records of the ticket. Request again decides from its reading of the earlier ticket whether it
+copied something: a site deactivated before the form reads its sites again leaves the notice and
+the record with nothing shown. This release's views draw their pages at once; a deployment's own
+template-response hook or post-render callback that replaces or rewrites a deferred page leaves the
+records with the answer Django ends with, whatever it shows.
 [Access records](../core/access.py)
 
 ## Security settings
