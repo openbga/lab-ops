@@ -163,6 +163,7 @@ class ValueRow:
     corrected: bool = False
     retired: bool = False  # the field is no longer on the form
     wide: bool = False  # long text or a list: the whole row
+    value_id: int | None = None  # the value row shown (a portal row; core.access records it)
 
 
 @dataclass
@@ -266,7 +267,17 @@ def client_values(service_request, user):
             continue
         lines = kinds.display(row.kind, row.value)
         if lines:
-            rows.append(ValueRow(label=row.label, lines=lines, wide=row.kind in WIDE_KINDS))
+            rows.append(
+                ValueRow(
+                    label=row.label,
+                    lines=lines,
+                    wide=row.kind in WIDE_KINDS,
+                    # A client sees its own patient information on its tickets; each such answer
+                    # shown is an access record (request_forms.templatetags.request_form_details).
+                    patient=_patient(row),
+                    value_id=row.pk,
+                )
+            )
     return FormDetails(template_label=filled.template_client_label, rows=rows)
 
 
@@ -288,7 +299,14 @@ def value_history(filled_form):
 def repeat_values(template, user, number, defn=None):
     """What "Request again" copies from this portal account's earlier request `number`, raised
     with the same form: ({field key: initial form value}, site or None), or None when the
-    account cannot see such a request.
+    account cannot see such a request (repeat_from, without the request it was copied from)."""
+    found = repeat_from(template, user, number, defn=defn)
+    return None if found is None else found[:2]
+
+
+def repeat_from(template, user, number, defn=None):
+    """repeat_values, with the earlier request the values were copied from:
+    ({field key: initial form value}, site or None, request), or None.
 
     Copied: the current values of client fields still on the form that the laboratory lets be
     copied, and only as the form still accepts them (an option or item no longer offered is
@@ -351,7 +369,7 @@ def repeat_values(template, user, number, defn=None):
     site = earlier.site
     if site is not None and not portal_sites(user).filter(pk=site.pk).exists():
         site = None
-    return values, site
+    return values, site, earlier
 
 
 def revealable_value(user, value_id):

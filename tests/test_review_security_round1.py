@@ -649,7 +649,8 @@ def test_populated_lab_survives_contact_migration(already_sealed):
             )
         MigrationExecutor(connection).migrate([candidate])
         assert Lab.objects.get(pk=old_lab.pk).name == old_lab.name
-        assert AuditEvent.objects.get(pk=old_event.pk).after == old_event.after
+        # Read as the 0004 schema has it: later migrations add columns (core 0009's request_ref).
+        assert AuditEvent.objects.only("after").get(pk=old_event.pk).after == old_event.after
         assert not LabContact.objects.exists()
         assert demo.is_sealed(Lab.objects.get()) is already_sealed
         assert LabContact._meta.db_table in demo.business_tables()

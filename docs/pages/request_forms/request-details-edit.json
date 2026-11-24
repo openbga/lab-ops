@@ -75,7 +75,8 @@
         "A closed ticket's form details can no longer change: the ticket page shows no Edit form details, and this page returns to the ticket with a message.",
         "If someone else changes a value you are correcting, nothing is saved. Your input stays on the page. Reload to review the current value before trying again. An unchanged item list keeps the other person's correction.",
         "Saving moves the ticket on: a dialog or list selection opened before it (assign, status, bulk change) is refused and asks you to reload.",
-        "If the ticket leaves what you may see while you work (its team changes, say), the page answers Not found."
+        "If the ticket leaves what you may see while you work (its team changes, say), the page answers Not found.",
+        "Opening this page, and drawing it again after a refused save, is recorded with your account and the time (never the values), and supervisors read it on the ticket's Who opened it. A closed ticket's redirect records nothing."
       ],
       "items": [
         {
@@ -106,6 +107,7 @@
     "request_forms/tests/test_capture_consistency.py",
     "request_forms/tests/test_pages.py",
     "request_forms/tests/test_values.py",
-    "request_forms/urls.py"
+    "request_forms/urls.py",
+    "core/access.py"
   ]
 }

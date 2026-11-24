@@ -10,16 +10,19 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods
 
 from attachments.services import attach_to_new_request
 from clients.portal import client_required
+from core import access
 from core.concurrency import one_reading
+from core.models import AccessKind
 from desk.models import EntryKind
 from taxonomy.choices import Priority
 
 from . import definition
 from .forms import PortalRaiseForm
-from .selectors import portal_templates, repeat_values
+from .selectors import portal_templates, repeat_from
 from .services import FORM_CHANGED, create_request_with_form, is_form_changed, offered_in_portal
 
 # The request's own fields, kept when a changed form is drawn again (they mean the same whatever
@@ -87,6 +90,7 @@ def _not_offered(request):
 
 @never_cache  # a failed submission re-renders typed values, patient information included
 @client_required
+@require_http_methods(["GET", "HEAD", "POST"])  # no other method draws or copies the form
 def raise_request(request, key):
     template = portal_templates(request.user).filter(key=key).first()
     if template is None:
@@ -98,12 +102,16 @@ def raise_request(request, key):
     if not offered_in_portal(defn, request.user):
         return _not_offered(request)
     again = (request.GET.get("again") or "").strip()
-    copied, initial = None, {}
+    copied, initial, repeated = None, {}, False
     if again and request.method != "POST":
-        repeat = repeat_values(template, request.user, again, defn=defn)
+        repeat = repeat_from(template, request.user, again, defn=defn)
         if repeat is None:
             raise Http404("No such ticket.")
-        copied, site = repeat
+        copied, site, earlier = repeat
+        repeated = bool(copied) or site is not None
+        if repeated:
+            # What it copied is shown in the new form: the earlier ticket is read (core.access).
+            access.note(request, AccessKind.REPEAT, ticket_id=earlier.pk)
         if site is not None:
             initial["site"] = site.pk
     form = PortalRaiseForm(
@@ -176,7 +184,9 @@ def raise_request(request, key):
                 "template": form.template,  # as the form's definition read it
                 "form": form,
                 "asks_patient_information": bool(patient_fields),
-                "again": again if copied is not None else "",
+                # The notice names the earlier ticket only when something was copied from it (a
+                # site deactivated while the page is drawn is still counted: docs/architecture.md).
+                "again": again if repeated else "",
                 # What was typed is kept for this form, and apart for it copying an earlier
                 # ticket ("Request again", also when drawn again after a refused save).
                 "keep_id": f"{form.template.pk}-again-{slugify(again)[:30]}"

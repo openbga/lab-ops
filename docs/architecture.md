@@ -93,6 +93,50 @@ the mark, without showing its form, when `current` holds, or once the confirmati
 returns to the page on screen; the person reveals again.
 [Confirm before revealing](../core/reveal_confirmation.py)
 
+## Access records
+
+A sensitive read leaves a `core.models.AccessRecord` ([core/access.py](../core/access.py)): the
+account that made the request, as signed in when its view was called (`AccessBindMiddleware`
+keeps it in `process_view`, so a page that signs the browser out while it is drawn is still
+recorded for it; by id, no database constraint, as for the sign-in history), the capacity
+(laboratory or client; an account's kind never changes), the kind of read,
+the ticket's id, the file, answer or person-level link read (`object_type`, `object_id`, checked
+against the kind by a constraint) and the request ID that `core.request_logging` generates, never
+what was shown. The views call `access.note` once access is decided and what they show is read:
+the staff and portal ticket pages (also when drawn again after a refused entry or reply), the audit
+history, Who opened it (`desk.views.request_access`, `desk.opened`, whose pager draws every page as
+of the newest record when the first was drawn, so new records never move a row to the next page),
+the Form details page and the complaint forms (`_action_form`'s `access_kind`), after the drawing;
+a download after the file's bytes are read; a staff reveal of an answer or a person-level key after
+it is read in the reveal's transaction; the `request_form_details` tag for each patient-marked
+answer it draws for a portal account (`request_forms.selectors.client_values` gives each row's
+value id and mark); the client timeline for each ticket whose entries its page shows; and Request
+again for the ticket its answers come from (`request_forms.selectors.repeat_from`). A refusal
+raised before the note records nothing. `AccessBindMiddleware`, the innermost, moves what the view
+noted onto the answer it returned, and drops it when the view raised (`process_exception`);
+`AccessRecordMiddleware`, inside the request log middleware and outside the session middleware,
+writes in one statement what the answer it is about to send carries, so a page drawn in
+`one_reading` writes after its reading has ended, and an answer another layer put in the view's
+place (Django's 400 when the session was deleted in another tab while the page was drawn) carries
+nothing. A HEAD request and an answer of 500 or more record nothing; when the write fails, the
+middleware raises and the answer becomes a server error, so nothing read is sent without its
+record. The table is kept apart from `AuditEvent`, so a ticket's history lists its changes only; a
+trigger (core migration 0009, `prevent_record_mutation`) refuses `UPDATE` and `DELETE`, and the
+model has no permissions and no admin. Change events gain the same request ID
+(`AuditEvent.request_ref`, filled from the request being served by the field's default, blank
+outside one, with a database default so that a release still running during the migration keeps
+inserting events). Not covered: a record whose write was under way, in another
+request, when Who opened it drew its first page can still take a place in the later pages (ids are
+given out before a write commits); its pages never show a record written after that, and only
+records of the ticket. Request again decides from its reading of the earlier ticket whether it
+copied something: a site deactivated before the form reads its sites again, or typing kept across a
+sign-out given back over the copied answers (accounts.kept), leaves the notice and the record
+although the form shows none of them. Code that signs another account in during a request (nothing in this
+release does) does not change the account recorded. This release's views draw their pages at once;
+a deployment's own template-response hook or post-render callback that replaces or rewrites a deferred page leaves the
+records with the answer Django ends with, whatever it shows.
+[Access records](../core/access.py)
+
 ## Security settings
 
 `core.security_settings` reads what protects sign-in, sessions and patient information from the

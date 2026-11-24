@@ -60,6 +60,10 @@ MIDDLEWARE = [
     "core.security_headers.SecurityHeadersMiddleware",
     "core.request_logging.RequestLogMiddleware",
     "core.request_limits.RequestBodyLimitMiddleware",
+    # Writes the access records the answer carries (a ticket opened, a file downloaded, a
+    # patient-marked answer shown) before it is sent; a failed write fails the answer
+    # (core.access).
+    "core.access.AccessRecordMiddleware",
     # Before the HTTPS redirect, CommonMiddleware and the CSRF check: while an optional module is
     # off its addresses do not exist, and every answer of one that is on is never stored
     # (core.modules).
@@ -85,6 +89,9 @@ MIDDLEWARE = [
     "accounts.compromised.PasswordChangeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.form_dialog.FormDialogMiddleware",
+    # Innermost: binds the access records a view noted to the answer it returned, so that an
+    # answer another layer puts in its place records nothing (core.access).
+    "core.access.AccessBindMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"

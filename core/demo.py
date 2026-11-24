@@ -63,7 +63,7 @@ def is_sealed(lab):
     secrets = [settings.SECRET_KEY, *getattr(settings, "SECRET_KEY_FALLBACKS", [])]
     events = AuditEvent.objects.filter(
         action=SEAL_ACTION, object_type="core.lab", object_id=str(lab.pk)
-    )
+    ).only("actor_id", "after")
     for event in events:
         recorded = (event.after or {}).get("seal", "")
         if not isinstance(recorded, str):

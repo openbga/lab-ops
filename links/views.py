@@ -20,11 +20,11 @@ from django.views.decorators.http import require_POST
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
 from clients.models import Client
-from core import reveal_confirmation, reveal_confirmation_views
+from core import access, reveal_confirmation, reveal_confirmation_views
 from core.concurrency import reading_account
 from core.ids import whole_number
 from core.lists import list_response
-from core.models import AuditEvent
+from core.models import AccessKind, AuditEvent
 from desk.selectors import staff_requests
 
 from .forms import (
@@ -437,6 +437,8 @@ def attachment_reveal(request, pk):
             link = reveal_person_key(actor=request.user, attachment_id=attachment.pk)
         except ObjectDoesNotExist as error:  # removed, or no longer readable
             raise Http404 from error
+    # Recorded besides its change event, as a patient-marked answer's reveal (core.access).
+    access.note(request, AccessKind.PERSON_KEY, ticket_id=attachment.request_id, target=attachment)
     context = {"link": link, "attachment": attachment, "back": _target_url(attachment)}
     template = (
         "links/_revealed_key.html" if request.headers.get("HX-Request") else "links/revealed.html"

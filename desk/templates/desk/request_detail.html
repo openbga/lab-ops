@@ -35,7 +35,8 @@ follows the conversation. Add entry jumps directly to it.
 {% more_actions %}
   {% if not is_closed %}<li><a class="dropdown-item" href="{% url 'desk:request-properties' req.pk %}?list={{ list_query|urlencode }}">Edit category and priority</a></li>
   {% if not req.is_complaint %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Mark as a complaint</a></li>{% elif is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:complaint-mark' req.pk %}?list={{ list_query|urlencode }}">Unmark complaint</a></li>{% endif %}{% endif %}
-  {% if is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:request-history' req.pk %}?list={{ list_query|urlencode }}">Audit history</a></li>{% endif %}
+  {% if is_supervisor %}<li><a class="dropdown-item" href="{% url 'desk:request-history' req.pk %}?list={{ list_query|urlencode }}">Audit history</a></li>
+  <li><a class="dropdown-item" href="{% url 'desk:request-access' req.pk %}?list={{ list_query|urlencode }}">Who opened it</a></li>{% endif %}
 {% endmore_actions %}
 {% if not is_closed %}<a class="btn btn-primary" href="#composer">Add entry</a>{% endif %}
 {% endblock %}

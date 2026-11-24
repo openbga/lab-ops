@@ -12,9 +12,10 @@ from django.utils.text import Truncator
 
 from accounts.models import User
 from accounts.roles import require_staff
+from core import access
 from core.grids import active_filters
 from core.lists import list_response, return_list_params, toolbar_context
-from core.models import AuditEvent
+from core.models import AccessKind, AuditEvent
 
 from .forms import (
     ClientEditForm,
@@ -481,7 +482,7 @@ def client_timeline(request, pk):
             _describe_entry(item)
     chips = active_filters(request, form) if valid else []
     record_url = reverse("clients:client-detail", kwargs={"pk": client.pk})
-    return render(
+    response = render(
         request,
         "clients/client_timeline.html",
         {
@@ -494,3 +495,9 @@ def client_timeline(request, pk):
             "record_url": record_url,
         },
     )
+    # The timeline shows the start of each entry's text: each ticket whose entries this page
+    # shows is recorded, once (core.access).
+    for item in page_obj.object_list:
+        if "entry" in item:
+            access.note(request, AccessKind.TIMELINE, ticket_id=item["entry"].request_id)
+    return response

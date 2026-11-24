@@ -67,6 +67,9 @@
           "label": "After the review",
           "description": "A reviewed complaint's record is closed: this page refuses with \"This complaint has been reviewed; its record no longer changes.\""
         }
+      ],
+      "paragraphs": [
+        "Opening this form, and drawing it again after a refused save, is recorded with your account and the time (never what the form shows), and supervisors read it on the ticket's Who opened it."
       ]
     }
   ],
@@ -76,6 +79,7 @@
     "desk/forms.py",
     "desk/services.py",
     "desk/permissions.py",
-    "desk/templates/desk/request_detail.html"
+    "desk/templates/desk/request_detail.html",
+    "core/access.py"
   ]
 }

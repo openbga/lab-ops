@@ -1,10 +1,14 @@
+import functools
+import operator
 import uuid
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import URLValidator
 from django.db import models
+from django.db.models.functions import Now
 
+from .request_logging import current_request_id
 from .vocabulary import US_STATES
 
 MAX_LOGO_BYTES = 512 * 1024
@@ -278,10 +282,120 @@ class AuditEvent(models.Model):
     before = models.JSONField(default=dict)
     after = models.JSONField(default=dict)
     reason = models.TextField(blank=True)
+    # The server-generated ID of the request the change was made in (core.request_logging), as its
+    # access-log line and X-Request-ID header carry it; blank outside a request (scheduled jobs,
+    # commands) and for events recorded before this column existed. The database default lets a
+    # release still running while the migration applies go on inserting events.
+    request_ref = models.CharField(
+        "request ID", max_length=32, blank=True, default=current_request_id, db_default=""
+    )
 
     class Meta:
         ordering = ["occurred_at", "id"]
         indexes = [models.Index(fields=["object_type", "object_id", "occurred_at"])]
+
+
+class AccessKind(models.TextChoices):
+    """What an access record says was read (AccessRecord.kind)."""
+
+    TICKET = "ticket", "Opened the ticket"
+    HISTORY = "history", "Opened the audit history"
+    ACCESS = "access", "Opened who opened it"
+    FORM_DETAILS = "form_details", "Opened the form details"
+    FILE = "file", "Downloaded a file"
+    PATIENT_ANSWER = "patient_answer", "Shown a patient-marked answer"
+    TIMELINE = "timeline", "Shown on the organization's timeline"
+    PERSON_KEY = "person_key", "Shown a person-level key"
+    COMPLAINT = "complaint", "Opened a complaint form"
+    REPEAT = "repeat", "Answers copied with Request again"
+
+
+# What an access record's object is for each kind (AccessRecord.object_type): every other kind is
+# about the ticket's own page and names no object.
+ACCESS_OBJECTS = {
+    AccessKind.FILE: "attachments.attachment",
+    AccessKind.PATIENT_ANSWER: "request_forms.fieldvalue",
+    AccessKind.PERSON_KEY: "links.linkattachment",
+}
+
+
+class AccessCapacity(models.TextChoices):
+    """In which capacity an account read (AccessRecord.capacity), as desk.models.AuthorCapacity:
+    decided from the account as it was read for the page."""
+
+    LABORATORY = "laboratory", "Laboratory staff"
+    CLIENT = "client", "Client portal"
+
+
+class AccessRecord(models.Model):
+    """One sensitive read (core.access): a staff or portal account opened a ticket, its audit
+    history, who opened it or its form details, downloaded a file, was shown a patient-marked
+    answer or a person-level key, or was shown the ticket's entries on its client organization's
+    timeline. Who, when,
+    in which capacity, which record and the request ID; never what was shown.
+
+    History, kept apart from the change history (AuditEvent) so that a record's changes stay
+    readable: the database refuses to change or delete a row (migration 0009); reset_demo empties
+    the table with TRUNCATE, which row triggers do not see."""
+
+    Kind = AccessKind
+    Capacity = AccessCapacity
+
+    id = models.BigAutoField(primary_key=True)
+    # By the database's clock, when the record is written, just after the page was drawn.
+    occurred_at = models.DateTimeField(db_default=Now())
+    # The account, by id. Not a constraint in the database, as for the sign-in history: a record
+    # outlives its account, and nothing about writing one waits for the account's row. Read
+    # records by account_id; a join leaves out those of an account deleted by other means.
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        db_index=False,  # access_record_account leads with it
+        related_name="+",
+    )
+    capacity = models.CharField(max_length=12, choices=Capacity.choices)
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    # The ticket read, by id (core depends on no other application). Every kind is about a ticket.
+    ticket_id = models.BigIntegerField()
+    # What on the ticket, for a file, an answer or a person-level link (ACCESS_OBJECTS); blank
+    # for every other kind.
+    object_type = models.CharField(max_length=100, blank=True)
+    object_id = models.CharField(max_length=64, blank=True)
+    request_ref = models.CharField("request ID", max_length=32, blank=True)
+
+    class Meta:
+        # Written only by core.access: no model permission to grant, and no admin.
+        default_permissions = ()
+        indexes = [
+            models.Index(fields=["ticket_id", "-occurred_at"], name="access_record_ticket"),
+            models.Index(fields=["account", "-occurred_at"], name="access_record_account"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=AccessKind.values), name="access_record_kind"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(capacity__in=AccessCapacity.values),
+                name="access_record_capacity",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    ~models.Q(kind__in=list(ACCESS_OBJECTS)), object_type="", object_id=""
+                )
+                | functools.reduce(
+                    operator.or_,
+                    (
+                        models.Q(kind=kind, object_type=object_type) & ~models.Q(object_id="")
+                        for kind, object_type in ACCESS_OBJECTS.items()
+                    ),
+                ),
+                name="access_record_object",
+            ),
+        ]
+
+    def __str__(self):
+        return f"account {self.account_id} {self.kind} ticket {self.ticket_id}"
 
 
 class Announcement(models.Model):

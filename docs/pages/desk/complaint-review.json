@@ -62,7 +62,8 @@
     {
       "title": "Who may review",
       "paragraphs": [
-        "The product's default reading of an uninvolved reviewer is applied by the server on every ticket. The laboratory's own procedure may be stricter."
+        "The product's default reading of an uninvolved reviewer is applied by the server on every ticket. The laboratory's own procedure may be stricter.",
+        "Opening this form, and drawing it again after a refused save, is recorded with your account and the time (never what the form shows), and supervisors read it on the ticket's Who opened it."
       ],
       "items": [
         {
@@ -114,6 +115,7 @@
     "desk/templates/desk/complaint_review.html",
     "desk/templates/desk/request_detail.html",
     "core/views.py",
-    "docs/product.md"
+    "docs/product.md",
+    "core/access.py"
   ]
 }

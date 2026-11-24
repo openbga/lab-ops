@@ -706,6 +706,21 @@ time,
   white-space: nowrap;
 }
 
+/* A request ID (32 hex digits, core.request_logging) in the body text colour (Bootstrap's code
+   colour is too light on a striped row), breaking anywhere, so a stacked row on a phone keeps it
+   inside its card (Bootstrap's code keeps word-wrap: break-word, which does not shrink). */
+.vr-request-id {
+  color: var(--vr-text);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* A value that can be one long unbroken word (a username) wraps anywhere, so its row fits its
+   card. */
+.vr-break-anywhere {
+  overflow-wrap: anywhere;
+}
+
 code,
 kbd,
 pre,
@@ -5271,7 +5286,8 @@ details.card:not([open]) > summary.card-header {
   .vr-history-item div > a,
   .vr-change-notes > summary,
   .vr-app-foot a,
-  .vr-entrance-row > a {
+  .vr-entrance-row > a,
+  .vr-back-link {
     display: inline-flex;
     align-items: center;
     min-height: var(--vr-touch-target);

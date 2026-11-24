@@ -56,6 +56,11 @@ A supervisor can withdraw a reply or attachment from client view with a reason. 
 answer on a ticket form, use **Edit form details**. Give a reason when replacing or clearing a
 value. A protected answer requires the patient-information grant.
 
+Opening a ticket or its form details, downloading a file and revealing a protected answer are
+each recorded with the person and the time, never what they saw; so is a client portal account
+opening its own ticket. A supervisor reads these records, newest first, under **More**, **Who
+opened it**, and the changes under **Audit history**.
+
 ### 4. Assign, take or move a ticket
 
 Choose **Take it** to assign a ticket to yourself if you belong to its team. **Assign** lists
@@ -99,7 +104,7 @@ From a ticket or organization, add a link, choose its source system and type, th
 source identifier. If clients should see a non-person link, select **Show to client** where
 offered. Web addresses must use HTTPS on the configured system host. For a patient, participant
 or donor link, staff with the explicit grant can enter the source key and a masked label.
-Revealing it records an audit event. Open the source system separately to look up that person.
+Revealing it records an audit event and an access record. Open the source system separately to look up that person.
 
 ### 9. Look up a client or contact
 

@@ -36,7 +36,8 @@
     "Every staff role can read this page. It is for laboratory staff: internal notes and logged contacts appear here and never in the client portal.",
     "Tickets in a restricted category, and everything recorded on them, are left out unless you are a member of the ticket's team or a supervisor.",
     "Choosing a site narrows the feed to that site's tickets, the changes to the site itself and the changes to contacts who serve it. Changes to the organization and to portal access are left out.",
-    "Nothing here can be edited. Recorded history is never rewritten."
+    "Nothing here can be edited. Recorded history is never rewritten.",
+    "Each ticket whose entries a page of the timeline shows is recorded for that ticket's Who opened it, with your account and the time."
   ],
   "sections": [
     {
@@ -96,7 +97,8 @@
       "title": "Who sees what",
       "paragraphs": [
         "Every active staff role can open the timeline of any organization; client portal accounts are refused. Tickets are read the way the service desk reads them for you, so a ticket in a restricted category is absent, with all its entries, for staff who are not members of its team and not supervisors. Changes to the organization, its sites, contacts and portal access are shown to every staff role.",
-        "When nothing has been recorded the page says Nothing recorded yet. When filters match nothing it says Nothing matches these filters."
+        "When nothing has been recorded the page says Nothing recorded yet. When filters match nothing it says Nothing matches these filters.",
+        "Because the timeline shows the start of each entry's text, each page drawn records, once for every ticket whose entries it shows, that you were shown them (Shown on the organization's timeline), with your account and the time and never the text. Supervisors read these records on the ticket's Who opened it. Changes to the organization, its sites, contacts and portal access are not recorded this way."
       ]
     }
   ],
@@ -107,6 +109,7 @@
     "clients/forms.py",
     "clients/templates/clients/client_timeline.html",
     "clients/templates/clients/_timeline_link.html",
-    "docs/workflows.md"
+    "docs/workflows.md",
+    "core/access.py"
   ]
 }

@@ -69,6 +69,7 @@ STAFF_NAV = (
             "desk:complaint-review",
             "desk:entry-withdraw",
             "desk:request-history",
+            "desk:request-access",
             "desk:view-create",
             "desk:view-edit",
             # A complaint's nonconformance, opened from the ticket (optional module).

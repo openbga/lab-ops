@@ -17,7 +17,11 @@ from urllib.parse import quote
 from django import template
 from django.urls import reverse
 
+from core import access
+from core.models import AccessKind
+
 from ..forms import NOT_KNOWN
+from ..models import FieldValue
 from ..selectors import (
     client_values,
     is_portal_account,
@@ -64,6 +68,17 @@ def request_form_details(context, service_request, embedded=False):
         return {"details": None}
     staff = not is_portal_account(user)
     details = (staff_values if staff else client_values)(service_request, user)
+    if details is not None and not staff:
+        # Each patient-marked answer a portal account is shown is recorded (core.access). Staff
+        # are never shown one here: they reveal it, which records it (request_views.reveal_value).
+        for row in details.rows:
+            if row.patient:
+                access.note(
+                    context["request"],
+                    AccessKind.PATIENT_ANSWER,
+                    ticket_id=service_request.pk,
+                    target=FieldValue(pk=row.value_id),
+                )
     again_url = ""
     if details is not None and not staff:
         key = (

@@ -1,7 +1,8 @@
 """Staff fill or correct the values of a request's form (F4). Any staff role, on an open request it
 may read (desk.selectors.staff_requests, checked again before drawing; anything else answers
 404; a closed request's values are frozen). Patient-information fields are
-offered only with `view_patient_information`; request_forms.services checks it all again."""
+offered only with `view_patient_information`; request_forms.services checks it all again. Opening
+the Form details page and each reveal are recorded as access records (core.access)."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -16,7 +17,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.acting import hold_actor
 from accounts.roles import require_staff
-from core import reveal_confirmation, reveal_confirmation_views
+from core import access, reveal_confirmation, reveal_confirmation_views
+from core.models import AccessKind
 from desk.models import ServiceRequest, Status
 from desk.selectors import staff_requests
 
@@ -132,7 +134,7 @@ def edit_values(request, number):
     )
     if details is None:
         raise Http404("No such ticket.")
-    return render(
+    response = render(
         request,
         "request_forms/edit_values.html",
         {
@@ -151,6 +153,8 @@ def edit_values(request, number):
             "crumbs": [(number, back), ("Form details", None)],
         },
     )
+    access.note(request, AccessKind.FORM_DETAILS, ticket_id=service_request.pk)
+    return response
 
 
 @never_cache
@@ -172,6 +176,9 @@ def reveal_value(request, pk):
     except FieldValue.DoesNotExist:
         raise Http404("No such value.") from None
     service_request = row.filled_form.request
+    # Recorded besides its change event (request_forms.services.reveal_value): the access records
+    # list every patient-marked answer shown, to staff and to portal accounts alike.
+    access.note(request, AccessKind.PATIENT_ANSWER, ticket_id=service_request.pk, target=row)
     context = {
         "row": row,
         "lines": kinds.display(row.kind, row.value),

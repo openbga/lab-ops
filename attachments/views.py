@@ -3,7 +3,8 @@
 The download is served as an attachment with a generated name, the type decided at upload, no
 sniffing, no caching and a sandboxing content policy, so a browser never renders it in the
 application's origin. Authorization is `services.readable_attachment`: out of scope is a 404 for
-every audience, including a portal account guessing the id of a file on an internal note.
+every audience, including a portal account guessing the id of a file on an internal note. Each
+download is recorded as an access record (core.access), never with the file's name or content.
 """
 
 from django.contrib import messages
@@ -15,6 +16,8 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
 from accounts.roles import require_staff
+from core import access
+from core.models import AccessKind
 from desk.permissions import is_supervisor
 from desk.selectors import staff_requests
 
@@ -38,6 +41,7 @@ def download(request, pk):
         data = file_bytes(attachment)
     except ObjectDoesNotExist as error:
         raise Http404 from error
+    access.note(request, AccessKind.FILE, ticket_id=attachment.request_id, target=attachment)
     response = HttpResponse(bytes(data), content_type=attachment.content_type)
     response["Content-Disposition"] = f'attachment; filename="{attachment.download_name}"'
     response["Content-Length"] = str(attachment.size)

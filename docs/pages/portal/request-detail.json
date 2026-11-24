@@ -192,7 +192,8 @@
     {
       "title": "Access",
       "paragraphs": [
-        "Only an active client portal account can open this page, and only for a ticket it may see: one it raised, or one of its organization's or its sites' tickets when the laboratory gave it that access. A ticket in a restricted category is seen only by the account that raised it. Any other ticket number answers as not found. The page never shows internal notes, logged contacts, who is assigned, priorities, service clocks, complaint records or patient links. Sending a reply is a POST-only action of this page and has no page of its own. Your account is checked again as the page is read: an account deactivated, or moved to another organization, while the page opens is refused."
+        "Only an active client portal account can open this page, and only for a ticket it may see: one it raised, or one of its organization's or its sites' tickets when the laboratory gave it that access. A ticket in a restricted category is seen only by the account that raised it. Any other ticket number answers as not found. The page never shows internal notes, logged contacts, who is assigned, priorities, service clocks, complaint records or patient links. Sending a reply is a POST-only action of this page and has no page of its own. Your account is checked again as the page is read: an account deactivated, or moved to another organization, while the page opens is refused.",
+        "The laboratory keeps a record each time you open one of your tickets, download one of its files or are shown one of its answers marked as patient information, with the time and your account, never what you saw. Its supervisors can read these records."
       ]
     }
   ],
@@ -215,6 +216,7 @@
     "desk/tests/test_decisions_read_before_a_wait.py",
     "accounts/kept.py",
     "static/js/kept-typing.js",
-    "templates/includes/kept_typing.html"
+    "templates/includes/kept_typing.html",
+    "core/access.py"
   ]
 }

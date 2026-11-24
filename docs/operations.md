@@ -65,7 +65,8 @@ supply an isolated restored database.
    union all select 'tickets', count(*) from desk_servicerequest
    union all select 'entries', count(*) from desk_requestentry
    union all select 'attachments', count(*) from attachments_attachment
-   union all select 'audit events', count(*) from core_auditevent;
+   union all select 'audit events', count(*) from core_auditevent
+   union all select 'access records', count(*) from core_accessrecord;
    ```
 3. Check stored files and logos. Both queries should return zero.
 
@@ -145,6 +146,34 @@ without either, every entry shows the proxy's address. The sign-in log gains one
 whose session starts ended because its account was deactivated while it was under way is logged
 as `signout.deactivated` once that commits (a refusal before any session starts adds no line);
 its other lines are unchanged.
+
+## Access records
+
+The `core` migration 0009 adds the table `core_accessrecord`, a trigger that refuses to change or
+delete a row, and the column `core_auditevent.request_ref` with a database default, so a release
+still running during the upgrade keeps recording change events (without a request ID). A process
+of the new release records the reads it serves from the moment the migration has applied; a process
+of the earlier release, while it still serves requests, records none, so the records are complete
+from the moment no earlier process serves traffic. Change events recorded before the upgrade keep a
+blank request ID.
+
+An access record is written for each ticket page, audit history, Who opened it, Form details or
+complaint form page drawn, each file downloaded, each patient-marked answer or person-level key
+shown and each new ticket opened with Request again, so the table grows by about one row per such
+page view, plus one for each patient-marked answer a portal ticket page shows, plus one for each
+ticket whose entries a client organization's timeline page shows (up to 25 for a page). It holds
+account and ticket ids, two short codes, the file, answer or link id and the request ID, never
+content. Records are kept with no retention period and no setting to remove them; accounts and
+tickets are never deleted by the application, and a record of an account deleted by other means
+stays under its id. If a record cannot be written (the database refuses the insert), the page is
+not sent and the request fails with a server error, logged by `lab_ops.request` with its request
+ID. Reversing migration 0009 deletes every access record and every change event's request ID.
+
+This release sends no Django error report: `config/logging.py` replaces Django's handlers,
+including the one that mails `ADMINS`, and with `DEBUG` off the error page shows nothing of the
+request. A deployment that adds a mail handler or another reporter of Django's error report gets
+the request's posted values, the names of uploaded files and the variables of the code that failed,
+which can include ticket text; do not add one where tickets can hold patient information.
 
 ## Sign-in limits behind a proxy
 
@@ -233,7 +262,9 @@ noticed by migration `service_levels.0003`, so the first run does not notify old
 ## Logs
 
 `lab_ops.request` records the generated request ID, HTTP method, matched route, status
-and duration. Use the `X-Request-ID` response header to correlate an error.
+and duration. Use the `X-Request-ID` response header to correlate an error. Change events
+(`core_auditevent.request_ref`) and access records (`core_accessrecord.request_ref`) keep the same
+ID, so a log line can be matched with what that request changed or read.
 `lab_ops.signin` records sign-ins, failures, explicit sign-outs and sessions ended by the session
 limits (`signout.inactivity`, `signout.maximum`), a deactivation (`signout.deactivated`), a new
 password (`signout.new_password`), the person from another of their sessions
@@ -268,7 +299,7 @@ permissions, organization and site access. It publishes credentials only when it
 that the demonstration was initialized from an empty database.
 
 For a scheduled reset, set `ALLOW_DEMO_RESET=true` **only on the demonstration reset job**.
-The reset erases application records, including sessions, sign-in history and audit history, and reseeds in
+The reset erases application records, including sessions, sign-in history, audit history and access records, and reseeds in
 one transaction. It requires an empty or sealed demonstration database and matching
 migrations. A laboratory initialized with `setup_lab` is ineligible.
 
