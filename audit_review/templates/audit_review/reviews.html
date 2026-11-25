@@ -35,14 +35,14 @@ Review with note_count), total, export_url, export_limit, exportable. Showing a 
         <th scope="col">Period covered</th>
         <th scope="col">Outcome</th>
         <th scope="col">Signed by</th>
-        <th scope="col" data-vr-col-priority="low">Signed</th>
-        <th scope="col" class="vr-number" data-vr-col-priority="low">Notes</th>
+        <th scope="col">Signed</th>
+        <th scope="col" class="vr-number">Notes</th>
       </tr></thead>
       <tbody>
         {% for review in page_obj %}
         <tr>
           <th scope="row"><a class="vr-row-link vr-id" href="{% url 'audit_review:review' review.pk %}">{{ review.number }}</a></th>
-          <td class="vr-nowrap"><time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"Y-m-d" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"Y-m-d" }}</time></td>
+          <td class="vr-wrap"><span><time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"Y-m-d" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"Y-m-d" }}</time></span></td>
           <td class="vr-wrap">{% if review.outcome == "follow_up" %}{% status label=review.get_outcome_display tone="warning" plain=True %}{% else %}{{ review.get_outcome_display }}{% endif %}</td>
           <td class="vr-wrap"><span class="vr-break-anywhere">{{ review.signer_name }}<span class="d-block vr-muted small">{{ review.signer_roles }}</span></span></td>
           <td class="vr-nowrap"><time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"Y-m-d H:i" }}</time></td>

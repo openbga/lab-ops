@@ -167,6 +167,6 @@ class IntervalForm(StyledForm, forms.Form):
         label="Reason",
         max_length=reviews.TEXT_LIMIT,
         widget=forms.Textarea(attrs={"rows": 2}),
-        help_text="Kept with the change in the history below and under Changes.",
+        help_text="Kept with the change in Changes to the interval and under Changes.",
     )
     expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
