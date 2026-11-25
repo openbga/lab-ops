@@ -13,7 +13,7 @@ and it is not added where an account already has its name or address. Synthetic 
 from datetime import datetime, time, timedelta
 
 from django.contrib.auth.models import Group
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -63,13 +63,27 @@ def _unused(reviewer):
             expected_revision=0,
             reason="Demonstration: accounts nobody has used for about three months are reviewed.",
         )
-    # An account already using its name or its address is left as it is, and none is added.
+    # An account already using its name or its address is left as it is, and none is added. One
+    # saved with the same name or address while the seed runs makes the insert fail: the example is
+    # then left out (its savepoint rolled back), and the seed goes on. Known limit: one saved
+    # meanwhile under the same address in other letter case is not seen (the address is unique as
+    # typed), as for the other demonstration accounts.
     taken = Q(username__iexact=UNUSED_USERNAME) | Q(email__iexact=UNUSED_EMAIL)
     if User.objects.filter(taken).exists():
         return
+    # Recorded as given by the demonstration's administrator: without one, no example is added.
+    admin = User.objects.filter(username="demo_admin").first()
+    if admin is None:
+        return
     now = timezone.now()
     created, signed_in = now - timedelta(days=200), now - timedelta(days=120)
-    admin = User.objects.get(username="demo_admin")
+    try:
+        _add_unused(admin, created, signed_in)
+    except IntegrityError:
+        return
+
+
+def _add_unused(admin, created, signed_in):
     with transaction.atomic(), happened_at(created):
         account = User(
             username=UNUSED_USERNAME,

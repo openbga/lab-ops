@@ -74,8 +74,8 @@ INTROS = {
     Source.ACCESS: "Every sensitive read: a ticket, its history or form details opened, a file "
     "downloaded, a patient-marked answer or a person-level key shown.",
     Source.SIGN_INS: "Every account's sign-ins, sign-outs and failed or refused attempts.",
-    Source.USES: "Each page of this workspace and of Access review shown and each export, with its "
-    "filters.",
+    Source.USES: "Each page of this workspace's lists and of the Access review lists shown, each "
+    "review opened and each export, with its filters.",
 }
 # Parameters that are not filters: they never make a chip or a use's filters.
 NOT_FILTERS = ("page", "upto")

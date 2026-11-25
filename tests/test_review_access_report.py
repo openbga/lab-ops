@@ -138,7 +138,7 @@ def test_removing_the_role_after_the_form_opens_refuses_the_submission(reviewer)
 
 
 @pytest.mark.django_db
-def test_opening_the_period_page_records_one_workspace_use(reviewer):
+def test_opening_the_period_page_records_no_workspace_use(reviewer):
     # Adapted in round 1 (finding M4, resolved by documentation): the period's form, like the
     # Reviews tab's forms, records no use; the view's docstring now says only the two lists'
     # pages and exports are recorded. The form shows the period and its changes, which Changes

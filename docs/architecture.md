@@ -240,16 +240,27 @@ Who gave a role, capability or admin console access comes from `AuditEvent`, rea
 `(occurred_at, id)` (`grant_history`). Account events `account.created`, `account.updated`,
 `setup.account_created` and `setup.account_roles_added` carry `groups`, `permissions` and the
 `is_active`, `is_staff` and `is_superuser` flags before and after; the seed's
-`account.capability_granted` names one capability; group events `group.created`, `group.updated`
-and `setup.group_created` carry a group's permissions, and a `group.updated` that changes `name`
-moves recorded memberships to the new name; a group created on its page or renamed with a name
-drops the memberships recorded under it before (names are unique, so they were of another group;
-`setup_lab` records its new administrator just before the role groups it creates, so its
-`setup.group_created` drops none). The account
-page reads the role names it records `FOR SHARE` as it records the change, and the role group page
-holds the group's row before reading its values for the audit, so a rename or a second save waits
-and the history names each grant in the order it was made. For each item held now the latest
-event that gave it, not taken away since, is shown; otherwise "Not in the change history". A
+`account.capability_granted` names one capability; group events `group.created`, `group.updated` and
+`setup.group_created` carry a group's permissions and name. Each recorded membership is kept with
+the group its name belonged to when it was recorded (`_Membership`), by the recorded creations and
+renames of groups: a `group.updated` that changes `name` moves the group's memberships to the new
+name; a group created (on its page or by `setup_lab`) or renamed with a name drops the memberships
+recorded under it for another group, or for none known (names are unique); `setup_lab` records the
+account it creates, with its roles, just before the role groups it creates with it, so within one
+run (consecutive `setup.*` events of one actor, at most five seconds apart) the groups are read
+first. A membership is credited only to the group it was recorded for, or, where no recorded change
+had named a group so, to the group with that name now; so a group removed and replaced outside the
+admin console under the same name, with no recorded creation, can still be credited with the removed
+group's membership. Every writer of an account's roles (the account page when the save changes
+roles, the add-account page, `setup_lab`) names them from `accounts.setup.held_role_names`, which
+reads them `FOR SHARE` as the change is recorded, and the role group page holds the group's row
+before reading its values for the audit, so a rename or a second save waits and the history names
+each grant in the order it was made. Known limit, which predates Access review: when the role group
+page takes a capability away, it reads the members whose access gates it takes before it holds the
+group's row, so a member who joins, or a grant made, in between is gated only by the removal's own
+signal (`accounts.acting`), after the row; were that member's roles being changed at the same
+moment, PostgreSQL would refuse one of the two saves as a deadlock. For each item held now the
+latest event that gave it, not taken away since, is shown; otherwise "Not in the change history". A
 capability through a group names both the grant to the group and the account's membership. Actor
 names are read as they stand now. `seed_demo` records an `account.created` event (actor
 `demo_admin`, the account's snapshot without its email address: `accounts.setup.seed_snapshot`) for
@@ -262,9 +273,9 @@ period is `UnusedPeriod`, one row (`id = 1`, days null or 1 to 366, both checked
 written the first time it is saved, never by a migration. `set_period` holds the acting account,
 takes `PERIOD_LOCK` (`pg_advisory_xact_lock(19565, 0)`), refuses a `revision` other than the one the
 form showed, and records `access_review.unused_period_changed` with a reason; the form's own reading
-takes the same lock shared. Pages and exports are `WorkspaceUse` rows of the sources `accounts` and
-`unused`, which audit_review migration 0004 adds to the allowed values (the check constraint is
-dropped and recreated, no row rewritten) along with the `UnusedPeriod` table.
+takes the same lock shared. The two lists' pages and exports are `WorkspaceUse` rows of the sources
+`accounts` and `unused`, which audit_review migration 0004 adds to the allowed values (the check
+constraint is dropped and recreated, no row rewritten) along with the `UnusedPeriod` table.
 [Access review](../audit_review/access_report.py)
 
 ## Security settings

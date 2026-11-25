@@ -32,9 +32,9 @@ class UseKind(models.TextChoices):
 
 class WorkspaceUse(models.Model):
     """One use of the audit review workspace or of Access review: a page of one of its lists shown,
-    or a list exported (audit_review.views, audit_review.access_views). Who, when, which list, the
-    filters as the form accepted them (ids, codes and dates, never text as typed), how many rows
-    matched and the request ID.
+    a review opened, or a list exported (audit_review.views, review_views, access_views). Who,
+    when, which list, the filters as the form accepted them (ids, codes and dates, never text as
+    typed), how many rows matched and the request ID.
 
     History: the database refuses to change or delete a row (migration 0001); reset_demo empties
     the table with TRUNCATE, which row triggers do not see. Written with the answer it is about

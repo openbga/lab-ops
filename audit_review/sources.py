@@ -570,7 +570,7 @@ def describe_filters(use, people, tickets, clients, calendars=None, reviews=None
         days = filters.get("days")
         shown = ""
         if days:
-            shown = "; no period set" if days == "none" else f"; unused after {days} days"
+            shown = "; no period set" if days == "none" else f"; unused after {_days(days)}"
         return f"A filter was not accepted: nothing listed{shown}"
 
     def calendar_name(value):
@@ -647,5 +647,9 @@ def _access_filters(filters, teams):
         found = teams.get(int(team)) if str(team).isdigit() else None
         parts.append(f"Team: {found.name if found else f'Team {team}'}")
     if days := filters.get("days"):
-        parts.append("No period set" if days == "none" else f"Unused after {days} days")
+        parts.append("No period set" if days == "none" else f"Unused after {_days(days)}")
     return parts
+
+
+def _days(days):
+    return f"{days} day" if str(days) == "1" else f"{days} days"

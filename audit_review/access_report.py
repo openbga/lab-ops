@@ -17,12 +17,14 @@ record an account's roles, capability grants and flags before and after each cha
 the role group's page records the capabilities granted to the group. For each one held now, the
 latest recorded change that gave it is shown; none is shown ("Not in the change history") when no
 recorded change gave it, or a later recorded change took it away (it was given again by a path that
-records nothing, such as the database directly). The history names roles by name: a group renamed
-on its own page is followed through its recorded renames, and a membership recorded under a name
-before a group was created or renamed with that name is not that group's (group names are unique,
-so it was of a group since removed or renamed with no recorded change; setup_lab's creation of the
-role groups is not counted: it records its new administrator, with its roles, just before them). A
-deactivated account
+records nothing, such as the database directly). The history names roles by name. Each recorded
+membership is kept with the group its name belonged to when it was recorded, by the recorded
+creations and renames of groups: a group renamed on its own page is followed through its recorded
+renames, and a membership is credited only to the group it was recorded for (or, where no recorded
+change had named a group so, to the group that has the name now). Group names are unique, so a
+membership recorded under a name before a group was created, or renamed, with that name is not that
+group's. setup_lab records the account it creates, with its roles, just before the role groups it
+creates with it; within one run the groups are read first. A deactivated account
 shows the recorded change that deactivated it. Names of the people who made a change are read as
 they stand now.
 
@@ -32,8 +34,8 @@ accepted sign-in) is older than that many days, or it never signed in and was cr
 No period ships: until a reviewer sets one, nothing is listed. The period is changed with a reason,
 under its own lock, against the revision the form showed, with an audit event (set_period).
 
-Nothing here shows a password, a second factor's secret or codes, an email address, or anything of
-a ticket.
+Nothing here shows a password, a second factor's secret or codes, an account's email address, or
+anything of a ticket; a username is shown as it was chosen, even where it is an address.
 """
 
 from dataclasses import dataclass, field
@@ -358,9 +360,20 @@ def _given(event):
     return Given(person_name(actor), actor.username, event.occurred_at)
 
 
+@dataclass(frozen=True)
+class _Membership:
+    """A recorded membership of a group, by the group's name, and the group that name belonged to
+    when it was recorded, by the recorded creations and renames of groups (None when no recorded
+    change had named a group so)."""
+
+    given: Given
+    group: int | None
+
+
 @dataclass
 class _Tracked:
-    """What the recorded changes of one account (or group) gave and did not take away since."""
+    """What the recorded changes of one account (or group) gave and did not take away since: its
+    groups (name: _Membership), permissions and flags (name: Given)."""
 
     groups: dict = field(default_factory=dict)
     permissions: dict = field(default_factory=dict)
@@ -368,7 +381,9 @@ class _Tracked:
     deactivated: Given | None = None
 
 
-def _apply(tracked, event):
+def _apply(tracked, event, owners):
+    """Apply one recorded change; `owners` maps each name to the group it belongs to now, by the
+    recorded creations and renames of groups."""
     for key in ("groups", "permissions"):
         changes = _set_changes(event, key)
         if changes is None:
@@ -378,7 +393,10 @@ def _apply(tracked, event):
         for name in taken:
             held.pop(name, None)
         for name in given:
-            held[name] = _given(event)
+            if key == "groups":
+                held[name] = _Membership(_given(event), owners.get(name))
+            else:
+                held[name] = _given(event)
     for flag in ("is_active", "is_staff", "is_superuser"):
         turned = _flag_change(event, flag)
         if turned is None:
@@ -392,21 +410,76 @@ def _apply(tracked, event):
 
 
 def _naming(event):
-    """(old name or None, new name) when a recorded change of a group gave a group its name (it
-    created the group on its page, or renamed it), else None."""
+    """(old name or None, new name) when a recorded change of a group gave it its name (it created
+    the group, on its page or in setup_lab, or renamed it), else None."""
     before, after = event.before or {}, event.after or {}
     new = after.get("name")
     if not isinstance(new, str):
         return None
-    if event.action == "group.created" and not before:
-        # A group created on its page, in a transaction of its own before any account can be given
-        # it. Not setup_lab's: it records the account it creates before the role groups it
-        # creates with it (accounts.setup), so that account's roles would be dropped.
+    if event.action in CREATED and not before:
         return None, new
     old = before.get("name")
     if event.action == "group.updated" and isinstance(old, str) and old != new:
         return old, new
     return None
+
+
+def _named(accounts_tracked, owners, group_id, old, new):
+    """A recorded change gave group `group_id` the name `new` (from `old`, when renamed). Names are
+    unique, so a membership recorded under `new` before was of another group, and is dropped. A
+    membership recorded under `old` for this group, or for no known group, is this group's and
+    moves to `new`; one recorded for another group is not, and is dropped."""
+    for tracked in accounts_tracked.values():
+        entry = tracked.groups.get(new)
+        if entry is not None and entry.group != group_id:
+            del tracked.groups[new]
+        if old is not None and old in tracked.groups:
+            moved = tracked.groups.pop(old)
+            if moved.group in (None, group_id):
+                tracked.groups[new] = _Membership(moved.given, group_id)
+    if old is not None and owners.get(old) == group_id:
+        del owners[old]
+    owners[new] = group_id
+
+
+# The events one run of setup_lab records, all at its end (accounts.setup), are at most this far
+# apart.
+SETUP_RUN = timedelta(seconds=5)
+
+
+def _setup_runs_first(events):
+    """`events` in order, but within one run of setup_lab (consecutive setup events of one actor,
+    at most SETUP_RUN apart) the role groups it created first: setup records the account it creates,
+    with its roles, just before the groups, though the groups were created first."""
+    ordered, block = [], []
+
+    def flush():
+        ordered.extend(e for e in block if e.object_type == GROUP_OBJECT)
+        ordered.extend(e for e in block if e.object_type != GROUP_OBJECT)
+        block.clear()
+
+    for event in events:
+        in_run = (
+            block
+            and event.action.startswith("setup.")
+            and event.actor_id == block[0].actor_id
+            and event.occurred_at - block[0].occurred_at <= SETUP_RUN
+        )
+        if not in_run:
+            flush()
+        if event.action.startswith("setup."):
+            block.append(event)
+        else:
+            ordered.append(event)
+    flush()
+    return ordered
+
+
+def recorded_membership(tracked, name, group_id):
+    """Who gave the account's membership of group `group_id`, named `name` now: the recorded
+    membership under that name, if it was of this group or of no known group, else None."""
+    entry = tracked.groups.get(name)
+    return entry.given if entry is not None and entry.group in (None, group_id) else None
 
 
 def grant_history(account_ids, group_ids):
@@ -426,23 +499,17 @@ def grant_history(account_ids, group_ids):
         .select_related("actor")
         .order_by("occurred_at", "id")
     )
-    for event in events:
+    owners = {}
+    for event in _setup_runs_first(list(events)):
         if event.object_type == GROUP_OBJECT:
-            named = _naming(event)
-            if named is not None:
-                old, new = named
-                for tracked in accounts_tracked.values():
-                    # Group names are unique: a name a group is given now names no other group, so
-                    # a membership recorded under it before was of a group since removed or
-                    # renamed with no recorded change, and is not this group's.
-                    tracked.groups.pop(new, None)
-                    if old is not None and old in tracked.groups:
-                        tracked.groups[new] = tracked.groups.pop(old)
             group_id = int(event.object_id) if event.object_id.isdigit() else None
+            named = _naming(event)
+            if named is not None and group_id is not None:
+                _named(accounts_tracked, owners, group_id, *named)
             if group_id in groups_tracked:
-                _apply(groups_tracked[group_id], event)
+                _apply(groups_tracked[group_id], event, owners)
             continue
-        _apply(accounts_tracked[by_account[event.object_id]], event)
+        _apply(accounts_tracked[by_account[event.object_id]], event, owners)
     return accounts_tracked, groups_tracked
 
 
@@ -547,10 +614,10 @@ def _describe(accounts_list, history):
         mine = tracked.get(account.pk, _Tracked())
         held = sorted(memberships.get(account.pk, ()), key=_group_order)
         role_items = [
-            _given_item(_role_label(name), mine.groups.get(name))
+            _given_item(_role_label(name), recorded_membership(mine, name, group_id))
             if history
             else Item(_role_label(name))
-            for _group_id, name in held
+            for group_id, name in held
             if name in ROLES
         ]
         capability_items = []
@@ -570,7 +637,7 @@ def _describe(accounts_list, history):
                 to_group = tracked_groups.get(group_id, _Tracked()).permissions.get(
                     f"accounts.{codename}"
                 )
-                member = mine.groups.get(name)
+                member = recorded_membership(mine, name, group_id)
                 whose = "role" if name in ROLES else "group"
                 parts = [
                     how,
