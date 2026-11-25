@@ -251,8 +251,9 @@
   document.addEventListener("DOMContentLoaded", function () { markLowPriorityColumns(document); });
   document.addEventListener("htmx:load", function (event) { markLowPriorityColumns(event.detail.elt); });
 
-  // Phones show each table row as a stacked card (app.css, "Stacked rows"): every body cell
-  // carries its column's header text in data-vr-label, which the card prints before the value.
+  // Phones show each table row as a stacked card (app.css, "Stacked rows"): every body and totals
+  // (tfoot) cell carries its column's header text in data-vr-label, which the card prints before
+  // the value.
   // Runs before grid.js, so the label travels with the cell when columns are hidden or reordered.
   // A header with no visible text (an actions column) gives no label. Tables marked
   // .vr-table-scroll (entry grids, genuinely wide data) keep sideways scrolling instead.
@@ -275,7 +276,7 @@
           labels.push(span === 0 ? text : "");
         }
       });
-      Array.from(table.tBodies).forEach(function (section) {
+      Array.from(table.tBodies).concat(table.tFoot ? [table.tFoot] : []).forEach(function (section) {
         Array.from(section.rows).forEach(function (row) {
           var column = 0;
           Array.from(row.cells).forEach(function (cell) {

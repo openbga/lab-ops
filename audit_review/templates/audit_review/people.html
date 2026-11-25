@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+The People tab of the audit review workspace (audit_review.views.people_page), for holders of "Can
+review access and audit records": over a period, each account's sign-ins, failed or refused
+sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many
+of those fell outside a business calendar's hours (audit_review.people). Read-only. Each count opens
+the list holding the rows it counted; every page is drawn as of the moment the first was (the
+links carry upto_changes, upto_access and upto_sign_ins). Context: measures (people.Measure),
+outside_label, summary (people.Summary, or None when a filter is invalid), period (date_from,
+date_to, calendar name, outside_only), sort, page_obj (a Page of people.Person with cells, or []),
+filter_form (audit_review.forms.PeopleFilter), active_filters, export_url, total, grid and the
+toolbar context. Showing a page is recorded (WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">{% if period %}{% if period.outside_only %}Activity outside the hours of the business calendar “{{ period.calendar }}”{% else %}Activity{% endif %} from <time datetime="{{ period.date_from|date:'Y-m-d' }}">{{ period.date_from|date:"j F Y" }}</time> to <time datetime="{{ period.date_to|date:'Y-m-d' }}">{{ period.date_to|date:"j F Y" }}</time>, counted by person{% if period.default %}: the last 30 days unless you set From or To{% endif %}.{% if period.calendar and not period.outside_only %} Outside business hours are those of the business calendar “{{ period.calendar }}”.{% endif %}{% else %}Activity over a period, counted by person.{% endif %}</p>{% endblock %}
+{% block page_actions %}{% if total %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endif %}{% endblock %}
+{% block content %}
+{% section_tabs "audit-review" %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {% grid_toolbar label="Filter people" no_search=True invalid=filter_form.errors chips=active_filters grid=grid sort=sort %}
+  {% list_results items=page_obj noun="people" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is counted until every filter is valid." no_results_title="Nothing matches these filters" no_results_body="Nobody did anything counted here in this period. Widen the dates or clear a filter." empty_title="Nothing recorded in this period" empty_body="People appear here once they sign in, open a ticket or make a change in the period." %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" data-vr-grid="{{ grid }}" data-vr-grid-version="1" aria-label="{{ page_title }}">
+      <thead><tr>
+        {% sort_header label="Person" asc="person" desc="-person" sort=sort col="person" locked=True %}
+        {% for measure in measures %}{% sort_header label=measure.label asc=measure.key desc="-"|add:measure.key first="desc" sort=sort col=measure.key|slugify class="vr-number" %}{% endfor %}
+        {% if summary.judged %}{% sort_header label=outside_label asc="outside" desc="-outside" first="desc" sort=sort col="outside" class="vr-number" %}{% endif %}
+      </tr></thead>
+      <tbody>
+        {% for person in page_obj %}
+        <tr>
+          <th scope="row" class="vr-wrap"><span class="vr-break-anywhere">{{ person.name }}<span class="d-block vr-muted small">{{ person.username }}</span>{% if person.organization %}<span class="d-block vr-muted small">{{ person.organization }}</span>{% endif %}</span></th>
+          {% for cell in person.cells %}
+          <td class="vr-number">{% if cell.url %}<a href="{{ cell.url }}" aria-label="{{ cell.value }} {{ cell.label|lower }} by {{ person.name }}: open the list">{{ cell.value }}</a>{% elif cell.value %}{{ cell.value }}{% else %}<span class="vr-muted">0</span>{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if summary %}<tfoot><tr>
+        <th scope="row">Everyone listed</th>
+        {% for value in summary.measure_totals %}<td class="vr-number"><strong>{{ value }}</strong></td>{% endfor %}
+        {% if summary.judged %}<td class="vr-number"><strong>{{ summary.totals.outside }}</strong></td>{% endif %}
+      </tr></tfoot>{% endif %}
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="people" filtered=active_filters fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">Counts are drawn as they stood when the first page opened, with its period and business calendar, though a record still being saved at that moment, or a change saved while it was drawn or by a server whose clock runs behind or ahead of this one's, can be counted on a later page; a count opens the list of the rows it counted. Business hours are read as the calendar stands now, holidays closed, and a client organization's accounts as they stand now. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

@@ -5,6 +5,8 @@ reads (core.models.AccessRecord), Sign-ins each account's sign-in history (accou
 SignInEvent) and Workspace use this workspace's own record of its use (audit_review.models.
 WorkspaceUse). Each is filtered by the fields that apply to it (audit_review.forms), newest first,
 and every page and export of one reading is drawn as of the moment its first page was (`upto`).
+The People tab (audit_review.people) counts the same records by person, and each of its counts
+opens the list filtered to the rows it counted.
 
 A row says who did what to which record and when, and never what was shown or changed: no snapshot
 of a change, no reason, text, value, file name or key, as the ticket's own pages keep them. Names
@@ -34,8 +36,9 @@ from desk import opened
 from desk.models import ComplaintReview, RequestEntry, ServiceRequest
 from links.models import LinkAttachment
 from request_forms.models import FilledForm
-from service_levels.models import RequestClock
+from service_levels.models import BusinessCalendar, RequestClock
 
+from . import hours
 from .models import Source, UseKind, WorkspaceUse
 
 PAGE_SIZE = 50
@@ -102,10 +105,50 @@ COLUMNS = {
 
 # Which filters each list has (audit_review.forms.ReviewFilter).
 FILTERS = {
-    Source.CHANGES: ("person", "organization", "action", "ticket", "date_from", "date_to"),
-    Source.ACCESS: ("person", "organization", "action", "ticket", "date_from", "date_to"),
-    Source.SIGN_INS: ("person", "organization", "action", "date_from", "date_to"),
+    Source.CHANGES: (
+        "person",
+        "organization",
+        "action",
+        "ticket",
+        "outside_hours",
+        "date_from",
+        "date_to",
+    ),
+    Source.ACCESS: (
+        "person",
+        "organization",
+        "action",
+        "ticket",
+        "outside_hours",
+        "date_from",
+        "date_to",
+    ),
+    Source.SIGN_INS: ("person", "organization", "action", "outside_hours", "date_from", "date_to"),
     Source.USES: ("person", "action", "date_from", "date_to"),
+}
+
+# Choices of the Event and What filters that stand for several kinds at once: what the People tab
+# (audit_review.people) counts in one column. Their codes are not kinds.
+FAILED_ATTEMPTS = "failed_or_refused"
+PATIENT_INFORMATION = "patient_information"
+GROUPS = {
+    Source.SIGN_INS: {
+        FAILED_ATTEMPTS: (
+            "Any failed or refused attempt",
+            (
+                SignInEvent.Kind.REFUSED,
+                SignInEvent.Kind.FAILED,
+                SignInEvent.Kind.LOCKED_OUT,
+                SignInEvent.Kind.REAUTHENTICATION_FAILED,
+            ),
+        ),
+    },
+    Source.ACCESS: {
+        PATIENT_INFORMATION: (
+            "Any patient information shown",
+            (AccessKind.PATIENT_ANSWER, AccessKind.PERSON_KEY),
+        ),
+    },
 }
 
 MODELS = {
@@ -125,11 +168,13 @@ ACCOUNT = {
 
 
 def action_choices(source):
-    """The Action filter's choices for `source`. For Changes, the actions recorded so far."""
+    """The Action filter's choices for `source`. For Changes, the actions recorded so far. For
+    Access records and Sign-ins, each kind, then the choices that stand for several (GROUPS)."""
+    groups = [(code, label) for code, (label, _kinds) in GROUPS.get(source, {}).items()]
     if source == Source.ACCESS:
-        return list(AccessKind.choices)
+        return [*AccessKind.choices, *groups]
     if source == Source.SIGN_INS:
-        return list(SignInEvent.Kind.choices)
+        return [*SignInEvent.Kind.choices, *groups]
     if source == Source.USES:
         return list(UseKind.choices)
     codes = AuditEvent.objects.order_by("action").values_list("action", flat=True).distinct()
@@ -152,7 +197,8 @@ def newest(source):
 
 
 def to_marker(moment):
-    return int((moment - datetime(1970, 1, 1, tzinfo=UTC)) / timedelta(microseconds=1))
+    # Whole microseconds, exactly, however far from 1970 (no floating point).
+    return (moment - datetime(1970, 1, 1, tzinfo=UTC)) // timedelta(microseconds=1)
 
 
 def from_marker(marker):
@@ -170,11 +216,18 @@ def rows_for(source, cleaned, upto):
     if person := cleaned.get("person"):
         records = records.filter(**{ACCOUNT[source]: person.pk})
     if action := cleaned.get("action"):
-        records = records.filter(**{_ACTION_FIELD[source]: action})
+        if group := GROUPS.get(source, {}).get(action):
+            records = records.filter(**{f"{_ACTION_FIELD[source]}__in": group[1]})
+        else:
+            records = records.filter(**{_ACTION_FIELD[source]: action})
     if start := cleaned.get("date_from"):
         records = records.filter(occurred_at__gte=_day_start(start))
     if (end := cleaned.get("date_to")) and end < date.max:  # date.max: no later day to stop at
         records = records.filter(occurred_at__lt=_day_start(end + timedelta(days=1)))
+    if calendar := cleaned.get("outside_hours"):
+        # The form accepts it only with both dates (audit_review.forms.ReviewFilter).
+        opening = hours.open_hours(calendar, cleaned["date_from"], cleaned["date_to"])
+        records = records.alias(outside=hours.Outside("occurred_at", opening)).filter(outside=True)
     ticket = cleaned.get("ticket")
     organization = cleaned.get("organization")
     if source == Source.CHANGES:
@@ -459,12 +512,20 @@ def _uses(uses, accounts):
             if str(use.filters.get("organization", "")).isdigit()
         }
     )
+    calendars = BusinessCalendar.objects.in_bulk(
+        {
+            int(use.filters[name])
+            for use in uses
+            for name in ("calendar", "outside_hours")
+            if str(use.filters.get(name, "")).isdigit()
+        }
+    )
     cells = []
     for use in uses:
         cells.append(
             [
                 Cell(use.get_kind_display(), use.get_source_display()),
-                Cell(describe_filters(use, people, tickets, clients)),
+                Cell(describe_filters(use, people, tickets, clients, calendars)),
                 Cell(f"{use.rows:,}"),
                 _request_cell(use.request_ref),
             ]
@@ -472,11 +533,18 @@ def _uses(uses, accounts):
     return cells
 
 
-def describe_filters(use, people, tickets, clients):
-    """The filters a use recorded, in words, with names as they stand now."""
+def describe_filters(use, people, tickets, clients, calendars=None):
+    """The filters a use recorded, in words, with names as they stand now. `calendars` holds the
+    business calendars a use names, by id."""
     filters = use.filters or {}
+    calendars = calendars or {}
     if filters.get("invalid"):
         return "A filter was not accepted: nothing listed"
+
+    def calendar_name(value):
+        found = calendars.get(int(value)) if str(value).isdigit() else None
+        return found.name if found else f"Calendar {value}"
+
     parts = []
     if person := filters.get("person"):
         account = people.get(int(person)) if str(person).isdigit() else None
@@ -491,10 +559,23 @@ def describe_filters(use, people, tickets, clients):
     if ticket := filters.get("ticket"):
         found = tickets.get(int(ticket)) if str(ticket).isdigit() else None
         parts.append(f"Ticket: {found if found else f'Ticket {ticket}'}")
+    if calendar := filters.get("outside_hours"):
+        parts.append(f"Outside the hours of: {calendar_name(calendar)}")
     if start := filters.get("date_from"):
         parts.append(f"From {start}")
     if end := filters.get("date_to"):
         parts.append(f"To {end}")
+    if calendar := filters.get("calendar"):
+        name = "not judged" if calendar == "none" else calendar_name(calendar)
+        parts.append(f"Business hours: {name}")
+    if filters.get("activity") == "outside":
+        parts.append("Only activity outside business hours")
+    elif filters.get("activity") == "all":
+        parts.append("All activity")
+    if sort := filters.get("sort"):
+        from .people import sort_label  # people imports this module
+
+        parts.append(f"Sorted by {sort_label(sort)}")
     if use.kind == UseKind.VIEWED and filters.get("page") not in (None, "", "1"):
         parts.append(f"Page {filters['page']}")
     return "; ".join(parts) or "No filters"

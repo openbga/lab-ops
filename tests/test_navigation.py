@@ -97,6 +97,7 @@ NON_PAGE_ROUTES = {
     "audit_review:changes-export",
     "audit_review:access-export",
     "audit_review:sign-ins-export",
+    "audit_review:people-export",
     "audit_review:uses-export",
 }
 

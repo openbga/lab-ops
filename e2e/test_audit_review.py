@@ -1,7 +1,8 @@
 """Audit review (/audit-review/): the demonstration supervisor, who holds the review capability,
 opens the workspace from the sidebar, filters the access records, exports them and finds both uses
-listed under Workspace use, at both widths and in both themes; staff without the capability are
-offered nothing and refused. Synthetic demonstration data only."""
+listed under Workspace use; on the People tab finds their own count of tickets opened, opens the
+list it counted and exports the summary; at both widths and in both themes. Staff without the
+capability are offered nothing and refused. Synthetic demonstration data only."""
 
 import csv
 import io
@@ -79,6 +80,52 @@ def test_a_reviewer_filters_exports_and_sees_the_use_recorded(page: Page, demo, 
     assert WorkspaceUse.objects.filter(kind="exported", source="access").count() == 1
     no_sideways_scroll(page)
     assert not contrast_failures(theme_samples(page))
+
+
+def test_the_people_tab_counts_what_a_person_did_and_opens_the_rows_it_counted(
+    page: Page, demo, view
+):
+    tickets = list(portal_requests(User.objects.get(username="demo_client")).order_by("pk")[:2])
+    assert len(tickets) == 2, "the demonstration seed gives the portal account two tickets"
+    sign_in(page, REVIEWER, demo.password)
+    for ticket in tickets:  # two access records to count
+        page.goto(f"/requests/{ticket.pk}/")
+        expect(page.get_by_role("heading", level=1)).to_contain_text(ticket.number)
+
+    page.goto("/audit-review/changes/")
+    page.get_by_role("navigation", name="Audit review lists").get_by_role(
+        "link", name="People"
+    ).click()
+    table = "Audit review: people"
+    expect(page.get_by_role("heading", level=1)).to_have_text(table)
+    expect(page.locator(".vr-page-intro")).to_contain_text("the last 30 days")
+    mine = rows(page, table).filter(has_text=REVIEWER)
+    expect(mine).to_have_count(1)
+    opened = mine.get_by_role("link", name=re.compile(r"^2 tickets opened by "))
+    expect(opened).to_be_visible()
+    no_sideways_scroll(page)
+    assert not contrast_failures(theme_samples(page))
+
+    opened.click()
+    expect(page.get_by_role("heading", level=1)).to_have_text("Audit review: access records")
+    listed = rows(page, "Audit review: access records")
+    expect(listed).to_have_count(2)
+    for ticket in tickets:
+        expect(listed.filter(has_text=ticket.number)).to_have_count(1)
+    page.go_back()
+
+    with page.expect_download() as download:
+        page.get_by_role("link", name="Export CSV").click()
+    text = open(download.value.path(), encoding="utf-8-sig").read()
+    header, *lines = list(csv.reader(io.StringIO(text)))
+    assert header[:5] == ["From", "To", "Person", "Username", "Client organization"]
+    [line] = [line for line in lines if line[3] == REVIEWER]
+    assert line[header.index("Tickets opened")] == "2"
+    assert download.value.suggested_filename.startswith("audit-review-people-")
+    kinds = list(
+        WorkspaceUse.objects.filter(source="people").order_by("id").values_list("kind", flat=True)
+    )
+    assert kinds[0] == "viewed" and kinds[-1] == "exported", kinds
 
 
 def test_a_phone_shows_the_rows_first_and_the_filters_behind_one_button(page: Page, demo):

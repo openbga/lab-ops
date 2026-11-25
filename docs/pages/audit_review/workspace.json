@@ -8,7 +8,7 @@
   ],
   "title": "Audit review",
   "purpose": "Review who changed, opened, downloaded or was shown what, and who signed in, across every record and account, filter it, and export it. For holders of the review capability only.",
-  "summary": "Every change, sensitive read and sign-in across the application, newest first, in four tabs. Filter by person, ticket, organization, action and dates, and export the result. Your own use is recorded too.",
+  "summary": "Every change, sensitive read and sign-in across the application, newest first, in four lists, with counts by person on the People tab. Filter by person, ticket, organization, action and dates, and export the result.",
   "tasks": [
     {
       "title": "Review what one person did",
@@ -31,6 +31,13 @@
       ]
     },
     {
+      "title": "List what happened outside business hours",
+      "steps": [
+        "Under [[More filters]], set [[From]] and [[To]] and choose a business calendar in [[Outside the hours of]], then select [[Apply]].",
+        "To see who did what outside the hours first, open [[People]] and set [[Activity]] to Only outside business hours."
+      ]
+    },
+    {
       "title": "Export what you reviewed",
       "steps": [
         "Filter the list, then select [[Export CSV]]. The file holds every matching row as the list stood when its first page opened.",
@@ -40,14 +47,14 @@
   ],
   "good_to_know": [
     "Rows say who did what to which record and when. What changed or what was shown stays on the record's own pages.",
-    "Each page you open here and each export is recorded, and other reviewers see it under [[Workspace use]].",
+    "Each page you open here and each export, on every tab, is recorded, and other reviewers see it under [[Workspace use]]. Your own use is recorded too.",
     "Nothing here can be changed or removed, by you or anyone else.",
     "Rows recorded after you opened the first page are not listed. Open the tab again from the menu to see them.",
     "The browser and address of a shared demonstration account are never shown: they may be another visitor's."
   ],
   "sections": [
     {
-      "title": "The four lists",
+      "title": "The four lists and People",
       "items": [
         {
           "label": "Changes",
@@ -62,8 +69,12 @@
           "description": "Every account's sign-ins, sign-outs (with why the session ended), refused sign-ins, failed attempts at a password or code, refusals after too many failed attempts, and failed re-authentications. Attempts that named no single account are not here: they stay in the server's sign-in log."
         },
         {
+          "label": "People",
+          "description": "A tab with its own help: over a period, one row per account with counts of its sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many fell outside business hours. Each of the six counts opens Changes, Access records or Sign-ins filtered to exactly the rows it counted, drawn as of the same moment; the count outside business hours opens People again for that person, with only activity outside the hours."
+        },
+        {
           "label": "Workspace use",
-          "description": "Each page of these four lists that someone opened and each export, with who, when, which list, the filters, how many rows matched and the request ID. Opening this tab is recorded too."
+          "description": "Each page of the four lists and of People that someone opened and each export, with who, when, which tab, the filters, how many rows matched and the request ID. Opening this tab is recorded too."
         }
       ]
     },
@@ -88,7 +99,7 @@
         },
         {
           "label": "What",
-          "description": "On Access records: what was read, with the file's download name (the ticket number and the file's number, never the name it was uploaded with), the answer's field label or the link's number below. On Workspace use: Viewed a page or Exported, with the list below."
+          "description": "On Access records: what was read, with the file's download name (the ticket number and the file's number, never the name it was uploaded with), the answer's field label or the link's number below. On Workspace use: Viewed a page or Exported, with the tab below."
         },
         {
           "label": "Capacity",
@@ -112,7 +123,7 @@
         },
         {
           "label": "Filters and Rows",
-          "description": "On Workspace use: the filters the use applied, with names as they stand now (or that a filter was not accepted), the page number after the first, and how many rows matched."
+          "description": "On Workspace use: the filters the use applied, with names as they stand now (or that a filter was not accepted), including a business calendar, and for People the business hours, the activity and the sort; the page number after the first, and how many rows (or people) matched."
         },
         {
           "label": "Request ID",
@@ -133,7 +144,7 @@
         },
         {
           "label": "Action, What and Event",
-          "description": "One kind of row. On Changes the choices are the actions recorded so far."
+          "description": "One kind of row. On Changes the choices are the actions recorded so far. On Sign-ins, Any failed or refused attempt takes Sign-in refused, Sign-in failed, Too many failed attempts and Re-authentication failed together. On Access records, Any patient information shown takes Shown a patient-marked answer and Shown a person-level key together."
         },
         {
           "label": "Ticket number",
@@ -142,6 +153,10 @@
         {
           "label": "From and To",
           "description": "Under More filters: days in the laboratory's time zone, both included: each day runs from its midnight to the next. On a day whose clocks went back across midnight, rows in the repeated hour show the earlier date but belong to the later day. To must not be before From."
+        },
+        {
+          "label": "Outside the hours of",
+          "description": "Under More filters, on Changes, Access records and Sign-ins: only rows outside the opening hours of an active business calendar, its weekly hours in the laboratory's time zone with its holidays closed all day. A row at the moment the calendar opens is inside its hours, one at the moment it closes is outside. Needs both From and To, at most 366 days, both included. The calendar is read as it stands now. Any time lists every row."
         },
         {
           "label": "A filter that is not accepted",
@@ -183,6 +198,10 @@
     "accounts/signin_history.py",
     "core/access.py",
     "core/models.py",
-    "desk/opened.py"
+    "desk/opened.py",
+    "audit_review/hours.py",
+    "audit_review/people.py",
+    "audit_review/tests/test_people.py",
+    "service_levels/business_time.py"
   ]
 }

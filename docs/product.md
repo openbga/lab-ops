@@ -189,7 +189,7 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
-| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the read-only Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, with each use recorded. |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the read-only Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -453,15 +453,30 @@ organization its own record, contacts, sites, portal access and portal accounts 
 Every page, and the export, is drawn as the list stood when its first page opened, except that a
 row still being saved at that moment (or a change saved by a server whose clock runs behind) can
 appear on a later page, and that which accounts and tickets belong to a filtered organization is
-read again for each page and the export. Export CSV gives every matching row, at most 10,000, as a
+read again for each page and the export. Changes, Access records and Sign-ins can also be limited
+to what happened outside the opening hours of an active business calendar (its weekly hours with
+its holidays closed, as the ticket clocks count them, read as the calendar stands now), over a
+period of at most 366 days with both dates set. Sign-ins' Event filter can take every failed or
+refused attempt at once, and Access records' What filter every patient-marked answer and
+person-level key shown. Export CSV gives every matching row, at most 10,000, as a
 spreadsheet file in which a cell that would run as a formula is written as text. Rows say who did
 what to which record and when, never a change's values or reason or what was shown; a ticket is
 named by its number and organization whatever its category, and opening it still needs access to
 it. The browser and address of a shared demonstration account's sign-ins are left out. The
 workspace changes nothing. Each page of it shown and each export is recorded, with the account, the
 time, the list, the accepted filters (ids, codes and dates, never text as typed), the rows matched
-and the request ID, before the page or file is sent; these records are append-only too. Summaries
-per person and a review record with its sign-off are planned.
+and the request ID, before the page or file is sent; these records are append-only too.
+
+The workspace's People tab counts the same records by account over a period of at most 366 days
+(the last 30 days unless other dates are set): sign-ins, failed or refused sign-ins, tickets
+opened, files downloaded, patient-marked answers and person-level keys shown, and changes made,
+and how many of them fell outside the opening hours of a business calendar (the first active one
+by name unless another is chosen, or none). It can be limited to one person, to a client
+organization's portal accounts as they stand now, or to activity outside business hours, sorted by
+person or by any count, and exported as a spreadsheet file. Each count opens the list holding the
+records it counted, filtered to exactly those rows; counts, links and the export are drawn as of
+the moment the first page opened. Its pages and exports are recorded as Workspace use like the
+lists'. A review record with its sign-off is planned.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

@@ -176,9 +176,10 @@ def test_every_list_applies_only_its_documented_filters(client, reviewer, clinic
     client.force_login(reviewer)
     common = {"action", "date_from", "date_to", "person"}
     extra = {
-        "changes": {"organization", "ticket"},
-        "access": {"organization", "ticket"},
-        "sign-ins": {"organization"},
+        # adapted: Changes, Access records and Sign-ins gained "Outside the hours of" (People tab)
+        "changes": {"organization", "ticket", "outside_hours"},
+        "access": {"organization", "ticket", "outside_hours"},
+        "sign-ins": {"organization", "outside_hours"},
         "uses": set(),
     }
     for route, fields in extra.items():

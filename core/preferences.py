@@ -19,16 +19,18 @@ most MAX_PREFERENCES; adding one counts and inserts holding a lock of that perso
 """
 
 import json
+import logging
 import re
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError, connection, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core import access
 from core.changelog import valid_marker
 from core.grids import PAGE_SIZES
 from core.ids import whole_number
@@ -37,6 +39,7 @@ from core.models import UserPreference
 MAX_PREFERENCES = 300  # per user: grids and pages are a bounded set
 MAX_BODY = 8_000  # bytes of one request
 GRID_KEY = re.compile(r"^grid:[a-z0-9_.-]{1,80}:v\d{1,3}$")
+logger = logging.getLogger(__name__)
 PAGE_KEY = re.compile(r"^page:[a-z0-9_:-]{1,100}$")
 COLUMN_ID = re.compile(r"^[a-z0-9_-]{1,40}$")
 SORT = re.compile(r"^-?[a-z0-9_]{1,40}$")
@@ -386,8 +389,21 @@ class GridPreferenceMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         if response.status_code < 400:
-            self.remember(request)
+            if access.carries(response):
+                # A page recorded as it is sent (the audit review workspace): saved only once
+                # its record is written, so a page withheld for want of it saves nothing.
+                access.after_written(response, lambda: self.remember_sent(request))
+            else:
+                self.remember(request)
         return response
+
+    def remember_sent(self, request):
+        """remember, for a page whose record is already written: the page is sent whatever
+        happens here, so a setting that cannot be saved is left unsaved, never a failed answer."""
+        try:
+            self.remember(request)
+        except DatabaseError:
+            logger.warning("preference.not_saved reason=database_error", exc_info=True)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         user = getattr(request, "user", None)

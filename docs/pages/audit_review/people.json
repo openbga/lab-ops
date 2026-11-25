@@ -1,0 +1,183 @@
+{
+  "id": "audit-review-people",
+  "routes": [
+    "audit_review:people"
+  ],
+  "title": "Audit review: people",
+  "purpose": "Count, for each account over a period, its sign-ins, failed sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how much fell outside business hours. For holders of the review capability only.",
+  "summary": "One row per account that did anything counted in a period: sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown, changes made, and how much fell outside business hours.",
+  "tasks": [
+    {
+      "title": "See who did what over a period",
+      "steps": [
+        "Set [[From]] and [[To]] and select [[Apply]]. Leave both empty for the last 30 days.",
+        "Select a column heading, such as [[Patient information shown]], to put the most first."
+      ]
+    },
+    {
+      "title": "Open the records behind a count",
+      "steps": [
+        "Select the count. The list that holds those records opens, filtered to exactly the rows counted."
+      ]
+    },
+    {
+      "title": "Find activity outside business hours",
+      "steps": [
+        "Under [[More filters]], choose the calendar in [[Business hours]] if it is not the one named above the table.",
+        "Set [[Activity]] to Only outside business hours and select [[Apply]]. Every count then holds only what happened outside the hours."
+      ]
+    },
+    {
+      "title": "Review one person or one organization's portal accounts",
+      "steps": [
+        "Under [[More filters]], choose them in [[Person]] or the organization in [[Client organization]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Keep the summary",
+      "steps": [
+        "Filter and sort the table, then select [[Export CSV]]. The file holds every person listed, not just this page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Counts only: what was changed or shown stays on the record's own pages. A count opens the matching list.",
+    "Business hours are read as the calendar stands now: a holiday added since changes which earlier records count as outside.",
+    "Counts, the period and the calendar stay as they were when the first page opened. Open the tab again from the menu to count newer records.",
+    "Each page you open here and each export is recorded, and other reviewers see it under [[Workspace use]].",
+    "Someone with nothing counted in the period is not listed. A count of an account that no longer exists opens nothing."
+  ],
+  "sections": [
+    {
+      "title": "The People tab",
+      "paragraphs": [
+        "A tab of the Audit review workspace, beside Changes, Access records, Sign-ins and Workspace use. Over the period chosen it shows one row per account, staff or client portal, that did at least one counted thing. It counts the same records the Changes, Access records and Sign-ins lists hold and shows no record's content. The line above the table names the period, the business calendar and whether only activity outside its hours is counted; when neither date was set it says the period is the last 30 days."
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Person",
+          "description": "The account's name with its username below, as they stand now, and below that the client organization of a client portal account. An account that no longer exists shows its number. Always shown."
+        },
+        {
+          "label": "Sign-ins",
+          "description": "Completed sign-ins in the period, from the Sign-ins list's Signed in events."
+        },
+        {
+          "label": "Failed or refused sign-ins",
+          "description": "Sign-in failed, Sign-in refused, Too many failed attempts and Re-authentication failed events together: the Sign-ins list's Any failed or refused attempt."
+        },
+        {
+          "label": "Tickets opened",
+          "description": "Each time the account opened a ticket's page, from its access records: one ticket opened three times counts three. Opening its audit history, form details or complaint forms is not counted here."
+        },
+        {
+          "label": "Files downloaded",
+          "description": "Access records of the account downloading a ticket's file."
+        },
+        {
+          "label": "Patient information shown",
+          "description": "Access records of the account being shown a patient-marked answer or a person-level key: the Access records list's Any patient information shown."
+        },
+        {
+          "label": "Changes made",
+          "description": "Every change event the account made, of any action."
+        },
+        {
+          "label": "Outside business hours",
+          "description": "How many of the records counted in the other columns fell outside the opening hours of the business calendar chosen. Not shown when Business hours is Not judged or no business calendar is active."
+        },
+        {
+          "label": "Everyone listed",
+          "description": "The totals row: each column summed over every person the filters list, on all pages."
+        }
+      ]
+    },
+    {
+      "title": "Filters",
+      "items": [
+        {
+          "label": "From and To",
+          "description": "Days in the laboratory's time zone, both included. Both empty: the last 30 days up to today. To empty: today, or From when From is later than today. From empty: the 30 days that end on To. To must not be before From, and the period covers at most 366 days."
+        },
+        {
+          "label": "Activity",
+          "description": "All activity, or Only outside business hours: then every count holds only what happened outside the hours of the calendar in Business hours, and someone with nothing outside them is not listed. Needs a business calendar: with Not judged, or when no calendar is active, Only outside business hours is refused rather than counting all activity."
+        },
+        {
+          "label": "Person",
+          "description": "Under More filters: one account, staff or client portal, active or not. Type part of a name, username or email address."
+        },
+        {
+          "label": "Client organization",
+          "description": "Under More filters: the organization's client portal accounts. Which accounts belong to it is read as they stand now, not as they stood in the period."
+        },
+        {
+          "label": "Business hours",
+          "description": "Under More filters: the business calendar, among the active ones, whose opening hours decide what is outside business hours. The first active calendar by name is the default and is preselected. Not judged leaves the Outside business hours column out. When no calendar is active, Not judged is the only choice."
+        },
+        {
+          "label": "How business hours are judged",
+          "description": "The calendar's weekly opening hours in the laboratory's time zone, as the ticket clocks count them, with its holidays closed all day. A record at the moment the calendar opens is inside its hours; one at the moment it closes is outside. The calendar is read as it stands when the page is drawn, so editing its hours or adding a holiday changes which earlier records count as outside."
+        },
+        {
+          "label": "A filter that is not accepted",
+          "description": "Counts nothing until it is corrected, and the field says why. The use is recorded without the values typed."
+        }
+      ]
+    },
+    {
+      "title": "Sorting, pages and export",
+      "items": [
+        {
+          "label": "Sorting",
+          "description": "Select a column heading to sort by it. Person sorts A to Z, then Z to A; a count sorts most first, then fewest first. People with the same count stay in name order. The sort you choose is saved for your account and used the next time you open the tab."
+        },
+        {
+          "label": "Pages",
+          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page, in the export or in the list a count opens, as on the lists, and Changes made is held by the time a change was saved, by the clock of the server that saved it, rather than by that moment: a change saved while the first page was being drawn, or by a server whose clock is behind, ahead of or set back from this one's, can also be counted later. A change timed ahead of this server's clock is counted from the time it names. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
+        },
+        {
+          "label": "Columns",
+          "description": "Choose which count columns show and in which order; Person always shows. The choice is saved for your account, and a choice about Outside business hours, its place included, is kept while that column is not shown. As on every list, when two tabs change the columns, the change saved last wins."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of every person listed, in the order shown, with From, To, Person, Username, Client organization, each count, and Outside the hours of followed by the calendar's name when hours are judged. With Only outside business hours each count's heading ends in (outside business hours). Shown when at least one person is listed. A cell that a spreadsheet would read as a formula starts with an apostrophe."
+        }
+      ]
+    },
+    {
+      "title": "Links from the counts",
+      "paragraphs": [
+        "Each count above zero opens the list holding the records it counted: Sign-ins for Sign-ins and Failed or refused sign-ins, Access records for Tickets opened, Files downloaded and Patient information shown, and Changes for Changes made. The list opens filtered to the same person, the same From and To, the matching Event or What choice, and, with Only outside business hours, Outside the hours of the same calendar. It is drawn as of the same moment as this tab, so it lists exactly the rows counted.",
+        "With All activity, the Outside business hours count opens this tab again for that person with Only outside business hours, as of the same moment. A count of an account that no longer exists opens nothing, since the lists cannot choose it."
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, as for the rest of the Audit review workspace. Everyone else is refused, and nothing is recorded for them. The tab is read-only.",
+        "Each page shown and each export is recorded under Workspace use, with the source People, before it is sent: the period, person, organization, business calendar and activity (All activity or Only outside business hours) as applied, defaults included, the sort when it is not by person, the page after the first, and how many people were listed. If the record cannot be written, nothing is shown or exported. These records are never changed or deleted."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/people.py",
+    "audit_review/hours.py",
+    "audit_review/forms.py",
+    "audit_review/views.py",
+    "audit_review/sources.py",
+    "audit_review/models.py",
+    "audit_review/urls.py",
+    "audit_review/permissions.py",
+    "audit_review/migrations/0002_people_summary.py",
+    "audit_review/templates/audit_review/people.html",
+    "audit_review/tests/test_people.py",
+    "core/templatetags/navigation.py",
+    "service_levels/business_time.py",
+    "service_levels/models.py"
+  ]
+}
