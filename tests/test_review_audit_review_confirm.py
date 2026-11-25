@@ -83,6 +83,13 @@ def test_date_bounds_match_the_displayed_local_day_on_each_list(
     import csv
     import io
     import re
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    # Adapted: CET and EET are links some time zone data no longer carries (CI's has neither).
+    try:
+        ZoneInfo(zone)
+    except ZoneInfoNotFoundError:
+        pytest.skip(f"This system's time zone data has no {zone}.")
 
     from django.urls import reverse
     from django.utils import timezone
