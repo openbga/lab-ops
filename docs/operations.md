@@ -173,7 +173,10 @@ This release sends no Django error report: `config/logging.py` replaces Django's
 including the one that mails `ADMINS`, and with `DEBUG` off the error page shows nothing of the
 request. A deployment that adds a mail handler or another reporter of Django's error report gets
 the request's posted values, the names of uploaded files and the variables of the code that failed,
-which can include ticket text; do not add one where tickets can hold patient information.
+which can include ticket text; do not add one where tickets can hold patient information. A
+password asked for again and a sign-in's credentials are hidden from such a report in this
+application's own code, but Django's sign-in passes the password to its authentication backend as
+an argument its report filter does not hide.
 
 ## Sign-in limits behind a proxy
 

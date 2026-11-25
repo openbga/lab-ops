@@ -7,8 +7,11 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         return False
 
-    # These hold the credentials of a sign-in (the password among them): every variable here and in
-    # what they call is left out of a traceback's report.
+    # These hold the credentials of a sign-in (the password among them): every variable here, and in
+    # what they call, is left out of a traceback's report, except where the code called names its
+    # own sensitive variables: Django's authenticate() names only `credentials`, so the password
+    # argument of the authentication backend it calls stays in that frame (an accepted limit of
+    # Django's report filter; this release sends no report, docs/operations.md).
     @sensitive_variables()
     def pre_authenticate(self, request, **credentials):
         try:
