@@ -137,7 +137,7 @@
         },
         {
           "label": "Pages",
-          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page, in the export or in the list a count opens, as on the lists, and so can a change saved by a server whose clock runs behind; a change timed ahead of the clock is counted from the time it names. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
+          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page, in the export or in the list a count opens, as on the lists, and so can a change begun after it by a server whose clock runs behind or ahead of this one's (a change is timed by the clock of the server that saved it); a change timed ahead of the clock is counted from the time it names. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
         },
         {
           "label": "Columns",

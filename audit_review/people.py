@@ -93,8 +93,10 @@ def newest_change():
     """The Changes marker of a reading (sources.to_marker): the time of the newest change event
     its snapshot holds that is not timed ahead of this server's clock, or 0 when there is none
     (or none since 1970). A change begun after the snapshot was timed after every change it
-    holds, so a later reading with this marker leaves it out, unless the server that saved it had
-    a clock running behind; a change timed ahead is counted once its time has passed."""
+    holds, so a later reading with this marker leaves it out, unless the servers' clocks differ:
+    one that saved a change with a clock running behind, or one whose change timed ahead becomes
+    due while this reading runs (documented). A change timed ahead is counted from the time it
+    names."""
     latest = (
         AuditEvent.objects.filter(occurred_at__lte=timezone.now())
         .order_by("-occurred_at")
