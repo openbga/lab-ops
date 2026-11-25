@@ -159,20 +159,33 @@
     });
   }
 
+  // A saved layout holds at most this many column IDs in each list (core/preferences.py).
+  var LAYOUT_IDS = 60;
+
   // A column the saved layout names that this page does not show (one shown only in some views of
-  // the list) keeps its place at the end of the order and whether it is hidden.
+  // the list) keeps its place after the column it followed and whether it is hidden, as long as the
+  // layout has room for it; the columns this page shows always fit.
   function save(grid) {
     var hidden = grid.columns.filter(function (col) { return !isVisible(grid, col.id); }).map(function (col) { return col.id; });
     var order = currentOrder(grid);
     var previous = readLayout(grid.key);
     if (previous) {
-      previous.order.forEach(function (id) {
-        if (!byId(grid, id) && order.indexOf(id) === -1) {
-          order.push(id);
+      previous.order.forEach(function (id, index) {
+        if (byId(grid, id) || order.indexOf(id) !== -1 || order.length >= LAYOUT_IDS) {
+          return;
         }
+        var at = 0;
+        for (var before = index - 1; before >= 0; before--) {
+          var found = order.indexOf(previous.order[before]);
+          if (found !== -1) {
+            at = found + 1;
+            break;
+          }
+        }
+        order.splice(at, 0, id);
       });
       previous.hidden.forEach(function (id) {
-        if (!byId(grid, id) && hidden.indexOf(id) === -1) {
+        if (!byId(grid, id) && order.indexOf(id) !== -1 && hidden.indexOf(id) === -1) {
           hidden.push(id);
         }
       });

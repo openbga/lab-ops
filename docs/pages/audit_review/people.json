@@ -137,11 +137,11 @@
         },
         {
           "label": "Pages",
-          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page or in the export, as on the lists. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
+          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page, in the export or in the list a count opens, as on the lists, and so can a change saved by a server whose clock runs behind. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
         },
         {
           "label": "Columns",
-          "description": "Choose which count columns show and in which order; Person always shows. The choice is saved for your account, and a choice about Outside business hours is kept while that column is not shown."
+          "description": "Choose which count columns show and in which order; Person always shows. The choice is saved for your account, and a choice about Outside business hours, its place included, is kept while that column is not shown. As on every list, when two tabs change the columns, the change saved last wins."
         },
         {
           "label": "Export CSV",

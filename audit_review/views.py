@@ -26,7 +26,7 @@ from django.views.decorators.http import require_GET
 
 from core import access
 from core.concurrency import one_reading, reading_account
-from core.grids import active_filters, shown
+from core.grids import active_filters, chosen_query, shown
 from core.ids import whole_number
 from core.lists import toolbar_context
 from dataimport.importing import FORMULA_STARTS
@@ -245,18 +245,24 @@ def _csv(source, rows):
 
 # ------------------------------------------------------------------------------ People
 
-PEOPLE_NOT_FILTERS = ("page", "sort", *people.MARKER_PARAMS.values(), *READING_PARAMS.values())
+PEOPLE_NOT_FILTERS = (
+    "page",
+    "sort",
+    *people.MARKER_PARAMS.values(),
+    *READING_PARAMS.values(),
+    people.READING_SORT,
+)
 
 
 def _people_marks(request):
     """What each list is counted as of (people.summarize): the marker its own name in the address
-    carries (people.MARKER_PARAMS), never beyond what is newest now. Read inside the reading,
-    after its first query: for Changes, the moment now is then after the reading's snapshot, so
-    the three lists agree on every change committed before it (unlike the Changes list, whose
-    moment is read before, people.py)."""
+    carries (people.MARKER_PARAMS), never beyond what is newest in this reading. Read inside the
+    reading, after its first query: for Changes, the time of the newest change the reading's
+    snapshot holds, and never later than now (people.newest_change), so the three lists agree on
+    what the snapshot holds and a change begun after it is never counted later."""
     marks = {}
     for source, name in people.MARKER_PARAMS.items():
-        now = newest(source)
+        now = people.newest_change() if source == Source.CHANGES else newest(source)
         given = whole_number(request.GET.get(name, ""), max_digits=19)
         marks[source] = now if given is None else min(given, now)
     return marks
@@ -265,8 +271,15 @@ def _people_marks(request):
 def _people_period(form, effective):
     calendar = effective["calendar"]
     return {
-        # Neither date was given: the last 30 days.
-        "default": not form.cleaned_data.get("date_from") and not form.cleaned_data.get("date_to"),
+        # No date was given, as a filter or carried from a first page: the last 30 days.
+        "default": not any(
+            (
+                form.cleaned_data.get("date_from"),
+                form.cleaned_data.get("date_to"),
+                form.reading.get("date_from"),
+                form.reading.get("date_to"),
+            )
+        ),
         "date_from": effective["date_from"],
         "date_to": effective["date_to"],
         "calendar": calendar.name if calendar else "",
@@ -284,21 +297,23 @@ def people_page(request):
         require_reviewer(account)
         marks = _people_marks(request)
         form = PeopleFilter(request.GET, reading=PeopleFilter.reading_from(request.GET))
-        sort = people.sort_value(request.GET.get("sort"))
         chips = _chips(request, form, PEOPLE_NOT_FILTERS)
         for chip in chips:
             if chip["name"] == "calendar":
                 chip["value"] = form.chip_value(form.cleaned_data["calendar"])
         period = summary = None
+        sort = people.DEFAULT_SORT
         if form.is_valid():
             effective = form.effective()
+            sort = people.sort_value(request.GET.get("sort"), judged=effective["calendar"])
             period = _people_period(form, effective)
             summary = people.summarize(effective, marks)
             rows = people.ordered(summary.people, sort)
             page_obj = Paginator(rows, people.PAGE_SIZE).get_page(request.GET.get("page"))
-            people.link(page_obj.object_list, effective, marks, request.path)
+            people.link(page_obj.object_list, form, marks, request.path)
             total = page_obj.paginator.count
-            shown(request, SimpleNamespace(per_page=None, sort=sort))  # its sort may be saved
+            # Its sort may be saved, once the record of this page is (core.preferences).
+            shown(request, SimpleNamespace(per_page=None, sort=sort))
         else:
             page_obj, total = [], 0
         query = request.GET.copy()
@@ -310,8 +325,13 @@ def people_page(request):
             for name, value in form.applied().items():
                 query[name] = value
         request.GET = query  # the pager's and the sort links carry the reading
-        export = query.copy()
+        # The export keeps this page's order under a name that is not the list's sort, so neither
+        # a sort added from the reviewer's saved settings nor a refused export's way back turns
+        # it into a choice that would be saved.
+        export = chosen_query(request)
         export.pop("page", None)
+        export.pop("sort", None)
+        export[people.READING_SORT] = sort
         response = render(
             request,
             "audit_review/people.html",
@@ -348,14 +368,17 @@ def people_export(request):
         require_reviewer(account)
         marks = _people_marks(request)
         form = PeopleFilter(request.GET, reading=PeopleFilter.reading_from(request.GET))
-        sort = people.sort_value(request.GET.get("sort"))
-        back = request.GET.copy()
+        back = chosen_query(request)  # never a sort added from the saved settings
         for name, value in people.marker_params(marks).items():
             back[name] = value
         back_url = f"{reverse('audit_review:people')}?{back.urlencode()}"
         if not form.is_valid():
             return redirect(back_url)
         effective = form.effective()
+        sort = people.sort_value(
+            request.GET.get(people.READING_SORT) or request.GET.get("sort"),
+            judged=effective["calendar"],
+        )
         summary = people.summarize(effective, marks)
         rows = people.ordered(summary.people, sort)
         content = _people_csv(effective, summary, rows)

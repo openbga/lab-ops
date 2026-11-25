@@ -45,6 +45,6 @@ toolbar context. Showing a page is recorded (WorkspaceUse).
   </div>
   {% pagination page_obj=page_obj noun="people" filtered=active_filters fixed_size=True %}
   {% endlist_results %}
-  {% fill footer %}<p class="vr-muted small mb-0">Counts are drawn as they stood when the first page opened, with its period and business calendar, though a record still being saved at that moment can be counted on a later page; a count opens the list of the rows it counted. Business hours are read as the calendar stands now, holidays closed, and a client organization's accounts as they stand now. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">Counts are drawn as they stood when the first page opened, with its period and business calendar, though a record still being saved at that moment, or a change saved by a server whose clock runs behind, can be counted on a later page; a count opens the list of the rows it counted. Business hours are read as the calendar stands now, holidays closed, and a client organization's accounts as they stand now. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
 {% endpanel %}
 {% endblock %}

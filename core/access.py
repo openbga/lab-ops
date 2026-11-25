@@ -48,6 +48,24 @@ PENDING = "_vr_access_pending"
 ACCOUNT = "_vr_access_account"
 # The notes moved onto the answer the view returned (AccessBindMiddleware).
 CARRIED = "_vr_access_records"
+# What to do once the records an answer carries are written (after_written).
+AFTER = "_vr_access_after"
+
+
+def carries(response):
+    """Whether `response` carries records still to be written before it is sent."""
+    return bool(getattr(response, CARRIED, None))
+
+
+def after_written(response, action):
+    """Run `action` once the records `response` carries are written (AccessRecordMiddleware), and
+    never when they are not: for a HEAD request, an answer of 500 or more, or a write that fails.
+    A list's sort saved for an answer (core.preferences) is then saved only if it is sent."""
+    actions = getattr(response, AFTER, None)
+    if actions is None:
+        actions = []
+        setattr(response, AFTER, actions)
+    actions.append(action)
 
 
 def capacity_of(account):
@@ -165,7 +183,11 @@ class AccessRecordMiddleware:
         if not carried:
             return response
         setattr(response, CARRIED, None)
+        actions = getattr(response, AFTER, None) or []
+        setattr(response, AFTER, None)
         if request.method == "HEAD" or response.status_code >= 500:
             return response  # nothing of the page is sent
         write(request, carried)
+        for action in actions:
+            action()
         return response

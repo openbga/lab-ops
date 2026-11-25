@@ -739,23 +739,43 @@ def test_the_reviewers_sort_is_saved_and_applied_on_their_next_visit(
     assert client.get(url()).context["sort"] == "-tickets"
 
 
-def test_the_changes_moment_is_read_after_the_readings_snapshot(client, reviewer, monkeypatch):
+def test_the_changes_moment_is_the_newest_change_the_reading_holds(
+    client, reviewer, agent, clinic, make_ticket, monkeypatch
+):
+    from audit_review import people as people_module
     from audit_review import views
 
+    ticket = make_ticket(clinic)
     order = []
     original_account = views.reading_account
-    original_newest = views.newest
-    monkeypatch.setattr(
-        views,
-        "reading_account",
-        lambda request: order.append("account") or original_account(request),
-    )
-    monkeypatch.setattr(
-        views, "newest", lambda source: order.append(str(source)) or original_newest(source)
-    )
+    original_newest = people_module.newest_change
+
+    def account(request):
+        order.append("account")
+        return original_account(request)
+
+    def newest_change():
+        order.append("changes")
+        return original_newest()
+
+    monkeypatch.setattr(views, "reading_account", account)
+    monkeypatch.setattr(people_module, "newest_change", newest_change)
     client.force_login(reviewer)
-    client.get(url())
-    assert order[0] == "account" and Source.CHANGES.value in order[1:], order
+    response = client.get(url())
+    assert order[:2] == ["account", "changes"], order
+    latest = AuditEvent.objects.order_by("-occurred_at").first()
+    carried = parse_qs(urlsplit(response.context["export_url"]).query)
+    assert carried["upto_changes"] == [str(sources_to_marker(latest.occurred_at))]
+    # A change timed after the reading is left out of its later pages, its links and its export.
+    change(agent, ticket, timezone.now() + timedelta(seconds=1))
+    again = client.get(response.context["export_url"].replace("/export/", "/"))
+    assert counts(again, agent) == counts(response, agent)
+
+
+def sources_to_marker(moment):
+    from audit_review.sources import to_marker
+
+    return to_marker(moment)
 
 
 def test_hours_at_the_date_limits_keep_every_day_a_datetime_can_hold(settings, db):

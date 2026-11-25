@@ -1018,7 +1018,12 @@ def test_people_markers_ignore_malformed_values_clamp_the_future_and_accept_zero
             assert (changes, access_mark, sign_mark) == (0, 0, 0)
             assert response.context["total"] == 0
         else:
-            assert before <= changes <= sources.newest(Source.CHANGES)
+            # adapted (verification round): the Changes marker is the newest change the reading
+            # holds, never later than now (people.newest_change), no longer the moment now.
+            from audit_review import people
+
+            assert changes == people.newest_change() <= sources.newest(Source.CHANGES)
+            assert before > 0
             assert (access_mark, sign_mark) == (
                 sources.newest(Source.ACCESS),
                 sources.newest(Source.SIGN_INS),

@@ -20,11 +20,13 @@ from urllib.parse import urlencode
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import SignInEvent
 from core.models import AccessKind, AccessRecord, AuditEvent
 
 from . import hours
+from .forms import READING_PARAMS
 from .models import Source
 from .sources import (
     FAILED_ATTEMPTS,
@@ -34,6 +36,7 @@ from .sources import (
     _day_start,
     _person,
     from_marker,
+    to_marker,
 )
 
 PAGE_SIZE = 50
@@ -71,10 +74,31 @@ SORTS = {"person": "person"} | {measure.key: measure.label for measure in MEASUR
 SORTS["outside"] = OUTSIDE_LABEL.lower()
 
 
-def sort_value(raw):
-    """The sort the address asks for, if it is one of SORTS (with "-" for the reverse order)."""
+# Where the tab's export link carries the order of the page it was offered on: not the list's own
+# `sort`, which the reviewer's saved settings fill in (core.preferences).
+READING_SORT = "reading_sort"
+
+
+def sort_value(raw, judged=True):
+    """The sort the address asks for, if it is one of SORTS (with "-" for the reverse order) and
+    the page shows its column: by the count outside the hours only when they are judged."""
     raw = raw or ""
-    return raw if raw.removeprefix("-") in SORTS else DEFAULT_SORT
+    key = raw.removeprefix("-")
+    if key not in SORTS or (key == "outside" and not judged):
+        return DEFAULT_SORT
+    return raw
+
+
+def newest_change():
+    """The Changes marker of a reading (sources.to_marker): the time of the newest change event
+    its snapshot holds, never later than now by this server's clock, or 0 when there is none. A
+    change begun after the snapshot was timed after every change it holds, so a later reading
+    with this marker leaves it out, unless the server that saved it had a clock running behind."""
+    latest = AuditEvent.objects.order_by("-occurred_at").values_list("occurred_at", flat=True)
+    latest = latest.first()
+    if latest is None:
+        return 0
+    return min(to_marker(latest), to_marker(timezone.now()))
 
 
 def sort_label(sort):
@@ -266,11 +290,19 @@ def ordered(people, sort):
     return sorted(people, key=count, reverse=sort.startswith("-"))
 
 
-def link(people, effective, marks, people_url):
+def link(people, form, marks, people_url):
     """Give each person on a page its cells (Person.cells): a count of a person who no longer
-    exists, and a count of none, opens nothing."""
+    exists, and a count of none, opens nothing. `form` is the page's valid PeopleFilter."""
+    effective = form.effective()
     start, end = effective["date_from"].isoformat(), effective["date_to"].isoformat()
     calendar = effective["calendar"]
+    # The count outside the hours opens this tab: the period and calendar go as the page had
+    # them, filters where it had them as filters and carried, not filters, where it had defaults.
+    kept = form.applied()
+    for name, carried in READING_PARAMS.items():
+        if form.cleaned_data.get(name):
+            kept.pop(carried)
+            kept[name] = form.cleaned_data[name]
     for person in people:
         person.cells = []
         for measure in MEASURES:
@@ -294,10 +326,8 @@ def link(people, effective, marks, people_url):
             if person.outside and person.exists and not effective["outside_only"]:
                 params = {
                     "person": person.account_id,
-                    "date_from": start,
-                    "date_to": end,
-                    "calendar": calendar.pk,
                     "activity": "outside",
+                    **kept,
                     **marker_params(marks),
                 }
                 url = f"{people_url}?{urlencode(params)}"

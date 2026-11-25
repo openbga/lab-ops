@@ -5433,7 +5433,7 @@ details.card:not([open]) > summary.card-header {
   }
 
   table.vr-table:not(.vr-table-scroll) th[scope="row"] > .vr-row-link {
-    min-width: 0;
+    min-width: min(var(--vr-touch-target), 100%); /* a touch target, however short the name */
     white-space: normal;
     overflow-wrap: anywhere;
   }
