@@ -58,6 +58,7 @@
       if (source === currentSource && id === currentId) { return; }
       var wasReading = destination.contains(document.activeElement);
       destination.replaceChildren(source.content.cloneNode(true));
+      if (window.vrControls) { window.vrControls.init(destination); } // its search's clear button
       destination.scrollTop = 0;
       currentId = id;
       currentSource = source;

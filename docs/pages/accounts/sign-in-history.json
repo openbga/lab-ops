@@ -28,7 +28,7 @@
     }
   ],
   "good_to_know": [
-    "Only you see your own history. A wrong password given with a name that matches no account, or several, is not listed for anyone.",
+    "Only you, and staff who can review access and audit records, see your history. A wrong password given with a name that matches no account, or several, is not listed for anyone.",
     "No entry keeps what you typed: no password, no code, and not the username or email address entered.",
     "The browser and the address are what the browser and the network reported, so they can be wrong.",
     "Entries are never changed or deleted. The history starts at the release that added this page.",
@@ -38,7 +38,7 @@
     {
       "title": "Who can use this page",
       "paragraphs": [
-        "Every signed-in account, staff or client portal, opens it from the account menu (Sign-in history) or from the link at the foot of Where you are signed in. It lists only your own account's entries. Nobody else's history is shown to anyone in this release: there is no page where an administrator or a superuser reads it.",
+        "Every signed-in account, staff or client portal, opens it from the account menu (Sign-in history) or from the link at the foot of Where you are signed in. It lists only your own account's entries. Staff with a laboratory role who hold the capability Can review access and audit records read every account's entries in Audit review (without the browser and address of a shared demonstration account); no other page shows them, and an administrator or a superuser without that capability cannot read them.",
         "While your session must first set up a second sign-in factor, or choose a new password because yours was marked as compromised, the menu does not offer this page and opening it sends you back to that step.",
         "The page is read-only. To end a session, use Where you are signed in."
       ]
@@ -101,6 +101,7 @@
     }
   ],
   "sources": [
+    "audit_review/sources.py",
     "accounts/signin_history.py",
     "accounts/session_views.py",
     "accounts/models.py",

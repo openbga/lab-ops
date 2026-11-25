@@ -35,6 +35,7 @@ from .security_headers import DEFAULT_CONTENT_SECURITY_POLICY
 
 SECURITY_ROLES = ("admin",)
 PATIENT_CAPABILITY = "view_patient_information"
+REVIEW_CAPABILITY = "review_audit_records"
 
 # source key: how the page names where a fact is set
 SOURCES = {
@@ -56,7 +57,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "29250ef87a3fe02065226e347395b0d02b0291e4e3483f56437f8f5220352bfa"
+RELEASE_SETTINGS_SHA256 = "c16c313754920c9ee91902ccabe27b8324f04d0a92275806d68f0746153f1199"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -397,7 +398,18 @@ def patient_capability_holders():
     explicit grant, directly or through a group (request_forms.selectors.
     may_see_patient_information). A grant to an account without a role is not counted: it
     opens nothing."""
-    grant = {"codename": PATIENT_CAPABILITY, "content_type__app_label": "accounts"}
+    return _capability_holders(PATIENT_CAPABILITY)
+
+
+def review_capability_holders():
+    """Active staff accounts that can review access and audit records: a laboratory role and the
+    explicit grant, directly or through a group (audit_review.permissions). A grant to an account
+    without a role is not counted: it opens nothing."""
+    return _capability_holders(REVIEW_CAPABILITY)
+
+
+def _capability_holders(codename):
+    grant = {"codename": codename, "content_type__app_label": "accounts"}
     return (
         get_user_model()
         .objects.filter(is_active=True, client_id__isnull=True, groups__name__in=ROLES)
@@ -716,7 +728,8 @@ def _sign_in(facts):
                 "account, and a refused sign-in for the account whose password or code was "
                 "accepted. The database refuses to change or delete an entry, and entries have "
                 "no retention period. Each person reads their own entries of the last 90 days on "
-                "Sign-in history; no page shows another person's.",
+                "Sign-in history; staff who can review access and audit records read every "
+                "account's in Audit review.",
             ),
         ),
     ]
@@ -1014,6 +1027,16 @@ def _patient(facts):
             "patient information reveal its values one at a time, and each reveal is recorded.",
         ),
         _reveal_confirmation(),
+        Fact(
+            "review-capability",
+            CAPABILITIES[REVIEW_CAPABILITY],
+            _count(review_capability_holders(), "active staff account"),
+            "accounts",
+            "A superuser grants it to a person or to a role group; no role has it otherwise. Its "
+            "holders read the change history, the access records and every account's sign-in "
+            "history in Audit review, and export them; each page shown and each export is "
+            "recorded. Counted: active staff accounts with a laboratory role that hold it.",
+        ),
         Fact(
             "person-links",
             "Person-level links",

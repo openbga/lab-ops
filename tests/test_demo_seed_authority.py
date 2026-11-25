@@ -176,8 +176,11 @@ def test_announced_authority_is_derived_from_the_seed():
         "portal": None,
     }
     assert seed_demo.seeded_authority("demo_supervisor")["capabilities"] == {
-        "view_patient_information"
+        "view_patient_information",
+        "review_audit_records",
     }
+    assert seed_demo.seeded_reach("demo_supervisor")["audit review"] is True
+    assert seed_demo.seeded_reach("demo_technical")["audit review"] is False
 
 
 def test_the_clean_seed_holds_exactly_what_it_announces(demo_env):

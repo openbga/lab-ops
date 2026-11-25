@@ -228,10 +228,20 @@ def sheet_values(values, body, slots, has_body):
 
 def grid_toolbar_values(values, body, slots, has_body):
     """The phone summary of the active filters, and their count (the badge on the button)."""
+    errors = values["invalid"]
+    if not hasattr(errors, "keys"):  # not the form's errors: read them from the form
+        errors = getattr(values["filter_form"], "errors", None) or {}
+    if errors:  # a list with a refused filter applies none of them, the search included
+        return {"filter_count": 0, "filter_summary": "No filters"}
     chips = values["chips"] or values["active_filters"] or []
     parts = [f"{chip['label']}: {chip['value']}" for chip in chips]
     search = str(values["q"] or "").strip()
-    if search and not any(search == str(chip["value"]) for chip in chips):
+    # The search's own chip: by its field's name, or, for a chip built without one, by its text.
+    searched = any(
+        chip.get("name") == "q" or ("name" not in chip and str(chip["value"]) == search)
+        for chip in chips
+    )
+    if search and not searched:
         parts.append(f"Search: {search}")
     return {"filter_count": len(parts), "filter_summary": " · ".join(parts) or "No filters"}
 
@@ -331,7 +341,7 @@ COMPONENTS = {
     "required_note": Component(I + "required_note.html", ("note", "times")),
     "field": Component(I + "field.html", ("field", "prefix", "suffix", "no_help", "label")),
     "grid_search": Component(
-        I + "grid_search.html", ("value", "placeholder", "label", "name", "id")
+        I + "grid_search.html", ("value", "placeholder", "label", "name", "id", "errors")
     ),
     "grid_toolbar": Component(
         I + "grid_toolbar.html",

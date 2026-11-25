@@ -110,7 +110,20 @@ def test_frame_pages_fit_a_phone_with_44px_targets(page: Page, demo: Lab, phone)
 
 
 # Every list page of the frame (one with a filter toolbar). Add a list here when you add one.
-LISTS = ["/clients/", "/lab/announcements/", "/quality/nonconformances/", "/quality/actions/"]
+LISTS = [
+    "/clients/",
+    "/lab/announcements/",
+    "/quality/nonconformances/",
+    "/quality/actions/",
+    "/audit-review/changes/",
+    "/audit-review/access/",
+    "/audit-review/sign-ins/",
+    "/audit-review/uses/",
+]
+# Lists opened by another account than demo_admin: the audit review needs its capability, which
+# the demonstration gives demo_supervisor. They have no search box and no sortable column.
+LIST_ACCOUNTS = {url: "demo_supervisor" for url in LISTS if url.startswith("/audit-review/")}
+UNSORTED = set(LIST_ACCOUNTS)
 THUMBBAR = 64  # the phone bottom bar, --vr-thumbbar-height
 SHEET = "Filter and sort"
 
@@ -154,9 +167,18 @@ def test_list_rows_come_first_behind_one_filter_and_sort_button(page: Page, demo
     the sort links."""
     post_announcement()
     page.set_viewport_size(phone)
-    sign_in(page, "demo_admin", demo.password)
+    signed_in = None
     problems = []
     for url in LISTS:
+        account = LIST_ACCOUNTS.get(url, "demo_admin")
+        if account != signed_in:
+            page.context.clear_cookies()
+            sign_in(page, account, demo.password)
+            signed_in = account
+            if url in LIST_ACCOUNTS:  # a ticket opened, so that Access records has a row
+                from desk.models import ServiceRequest
+
+                page.goto(f"/requests/{ServiceRequest.objects.order_by('pk').first().pk}/")
         page.goto(url)
         row = page.locator("table.vr-table tbody tr").first
         expect(row).to_be_visible()
@@ -172,19 +194,25 @@ def test_list_rows_come_first_behind_one_filter_and_sort_button(page: Page, demo
         assert button.bounding_box()["height"] >= 44, url
         # The toolbar, its search box and the table's own sort chips are out of the way.
         expect(grid_search(page, re.compile("^Filter"))).to_be_hidden()
-        expect(page.locator("table.vr-table > thead")).to_be_hidden()
+        if url not in UNSORTED:  # the head holds the sort chips, which the sheet copies
+            expect(page.locator("table.vr-table > thead")).to_be_hidden()
         summary = page.locator(".vr-filter-summary")
         expect(summary).to_contain_text("No filters")
 
         sheet = open_filter_sheet(page)
         expect(button).to_have_attribute("aria-expanded", "true")
-        expect(sheet.get_by_role("searchbox")).to_be_visible()
         expect(sheet.get_by_role("button", name="Apply")).to_be_visible()
-        expect(sheet.get_by_role("heading", name="Sort by")).to_be_visible()
         box = sheet.bounding_box()
         assert box["y"] >= phone["height"] * 0.1, f"{url}: sheet taller than 85% of the screen"
         assert box["y"] + box["height"] >= phone["height"] - 1, f"{url}: sheet not at the bottom"
         check(page, f"{url} filter sheet", problems)
+        if url in UNSORTED:
+            expect(sheet.get_by_role("heading", name="Sort by")).to_be_hidden()
+            sheet.get_by_role("button", name=f"Close {SHEET}").click()
+            expect(sheet).to_be_hidden()
+            continue
+        expect(sheet.get_by_role("searchbox")).to_be_visible()
+        expect(sheet.get_by_role("heading", name="Sort by")).to_be_visible()
 
         # Choosing a sort reloads the list sorted, and the summary says so.
         chips = sheet.locator(".vr-sort-chips a")

@@ -5,15 +5,16 @@ Find requests: one search box. A request number opens the request; otherwise the
 number, subject, organization, contact, caller or reference match, and those carrying a link whose
 identifier matches (links.search). Context: q, results (at most 50, newest activity first),
 identifier_ids (requests found through a link), organizations (client organizations whose
-name, account code, email, phone or city match, at most 20).
+name, account code, email, phone or city match, at most 20), errors (the search text refused for
+its length: nothing is searched).
 {% endcomment %}
 {% block content %}
 {# form: filter #}
 <form class="vr-find" method="get" role="search" aria-label="Find tickets">
-  {% grid_search value=q id="find-q" label="Ticket number, organization, name, reference or identifier" name="q" placeholder="REQ-000123, organization, order or sample number" %}
+  {% grid_search value=q id="find-q" label="Ticket number, organization, name, reference or identifier" name="q" placeholder="REQ-000123, organization, order or sample number" errors=errors %}
   <button class="btn btn-primary" type="submit">{% icon name="search" %}Find</button>
 </form>
-{% if q %}
+{% if q and not errors %}
 {% panel title="Results" count=results|length table=True class="mt-3" %}
   {% list_results items=results empty_title="Nothing found" empty_body="Check the number or try part of a name. Patient keys are searched only by staff with the patient permission." %}
   <div class="vr-table-wrap"><table class="table table-hover vr-table">

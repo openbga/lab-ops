@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.utils.cache import add_never_cache_headers
 from django.views.decorators.http import require_GET, require_POST
 
-from accounts.roles import effective_roles, require_role, require_staff
+from accounts.roles import require_role, require_staff, roles_and_capabilities
 from clients.permissions import MANAGE_ROLES as CLIENT_ROLES
 
 from . import lab_profile as service
@@ -144,11 +144,16 @@ def lab_profile(request):
 
 
 def menu_reading(request, reader):
-    """The menu's reading of the module switches and of the reader's roles, taken in the page's
-    one reading so the menu agrees with the page (they override the context processor's)."""
+    """The menu's reading of the module switches and of the reader's roles and capabilities, taken
+    in the page's one reading so the menu agrees with the page (they override the context
+    processor's)."""
     modules.states_for(request)
-    roles = effective_roles(reader)
-    return {"user_roles": roles, "can_manage_clients": bool(roles & set(CLIENT_ROLES))}
+    roles, capabilities = roles_and_capabilities(reader)
+    return {
+        "user_roles": roles,
+        "user_capabilities": capabilities,
+        "can_manage_clients": bool(roles & set(CLIENT_ROLES)),
+    }
 
 
 def _module_title(enable, name):

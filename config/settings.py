@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "attachments",
     "jobs",
     "nonconformance",
+    "audit_review",
 ]
 MIDDLEWARE = [
     # Outermost: marks every answer to a signed-in session not to be stored, whichever layer drew

@@ -39,7 +39,8 @@ Every account, staff or client portal, reads its own entries of the last RECENT_
 recent RECENT_LIMIT, on Sign-in history. A shared demonstration account (credentials_locked) is
 used by other visitors too: its entries are listed, but the browser and address only for the
 session the page is read from. Whether the account is shared is read in the same statement as its
-entries. Nobody else's history is shown to anyone in this release.
+entries. Staff who hold the capability to review access and audit records read every account's
+entries in the audit review workspace (audit_review.sources); no other page shows them.
 """
 
 import ipaddress
@@ -260,3 +261,8 @@ def _address_text(address):
         return ipaddress.ip_address(str(address).split("/", 1)[0]).compressed
     except ValueError:
         return str(address)
+
+
+# For the audit review workspace (audit_review.sources), which lists every account's entries.
+event_details = _details
+address_text = _address_text

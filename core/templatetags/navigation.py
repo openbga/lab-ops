@@ -21,7 +21,7 @@ from django import template
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import NoReverseMatch, reverse
 
-from accounts.roles import ROLES, effective_roles
+from accounts.roles import ROLES, roles_and_capabilities
 from core.modules import enabled_for
 
 register = template.Library()
@@ -146,6 +146,14 @@ STAFF_NAV = (
             "nonconformance:ticket-link",
             "nonconformance:ticket-unlink",
         ),
+    ),
+    # Oversight: the audit review workspace (audit_review), for holders of its capability
+    NavItem(
+        "audit-review",
+        "Audit review",
+        "audit_review:changes",
+        "journal-text",
+        ("audit_review:access", "audit_review:sign-ins", "audit_review:uses"),
     ),
     # Setup
     NavItem(
@@ -281,6 +289,7 @@ STAFF_SECTIONS = (
     ("desk", "Service desk", ("requests", "teams")),
     ("clients", "Clients", ("clients", "import")),
     ("quality", "Quality", ("nonconformances",)),
+    ("oversight", "Oversight", ("audit-review",)),
     (
         "setup",
         "Setup",
@@ -308,6 +317,8 @@ STAFF_MENU_ROLES = {
     "import": ("account_manager", "client_services"),  # clients.permissions.MANAGE_ROLES
     # Quality: every staff role raises and reads nonconformances, while the module is on
     "nonconformances": ROLES,
+    # Oversight: any staff role, with the capability below (CAPABILITY_ITEMS)
+    "audit-review": ROLES,
     # Setup items: the admin role sets up the taxonomy, clocks and systems
     "request-categories": ("admin",),
     "service-targets": ("admin",),
@@ -325,15 +336,22 @@ STAFF_MENU_ROLES = {
 
 # Items of an optional module (core.modules key): shown only while the module is on.
 MODULE_ITEMS = {"nonconformances": "nonconformance"}
+# Items that also need an explicit capability (accounts.roles.CAPABILITIES): shown only to an
+# account that holds it, directly or through a group.
+CAPABILITY_ITEMS = {"audit-review": "review_audit_records"}
 
 
-def visible_staff_items(user, roles=None, request=None):
+def visible_staff_items(user, roles=None, request=None, capabilities=None):
     """Keys of the staff menu items this account's current work capabilities show, without the
     items of an optional module that is off (in `request`'s one reading of the switches, so the
-    menu agrees with the page; core.modules.states_for)."""
-    if roles is None:
-        roles = effective_roles(user)
+    menu agrees with the page; core.modules.states_for). `roles` and `capabilities` as
+    accounts.roles.roles_and_capabilities reads them, which this reads when either is not given."""
+    if roles is None or capabilities is None:
+        roles, capabilities = roles_and_capabilities(user)
     visible = {key for key, allowed in STAFF_MENU_ROLES.items() if roles.intersection(allowed)}
+    for key, codename in CAPABILITY_ITEMS.items():
+        if codename not in capabilities:
+            visible.discard(key)
     for key, module in MODULE_ITEMS.items():
         if key in visible and not enabled_for(request, module):
             visible.discard(key)
@@ -352,7 +370,9 @@ def visible_staff_items(user, roles=None, request=None):
 def staff_nav_sections(context):
     """Return nonempty menu sections for this account's current work capabilities."""
     request = context["request"]
-    visible = visible_staff_items(request.user, context.get("user_roles"), request)
+    visible = visible_staff_items(
+        request.user, context.get("user_roles"), request, context.get("user_capabilities")
+    )
     return [
         {"key": key, "label": label, "items": items}
         for key, label, keys in STAFF_SECTIONS
@@ -386,6 +406,15 @@ ACCOUNT_ROUTES = frozenset(
 # Section tabs: one sidebar item whose content is two to six sibling lists (standard section 3,
 # rule 2). Every list in a set marks the same sidebar item.
 SECTION_TABS = {
+    "audit-review": TabSet(
+        "Audit review lists",
+        (
+            Tab("Changes", "audit_review:changes"),
+            Tab("Access records", "audit_review:access"),
+            Tab("Sign-ins", "audit_review:sign-ins"),
+            Tab("Workspace use", "audit_review:uses"),
+        ),
+    ),
     "quality": TabSet(
         "Quality lists",
         (

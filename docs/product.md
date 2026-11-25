@@ -189,6 +189,7 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the read-only Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, with each use recorded. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -262,7 +263,7 @@ The Security settings page, for administrators, lists what protects sign-in, ses
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
 It shows the password rule, the failed sign-in limit, sign-in with an emailed code, what changing
-access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information,
+access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information or review access and audit records,
 whether staff confirm it is them before the first reveal of patient information in a session,
 how many active staff and portal accounts have a second factor, how many form fields hold patient
 information, and the HTTPS and content security policy settings. It describes this release's
@@ -376,7 +377,9 @@ password or emailed code was accepted. Refusals by the limit are kept at most on
 same step and address. No entry holds a password, a code, or the username or email address as
 typed. A shared demonstration account sees its entries, with
 the browser and address only for the session it is using. Entries are kept with no retention
-period and are never changed or deleted; nobody reads another person's history in this release.
+period and are never changed or deleted. Apart from the person, only staff who hold the capability
+to review access and audit records read an account's history, every entry of it, in the Audit
+review workspace (below); no other page shows it.
 The history starts at the upgrade that added it.
 
 Before a change to access or security settings, the application asks the person making it to
@@ -436,6 +439,29 @@ Who opened it page, from the ticket's More menu. Rows shown in a list or a searc
 and the action pages that show only a ticket's number are not recorded. Each change event recorded
 from this release on also keeps the ID of the request that made it, which the server's access log
 line and the X-Request-ID response header carry; events of scheduled jobs and commands have none.
+
+The Audit review workspace brings the three histories together for review across records. Staff
+with a laboratory role who hold the capability "Can review access and audit records", which a
+superuser grants to a person or to a role group and no role has otherwise, open it from the
+sidebar's Oversight section. It has four lists, each newest first, 50 rows a page: Changes (every
+change event), Access records (every sensitive read), Sign-ins (every account's sign-in history)
+and Workspace use (the workspace's own record of its use). Each is filtered by person (any
+account), action and days in the laboratory's time zone, all but Workspace use also by client
+organization, and Changes and Access records also by ticket number; on Changes a ticket takes its
+parts (entries, files, links, the complaint record, the ticket's form and its service clock) and an
+organization its own record, contacts, sites, portal access and portal accounts and its tickets.
+Every page, and the export, is drawn as the list stood when its first page opened, except that a
+row still being saved at that moment (or a change saved by a server whose clock runs behind) can
+appear on a later page, and that which accounts and tickets belong to a filtered organization is
+read again for each page and the export. Export CSV gives every matching row, at most 10,000, as a
+spreadsheet file in which a cell that would run as a formula is written as text. Rows say who did
+what to which record and when, never a change's values or reason or what was shown; a ticket is
+named by its number and organization whatever its category, and opening it still needs access to
+it. The browser and address of a shared demonstration account's sign-ins are left out. The
+workspace changes nothing. Each page of it shown and each export is recorded, with the account, the
+time, the list, the accepted filters (ids, codes and dates, never text as typed), the rows matched
+and the request ID, before the page or file is sent; these records are append-only too. Summaries
+per person and a review record with its sign-off are planned.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

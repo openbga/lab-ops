@@ -78,6 +78,11 @@ def active_filters(request, form):
         for saved in getattr(request, "vr_saved_params", ()):
             params.pop(saved, None)  # added from the user's saved settings; re-added on arrival
         chips.append(
-            {"label": label, "value": str(display), "remove_url": "?" + params.urlencode()}
+            {
+                "name": name,
+                "label": label,
+                "value": str(display),
+                "remove_url": "?" + params.urlencode(),
+            }
         )
     return chips

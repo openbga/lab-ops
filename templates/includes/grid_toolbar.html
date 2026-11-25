@@ -21,7 +21,9 @@ Parameters:
   more_open    truthy when one of the "more" filters is active; the panel also opens when
                invalid
   invalid      the filter form's errors (filter_form.errors); opens More filters
-  chips        the active filters as [{label, value, remove_url}] (active_filters); shown as
+  chips        the active filters as [{name, label, value, remove_url}] (active_filters), name being
+               the form field's: the phone count knows the search's own chip by it (a chip without a
+               name counts as the search when its value is the search text); shown as
                removable chips under the toolbar
   active       truthy when any filter or search is active (a default value is not); shows Clear all.
                chips or q also count
@@ -47,7 +49,7 @@ Usage:
   </div>
   {% sheet id=sheet_id title="Filter and sort" below="sm" class="vr-grid-sheet" %}
 <form class="vr-grid-toolbar" method="get" action="{{ request.path }}" role="search" aria-label="{{ label }}" novalidate>
-  {% if not no_search %}{% grid_search value=q id=search_id label="Search" name="q" placeholder=placeholder %}{% endif %}
+  {% if not no_search %}{% grid_search value=q id=search_id label="Search" name="q" placeholder=placeholder errors=errors.q %}{% endif %}
   {% for field in inline %}{{ field.as_field_group }}{% endfor %}
   <div class="vr-filter-actions">
     {% if more %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ more_id }}" aria-expanded="{% if more_open or errors %}true{% else %}false{% endif %}" aria-controls="{{ more_id }}">{% icon name="funnel" %}More filters</button>{% endif %}

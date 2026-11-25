@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+One list of the audit review workspace (audit_review.views.workspace), for holders of "Can review
+access and audit records": Changes, Access records, Sign-ins or Workspace use, as section tabs.
+Read-only. Newest first, a fixed 50 per page, every page drawn as of the moment the first was (the
+pager's and the export's links carry `upto`). Context: source (audit_review.models.Source), grid (the table's data-vr-grid key), noun,
+intro, columns (audit_review.sources.Column, after When and Person), page_obj (a Page of
+audit_review.sources.Row, or [] when a filter is invalid), filter_form
+(audit_review.forms.ReviewFilter), active_filters, export_url, export_limit, exportable, total and
+the toolbar context (core.lists.toolbar_context). Showing a page is recorded (WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">{{ intro }}</p>{% endblock %}
+{% block page_actions %}{% if exportable %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endif %}{% endblock %}
+{% block content %}
+{% section_tabs "audit-review" %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {% grid_toolbar label="Filter "|add:noun no_search=True invalid=filter_form.errors chips=active_filters grid=grid %}
+  {% list_results items=page_obj noun=noun filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="Nothing matches these filters" no_results_body="Nothing recorded matches. Widen the dates or clear a filter." empty_title="Nothing recorded yet" empty_body="Rows appear here as they are recorded." %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" data-vr-grid="{{ grid }}" data-vr-grid-version="1" aria-label="{{ page_title }}">
+      <thead><tr>
+        <th scope="col" data-vr-col="when" data-vr-col-locked data-vr-col-label="When">When</th>
+        <th scope="col" data-vr-col="person" data-vr-col-label="Person">Person</th>
+        {% for column in columns %}<th scope="col" data-vr-col="{{ column.label|slugify }}" data-vr-col-label="{{ column.label }}">{{ column.label }}</th>{% endfor %}
+      </tr></thead>
+      <tbody>
+        {% for row in page_obj %}
+        <tr>
+          <th scope="row" class="vr-nowrap"><time datetime="{{ row.occurred_at|date:'c' }}">{{ row.occurred_at|date:"Y-m-d H:i:s" }}</time></th>
+          <td class="vr-wrap"><span class="vr-break-anywhere">{{ row.person }}<span class="d-block vr-muted small">{{ row.username }}</span></span></td>
+          {% for cell in row.cells %}
+          <td class="vr-wrap">{% if cell.missing %}<span class="vr-muted">{{ cell.text }}</span>{% elif cell.code %}<code class="vr-request-id">{{ cell.text }}</code>{% else %}<span class="vr-break-anywhere">{{ cell.text }}{% if cell.note %}<span class="d-block vr-muted small">{{ cell.note }}</span>{% endif %}</span>{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun=noun filtered=active_filters fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows: narrow the filters to export this list. {% endif %}Rows are listed as they stood when the first page opened, though a row still being saved at that moment (or, on Changes, a change saved by a server whose clock runs behind) can appear on a later page, and an organization's accounts and tickets are read as they stand now; open the list again to see newer ones. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

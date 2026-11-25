@@ -3,7 +3,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import DisallowedHost
 from django.templatetags.static import static
 
-from accounts.roles import effective_roles
+from accounts.roles import roles_and_capabilities
 from clients.permissions import MANAGE_ROLES as CLIENT_ROLES
 
 from .form_surfaces import form_route_patterns, surface_for_request
@@ -38,7 +38,8 @@ def link_preview_image(request):
 
 
 def workspace(request):
-    roles = effective_roles(getattr(request, "user", AnonymousUser()))
+    # The roles and the capabilities in one statement: the sidebar shows items for both.
+    roles, capabilities = roles_and_capabilities(getattr(request, "user", AnonymousUser()))
     second_factor_pending = _second_factor_pending(request)
     password_change_pending = not second_factor_pending and _password_change_pending(request)
     return {
@@ -47,6 +48,7 @@ def workspace(request):
         "link_preview_image": link_preview_image(request),
         "lab": Lab.objects.first(),
         "user_roles": roles,
+        "user_capabilities": capabilities,
         "can_manage_clients": bool(roles & set(CLIENT_ROLES)),
         "page_documentation": documentation_for_request(request),
         # The signed-in session as this request found it (accounts.sessions), for the warning

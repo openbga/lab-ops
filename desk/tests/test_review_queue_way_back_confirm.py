@@ -677,7 +677,11 @@ def test_phone_filter_sheet_restores_saved_rows_and_sort(
             expect(page.get_by_text("These filters cannot be applied", exact=True)).to_be_visible()
             expect(rows).to_have_count(0)
         # The button counts valid chips. Invalid filters may still supply a chip.
-        page.locator("button.vr-filter-button").click()
+        if start == "invalid-date-range":
+            # Adapted (audit review, round 1): a refused filter opens the sheet at its field.
+            expect(sheet).to_be_visible()
+        else:
+            page.locator("button.vr-filter-button").click()
         expect(sheet).to_be_visible()
         clear = sheet.get_by_role("link", name="Clear all", exact=True)
         expect(clear).to_be_visible(timeout=2500)

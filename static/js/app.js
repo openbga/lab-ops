@@ -388,6 +388,25 @@
     }
   });
 
+  // A list's filters refused on a phone: the error and its field are in the "Filter and sort" sheet,
+  // so the sheet opens with the first refused field focused, as the bulk actions' sheet does.
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!window.bootstrap || !window.matchMedia("(max-width: 575.98px)").matches) return;
+    document.querySelectorAll(".vr-grid-sheet").forEach(function (sheet) {
+      var field = sheet.querySelector("[aria-invalid=true]");
+      if (!field || sheet.classList.contains("show")) return;
+      var button = document.querySelector('[data-bs-toggle="offcanvas"][aria-controls="' + sheet.id + '"]');
+      sheet.addEventListener("shown.bs.offcanvas", function () {
+        (field.tomselect ? field.tomselect.focus_node : field).focus();
+      }, { once: true });
+      // Opened from script, so Bootstrap returns focus to no button: closing it returns to its own.
+      sheet.addEventListener("hidden.bs.offcanvas", function () {
+        if (button && button.getClientRects().length) button.focus();
+      }, { once: true });
+      window.bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
+    });
+  });
+
   // Bootstrap's offcanvas leaves the opening button's aria-expanded to the page.
   function syncSheetButtons(event, expanded) {
     var sheet = event.target;
