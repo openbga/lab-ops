@@ -7,8 +7,9 @@ from django.utils import timezone
 
 
 class Source(models.TextChoices):
-    """The tabs of the audit review workspace: four lists (audit_review.sources) and the summary by
-    person (audit_review.people)."""
+    """What a workspace use is about: the tabs of the audit review workspace, four lists
+    (audit_review.sources), the summary by person (audit_review.people) and the review records,
+    and the two tabs of Access review (audit_review.access_report)."""
 
     CHANGES = "changes", "Changes"
     ACCESS = "access", "Access records"
@@ -30,9 +31,10 @@ class UseKind(models.TextChoices):
 
 
 class WorkspaceUse(models.Model):
-    """One use of the audit review workspace: a page of one of its lists shown, or a list exported
-    (audit_review.views). Who, when, which list, the filters as the form accepted them (ids, codes
-    and dates, never text as typed), how many rows matched and the request ID.
+    """One use of the audit review workspace or of Access review: a page of one of its lists shown,
+    or a list exported (audit_review.views, audit_review.access_views). Who, when, which list, the
+    filters as the form accepted them (ids, codes and dates, never text as typed), how many rows
+    matched and the request ID.
 
     History: the database refuses to change or delete a row (migration 0001); reset_demo empties
     the table with TRUNCATE, which row triggers do not see. Written with the answer it is about
