@@ -3,6 +3,7 @@
 import django.contrib.postgres.fields
 import django.db.models.deletion
 import django.db.models.functions.datetime
+import django.utils.timezone
 from django.conf import settings
 from django.db import migrations, models
 
@@ -10,15 +11,23 @@ from django.db import migrations, models
 # the database refuses to change or delete a row, as for audit events (core 0002's
 # prevent_record_mutation). The review interval is a setting: its one row changes. Workspace uses
 # gain a sixth source, the Reviews tab; no row is rewritten, and reversing it fails once a use of
-# the Reviews tab is recorded. reset_demo empties these tables with TRUNCATE, which row triggers do
-# not see.
+# the Reviews tab is recorded, and while any review exists (REVERSE). reset_demo empties these tables
+# with TRUNCATE, which row triggers do not see.
 SQL = """
 CREATE TRIGGER review_immutable BEFORE UPDATE OR DELETE ON audit_review_review
 FOR EACH ROW EXECUTE FUNCTION prevent_record_mutation();
 CREATE TRIGGER review_note_immutable BEFORE UPDATE OR DELETE ON audit_review_reviewnote
 FOR EACH ROW EXECUTE FUNCTION prevent_record_mutation();
 """
+# Reversing it would drop the tables and the reviews in them: refused while any review exists.
 REVERSE = """
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM audit_review_review) THEN
+    RAISE EXCEPTION 'Signed reviews exist: migration audit_review 0003 cannot be reversed';
+  END IF;
+END
+$$;
 DROP TRIGGER review_note_immutable ON audit_review_reviewnote;
 DROP TRIGGER review_immutable ON audit_review_review;
 """
@@ -98,7 +107,7 @@ class Migration(migrations.Migration):
                 ("text", models.TextField(max_length=4000)),
                 (
                     "added_at",
-                    models.DateTimeField(db_default=django.db.models.functions.datetime.Now()),
+                    models.DateTimeField(default=django.utils.timezone.now),
                 ),
                 (
                     "request_ref",

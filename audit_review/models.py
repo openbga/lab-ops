@@ -3,6 +3,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Now
+from django.utils import timezone
 
 
 class Source(models.TextChoices):
@@ -186,7 +187,8 @@ class ReviewNote(models.Model):
     )
     author_name = models.CharField(max_length=300)
     text = models.TextField(max_length=4000)
-    added_at = models.DateTimeField(db_default=Now())
+    # By the application's clock, as change events and sign-offs are timed.
+    added_at = models.DateTimeField(default=timezone.now)
     request_ref = models.CharField("request ID", max_length=32, blank=True)
 
     class Meta:

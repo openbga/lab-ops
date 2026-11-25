@@ -189,7 +189,7 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
-| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the read-only Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -463,7 +463,7 @@ spreadsheet file in which a cell that would run as a formula is written as text.
 what to which record and when, never a change's values or reason or what was shown; a ticket is
 named by its number and organization whatever its category, and opening it still needs access to
 it. The browser and address of a shared demonstration account's sign-ins are left out. The
-workspace changes nothing. Each page of it shown and each export is recorded, with the account, the
+lists change nothing. Each page of it shown and each export is recorded, with the account, the
 time, the list, the accepted filters (ids, codes and dates, never text as typed), the rows matched
 and the request ID, before the page or file is sent; these records are append-only too.
 
@@ -476,7 +476,33 @@ organization's portal accounts as they stand now, or to activity outside busines
 person or by any count, and exported as a spreadsheet file. Each count opens the list holding the
 records it counted, filtered to exactly those rows; counts, links and the export are drawn as of
 the moment the first page opened. Its pages and exports are recorded as Workspace use like the
-lists'. A review record with its sign-off is planned.
+lists'.
+
+The workspace's Reviews tab keeps the laboratory's record that its activity records were reviewed
+([45 CFR §164.308(a)(1)(ii)(D)](https://www.ecfr.gov/current/title-45/section-164.308), information
+system activity review, and §164.316(b), a written record of it, both read 2026-11-25). A holder of
+the capability records a review for a period of at most 366 days that ends today or earlier: the
+lists examined (Changes, Access records, Sign-ins, People, Workspace use) or other records examined,
+the outcome (nothing that needs follow-up, or findings that need follow-up, which must then be
+described), the findings and the follow-up. They sign it in the same step by entering their password
+again; there are no drafts, and the second factor is not asked. A password not accepted signs
+nothing, keeps what was typed and is written to the sign-in history as a failed re-authentication.
+The review gets a number (AR-000001) and keeps the signer's name, username and roles as they stood,
+the meaning Reviewed, the time by the application's clock and a SHA-256 checksum of exactly what was
+signed. The database refuses to change or delete a review. Its page shows everything, opens each
+list examined on the period as the list stands now, and takes the checksum again to say whether the
+review as stored still matches it. A correction, or what the follow-up came to, is added as a note
+with its author and time, outside what was signed, and cannot be changed or deleted either. The tab
+lists the reviews newest first, 50 a page, with a CSV export, and shows where reviews stand: the
+review interval in days the laboratory sets (none ships, and each change keeps a reason), the next
+review due that many days after the last one was signed (overdue, due today or in how many days),
+the last day reviewed, and the runs of days between reviewed periods that no review covers. Its
+pages, each review shown and each export are recorded as Workspace use, and signing, notes and
+interval changes are change events. The application keeps every review; how long to keep them is
+the laboratory's (§164.316(b)(2)(i) names six years from creation or from when the record was last
+in effect, whichever is later). Nothing reminds anyone when a review is due, a review has no second
+approver, and counts are not stored with it. A sign-off for other records, such as controlled
+documents, is planned on the [roadmap](roadmap.md).
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

@@ -1,0 +1,124 @@
+{
+  "id": "audit-review-review",
+  "routes": [
+    "audit_review:review"
+  ],
+  "title": "Review",
+  "purpose": "Read one signed review of the activity records: the period, what was examined and found, the sign-off with its checksum, and the notes added since. For holders of the review capability only.",
+  "summary": "One signed review: the period it covers, what was examined and found, who signed it and when, whether its checksum still matches, and the notes added since.",
+  "tasks": [
+    {
+      "title": "Check what was reviewed",
+      "steps": [
+        "Read [[What was reviewed]]. Select a list under [[Lists examined]] to open it on the period covered."
+      ]
+    },
+    {
+      "title": "Check the sign-off",
+      "steps": [
+        "Read [[Sign-off]]. Under [[SHA-256 checksum]], Matches the review as stored means it is as it was signed."
+      ]
+    },
+    {
+      "title": "Correct the review or record what the follow-up came to",
+      "steps": [
+        "Select [[Add a note]], write the note and select [[Add note]]. It is listed under [[Notes]] with your name and the time."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The review cannot be changed or removed. A note is the way to correct it, and a note cannot be changed or removed either.",
+    "Notes are not part of what was signed, and the checksum does not cover them.",
+    "A list opened from [[Lists examined]] shows the records as they stand now, so records written since the signing can appear.",
+    "A [[Checksum does not match]] notice means the stored review differs from what was signed. Compare it with an earlier export or a backup."
+  ],
+  "sections": [
+    {
+      "title": "What was reviewed",
+      "items": [
+        {
+          "label": "Period covered",
+          "description": "The first and last day of activity the review covers, both included, in the laboratory's time zone."
+        },
+        {
+          "label": "Lists examined",
+          "description": "The workspace lists the reviewer said they went through: Changes, Access records, Sign-ins, People, Workspace use. Each opens on the period covered (From and To set), as the list stands now. None when only other records were examined."
+        },
+        {
+          "label": "Other records examined",
+          "description": "Records kept outside the application that the reviewer looked at too, as they typed it, such as the hosting provider's logs. None when empty."
+        },
+        {
+          "label": "Outcome",
+          "description": "Nothing that needs follow-up, or Findings that need follow-up. The latter is also shown as Needs follow-up under the title."
+        },
+        {
+          "label": "Findings",
+          "description": "What the reviewer found and how they checked it. Always present when the outcome is Findings that need follow-up. None recorded when empty."
+        },
+        {
+          "label": "Follow-up",
+          "description": "What was done or is to be done, and by whom, such as a ticket or nonconformance number. None recorded when empty."
+        }
+      ]
+    },
+    {
+      "title": "Sign-off",
+      "items": [
+        {
+          "label": "Signed by",
+          "description": "The reviewer's name and username as they stood at signing. A later change to the account does not change them."
+        },
+        {
+          "label": "Roles held then",
+          "description": "The reviewer's roles at signing, such as Supervisor. An account with the admin role shows Administrator alone."
+        },
+        {
+          "label": "Meaning",
+          "description": "What the signature means: Reviewed, by the person who carried out the review. It is the only meaning a review is signed with."
+        },
+        {
+          "label": "Signed",
+          "description": "The date and time of the signing, to the second, by the application's clock, in the laboratory's time zone."
+        },
+        {
+          "label": "SHA-256 checksum",
+          "description": "Taken at signing of exactly what was signed: the number, period, lists and other records examined, outcome, findings, follow-up, the signer (account, name, username and roles), the meaning and the time. Each time the page opens it is taken again of the review as stored and compared: Matches the review as stored, or Does not match the review as stored with a Checksum does not match notice above. The checksum shows that the stored review changed after signing; it does not say who changed it. The application itself never changes a review, and the database refuses to."
+        },
+        {
+          "label": "How it was signed",
+          "description": "The reviewer entered their password on the form at signing. The second factor is not asked at signing."
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "items": [
+        {
+          "label": "Add a note",
+          "description": "Opens the note form for this review. Any holder of the review capability may add one, not only the signer."
+        },
+        {
+          "label": "A note",
+          "description": "The author's name as it stood then, the date and time it was added, and its text, oldest first. Not part of what was signed. It cannot be changed or removed."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused. A number that names no review shows Not found.",
+        "Each time the page is shown it is recorded under Workspace use, with the source Reviews and the review's number. If the record cannot be written, the page is not shown."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/reviews.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/sources.py",
+    "audit_review/templates/audit_review/review_detail.html",
+    "audit_review/tests/test_reviews.py",
+    "accounts/roles.py"
+  ]
+}

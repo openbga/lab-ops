@@ -188,7 +188,9 @@ def test_status_counts_the_next_due_day_from_the_last_signing(reviewer):
     assert reviews.status().state == "unset"
     ReviewSchedule.objects.create(pk=1, interval_days=10)
     assert reviews.status().state == "none"
-    review = sign(reviewer, period_from=today - timedelta(days=40), period_to=today - timedelta(days=31))
+    review = sign(
+        reviewer, period_from=today - timedelta(days=40), period_to=today - timedelta(days=31)
+    )
     state = reviews.status()
     assert state.last == review
     assert state.due == timezone.localtime(review.signed_at).date() + timedelta(days=10)
@@ -329,7 +331,7 @@ def test_the_list_shows_where_reviews_stand_and_records_its_use(client, reviewer
 
 
 def test_the_export_holds_every_review_and_is_recorded(client, reviewer):
-    sign(reviewer, findings="=HYPERLINK(\"x\")")
+    sign(reviewer, findings='=HYPERLINK("x")')
     client.force_login(reviewer)
     response = client.get(reverse("audit_review:reviews-export"))
     assert response.status_code == 200
@@ -350,6 +352,9 @@ def test_adding_a_note_from_a_stale_page_keeps_the_typing(client, reviewer):
     assert response.status_code == 200
     assert b"My late note." in response.content
     assert ReviewNote.objects.count() == 1
+    # Drawn again with the notes as they stand and the revision they make.
+    assert b"Meanwhile." in response.content
+    assert b'name="expected_revision" value="2"' in response.content
     response = client.post(
         reverse("audit_review:review-note", args=[review.pk]),
         {"text": "My late note.", "expected_revision": 2},
@@ -389,3 +394,42 @@ def test_the_admin_role_alone_does_not_open_reviews(client, make_user):
     client.force_login(admin)
     assert client.get(reverse("audit_review:reviews")).status_code == 403
     assert Group.objects.filter(name="admin").exists()
+
+
+def test_a_stale_interval_form_is_drawn_again_with_the_interval_as_it_stands(client, reviewer):
+    reviews.set_interval(actor=reviewer, interval_days=31, expected_revision=0, reason="Monthly.")
+    client.force_login(reviewer)
+    response = client.post(
+        reverse("audit_review:review-interval"),
+        {"interval_days": "92", "reason": "Quarterly.", "expected_revision": 0},
+    )
+    assert response.status_code == 200
+    assert ReviewSchedule.objects.get().interval_days == 31
+    assert b"every 31 days" in response.content
+    assert b'name="expected_revision" value="1"' in response.content
+    assert b"Quarterly." in response.content
+    response = client.post(
+        reverse("audit_review:review-interval"),
+        {"interval_days": "92", "reason": "Quarterly.", "expected_revision": 1},
+    )
+    assert response.status_code == 302
+    assert ReviewSchedule.objects.get().interval_days == 92
+
+
+def test_security_settings_lists_the_review_interval(client, reviewer, make_user):
+    admin = make_user("admin-reader", "admin")
+    client.force_login(admin)
+    assert b"Activity review interval" in client.get(reverse("security-settings")).content
+    reviews.set_interval(actor=reviewer, interval_days=31, expected_revision=0, reason="Monthly.")
+    page = client.get(reverse("security-settings")).content
+    assert b"Every 31 days" in page
+
+
+def test_reversing_the_migration_is_refused_while_a_review_exists(reviewer):
+    from django.db.migrations.executor import MigrationExecutor
+
+    sign(reviewer)
+    executor = MigrationExecutor(connection)
+    with pytest.raises(DatabaseError):
+        with transaction.atomic():
+            executor.migrate([("audit_review", "0002_people_summary")])

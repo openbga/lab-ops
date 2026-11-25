@@ -252,6 +252,12 @@ def _errors(form, exc):
             form.add_error(None, message)
 
 
+def _carry_revision(form, revision):
+    """A refused form drawn again posts `revision`, read with what the page now shows."""
+    form.data = form.data.copy()
+    form.data["expected_revision"] = str(revision)
+
+
 def _refused(request, exc):
     """A service refused the account: it may no longer review. 403, as for a page opened now."""
     if not may_review(request.user):
@@ -329,8 +335,9 @@ def review_note(request, pk):
     review = Review.objects.filter(pk=pk).first()
     if review is None:
         raise Http404("No such review.")
-    revision = reviews.revision_of(review)
-    form = NoteForm(request.POST or None, initial={"expected_revision": revision})
+    # The notes the form shows and the revision it posts, from one statement.
+    notes = list(review.notes.order_by("pk"))
+    form = NoteForm(request.POST or None, initial={"expected_revision": 1 + len(notes)})
     if request.method == "POST" and form.is_valid():
         try:
             reviews.add_note(
@@ -342,6 +349,11 @@ def review_note(request, pk):
             )
         except ValidationError as exc:
             _errors(form, exc)
+            if reviews.STALE_NOTE in exc.messages:
+                # Drawn again with the notes as they stand and the revision they make, so that
+                # the note can be sent again once they are read.
+                notes = list(review.notes.order_by("pk"))
+                _carry_revision(form, 1 + len(notes))
         except PermissionDenied as exc:
             form.add_error(None, _refused(request, exc))
         else:
@@ -355,6 +367,7 @@ def review_note(request, pk):
             "page_title": title,
             "form": form,
             "review": review,
+            "notes": notes,
             "submit_label": "Add note",
             "cancel_url": _review_url(review),
             "crumbs": _crumbs(title, review),
@@ -383,6 +396,11 @@ def review_interval(request):
             )
         except ValidationError as exc:
             _errors(form, exc)
+            if reviews.STALE_INTERVAL in exc.messages:
+                # Drawn again with the interval as it stands and its revision, so that the change
+                # can be sent again once compared.
+                current = reviews.schedule()
+                _carry_revision(form, current.revision)
         except PermissionDenied as exc:
             form.add_error(None, _refused(request, exc))
         else:

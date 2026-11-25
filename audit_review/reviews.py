@@ -287,6 +287,7 @@ def add_note(*, actor, review, text, expected_revision, request_ref=""):
         author_id=author.pk,
         author_name=_name(author),
         text=text,
+        added_at=timezone.now(),
         request_ref=(request_ref or "")[:32],
     )
     record_event(

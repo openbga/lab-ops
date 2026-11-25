@@ -1,0 +1,111 @@
+{
+  "id": "audit-review-review-create",
+  "routes": [
+    "audit_review:review-create"
+  ],
+  "title": "Record a review",
+  "purpose": "Record a review of the activity records for a period, with what was examined and found, and sign it with your password. For holders of the review capability only.",
+  "summary": "Record the period you reviewed, what you examined, what you found and the follow-up, then sign the review with your password. A signed review cannot be changed.",
+  "tasks": [
+    {
+      "title": "Record and sign a review",
+      "steps": [
+        "Check [[From]] and [[To]]. The form starts at the day after the last day reviewed, through yesterday.",
+        "Tick the lists you went through under [[Lists examined]], or describe other records in [[Other records examined]].",
+        "Choose the [[Outcome]] and fill in [[Findings]] and [[Follow-up]].",
+        "Enter your password in [[Your password]] and select [[Sign review]]."
+      ]
+    },
+    {
+      "title": "Record findings that need follow-up",
+      "steps": [
+        "Choose Findings that need follow-up in [[Outcome]] and say what you found in [[Findings]]. It is required then.",
+        "In [[Follow-up]], name who acts and where, such as a ticket or nonconformance number."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Your password is asked for at every signing, even if you entered it a moment ago elsewhere.",
+    "A wrong password signs nothing and keeps what you typed. It is recorded as a failed attempt and counts toward the failed sign-in limit.",
+    "Once signed, the review cannot be changed or removed. Check it before you sign; correct it later with a note.",
+    "Do not enter patient names or identifiers. Refer to a ticket or an account by its number or username."
+  ],
+  "sections": [
+    {
+      "title": "Period covered",
+      "items": [
+        {
+          "label": "From",
+          "description": "Required. The first day of activity the review covers, in the laboratory's time zone. On a new form: the day after the last day any review covers (shown above the form as Reviews so far cover up to), or 30 days ago when there is no review, never more than 366 days before To."
+        },
+        {
+          "label": "To",
+          "description": "Required. The last day it covers, both days included. It must be today or earlier, on or after From, and the period covers at most 366 days. On a new form: yesterday, or From when From is today. Periods may overlap earlier reviews."
+        }
+      ]
+    },
+    {
+      "title": "What you examined",
+      "items": [
+        {
+          "label": "Lists examined",
+          "description": "The workspace lists you went through for the period: Changes, Access records, Sign-ins, People, Workspace use. Tick at least one, or fill in Other records examined."
+        },
+        {
+          "label": "Other records examined",
+          "description": "Records kept outside the application that you looked at too, such as the hosting provider's logs. At most 2,000 characters. Enough on its own when no list is ticked."
+        }
+      ]
+    },
+    {
+      "title": "What you found",
+      "items": [
+        {
+          "label": "Outcome",
+          "description": "Required. Nothing that needs follow-up, or Findings that need follow-up."
+        },
+        {
+          "label": "Findings",
+          "description": "What you found and how you checked it. Required with Findings that need follow-up. At most 4,000 characters."
+        },
+        {
+          "label": "Follow-up",
+          "description": "What was done or is to be done, and by whom, such as a ticket or nonconformance number. Optional. At most 4,000 characters. What the follow-up came to can be added later as a note."
+        }
+      ]
+    },
+    {
+      "title": "Sign-off",
+      "items": [
+        {
+          "label": "Your password",
+          "description": "Your own password, entered at each signing. It is checked only once every other field is accepted, so a form sent back for another reason costs no attempt. A password not accepted shows Incorrect password, signs nothing, keeps everything else you typed (never the password) and is written to your sign-in history as a failed re-authentication, where it counts toward the failed sign-in limit. After too many attempts in a short time, wait a minute before trying again. An account with no password cannot sign. The second factor is not asked, and signing does not count as confirming it is you for other changes."
+        },
+        {
+          "label": "Sign review",
+          "description": "Writes the review and its sign-off in one step: a number such as AR-000004, your name, username and roles as they are now, the meaning Reviewed, the time by the application's clock and a SHA-256 checksum of what you signed. It then opens the review's page. There are no drafts. The review cannot be changed or removed afterwards: the database refuses it."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Reviews tab without saving."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused. Your access is checked again when you sign: if the capability or your role was removed meanwhile, nothing is signed.",
+        "Signing is recorded as a change, listed under Changes as Audit review followed by the review's number. The password is never part of the record or the change."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/reviews.py",
+    "audit_review/review_forms.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/templates/audit_review/review_form.html",
+    "audit_review/tests/test_reviews.py",
+    "accounts/confirmation.py"
+  ]
+}

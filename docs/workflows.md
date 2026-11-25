@@ -26,7 +26,8 @@ narrow it by person, organization, action, ticket number, days or **Outside the 
 business calendar, and select **Export CSV** to keep what was reviewed. **People** counts each
 account's sign-ins, failed sign-ins, tickets opened, files downloaded, patient information shown
 and changes over a period, with how much fell outside business hours; select a count to open the
-rows behind it. Each page opened there and each export is itself recorded.
+rows behind it. **Reviews** keeps the signed record of each review (journey 13). Each page opened
+there and each export is itself recorded.
 [Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys
@@ -144,15 +145,31 @@ load standard forms for the categories in use. Configure catalogs, form fields a
 may use each form. Set business calendars and service targets where a clock is needed. Register
 external systems before using their identifiers in links or imports.
 
+### 13. Review the activity records
+
+Holders of the **Can review access and audit records** grant open **Audit review** and then
+**Reviews**. **Where reviews stand** shows when the next review is due and from which day activity
+is not reviewed yet. The first time, a reviewer selects **Set interval** and enters the laboratory's
+interval in days with a reason; nothing is set until then.
+
+Examine the period on **Changes**, **Access records**, **Sign-ins**, **People** and **Workspace
+use**, setting **From** and **To**, and open a row's record where something needs a closer look.
+Then select **Record a review**. The period starts at the day after the last day reviewed. Tick the
+lists you went through, note any records examined outside the application, choose the outcome and
+write the findings and the follow-up, referring to tickets and accounts by number or username and
+never to a patient. Enter your password and select **Sign review**. The signed review cannot be
+changed. To correct it, or to record what the follow-up came to, open it and choose **Add a note**.
+Use **Export CSV** to keep a copy of the reviews with their checksums.
+
 ## Client journeys
 
-### 13. Sign in and see open tickets
+### 14. Sign in and see open tickets
 
 The portal home offers services and lists open tickets, including those waiting for you. Choose
 **Tickets** for the fuller list. Access depends on the organization and sites assigned to your
 account. A restricted ticket appears only to the client account that raised it.
 
-### 14. Raise a ticket
+### 15. Raise a ticket
 
 Select a service, such as **Request a pickup**, or use **New ticket** for another topic. Choose
 a site when asked. Fill the required details, include an order or sample number in **Your
@@ -160,7 +177,7 @@ reference** if relevant and send. Keep the ticket number for follow-up. If a for
 available, **Request again** on a previous ticket starts another with eligible answers copied.
 Check them and enter any dates, times, confirmations or patient details again.
 
-### 15. Follow a ticket and reply
+### 16. Follow a ticket and reply
 
 Open a ticket to see its status, the conversation and any form details, files or references
 shared with you. Send a reply to answer the laboratory. Replying to a resolved ticket or one

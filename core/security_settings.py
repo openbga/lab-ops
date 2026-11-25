@@ -49,6 +49,7 @@ SOURCES = {
     "session-limits": "Session limits, above",
     "second-factor": "Second sign-in factor, above",
     "reveal-confirmation": "Revealing patient information, above",
+    "audit-review": "Audit review, Reviews tab",
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
@@ -999,6 +1000,28 @@ def _reveal_confirmation():
     )
 
 
+def _review_interval():
+    """How often activity reviews are due, in days, or None (a database reading,
+    audit_review.reviews)."""
+    from audit_review.reviews import schedule
+
+    return schedule().interval_days
+
+
+def _review_schedule():
+    days = _review_interval()
+    return Fact(
+        "review-interval",
+        "Activity review interval",
+        f"Every {_count(days, 'day')}" if days else "Not set",
+        "audit-review",
+        "Holders of Can review access and audit records record each review of the activity "
+        "records on Audit review's Reviews tab, signed with their password, and set this interval "
+        "there with a reason. The next review is due this many days after the last one was "
+        "signed. None is set until a reviewer sets one.",
+    )
+
+
 def _reauthentication_window():
     from accounts.confirmation import window
 
@@ -1037,6 +1060,7 @@ def _patient(facts):
             "history in Audit review, and export them; each page shown and each export is "
             "recorded. Counted: active staff accounts with a laboratory role that hold it.",
         ),
+        _review_schedule(),
         Fact(
             "person-links",
             "Person-level links",

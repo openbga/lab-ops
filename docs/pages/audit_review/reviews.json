@@ -1,0 +1,147 @@
+{
+  "id": "audit-review-reviews",
+  "routes": [
+    "audit_review:reviews"
+  ],
+  "title": "Audit review: reviews",
+  "purpose": "Keep the laboratory's signed records that its activity records were reviewed, see when the next review is due and which days no review covers, and export the records. For holders of the review capability only.",
+  "summary": "The laboratory's signed reviews of its activity records, newest first, with when the next review is due, the last day reviewed and the days no review covers.",
+  "tasks": [
+    {
+      "title": "Record a review",
+      "steps": [
+        "Examine the period on the other tabs, such as [[Changes]] and [[Sign-ins]].",
+        "Select [[Record a review]], fill in what you examined and found, enter your password and select [[Sign review]]."
+      ]
+    },
+    {
+      "title": "See whether a review is due",
+      "steps": [
+        "Read [[Next review due]] in [[Where reviews stand]]. Overdue means the interval has passed since the last review was signed.",
+        "Read [[Reviewed up to]] for the first day no review covers yet."
+      ]
+    },
+    {
+      "title": "Open a review",
+      "steps": [
+        "Select its number, such as AR-000004, to see what was examined and found, the sign-off and its notes."
+      ]
+    },
+    {
+      "title": "Set how often reviews are due",
+      "steps": [
+        "Select [[Set interval]] or [[Change interval]], enter the days and a reason, and select [[Save interval]]."
+      ]
+    },
+    {
+      "title": "Keep a copy of the reviews",
+      "steps": [
+        "Select [[Export CSV]]. The file holds every review listed, with its checksum and how many notes it has."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A signed review cannot be changed or removed, by you or anyone else. Add a note on its page to correct it.",
+    "No interval ships with the application. Until a reviewer sets one, [[Next review due]] reads No interval set.",
+    "Nothing is sent when a review is due: no reminder or email. Check this tab.",
+    "Each page you open here, each review you open and each export is recorded, and other reviewers see it under [[Workspace use]]."
+  ],
+  "sections": [
+    {
+      "title": "The Reviews tab",
+      "paragraphs": [
+        "A tab of the Audit review workspace, beside Changes, Access records, Sign-ins, People and Workspace use. A review record is the laboratory's record that a person examined the activity records for a period: the days it covers, which lists and other records were examined, the outcome, findings and follow-up, and the reviewer's sign-off. The procedure, what to examine and how often stay the laboratory's choice."
+      ]
+    },
+    {
+      "title": "Where reviews stand",
+      "items": [
+        {
+          "label": "Review interval",
+          "description": "Every N days, as a reviewer set it, or Not set. Set interval, or Change interval when one is set, opens the Review interval form."
+        },
+        {
+          "label": "Last review",
+          "description": "The review signed most recently, with its number, the day it was signed and who signed it, or None signed yet."
+        },
+        {
+          "label": "Next review due",
+          "description": "The day the last review was signed plus the interval, in the laboratory's time zone, then Overdue, Due today or in N days. Now when an interval is set and no review has been signed, with a No review yet notice. No interval set when there is none. When overdue, a notice above says on which day it was due and how many days ago. It counts from the signing day, not from the period the last review covered."
+        },
+        {
+          "label": "Reviewed up to",
+          "description": "The last day any review covers, and, when that day is before today, the day from which activity is not reviewed yet. Nothing reviewed yet when there is no review."
+        },
+        {
+          "label": "Days no review covers",
+          "description": "Shown when there are gaps: runs of days between the first day and the last day any review covers that no review covers, newest first. At most 10 are listed, with how many there are in all. Days after the last day reviewed are not a gap; Reviewed up to names them."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Review",
+          "description": "The review's number, such as AR-000004, given when it is signed. Select it to open the review."
+        },
+        {
+          "label": "Period covered",
+          "description": "The first and last day the review covers, both included."
+        },
+        {
+          "label": "Outcome",
+          "description": "Nothing that needs follow-up, or Findings that need follow-up, marked as a warning."
+        },
+        {
+          "label": "Signed by",
+          "description": "The signer's name, and below it the roles they held when they signed, as kept with the review."
+        },
+        {
+          "label": "Signed",
+          "description": "The date and time of the signing, in the laboratory's time zone, by the application's clock."
+        },
+        {
+          "label": "Notes",
+          "description": "How many notes have been added to the review since it was signed."
+        }
+      ]
+    },
+    {
+      "title": "Actions, pages and export",
+      "items": [
+        {
+          "label": "Record a review",
+          "description": "Opens the form that records a review and signs it in one step. Also offered when no review exists yet."
+        },
+        {
+          "label": "Pages",
+          "description": "Fifty reviews per page, newest first. Every page, and the export, lists the reviews as they stood when the first page opened, so a review signed since does not move a row. Open the tab again from the menu to see it. Where reviews stand is read again on each page."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of every review listed: Review, From, To, Lists examined, Other records examined, Outcome, Findings, Follow-up, Signed by, Username, Roles, Meaning, Signed at (with its offset), SHA-256 checksum and Notes (the count). Notes' text is not in the file. Shown when 1 to 10,000 reviews are listed. A cell that a spreadsheet would read as a formula starts with an apostrophe."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, as for the rest of the Audit review workspace. The admin role alone is not enough, and client portal accounts are refused. Everyone who may open the tab can record a review, add a note to any review and set the interval.",
+        "Each page of this list and each export is recorded under Workspace use, with the source Reviews, the page after the first and how many reviews were listed. If the record cannot be written, nothing is shown or exported. Signing a review, adding a note and changing the interval are recorded as changes and listed under Changes as Audit review AR-000004 or Audit review interval."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/reviews.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/urls.py",
+    "audit_review/permissions.py",
+    "audit_review/sources.py",
+    "audit_review/migrations/0003_review_records.py",
+    "audit_review/templates/audit_review/reviews.html",
+    "audit_review/tests/test_reviews.py",
+    "core/templatetags/navigation.py"
+  ]
+}

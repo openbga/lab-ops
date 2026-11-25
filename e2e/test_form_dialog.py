@@ -6,7 +6,7 @@ import re
 import pytest
 from conftest import NARROW
 from django.urls import reverse
-from helpers import field
+from helpers import field, sign_in
 from PIL import Image
 from playwright.sync_api import Locator, Page, expect
 
@@ -495,7 +495,19 @@ def setup_and_link_surfaces(client):
     }
 
 
-def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, sign_in_as):
+def audit_review_surfaces():
+    """Form surfaces of the audit review records, on the review the demonstration seed signed."""
+    from audit_review.models import Review
+
+    review = Review.objects.latest("id")
+    return {
+        "audit_review:review-create": reverse("audit_review:review-create"),
+        "audit_review:review-note": reverse("audit_review:review-note", args=[review.pk]),
+        "audit_review:review-interval": reverse("audit_review:review-interval"),
+    }
+
+
+def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, sign_in_as, demo):
     from accounts.models import User
     from clients.models import Client, ClientContact
     from core.announcements import save_announcement
@@ -549,14 +561,25 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
         "teams:team-edit": reverse("teams:team-edit", args=[team.pk]),
         **setup_and_link_surfaces(client),
         **nonconformance_surfaces(),
+        **audit_review_surfaces(),
     }
     assert set(paths) == set(FORM_SURFACES), "A form route was added or removed: update this test."
     dialog = page.locator("#vr-form-dialog")
-    for name, path in paths.items():
-        page.goto(path)
-        expect(dialog, name).to_be_visible()
-        expect(dialog.get_by_role("heading", level=1), name).to_have_count(1)
-        dialog.get_by_role("link", name="Cancel", exact=True).click()
-        expect(dialog, name).to_be_hidden()
-        expect(page, name).not_to_have_url(re.compile(re.escape(path) + r"$"))
+
+    def open_and_cancel(surfaces):
+        for name, path in surfaces.items():
+            page.goto(path)
+            expect(dialog, name).to_be_visible()
+            expect(dialog.get_by_role("heading", level=1), name).to_have_count(1)
+            dialog.get_by_role("link", name="Cancel", exact=True).click()
+            expect(dialog, name).to_be_hidden()
+            expect(page, name).not_to_have_url(re.compile(re.escape(path) + r"$"))
+
+    reviewer_only = {name: path for name, path in paths.items() if name.startswith("audit_review:")}
+    open_and_cancel({name: path for name, path in paths.items() if name not in reviewer_only})
+    # The review forms need the capability "Can review access and audit records", which the
+    # demonstration gives its supervisor.
+    page.context.clear_cookies()
+    sign_in(page, "demo_supervisor", demo.password)
+    open_and_cancel(reviewer_only)
     assert page.console_errors == []

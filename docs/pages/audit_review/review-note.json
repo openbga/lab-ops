@@ -1,0 +1,69 @@
+{
+  "id": "audit-review-review-note",
+  "routes": [
+    "audit_review:review-note"
+  ],
+  "title": "Add a note",
+  "purpose": "Add a note to a signed review: a correction, or what its follow-up came to. For holders of the review capability only.",
+  "summary": "Add a note to a signed review to correct it or record what the follow-up came to. The note is kept with your name and the time.",
+  "tasks": [
+    {
+      "title": "Correct a signed review",
+      "steps": [
+        "Write the correction in [[Note]], saying what was wrong and what is right, and select [[Add note]]."
+      ]
+    },
+    {
+      "title": "Record what the follow-up came to",
+      "steps": [
+        "Write what was done in [[Note]], with the ticket or nonconformance number, and select [[Add note]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A note cannot be changed or removed once added. Add another note to correct it.",
+    "The note is not part of what was signed and does not change the review or its checksum.",
+    "If someone else added a note after you opened the review, yours is not saved and your typing is kept. Read the latest notes, then add it again.",
+    "Do not enter patient names or identifiers. Refer to a ticket or an account by its number or username."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Note",
+          "description": "Required. A correction, or what the follow-up came to. At most 4,000 characters. It is shown on the review's page under Notes, oldest first, with your name as it is now and the time it was added."
+        },
+        {
+          "label": "Add note",
+          "description": "Adds the note and returns to the review's page. Recorded as a change, listed under Changes as Audit review followed by the review's number."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the review's page without saving."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Any holder of the review capability may add a note to any review, not only the person who signed it. Your access is checked again when you save.",
+        "The form remembers how many notes the review had when you opened it. A note added by anyone in the meantime refuses yours, with what you typed kept, so that you read it before adding your own."
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/reviews.py",
+    "audit_review/review_forms.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/templates/audit_review/review_note_form.html",
+    "audit_review/tests/test_reviews.py"
+  ]
+}

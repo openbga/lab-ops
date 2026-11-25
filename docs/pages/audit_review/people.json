@@ -51,7 +51,7 @@
     {
       "title": "The People tab",
       "paragraphs": [
-        "A tab of the Audit review workspace, beside Changes, Access records, Sign-ins and Workspace use. Over the period chosen it shows one row per account, staff or client portal, that did at least one counted thing. It counts the same records the Changes, Access records and Sign-ins lists hold and shows no record's content. The line above the table names the period, the business calendar and whether only activity outside its hours is counted; when neither date was set it says the period is the last 30 days."
+        "A tab of the Audit review workspace, beside Changes, Access records, Sign-ins, Workspace use and Reviews. Over the period chosen it shows one row per account, staff or client portal, that did at least one counted thing. It counts the same records the Changes, Access records and Sign-ins lists hold and shows no record's content. The line above the table names the period, the business calendar and whether only activity outside its hours is counted; when neither date was set it says the period is the last 30 days."
       ]
     },
     {
