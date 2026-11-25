@@ -77,12 +77,12 @@ PASSWORD_CHANGED = (
     "Your password changed while this page was open. Enter your password again to sign this review."
 )
 STALE_NOTE = (
-    "A note was added to this review after you opened it. Your note has been kept; read the "
-    "latest notes, then add it again."
+    "A note was added to this review after you opened this form. Your note has been kept: read "
+    "the latest notes above, then add it again."
 )
 STALE_INTERVAL = (
-    "The review interval was changed after you opened this form. Your input has been kept; "
-    "reload and compare the current setting before saving again."
+    "The review interval was changed after you opened this form. Your input has been kept: "
+    "compare it with the interval as it now stands, then save again."
 )
 # How many gaps the Reviews tab lists, newest first.
 GAPS_SHOWN = 10

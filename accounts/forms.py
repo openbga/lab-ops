@@ -3,6 +3,7 @@ from allauth.core import context
 from allauth.mfa.base.forms import AuthenticateForm, ReauthenticateForm
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.debug import sensitive_variables
 
 from .passwords import CHECKED_MINIMUM, guidance_html
 
@@ -118,3 +119,13 @@ class SetPasswordForm(PasswordGuidance, account_forms.SetPasswordForm):
 
 class ResetPasswordKeyForm(PasswordGuidance, account_forms.ResetPasswordKeyForm):
     pass
+
+
+class PasswordReauthenticateForm(account_forms.ReauthenticateForm):
+    """allauth's re-authentication page (Your password, asked for again): every variable of its
+    checking, and of what it calls, is left out of a traceback's report, as for every other form
+    that asks for the password again (accounts.adapter.ClosedSignupAdapter.reauthenticate)."""
+
+    @sensitive_variables()
+    def full_clean(self):
+        return super().full_clean()

@@ -522,9 +522,12 @@ def _wait_for_a_waiter(lock):
     deadline = monotonic() + 15
     with connection.cursor() as cursor:
         while monotonic() < deadline:
+            # Verification V12: the two-key form (objsubid 2) of exactly this lock, in this
+            # database, waited for by another connection.
             cursor.execute(
                 "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = %s "
-                "AND objid = %s AND NOT granted",
+                "AND objid = %s AND objsubid = 2 AND NOT granted AND pid <> pg_backend_pid() "
+                "AND database = (SELECT oid FROM pg_database WHERE datname = current_database())",
                 list(lock),
             )
             if cursor.fetchone()[0]:
@@ -617,12 +620,11 @@ def test_the_most_recent_signing_is_the_first_listed_and_exported(client, overla
     assert (listed, exported) == (latest.number, latest.number)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Documented limit (round 1, L2): the number of notes is counted as each page or export "
-    "is made (reviews.html footer, docs/pages/audit_review/reviews.json).",
-)
-def test_an_export_keeps_the_note_count_shown_when_its_link_was_offered(client, reviewer):
+def test_an_export_keeps_its_reviews_and_counts_notes_as_it_is_made(client, reviewer):
+    # Adapted (round 1, L2; verification V11): the documented limit, asserted as it is: the export
+    # keeps the reviews the first page was drawn from, and counts their notes as it is made
+    # (reviews.html footer, docs/pages/audit_review/reviews.json). No expected failure, so another
+    # failure cannot pass for the limit.
     review = sign(reviewer)
     client.force_login(reviewer)
     first = client.get(reverse("audit_review:reviews"))
@@ -631,8 +633,11 @@ def test_an_export_keeps_the_note_count_shown_when_its_link_was_offered(client, 
     reviews.add_note(
         actor=reviewer, review=review, text="A later observation.", expected_revision=1
     )
+    sign(reviewer)  # signed after the first page: not in its export
     [row] = review_csv(client.get(first.context["export_url"]))
-    assert (row["Review"], int(row["Notes"])) == (number, count)
+    assert (row["Review"], int(row["Notes"])) == (number, 1)
+    page = client.get(reverse("audit_review:reviews")).content.decode()
+    assert "the number of notes is counted as each page or export is made" in page
 
 
 def test_ordinary_later_signings_stay_out_of_the_pager_and_offered_export(client, reviewer):
@@ -1076,14 +1081,20 @@ def test_interval_history_agrees_with_current_value_and_revision_on_stale_redraw
         deadline = monotonic() + 10
         with reading_connection.cursor() as cursor:
             while monotonic() < deadline:
+                # Verification V12: exactly the interval's two-key lock, in this database, waited
+                # for by another connection; the reading fails if no save ever waited.
                 cursor.execute(
-                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
-                    "AND classid = %s AND NOT granted",
-                    [reviews.SCHEDULE_LOCK[0]],
+                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = %s "
+                    "AND objid = %s AND objsubid = 2 AND NOT granted "
+                    "AND pid <> pg_backend_pid() AND database = "
+                    "(SELECT oid FROM pg_database WHERE datname = current_database())",
+                    list(reviews.SCHEDULE_LOCK),
                 )
                 if cursor.fetchone()[0]:
                     break
                 sleep(0.02)
+            else:
+                raise AssertionError("The other save never waited for the interval's lock.")
         return read_history(*args, **kwargs)
 
     monkeypatch.setattr(reviews, "interval_history", read_history_while_another_save_waits)

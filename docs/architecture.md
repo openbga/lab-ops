@@ -202,10 +202,11 @@ the outcome, findings and follow-up, and the sign-off: `signed_by` (an id withou
 constraint, as for access records), the signer's name, username and roles as they stood
 (`roles_label`), the meaning (`Meaning.REVIEWED`), `signed_at` by the application's clock and
 `checksum`, the SHA-256 of `signed_content`: those fields as JSON with sorted keys and no spaces,
-notes excluded. `sign_review` takes the id from the table's sequence first so the number
-(`AR-` and six digits) is part of what is signed, holds the acting account (`accounts.acting`) and
-checks `may_review` on it, then writes the review and its `audit_review.signed` event in one
-transaction. The view checks the password before calling it (`review_forms.signing_refusal`, through
+notes excluded. `sign_review` holds the acting account (`accounts.acting`) and checks
+`may_review` and the checked password's hash on it, takes `SIGNING_LOCK` (an advisory lock held
+until it commits, so numbers follow the order signings commit in), then takes the id from the
+table's sequence so the number (`AR-` and six digits) is part of what is signed, and writes the
+review and its `audit_review.signed` event in one transaction. The view checks the password before calling it (`review_forms.signing_refusal`, through
 the allauth adapter's `reauthenticate`, so a refusal is a failed re-authentication in the sign-in
 history and counts toward the failed sign-in limit, and nothing is written to the session).
 `ReviewNote` rows are added by `add_note` under a row lock on the review, refused when the page's
@@ -214,8 +215,10 @@ revision (1 plus the number of notes) is stale. Triggers from audit_review migra
 `TRUNCATE` is not seen by row triggers. `ReviewSchedule` is one row (`id = 1`), written the first
 time the interval is saved, with a `revision` checked under an advisory lock and the change
 recorded as `audit_review.interval_changed` with a reason. `status()` works out where reviews stand
-on each request: the next due day is the local date of the newest `signed_at` plus the interval,
-and gaps are computed from every review's period. The Reviews list is read as of the newest review
+on each request: the last review is the one with the highest number (signed last, in the order
+signings commit), and the next due day is the local date of its `signed_at` plus the interval, so
+servers whose clocks disagree can give a later signing an earlier time; gaps are computed from
+every review's period. The Reviews list is read as of the newest review
 id (`upto`), like the other lists, and its pages, each review page and its export are
 `WorkspaceUse` rows of the source `reviews`, which migration 0003 adds; the Changes list names a
 review's events by its number.

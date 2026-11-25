@@ -149,6 +149,8 @@ ACCOUNT_FORMS = {
     "change_password": "accounts.forms.ChangePasswordForm",
     "set_password": "accounts.forms.SetPasswordForm",
     "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
+    # Its checking hides the password from error reports (accounts.forms).
+    "reauthenticate": "accounts.forms.PasswordReauthenticateForm",
 }
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]

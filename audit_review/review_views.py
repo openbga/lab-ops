@@ -364,15 +364,18 @@ def review_note(request, pk):
         except ValidationError as exc:
             _errors(form, exc)
             if reviews.STALE_NOTE in exc.messages:
-                # Drawn again with the notes as they stand and the revision they make, so that
-                # the note can be sent again once they are read.
+                # Drawn again with the notes as they stand now, so that the note can be sent again
+                # once they are read.
                 notes = list(review.notes.order_by("pk"))
-                _carry_revision(form, 1 + len(notes))
         except PermissionDenied as exc:
             form.add_error(None, _refused(request, exc))
         else:
             messages.success(request, f"Note added to review {review.number}.")
             return redirect(_review_url(review))
+    if request.method == "POST":
+        # A form sent and drawn again posts the revision the notes it shows make, whatever it
+        # was refused for (an empty field, a note added meanwhile).
+        _carry_revision(form, 1 + len(notes))
     title = "Add a note"
     return _render(
         request,
@@ -416,11 +419,6 @@ def review_interval(request):
             )
         except ValidationError as exc:
             _errors(form, exc)
-            if reviews.STALE_INTERVAL in exc.messages:
-                # Drawn again with the interval as it stands and its revision, so that the change
-                # can be sent again once compared.
-                current, history = _interval_reading()
-                _carry_revision(form, current.revision)
         except PermissionDenied as exc:
             form.add_error(None, _refused(request, exc))
         else:
@@ -430,8 +428,11 @@ def review_interval(request):
             )
             return redirect(_list_url())
     if current is None:
-        # A form sent and refused: the interval and its history as they stand now, read together.
+        # A form sent and refused, whatever for: drawn again with the interval and its history as
+        # they stand now, read together, and their revision, so that it can be sent again once
+        # compared.
         current, history = _interval_reading()
+        _carry_revision(form, current.revision)
     title = "Review interval"
     return _render(
         request,

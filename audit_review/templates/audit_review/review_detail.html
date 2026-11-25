@@ -33,7 +33,7 @@ matches its checksum), examined_links ((label, url) pairs), list_url. Showing it
 {% endpanel %}
 {% panel title="Sign-off" heading_id="sign-off-heading" class="mb-3" %}
   <dl class="vr-facts">
-    {% fact label="Signed by" %}{{ review.signer_name }}<span class="d-block vr-muted small">{{ review.signer_username }}</span>{% endfact %}
+    {% fact label="Signed by" %}<span class="vr-break-anywhere">{{ review.signer_name }}</span><span class="d-block vr-muted small">{{ review.signer_username }}</span>{% endfact %}
     {% fact label="Roles held then" value=review.signer_roles %}
     {% fact label="Meaning" value=review.get_meaning_display %}
     {% fact label="Signed" %}<time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"j F Y, H:i:s" }}</time>{% endfact %}
@@ -47,7 +47,7 @@ matches its checksum), examined_links ((label, url) pairs), list_url. Showing it
   <ol class="vr-plain-list mb-0">
     {% for note in notes %}
     <li class="mb-3">
-      <p class="mb-1"><strong>{{ note.author_name }}</strong> <span class="vr-muted small"><time datetime="{{ note.added_at|date:'c' }}">{{ note.added_at|date:"j F Y, H:i" }}</time></span></p>
+      <p class="mb-1"><strong class="vr-break-anywhere">{{ note.author_name }}</strong> <span class="vr-muted small"><time datetime="{{ note.added_at|date:'c' }}">{{ note.added_at|date:"j F Y, H:i" }}</time></span></p>
       <div class="vr-break-anywhere">{{ note.text|linebreaksbr }}</div>
     </li>
     {% endfor %}

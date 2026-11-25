@@ -58,7 +58,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "c16c313754920c9ee91902ccabe27b8324f04d0a92275806d68f0746153f1199"
+RELEASE_SETTINGS_SHA256 = "d04feaf6a7da6be5169979cc7090c8a038e23196ed90f752e1c47c181cf102bf"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -165,6 +165,7 @@ RELEASE = {
             "change_password": "accounts.forms.ChangePasswordForm",
             "set_password": "accounts.forms.SetPasswordForm",
             "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
+            "reauthenticate": "accounts.forms.PasswordReauthenticateForm",
         },
     ),
     # How stored passwords are read and written: Django's own list in this release. A mark of a

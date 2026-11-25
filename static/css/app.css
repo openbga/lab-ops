@@ -5295,6 +5295,10 @@ details.card:not([open]) > summary.card-header {
     min-height: var(--vr-touch-target);
   }
 
+  .vr-link-list > li > a {
+    min-width: var(--vr-touch-target);
+  }
+
   .vr-chip a,
   .vr-ts-clear,
   .vr-date-icon {
