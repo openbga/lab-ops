@@ -111,9 +111,16 @@ def test_sign_in_preserves_the_result_history_and_adapter_masks(
     assert masked
 
 
+class BackendPasswordReadable(AssertionError):
+    """The accepted limit itself: the backend's password argument stays readable."""
+
+
 @pytest.mark.confirmation
 @pytest.mark.xfail(
     strict=True,
+    # Adapted (fourth confirmation, finding 2): only the limit's own assertion is expected to fail;
+    # a failed prerequisite (the sign-in, the backend observed) fails the test.
+    raises=BackendPasswordReadable,
     reason="Accepted limit (third confirmation, finding 1; predates): Django's authenticate() "
     "names only `credentials` as sensitive, and as the nearest marker its list applies to the "
     "authentication backend it calls, whose password argument stays readable to the report "
@@ -132,7 +139,10 @@ def test_sign_in_masks_the_password_in_the_backend_called_by_the_adapter(
         )
     assert response.status_code == 302 and client.session[SESSION_KEY] == str(user.pk)
     assert key in observed
-    assert observed[key], "The production filter retained the submitted password in the backend."
+    if not observed[key]:
+        raise BackendPasswordReadable(
+            "The production filter retained the submitted password in the backend."
+        )
 
 
 @pytest.mark.parametrize("unavailable", ["note-revoked", "interval-revoked", "note-missing"])
