@@ -269,11 +269,12 @@ REDRAWN = "This form is shown again as {what} now stands. Check it, then send it
 
 def _carry_revision(form, revision, what):
     """A refused form drawn again posts `revision`, read with what the page now shows. A revision
-    that was missing or not a number is repaired so: its error is said in words (`what` the form
-    shows), as no field on the page can be corrected."""
+    that was missing or not a number is repaired so, and no field on the page can be corrected for
+    it: when nothing else on the form is refused, it is said in words (`what` the form shows);
+    otherwise the visible fields' errors guide, and the error summary counts only them."""
     form.data = form.data.copy()
     form.data["expected_revision"] = str(revision)
-    if form.errors.pop("expected_revision", None):
+    if form.errors.pop("expected_revision", None) and not form.errors:
         form.add_error(None, REDRAWN.format(what=what))
 
 

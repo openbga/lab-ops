@@ -7,6 +7,9 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         return False
 
+    # These hold the credentials of a sign-in (the password among them): every variable here and in
+    # what they call is left out of a traceback's report.
+    @sensitive_variables()
     def pre_authenticate(self, request, **credentials):
         try:
             super().pre_authenticate(request, **credentials)
@@ -26,12 +29,14 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
     # password that was checked (after any upgrade the check made), for accounts.confirmation.
     _verified = None
 
+    @sensitive_variables()
     def authenticate(self, request, **credentials):
         user = super().authenticate(request, **credentials)
         if self._reauthenticating is not None:
             self._verified = user
         return user
 
+    @sensitive_variables()
     def authentication_failed(self, request, **credentials):
         # A password not accepted (allauth calls this when no account accepted it, so not for a
         # deactivated account's right password, which pre_login refuses): at sign-in, recorded
