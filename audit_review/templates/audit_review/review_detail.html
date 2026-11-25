@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One review record (audit_review.review_views.review_page), for holders of "Can review access and
+audit records": the period, what was examined (each list opened on the period), the outcome,
+findings and follow-up, the sign-off with its checksum checked against the record as stored, and
+the notes added since, oldest first. Nothing here changes the review: a note is added on its own
+form. Context: review (audit_review.models.Review), notes (ReviewNote), intact (whether the record
+matches its checksum), examined_links ((label, url) pairs), list_url. Showing it is recorded
+(WorkspaceUse).
+{% endcomment %}
+{% block title %}{{ review.number }} · Audit review · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Reviews" section_url=list_url current=review.number %}{% endblock %}
+{% block page_heading %}Review <span class="vr-id">{{ review.number }}</span>{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% status label="Signed" tone="success" %}</li>
+  <li><time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"j F Y" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"j F Y" }}</time></li>
+  {% if review.outcome == "follow_up" %}<li>{% status label="Needs follow-up" tone="warning" plain=True %}</li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'audit_review:review-note' review.pk %}">Add a note</a>{% endblock %}
+{% block content %}
+{% if not intact %}{% notice tone="danger" label="Checksum does not match" %}This review as stored differs from what was signed: it was changed after signing outside this application. Compare it with an earlier export or a backup.{% endnotice %}{% endif %}
+{% panel title="What was reviewed" heading_id="reviewed-heading" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Period covered" %}<time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"j F Y" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"j F Y" }}</time>{% endfact %}
+    {% fact label="Lists examined" empty="None" %}{% if examined_links %}<ul class="vr-plain-list mb-0">{% for label, url in examined_links %}<li><a href="{{ url }}">{{ label }}<span class="visually-hidden"> for the period covered</span></a></li>{% endfor %}</ul>{% endif %}{% endfact %}
+    {% fact label="Other records examined" wide=True value=review.examined_other|linebreaksbr empty="None" %}
+    {% fact label="Outcome" value=review.get_outcome_display %}
+    {% fact label="Findings" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
+    {% fact label="Follow-up" wide=True value=review.follow_up|linebreaksbr empty="None recorded" %}
+  </dl>
+  {% fill footer %}<p class="vr-muted small mb-0">Each list opens on the period covered, as it stands now: records written since the review was signed can appear there.</p>{% endfill %}
+{% endpanel %}
+{% panel title="Sign-off" heading_id="sign-off-heading" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Signed by" %}{{ review.signer_name }}<span class="d-block vr-muted small">{{ review.signer_username }}</span>{% endfact %}
+    {% fact label="Roles held then" value=review.signer_roles %}
+    {% fact label="Meaning" value=review.get_meaning_display %}
+    {% fact label="Signed" %}<time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"j F Y, H:i:s" }}</time>{% endfact %}
+    {% fact label="SHA-256 checksum" wide=True %}<code class="vr-request-id vr-break-anywhere">{{ review.checksum }}</code><span class="d-block small {% if intact %}vr-muted{% else %}text-danger{% endif %}">{% if intact %}Matches the review as stored.{% else %}Does not match the review as stored.{% endif %}</span>{% endfact %}
+  </dl>
+  {% fill footer %}<p class="vr-muted small mb-0">Signed with the reviewer's password entered at signing. The checksum is taken of the review's number, period, what was examined, outcome, findings, follow-up and this sign-off; notes are not part of it.</p>{% endfill %}
+{% endpanel %}
+{% panel title="Notes" heading_id="notes-heading" count=notes|length class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'audit_review:review-note' review.pk %}">Add a note</a>{% endfill %}
+  {% if notes %}
+  <ol class="vr-plain-list mb-0">
+    {% for note in notes %}
+    <li class="mb-3">
+      <p class="mb-1"><strong>{{ note.author_name }}</strong> <span class="vr-muted small"><time datetime="{{ note.added_at|date:'c' }}">{{ note.added_at|date:"j F Y, H:i" }}</time></span></p>
+      <div class="vr-break-anywhere">{{ note.text|linebreaksbr }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="vr-muted mb-0">No notes. Add one to correct the review or record what its follow-up came to.</p>
+  {% endif %}
+{% endpanel %}
+{% endblock %}

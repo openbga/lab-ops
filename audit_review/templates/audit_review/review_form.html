@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Record a review and sign it (audit_review.review_views.review_create), for holders of "Can review
+access and audit records": a form in the shared form dialog, a full page without script. The
+period starts as the days after the last day any review covers (audit_review.reviews.
+suggested_period). Signing asks for the password every time; a refused page keeps what was typed,
+the password aside. Context: page_title, form (audit_review.review_forms.ReviewForm), state
+(audit_review.reviews.Status), signer (the signed-in account), submit_label, cancel_url, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  {% notice tone="info" label="No patient data" %}Refer to a ticket or an account by its number or username. Do not enter patient names or identifiers.{% endnotice %}
+  {% if state.covered_to %}<p class="vr-form-note">Reviews so far cover up to <time datetime="{{ state.covered_to|date:'Y-m-d' }}">{{ state.covered_to|date:"j F Y" }}</time>.</p>{% endif %}
+  <fieldset class="vr-form-section">
+    <legend>Period covered</legend>
+    <div class="row g-3">
+      <div class="col-sm-6">{{ form.period_from.as_field_group }}</div>
+      <div class="col-sm-6">{{ form.period_to.as_field_group }}</div>
+    </div>
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>What you examined</legend>
+    {{ form.examined.as_field_group }}
+    {{ form.examined_other.as_field_group }}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>What you found</legend>
+    {{ form.outcome.as_field_group }}
+    {{ form.findings.as_field_group }}
+    {{ form.follow_up.as_field_group }}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>Sign-off</legend>
+    <p class="vr-form-note">By entering your password you sign this review as <strong>reviewed</strong> by you, {{ signer.get_full_name|default:signer.username }}. The record keeps your name, username and roles as they are now, the time and a checksum of what you signed. A signed review cannot be changed or removed; a note can be added to it later.</p>
+    {{ form.password.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

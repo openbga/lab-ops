@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Add a note to a signed review (audit_review.review_views.review_note): a form in the shared form
+dialog, a full page without script. It carries the review's revision as the page read it (1 and
+one more for each note); a note added meanwhile refuses it with the typing kept. Context:
+page_title, form (audit_review.review_forms.NoteForm), review, submit_label, cancel_url, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  {% notice tone="info" label="No patient data" %}Refer to a ticket or an account by its number or username. Do not enter patient names or identifiers.{% endnotice %}
+  <p class="vr-form-note">Review <span class="vr-id">{{ review.number }}</span>, covering <time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"j F Y" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"j F Y" }}</time>, signed by {{ review.signer_name }}. A note is kept with your name and the time, and cannot be changed or removed.</p>
+  {{ form.text.as_field_group }}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+{% endform_page %}
+{% endblock %}
