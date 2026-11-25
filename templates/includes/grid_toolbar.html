@@ -21,7 +21,9 @@ Parameters:
   more_open    truthy when one of the "more" filters is active; the panel also opens when
                invalid
   invalid      the filter form's errors (filter_form.errors); opens More filters
-  chips        the active filters as [{label, value, remove_url}] (active_filters); shown as
+  chips        the active filters as [{name, label, value, remove_url}] (active_filters), name being
+               the form field's: the phone count knows the search's own chip by it (a chip without a
+               name counts as the search when its value is the search text); shown as
                removable chips under the toolbar
   active       truthy when any filter or search is active (a default value is not); shows Clear all.
                chips or q also count
