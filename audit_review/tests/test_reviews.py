@@ -433,3 +433,51 @@ def test_reversing_the_migration_is_refused_while_a_review_exists(reviewer):
     with pytest.raises(DatabaseError):
         with transaction.atomic():
             executor.migrate([("audit_review", "0002_people_summary")])
+
+
+def test_a_password_changed_after_it_was_checked_refuses_the_signing(client, reviewer, monkeypatch):
+    from audit_review import review_forms
+
+    real = review_forms.signing_refusal
+
+    def then_change(request, password):
+        refusal = real(request, password)
+        # Another tab changes the password once this one's check has passed.
+        from accounts.models import User
+
+        account = User.objects.get(pk=reviewer.pk)
+        account.set_password("another-synthetic-passphrase-93")
+        account.save()
+        return refusal
+
+    monkeypatch.setattr(review_forms, "signing_refusal", then_change)
+    client.force_login(reviewer)
+    response = client.post(reverse("audit_review:review-create"), form_data())
+    assert response.status_code in (200, 302)
+    assert not Review.objects.exists()
+
+
+def test_the_checked_password_hash_signs_when_unchanged(reviewer):
+    from accounts.models import User
+
+    stored = User.objects.get(pk=reviewer.pk).password
+    with transaction.atomic():
+        review = reviews.sign_review(
+            actor=reviewer,
+            period_from=timezone.localdate() - timedelta(days=3),
+            period_to=timezone.localdate(),
+            examined=["changes"],
+            outcome=Review.Outcome.NOTHING,
+            password_hash=stored,
+        )
+    assert reviews.intact(review)
+    with pytest.raises(ValidationError) as caught, transaction.atomic():
+        reviews.sign_review(
+            actor=reviewer,
+            period_from=timezone.localdate() - timedelta(days=3),
+            period_to=timezone.localdate(),
+            examined=["changes"],
+            outcome=Review.Outcome.NOTHING,
+            password_hash=stored + "x",
+        )
+    assert "confirm_password" in caught.value.error_dict

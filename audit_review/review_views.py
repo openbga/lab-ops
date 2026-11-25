@@ -303,6 +303,7 @@ def review_create(request):
                 findings=data["findings"],
                 follow_up=data["follow_up"],
                 request_ref=getattr(request, "request_id", "") or "",
+                password_hash=form.checked_hash,
             )
         except ValidationError as exc:
             _errors(form, exc)

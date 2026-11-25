@@ -133,6 +133,9 @@ class ReviewForm(StyledForm, forms.Form):
         if refusal:
             self.add_error(name, refusal)
             return False
+        # The stored hash the password was checked against, for the service to compare with the
+        # account as it holds it (reviews.sign_review).
+        self.checked_hash = getattr(self.request, confirmation.CHECKED, None)
         return True
 
 

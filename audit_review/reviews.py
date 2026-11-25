@@ -67,6 +67,9 @@ MOST_INTERVAL = 366
 # 19562 name other locks (accounts.acting, core.reveal_confirmation and their neighbours).
 SCHEDULE_LOCK = (19563, 0)
 REFUSED = "This needs an explicit permission: Can review access and audit records."
+PASSWORD_CHANGED = (
+    "Your password changed while this page was open. Enter your password again to sign this review."
+)
 STALE_NOTE = (
     "A note was added to this review after you opened it. Your note has been kept; read the "
     "latest notes, then add it again."
@@ -206,10 +209,15 @@ def sign_review(
     findings="",
     follow_up="",
     request_ref="",
+    password_hash=None,
 ):
     """Write a review signed by `actor` as reviewed (see the module docstring). The caller checked
-    the password entered at signing. Returns the review."""
+    the password entered at signing; `password_hash` is the stored hash that check accepted
+    (accounts.confirmation.password_checked), and the account as held must still have it: a
+    password changed after the check, in another tab, refuses the signing. Returns the review."""
     signer = _reviewer(actor)  # first: before anything else this change locks
+    if password_hash is not None and signer.password != password_hash:
+        raise ValidationError({"confirm_password": PASSWORD_CHANGED})
     errors = check_period(period_from, period_to)
     if errors:
         raise ValidationError(errors)
