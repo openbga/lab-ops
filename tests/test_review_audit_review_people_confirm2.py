@@ -55,8 +55,9 @@ def changes_in_csv(client, address):
 CLOCKS_DIFFER = pytest.mark.xfail(
     strict=True,
     reason="documented limit (second confirmation): changes are timed by the clock of the server "
-    "that saved them; where it runs ahead of this one, a change begun after the first page can "
-    "be counted on a later page, its export or its list, as with a clock running behind",
+    "that saved them; when an earlier change saved by another server timed ahead becomes due "
+    "while the first page is read, a change saved after its snapshot, even on this server's own "
+    "clock, can be counted on a later page, its export or its list",
 )
 
 

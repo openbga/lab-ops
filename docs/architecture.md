@@ -181,10 +181,12 @@ use it; the Event and What choices that stand for several kinds are `sources.GRO
 `AccessRecord`, `AuditEvent`) by account, each as of its own marker (the same `upto` the lists use,
 carried as `upto_changes`, `upto_access` and `upto_sign_ins`), merged and sorted in Python and paged
 50 at a time. Unlike the Changes list, the tab's Changes marker is the time of the newest change
-its reading's snapshot holds that is not timed ahead of this server's clock (`people.newest_change`,
-read after the reading's first query), so the three counts agree on everything committed before the
-snapshot and a change begun after it stays out of later pages, unless the clock of the server that
-saved a change runs behind or ahead of this one's. Its own links also
+its reading's snapshot holds that is not timed ahead of this server's clock, or 0 when there is
+none since 1970 (`people.newest_change`, read after the reading's first query), so the three counts
+agree on everything committed before the snapshot, and a change begun after it stays out of later
+pages, except a change saved by a server whose clock runs behind, any such change when another
+server's change timed ahead becomes due while the reading runs, and one timed in the very
+microsecond of the newest change counted. Its own links also
 carry the period and calendar the first page applied (`reading_from`, `reading_to`,
 `reading_calendar`, which are not filters), so later pages and the export keep them past midnight
 or a change of the calendars, and refuse a calendar no longer active. `people.link` gives each
