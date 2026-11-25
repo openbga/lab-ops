@@ -4,7 +4,7 @@
 
 Changes to OpenBGA Lab Ops, grouped by month and impact.
 
-## November 2026 (2026-11-18 to 2026-11-24)
+## November 2026 (2026-11-18 to 2026-11-25)
 
 ### High impact
 
@@ -159,6 +159,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
   </details>
 
 ### Medium impact
+
+- **Added:** Count what each person did, and what happened outside business hours, in Audit review (2026-11-25, Audit review)
+
+  The new People tab of Audit review counts, for each person over a period, their sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many of these happened outside the hours of one of your business calendars. Select a count to open the rows behind it. Changes, Access records and Sign-ins can now be narrowed to what happened outside a business calendar's hours.
+
+  <details><summary>Technical notes</summary>
+
+  Migration `audit_review.0002_people_summary` allows a fifth source, `people`, in `audit_review_workspaceuse` (its check constraint is dropped and recreated in one transaction; no row is rewritten). Reversing it fails once a use of the People tab is recorded, since workspace use rows cannot be changed or deleted. New routes `audit-review/people/` and `audit-review/people/export/`. Business hours come from the active business calendars the service clocks use, read as they stand when a page is drawn; a period judged against one covers at most 366 days. No new setting or environment variable.
+
+  </details>
 
 - **Added:** Email notices when your sign-in factors change (2026-11-24)
 

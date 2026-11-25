@@ -5312,8 +5312,9 @@ details.card:not([open]) > summary.card-header {
 }
 
 /* Stacked rows: each row is a card, its row header the title, every other cell a label (the
-   column's header, data-vr-label from app.js) beside its value. A table marked .vr-table-scroll
-   (an entry grid, genuinely wide data) keeps sideways scrolling inside its card instead. */
+   column's header, data-vr-label from app.js) beside its value. A table's totals (tfoot) are one
+   more card after the rows. A table marked .vr-table-scroll (an entry grid, genuinely wide data)
+   keeps sideways scrolling inside its card instead. */
 @media (max-width: 575.98px) {
   .vr-table-wrap:has(> table.vr-table:not(.vr-table-scroll)) {
     overflow: visible;
@@ -5382,12 +5383,16 @@ details.card:not([open]) > summary.card-header {
   }
 
   table.vr-table:not(.vr-table-scroll),
-  table.vr-table:not(.vr-table-scroll) > tbody {
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) {
     display: block;
     width: 100% !important;
   }
 
-  table.vr-table:not(.vr-table-scroll) > tbody > tr {
+  table.vr-table:not(.vr-table-scroll) > tfoot {
+    margin-top: var(--vr-space-2);
+  }
+
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr {
     --vr-row-fill: var(--vr-surface-2); /* the cells already paint the row fill */
     display: block;
     padding: var(--vr-space-3) var(--vr-space-4);
@@ -5399,7 +5404,7 @@ details.card:not([open]) > summary.card-header {
     margin-top: var(--vr-space-2);
   }
 
-  table.vr-table:not(.vr-table-scroll) > tbody > tr > :is(th, td) {
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr > :is(th, td) {
     position: static;
     display: flex;
     gap: var(--vr-space-3);
@@ -5411,7 +5416,7 @@ details.card:not([open]) > summary.card-header {
     overflow-wrap: anywhere;
   }
 
-  table.vr-table:not(.vr-table-scroll) > tbody > tr > [data-vr-label]::before {
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr > [data-vr-label]::before {
     content: attr(data-vr-label);
     flex: 0 0 38%;
     color: var(--vr-text-muted);
@@ -5421,7 +5426,7 @@ details.card:not([open]) > summary.card-header {
     text-transform: uppercase;
   }
 
-  table.vr-table:not(.vr-table-scroll) > tbody > tr > th[scope="row"] {
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr > th[scope="row"] {
     flex-wrap: wrap;
     padding-bottom: var(--vr-space-2);
     font-size: var(--vr-font-size-3);
@@ -5433,7 +5438,7 @@ details.card:not([open]) > summary.card-header {
     overflow-wrap: anywhere;
   }
 
-  table.vr-table:not(.vr-table-scroll) > tbody > tr > th[scope="row"]::before {
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr > th[scope="row"]::before {
     content: none;
   }
 

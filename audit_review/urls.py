@@ -11,9 +11,11 @@ urlpatterns = [
     path("changes/", views.workspace, {"source": Source.CHANGES}, name="changes"),
     path("access/", views.workspace, {"source": Source.ACCESS}, name="access"),
     path("sign-ins/", views.workspace, {"source": Source.SIGN_INS}, name="sign-ins"),
+    path("people/", views.people_page, name="people"),
     path("uses/", views.workspace, {"source": Source.USES}, name="uses"),
     path("changes/export/", views.export, {"source": Source.CHANGES}, name="changes-export"),
     path("access/export/", views.export, {"source": Source.ACCESS}, name="access-export"),
     path("sign-ins/export/", views.export, {"source": Source.SIGN_INS}, name="sign-ins-export"),
+    path("people/export/", views.people_export, name="people-export"),
     path("uses/export/", views.export, {"source": Source.USES}, name="uses-export"),
 ]

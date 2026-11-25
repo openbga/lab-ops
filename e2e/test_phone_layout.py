@@ -118,12 +118,14 @@ LISTS = [
     "/audit-review/changes/",
     "/audit-review/access/",
     "/audit-review/sign-ins/",
+    "/audit-review/people/",
     "/audit-review/uses/",
 ]
 # Lists opened by another account than demo_admin: the audit review needs its capability, which
-# the demonstration gives demo_supervisor. They have no search box and no sortable column.
+# the demonstration gives demo_supervisor. They have no search box, and only People sorts.
 LIST_ACCOUNTS = {url: "demo_supervisor" for url in LISTS if url.startswith("/audit-review/")}
-UNSORTED = set(LIST_ACCOUNTS)
+UNSORTED = set(LIST_ACCOUNTS) - {"/audit-review/people/"}
+NO_SEARCH = set(LIST_ACCOUNTS)
 THUMBBAR = 64  # the phone bottom bar, --vr-thumbbar-height
 SHEET = "Filter and sort"
 
@@ -211,7 +213,8 @@ def test_list_rows_come_first_behind_one_filter_and_sort_button(page: Page, demo
             sheet.get_by_role("button", name=f"Close {SHEET}").click()
             expect(sheet).to_be_hidden()
             continue
-        expect(sheet.get_by_role("searchbox")).to_be_visible()
+        if url not in NO_SEARCH:
+            expect(sheet.get_by_role("searchbox")).to_be_visible()
         expect(sheet.get_by_role("heading", name="Sort by")).to_be_visible()
 
         # Choosing a sort reloads the list sorted, and the summary says so.

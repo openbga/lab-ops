@@ -22,7 +22,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
-| `audit_review` | The read-only audit review workspace over the change history, access records and sign-in history, its exports and the record of its own use |
+| `audit_review` | The read-only audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -169,6 +169,21 @@ write fails the answer); `core.access.write` writes each table in one statement,
 when there are several. A trigger (audit_review migration 0001) refuses `UPDATE` and `DELETE`. The
 sidebar shows Audit review from `accounts.roles.roles_and_capabilities`, which reads the role groups
 and the capabilities in one statement (`CAPABILITY_ITEMS` in `core.templatetags.navigation`).
+
+`audit_review.hours` judges business hours in the database: it turns an active
+`BusinessCalendar`'s opening intervals over the period (`service_levels.business_time.open_intervals`,
+holidays closed, the day before included for an opening that runs past midnight) into a PostgreSQL
+`tstzmultirange` literal, and `Outside` tests `occurred_at` against it, so an opening moment is
+inside and a closing moment outside. The calendar is read when the page is drawn, at most
+`MOST_DAYS` (366) days at a time. The lists' "Outside the hours of" filter and the People tab both
+use it; the Event and What choices that stand for several kinds are `sources.GROUPS`.
+`audit_review.people` draws the People tab: one grouped count per table (`SignInEvent`,
+`AccessRecord`, `AuditEvent`) by account, each as of its own marker (the same `upto` the lists use,
+carried as `upto_changes`, `upto_access` and `upto_sign_ins`), merged and sorted in Python and paged
+50 at a time. `people.link` gives each count the address of its list with the person, period,
+marker, group and calendar, so the list returns exactly the rows counted. Its pages and exports are
+`WorkspaceUse` rows of the source `people`, which audit_review migration 0002 adds to the allowed
+values without rewriting a row.
 [Audit review](../audit_review/views.py)
 
 ## Security settings

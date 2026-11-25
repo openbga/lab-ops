@@ -4,11 +4,14 @@ from django.db.models.functions import Now
 
 
 class Source(models.TextChoices):
-    """The lists of the audit review workspace (audit_review.sources)."""
+    """The tabs of the audit review workspace: four lists (audit_review.sources) and the summary by
+    person (audit_review.people)."""
 
     CHANGES = "changes", "Changes"
     ACCESS = "access", "Access records"
     SIGN_INS = "sign_ins", "Sign-ins"
+    # Counts by person over a period (audit_review.people), not a list of records.
+    PEOPLE = "people", "People"
     USES = "uses", "Workspace use"
 
 

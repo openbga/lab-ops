@@ -153,7 +153,12 @@ STAFF_NAV = (
         "Audit review",
         "audit_review:changes",
         "journal-text",
-        ("audit_review:access", "audit_review:sign-ins", "audit_review:uses"),
+        (
+            "audit_review:access",
+            "audit_review:sign-ins",
+            "audit_review:people",
+            "audit_review:uses",
+        ),
     ),
     # Setup
     NavItem(
@@ -412,6 +417,7 @@ SECTION_TABS = {
             Tab("Changes", "audit_review:changes"),
             Tab("Access records", "audit_review:access"),
             Tab("Sign-ins", "audit_review:sign-ins"),
+            Tab("People", "audit_review:people"),
             Tab("Workspace use", "audit_review:uses"),
         ),
     ),

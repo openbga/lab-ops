@@ -22,8 +22,11 @@ review eligible complaints. Client portal accounts belong to one organization. T
 **Can view patient information** grant controls staff access to person-level links and marked
 form answers. The **Can review access and audit records** grant opens **Audit review**, under
 Oversight in the sidebar: choose **Changes**, **Access records**, **Sign-ins** or **Workspace use**,
-narrow it by person, organization, action, ticket number or days, and select **Export CSV** to keep
-what was reviewed. Each page opened there and each export is itself recorded.
+narrow it by person, organization, action, ticket number, days or **Outside the hours of** a
+business calendar, and select **Export CSV** to keep what was reviewed. **People** counts each
+account's sign-ins, failed sign-ins, tickets opened, files downloaded, patient information shown
+and changes over a period, with how much fell outside business hours; select a count to open the
+rows behind it. Each page opened there and each export is itself recorded.
 [Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys

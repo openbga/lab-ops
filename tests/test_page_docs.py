@@ -22,6 +22,7 @@ NON_PAGE_ROUTES = {
     "audit_review:changes-export": "CSV download of the audit review's Changes list",
     "audit_review:access-export": "CSV download of the audit review's Access records list",
     "audit_review:sign-ins-export": "CSV download of the audit review's Sign-ins list",
+    "audit_review:people-export": "CSV download of the audit review's People summary",
     "audit_review:uses-export": "CSV download of the audit review's Workspace use list",
     "health": "JSON process health probe",
     "ready": "JSON database readiness probe",

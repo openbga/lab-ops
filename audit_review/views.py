@@ -30,7 +30,8 @@ from core.ids import whole_number
 from core.lists import toolbar_context
 from dataimport.importing import FORMULA_STARTS
 
-from .forms import ReviewFilter
+from . import people
+from .forms import PeopleFilter, ReviewFilter
 from .models import Source, UseKind, WorkspaceUse
 from .permissions import require_reviewer
 from .sources import (
@@ -93,11 +94,11 @@ def _upto(request, source, before):
     return now if upto is None else min(upto, now)
 
 
-def _chips(request, form):
+def _chips(request, form, not_filters=NOT_FILTERS):
     """The active filters as removable chips; removing one starts a new reading."""
     original = request.GET
     request.GET = original.copy()
-    for name in NOT_FILTERS:
+    for name in not_filters:
         request.GET.pop(name, None)
     try:
         return active_filters(request, form) if form.is_valid() else []
@@ -105,11 +106,13 @@ def _chips(request, form):
         request.GET = original
 
 
-def _use(request, kind, source, form, rows, page=None):
+def _use(request, kind, source, form, rows, page=None, sort=None):
     """The record of this use, written with the answer (core.access.keep)."""
     filters = form.recorded() if form.is_valid() else {"invalid": True}
     if page is not None:
         filters["page"] = str(page)
+    if sort is not None and sort != people.DEFAULT_SORT and form.is_valid():
+        filters["sort"] = sort
     account = access.request_account(request)
     return WorkspaceUse(
         account_id=account.pk,
@@ -235,5 +238,151 @@ def _csv(source, rows):
             line.append(cell.text)
             if column.note:
                 line.append(cell.note)
+        writer.writerow([_cell(value) for value in line])
+    return out.getvalue()
+
+
+# ------------------------------------------------------------------------------ People
+
+PEOPLE_NOT_FILTERS = ("page", "sort", *people.MARKER_PARAMS.values())
+
+
+def _people_marks(request, before):
+    """What each list is counted as of (people.markers): the marker its own name in the address
+    carries (people.MARKER_PARAMS), never beyond what is newest now (`before` for Changes)."""
+    marks = {}
+    for source, name in people.MARKER_PARAMS.items():
+        now = before if source == Source.CHANGES else newest(source)
+        given = whole_number(request.GET.get(name, ""), max_digits=19)
+        marks[source] = now if given is None else min(given, now)
+    return marks
+
+
+def _people_period(form, effective):
+    calendar = effective["calendar"]
+    return {
+        # Neither date was given: the last 30 days.
+        "default": not form.cleaned_data.get("date_from") and not form.cleaned_data.get("date_to"),
+        "date_from": effective["date_from"],
+        "date_to": effective["date_to"],
+        "calendar": calendar.name if calendar else "",
+        "outside_only": effective["outside_only"],
+    }
+
+
+@transaction.non_atomic_requests  # one_reading opens its own transaction (ATOMIC_REQUESTS)
+@login_required
+@require_GET
+def people_page(request):
+    """The People tab: counts by person over a period (audit_review.people)."""
+    before = _before_reading(Source.CHANGES)
+    with one_reading():
+        account = reading_account(request)
+        require_reviewer(account)
+        form = PeopleFilter(request.GET)
+        marks = _people_marks(request, before)
+        sort = people.sort_value(request.GET.get("sort"))
+        chips = _chips(request, form, PEOPLE_NOT_FILTERS)
+        for chip in chips:
+            if chip["name"] == "calendar":
+                chip["value"] = form.chip_value(form.cleaned_data["calendar"])
+        period = summary = None
+        if form.is_valid():
+            effective = form.effective()
+            period = _people_period(form, effective)
+            summary = people.summarize(effective, marks)
+            rows = people.ordered(summary.people, sort)
+            page_obj = Paginator(rows, people.PAGE_SIZE).get_page(request.GET.get("page"))
+            people.link(page_obj.object_list, effective, marks, request.path)
+            total = page_obj.paginator.count
+        else:
+            page_obj, total = [], 0
+        query = request.GET.copy()
+        for name, value in people.marker_params(marks).items():
+            query[name] = value
+        request.GET = query  # the pager's and the sort links carry the reading's moments
+        export = query.copy()
+        export.pop("page", None)
+        response = render(
+            request,
+            "audit_review/people.html",
+            {
+                "page_title": "Audit review: people",
+                "grid": "audit_review.people",
+                "measures": people.MEASURES,
+                "outside_label": people.OUTSIDE_LABEL,
+                "summary": summary,
+                "period": period,
+                "sort": sort,
+                "page_obj": page_obj,
+                "filter_form": form,
+                "active_filters": chips,
+                "export_url": f"{reverse('audit_review:people-export')}?{export.urlencode()}",
+                "total": total,
+                **toolbar_context(form, chips, inline=form.inline(), more=form.more()),
+            },
+        )
+    page = page_obj.number if form.is_valid() else None
+    access.keep(request, _use(request, UseKind.VIEWED, Source.PEOPLE, form, total, page, sort))
+    return response
+
+
+@transaction.non_atomic_requests
+@login_required
+@require_GET
+def people_export(request):
+    """The People tab as filtered and sorted, every person, as a CSV file."""
+    before = _before_reading(Source.CHANGES)
+    with one_reading():
+        account = reading_account(request)
+        require_reviewer(account)
+        form = PeopleFilter(request.GET)
+        marks = _people_marks(request, before)
+        sort = people.sort_value(request.GET.get("sort"))
+        back = request.GET.copy()
+        for name, value in people.marker_params(marks).items():
+            back[name] = value
+        back_url = f"{reverse('audit_review:people')}?{back.urlencode()}"
+        if not form.is_valid():
+            return redirect(back_url)
+        effective = form.effective()
+        summary = people.summarize(effective, marks)
+        rows = people.ordered(summary.people, sort)
+        content = _people_csv(effective, summary, rows)
+    response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+    stamp = timezone.localtime().strftime("%Y%m%d-%H%M%S")
+    name = (
+        f"audit-review-people-{effective['date_from']:%Y%m%d}-{effective['date_to']:%Y%m%d}-"
+        f"{stamp}.csv"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{name}"'
+    access.keep(request, _use(request, UseKind.EXPORTED, Source.PEOPLE, form, len(rows), sort=sort))
+    return response
+
+
+def _people_csv(effective, summary, rows):
+    """One line per person: the period, the person, then each count; with "Only outside business
+    hours", each count's header says so."""
+    calendar = effective["calendar"]
+    suffix = " (outside business hours)" if effective["outside_only"] else ""
+    header = ["From", "To", "Person", "Username", "Client organization"]
+    header += [f"{measure.label}{suffix}" for measure in people.MEASURES]
+    if summary.judged:
+        header.append(f"Outside the hours of {calendar.name}")
+    out = io.StringIO()
+    out.write("\ufeff")  # spreadsheets then read the file as UTF-8
+    writer = csv.writer(out)
+    writer.writerow([_cell(value) for value in header])
+    for person in rows:
+        line = [
+            effective["date_from"].isoformat(),
+            effective["date_to"].isoformat(),
+            person.name,
+            person.username,
+            person.organization,
+        ]
+        line += [person.counts[measure.key] for measure in people.MEASURES]
+        if summary.judged:
+            line.append(person.outside)
         writer.writerow([_cell(value) for value in line])
     return out.getvalue()
