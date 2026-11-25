@@ -569,6 +569,8 @@ def describe_filters(use, people, tickets, clients, calendars=None):
         parts.append(f"Business hours: {name}")
     if filters.get("activity") == "outside":
         parts.append("Only activity outside business hours")
+    elif filters.get("activity") == "all":
+        parts.append("All activity")
     if sort := filters.get("sort"):
         from .people import sort_label  # people imports this module
 

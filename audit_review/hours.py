@@ -29,16 +29,20 @@ def calendars():
 def open_hours(calendar, first, last):
     """The opening hours of `calendar` on the local days `first` to `last`, as the text of a
     PostgreSQL tstzmultirange. The day before `first` is included for an opening that runs past
-    midnight. Days a date cannot hold (around year 1 and year 9999) are left out, as closed."""
+    midnight. A day whose opening a datetime cannot hold (around year 1 and year 9999 in some time
+    zones) is left out, as closed; every other day keeps its hours."""
     value = calendar.as_calendar()
-    first = first - timedelta(days=1) if first > date.min else first
-    last = min(last, date.max - timedelta(days=1))
+    day = first - timedelta(days=1) if first > date.min else first
     ranges = []
-    try:
-        for begin, end in open_intervals(value, first, last):
-            ranges.append(f'["{begin.isoformat()}","{end.isoformat()}")')
-    except OverflowError:  # a moment of the first or last days a datetime can hold
-        pass
+    while True:
+        try:
+            for begin, end in open_intervals(value, day, day):
+                ranges.append(f'["{begin.isoformat()}","{end.isoformat()}")')
+        except OverflowError:  # an opening of the first or last days a datetime can hold
+            pass
+        if day >= last or day == date.max:
+            break
+        day += timedelta(days=1)
     return "{" + ",".join(ranges) + "}"
 
 

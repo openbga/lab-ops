@@ -4,6 +4,7 @@ record of each use; and the filters the lists gained for it. All data is synthet
 
 import csv
 import io
+import re
 from datetime import date, datetime, time, timedelta
 from unittest import mock
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -118,6 +119,7 @@ def test_a_reviewer_opens_the_tab_and_its_use_records_the_period_applied(
         "date_from": (today - timedelta(days=29)).isoformat(),
         "date_to": today.isoformat(),
         "calendar": str(calendar.pk),
+        "activity": "all",
         "page": "1",
     }
 
@@ -235,10 +237,11 @@ def test_the_period_defaults_to_the_last_30_days_and_its_days_are_local(
     read(agent, ticket, at(today - timedelta(days=29), 0, 0))  # first moment of the period
     read(agent, ticket, at(today - timedelta(days=30), 23, 59))  # the day before
     client.force_login(reviewer)
-    response = client.get(url(calendar="none"))
+    response = client.get(url())  # no business calendar exists: not judged by default
     assert counts(response, agent)["tickets"] == 1
     period = response.context["period"]
     assert (period["date_from"], period["date_to"]) == (today - timedelta(days=29), today)
+    assert period["default"]
     assert response.context["active_filters"] == []  # defaults make no chip
     day = today - timedelta(days=30)
     response = client.get(url(date_from=day, date_to=day, calendar="none"))
@@ -434,9 +437,16 @@ def test_not_judged_and_no_active_calendar_leave_the_outside_count_out(
     calendar.save()
     response = client.get(url(**query))
     form = response.context["filter_form"]
-    assert "calendar" not in form.fields and "activity" not in form.fields
+    assert list(form.fields["calendar"].choices) == [("", "Not judged")]
     assert not response.context["summary"].judged
     assert WorkspaceUse.objects.order_by("id").last().filters["calendar"] == "none"
+    # A request for activity outside the hours, or for the retired calendar, is refused: never
+    # widened to all activity or judged by another calendar.
+    for refused in ({"activity": "outside"}, {"calendar": calendar.pk}):
+        response = client.get(url(**refused, **query))
+        assert response.context["filter_form"].errors, refused
+        assert response.context["page_obj"] == []
+        assert client.get(url("people-export", **refused, **query)).status_code == 302
 
 
 def test_another_calendar_can_be_chosen_and_the_first_one_is_the_default(
@@ -605,7 +615,15 @@ def test_the_lists_filter_outside_a_calendars_hours_with_both_dates(
 
 def test_the_uses_list_describes_a_people_use_by_name(client, reviewer, agent, calendar):
     client.force_login(reviewer)
-    client.get(url(person=agent.pk, activity="outside", sort="-outside", date_from="2026-01-05"))
+    client.get(
+        url(
+            person=agent.pk,
+            activity="outside",
+            sort="-outside",
+            date_from="2026-01-05",
+            date_to="2026-01-31",
+        )
+    )
     response = client.get(url("uses"))
     [row] = response.context["page_obj"]
     assert row.cells[0].note == "People"
@@ -613,7 +631,7 @@ def test_the_uses_list_describes_a_people_use_by_name(client, reviewer, agent, c
     for part in (
         "Person: Ada Agent",
         "From 2026-01-05",
-        f"To {timezone.localdate().isoformat()}",
+        "To 2026-01-31",
         "Business hours: Weekday hours",
         "Only activity outside business hours",
         "Sorted by outside business hours, most first",
@@ -625,3 +643,133 @@ def test_the_database_accepts_a_use_of_the_people_tab(reviewer):
     WorkspaceUse.objects.create(
         account_id=reviewer.pk, kind=UseKind.VIEWED, source=Source.PEOPLE, rows=0
     )
+
+
+@pytest.mark.parametrize("zone", ["America/New_York", "CET", "EST5EDT", "Asia/Kolkata"])
+def test_the_database_judges_hours_as_the_calendar_counts_them_across_clock_changes(
+    settings, agent, clinic, make_ticket, zone
+):
+    from datetime import UTC
+
+    from audit_review import hours as business_hours
+    from service_levels.business_time import open_intervals
+
+    settings.TIME_ZONE = zone
+    every_day = {
+        day: [["00:30", "01:30"], ["09:00", "17:00"], ["23:00", "24:00"]]
+        for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+    calendar = BusinessCalendar.objects.create(name="Shifts", hours=every_day)
+    Holiday.objects.create(calendar=calendar, date=date(2026, 10, 27), name="Holiday")
+    ticket = make_ticket(clinic)
+    # Every quarter hour over two weeks holding the clock changes of October and November 2026.
+    first, last = date(2026, 10, 22), date(2026, 11, 4)
+    moment = datetime(2026, 10, 21, 12, tzinfo=UTC)
+    moments = []
+    while moment < datetime(2026, 11, 6, tzinfo=UTC):
+        moments.append(moment)
+        moment += timedelta(minutes=15)
+    AccessRecord.objects.bulk_create(
+        AccessRecord(
+            account_id=agent.pk,
+            capacity="laboratory",
+            kind="ticket",
+            ticket_id=ticket.pk,
+            occurred_at=moment,
+        )
+        for moment in moments
+    )
+    opening = business_hours.open_hours(calendar, first, last)
+    found = set(
+        AccessRecord.objects.alias(outside=business_hours.Outside("occurred_at", opening))
+        .filter(outside=True, account_id=agent.pk)
+        .values_list("occurred_at", flat=True)
+    )
+    intervals = list(open_intervals(calendar.as_calendar(), first - timedelta(days=1), last))
+    expected = {
+        moment for moment in moments if not any(begin <= moment < end for begin, end in intervals)
+    }
+    assert found == expected
+
+
+# ------------------------------------------------------------------------------ the reading's links
+
+
+def test_the_tabs_links_carry_the_period_and_calendar_the_page_applied(
+    client, reviewer, agent, week, calendar
+):
+    client.force_login(reviewer)
+    response = client.get(url())
+    export = urlsplit(response.context["export_url"])
+    carried = parse_qs(export.query)
+    today = timezone.localdate()
+    assert carried["reading_from"] == [(today - timedelta(days=29)).isoformat()]
+    assert carried["reading_to"] == [today.isoformat()]
+    assert carried["reading_calendar"] == [str(calendar.pk)]
+    assert "date_from" not in carried and "calendar" not in carried
+    # Not filters: a later page shows no chip and still says the period was the default.
+    later = client.get(response.context["export_url"].replace("/export/", "/") + "&sort=-tickets")
+    assert later.context["active_filters"] == []
+    # An alphabetically earlier calendar added since changes neither the export nor a later page.
+    earlier = BusinessCalendar.objects.create(name="A earlier", hours={"sun": [["00:00", "01:00"]]})
+    again = client.get(response.context["export_url"].replace("/export/", "/"))
+    assert again.context["period"]["calendar"] == "Weekday hours"
+    header = export_rows(client.get(response.context["export_url"]))[0]
+    assert header[-1] == "Outside the hours of Weekday hours"
+    assert client.get(url()).context["period"]["calendar"] == earlier.name
+    # The calendar retired since: the export is refused, never judged by another calendar.
+    calendar.is_active = False
+    calendar.save()
+    assert client.get(response.context["export_url"]).status_code == 302
+
+
+def test_the_business_hours_menu_offers_not_judged(client, reviewer, calendar):
+    client.force_login(reviewer)
+    response = client.get(url())
+    assert re.search(r'<option value="none"\s*>Not judged</option>', response.content.decode())
+
+
+def test_the_reviewers_sort_is_saved_and_applied_on_their_next_visit(
+    client, reviewer, agent, clinic, make_ticket
+):
+    ticket = make_ticket(clinic)
+    read(agent, ticket, at(timezone.localdate(), 0, 1))
+    client.force_login(reviewer)
+    client.get(url(sort="-tickets"))
+    assert client.get(url()).context["sort"] == "-tickets"
+
+
+def test_the_changes_moment_is_read_after_the_readings_snapshot(client, reviewer, monkeypatch):
+    from audit_review import views
+
+    order = []
+    original_account = views.reading_account
+    original_newest = views.newest
+    monkeypatch.setattr(
+        views,
+        "reading_account",
+        lambda request: order.append("account") or original_account(request),
+    )
+    monkeypatch.setattr(
+        views, "newest", lambda source: order.append(str(source)) or original_newest(source)
+    )
+    client.force_login(reviewer)
+    client.get(url())
+    assert order[0] == "account" and Source.CHANGES.value in order[1:], order
+
+
+def test_hours_at_the_date_limits_keep_every_day_a_datetime_can_hold(settings, db):
+    from audit_review import hours as business_hours
+
+    settings.TIME_ZONE = "Asia/Tokyo"
+    every_day = {
+        day: [["00:00", "16:00"]] for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+    calendar = BusinessCalendar.objects.create(name="Early", hours=every_day)
+    text = business_hours.open_hours(calendar, date(1, 1, 1), date(1, 1, 10))
+    # Tokyo's local mean time then was 9:18:59 ahead: the shift of 8 January, kept although the
+    # first day's opening cannot be held.
+    assert '["0001-01-07T14:41:01+00:00","0001-01-08T06:41:01+00:00")' in text
+    settings.TIME_ZONE = "UTC"
+    text = business_hours.open_hours(calendar, date(9999, 12, 25), date.max)
+    assert '["9999-12-31T00:00:00+00:00","9999-12-31T16:00:00+00:00")' in text

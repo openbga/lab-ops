@@ -12,6 +12,7 @@ nothing, and an answer whose record cannot be written is not sent.
 
 import csv
 import io
+from types import SimpleNamespace
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,13 +26,13 @@ from django.views.decorators.http import require_GET
 
 from core import access
 from core.concurrency import one_reading, reading_account
-from core.grids import active_filters
+from core.grids import active_filters, shown
 from core.ids import whole_number
 from core.lists import toolbar_context
 from dataimport.importing import FORMULA_STARTS
 
 from . import people
-from .forms import PeopleFilter, ReviewFilter
+from .forms import READING_PARAMS, PeopleFilter, ReviewFilter
 from .models import Source, UseKind, WorkspaceUse
 from .permissions import require_reviewer
 from .sources import (
@@ -244,15 +245,18 @@ def _csv(source, rows):
 
 # ------------------------------------------------------------------------------ People
 
-PEOPLE_NOT_FILTERS = ("page", "sort", *people.MARKER_PARAMS.values())
+PEOPLE_NOT_FILTERS = ("page", "sort", *people.MARKER_PARAMS.values(), *READING_PARAMS.values())
 
 
-def _people_marks(request, before):
-    """What each list is counted as of (people.markers): the marker its own name in the address
-    carries (people.MARKER_PARAMS), never beyond what is newest now (`before` for Changes)."""
+def _people_marks(request):
+    """What each list is counted as of (people.summarize): the marker its own name in the address
+    carries (people.MARKER_PARAMS), never beyond what is newest now. Read inside the reading,
+    after its first query: for Changes, the moment now is then after the reading's snapshot, so
+    the three lists agree on every change committed before it (unlike the Changes list, whose
+    moment is read before, people.py)."""
     marks = {}
     for source, name in people.MARKER_PARAMS.items():
-        now = before if source == Source.CHANGES else newest(source)
+        now = newest(source)
         given = whole_number(request.GET.get(name, ""), max_digits=19)
         marks[source] = now if given is None else min(given, now)
     return marks
@@ -275,12 +279,11 @@ def _people_period(form, effective):
 @require_GET
 def people_page(request):
     """The People tab: counts by person over a period (audit_review.people)."""
-    before = _before_reading(Source.CHANGES)
     with one_reading():
-        account = reading_account(request)
+        account = reading_account(request)  # the reading's first query: its snapshot
         require_reviewer(account)
-        form = PeopleFilter(request.GET)
-        marks = _people_marks(request, before)
+        marks = _people_marks(request)
+        form = PeopleFilter(request.GET, reading=PeopleFilter.reading_from(request.GET))
         sort = people.sort_value(request.GET.get("sort"))
         chips = _chips(request, form, PEOPLE_NOT_FILTERS)
         for chip in chips:
@@ -295,12 +298,18 @@ def people_page(request):
             page_obj = Paginator(rows, people.PAGE_SIZE).get_page(request.GET.get("page"))
             people.link(page_obj.object_list, effective, marks, request.path)
             total = page_obj.paginator.count
+            shown(request, SimpleNamespace(per_page=None, sort=sort))  # its sort may be saved
         else:
             page_obj, total = [], 0
         query = request.GET.copy()
         for name, value in people.marker_params(marks).items():
             query[name] = value
-        request.GET = query  # the pager's and the sort links carry the reading's moments
+        if form.is_valid():
+            # The period and calendar applied, so that a later page, another sort or the export
+            # keeps them past midnight or a change of the calendars; not as filters.
+            for name, value in form.applied().items():
+                query[name] = value
+        request.GET = query  # the pager's and the sort links carry the reading
         export = query.copy()
         export.pop("page", None)
         response = render(
@@ -308,6 +317,8 @@ def people_page(request):
             "audit_review/people.html",
             {
                 "page_title": "Audit review: people",
+                # One layout for both views: the count outside the hours is only in one of them,
+                # and keeps its saved choice in the other (static/js/grid.js, save).
                 "grid": "audit_review.people",
                 "measures": people.MEASURES,
                 "outside_label": people.OUTSIDE_LABEL,
@@ -332,12 +343,11 @@ def people_page(request):
 @require_GET
 def people_export(request):
     """The People tab as filtered and sorted, every person, as a CSV file."""
-    before = _before_reading(Source.CHANGES)
     with one_reading():
-        account = reading_account(request)
+        account = reading_account(request)  # the reading's first query: its snapshot
         require_reviewer(account)
-        form = PeopleFilter(request.GET)
-        marks = _people_marks(request, before)
+        marks = _people_marks(request)
+        form = PeopleFilter(request.GET, reading=PeopleFilter.reading_from(request.GET))
         sort = people.sort_value(request.GET.get("sort"))
         back = request.GET.copy()
         for name, value in people.marker_params(marks).items():

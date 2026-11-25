@@ -43,7 +43,7 @@
   "good_to_know": [
     "Counts only: what was changed or shown stays on the record's own pages. A count opens the matching list.",
     "Business hours are read as the calendar stands now: a holiday added since changes which earlier records count as outside.",
-    "Counts stay as they were when the first page opened. Open the tab again from the menu to count newer records.",
+    "Counts, the period and the calendar stay as they were when the first page opened. Open the tab again from the menu to count newer records.",
     "Each page you open here and each export is recorded, and other reviewers see it under [[Workspace use]].",
     "Someone with nothing counted in the period is not listed. A count of an account that no longer exists opens nothing."
   ],
@@ -71,7 +71,7 @@
         },
         {
           "label": "Tickets opened",
-          "description": "Access records of the account opening a ticket's page. Opening its audit history, form details or complaint forms is not counted here."
+          "description": "Each time the account opened a ticket's page, from its access records: one ticket opened three times counts three. Opening its audit history, form details or complaint forms is not counted here."
         },
         {
           "label": "Files downloaded",
@@ -104,7 +104,7 @@
         },
         {
           "label": "Activity",
-          "description": "All activity, or Only outside business hours: then every count holds only what happened outside the hours of the calendar in Business hours, and someone with nothing outside them is not listed. Needs a business calendar; not offered when no calendar is active."
+          "description": "All activity, or Only outside business hours: then every count holds only what happened outside the hours of the calendar in Business hours, and someone with nothing outside them is not listed. Needs a business calendar: with Not judged, or when no calendar is active, Only outside business hours is refused rather than counting all activity."
         },
         {
           "label": "Person",
@@ -116,7 +116,7 @@
         },
         {
           "label": "Business hours",
-          "description": "Under More filters: the business calendar, among the active ones, whose opening hours decide what is outside business hours. The first active calendar by name is the default and is preselected. Not judged leaves the Outside business hours column out. Not offered when no calendar is active."
+          "description": "Under More filters: the business calendar, among the active ones, whose opening hours decide what is outside business hours. The first active calendar by name is the default and is preselected. Not judged leaves the Outside business hours column out. When no calendar is active, Not judged is the only choice."
         },
         {
           "label": "How business hours are judged",
@@ -133,15 +133,15 @@
       "items": [
         {
           "label": "Sorting",
-          "description": "Select a column heading to sort by it. Person sorts A to Z, then Z to A; a count sorts most first, then fewest first. People with the same count stay in name order."
+          "description": "Select a column heading to sort by it. Person sorts A to Z, then Z to A; a count sorts most first, then fewest first. People with the same count stay in name order. The sort you choose is saved for your account and used the next time you open the tab."
         },
         {
           "label": "Pages",
-          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, so records written since change no count. Open the tab again from the menu to count them."
+          "description": "Fifty people per page. Every page, its sort links and the export count the records as they stood when the first page opened, with the same period and business calendar even when you continue the next day or a calendar is added, so records written since change no count. A record that was still being saved at that very moment can still be counted on a later page or in the export, as on the lists. If the calendar the counts used is no longer active, a later page or the export is refused: open the tab again from the menu."
         },
         {
           "label": "Columns",
-          "description": "Choose which count columns show and in which order; Person always shows. The choice is saved for your account."
+          "description": "Choose which count columns show and in which order; Person always shows. The choice is saved for your account, and a choice about Outside business hours is kept while that column is not shown."
         },
         {
           "label": "Export CSV",
@@ -160,7 +160,7 @@
       "title": "Who can use this page",
       "paragraphs": [
         "Staff with a laboratory role who hold the capability Can review access and audit records, as for the rest of the Audit review workspace. Everyone else is refused, and nothing is recorded for them. The tab is read-only.",
-        "Each page shown and each export is recorded under Workspace use, with the source People, before it is sent: the period, person, organization, business calendar and activity as applied, defaults included, the sort when it is not by person, the page after the first, and how many people were listed. If the record cannot be written, nothing is shown or exported. These records are never changed or deleted."
+        "Each page shown and each export is recorded under Workspace use, with the source People, before it is sent: the period, person, organization, business calendar and activity (All activity or Only outside business hours) as applied, defaults included, the sort when it is not by person, the page after the first, and how many people were listed. If the record cannot be written, nothing is shown or exported. These records are never changed or deleted."
       ]
     }
   ],

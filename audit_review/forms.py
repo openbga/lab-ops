@@ -142,7 +142,8 @@ class ReviewFilter(StyledForm, forms.Form):
 
 class CalendarField(forms.ChoiceField):
     """The People tab's business calendar: the first active calendar is offered as the empty
-    choice, and its id, which a count's address names, is accepted too."""
+    choice, and its id, which the tab's own links name, is accepted too, as is "none" when no
+    calendar is active."""
 
     accepted = frozenset()
 
@@ -153,15 +154,28 @@ class CalendarField(forms.ChoiceField):
 # The People tab's period when From or To is left empty: the last 30 days, up to today.
 DEFAULT_DAYS = 30
 OUTSIDE = "outside"
+ALL = "all"  # recorded only: the empty choice
 NOT_JUDGED = "none"
+# Where the People tab's own links carry the period and calendar a reading applied: not filters,
+# so they make no chip and Apply leaves them behind (PeopleFilter, `reading`).
+READING_PARAMS = {
+    "date_from": "reading_from",
+    "date_to": "reading_to",
+    "calendar": "reading_calendar",
+}
 
 
 class PeopleFilter(StyledForm, forms.Form):
     """The People tab's filters (audit_review.people). A period of at most hours.MOST_DAYS days:
-    empty To is today and empty From is 30 days up to To, both in the deployment's time zone. The
-    business calendar outside whose hours activity is counted: empty is the first active one by
-    name, "none" judges no hours. Defaults are not filters: they make no chip, and the page names
-    them (effective)."""
+    empty To is today (or From, when From is later) and empty From is 30 days up to To, both in
+    the deployment's time zone. The business calendar outside whose hours activity is counted:
+    empty is the first active one by name, "none" judges no hours. Defaults are not filters: they
+    make no chip, and the page names them (effective).
+
+    `reading` holds the period and calendar the first page of a reading applied, which the tab's
+    own links carry under names that are not filters (audit_review.views.people_page): they stand
+    in for the defaults, so a later page, another sort and the export keep them whatever the date
+    or the calendars become, and a calendar no longer active is refused, never replaced."""
 
     date_from = forms.DateField(
         required=False,
@@ -196,23 +210,26 @@ class PeopleFilter(StyledForm, forms.Form):
 
     INLINE = ("date_from", "date_to", "activity")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, reading=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.reading = reading or {}
         self.calendars = {str(calendar.pk): calendar for calendar in hours.calendars()}
+        field = self.fields["calendar"]
         choices = [(pk, calendar.name) for pk, calendar in self.calendars.items()]
         if choices:
             # The first calendar is the default: chosen, it sends nothing and makes no chip.
-            self.fields["calendar"].choices = [("", choices[0][1]), *choices[1:]]
-            self.fields["calendar"].choices.append((NOT_JUDGED, "Not judged"))
-            self.fields["calendar"].accepted = frozenset(self.calendars)
-            self.fields["calendar"].help_text = "Activity outside its opening hours is counted."
+            field.choices = [("", choices[0][1]), *choices[1:], (NOT_JUDGED, "Not judged")]
+            field.help_text = "Activity outside its opening hours is counted."
         else:
-            del self.fields["calendar"]
-            del self.fields["activity"]
+            # Kept, so that a request for activity outside the hours is refused, never widened.
+            field.choices = [("", "Not judged")]
+            field.help_text = "No business calendar is active."
+        field.accepted = frozenset({*self.calendars, NOT_JUDGED})
         self.period = None
 
     def chip_value(self, value):
-        """A chip's text for the calendar chosen (the first one has no choice of its own)."""
+        """A chip's text for the calendar chosen (the first one has no choice of its own, and the
+        tab's links name it by id)."""
         calendar = self.calendars.get(value)
         return calendar.name if calendar else "Not judged"
 
@@ -221,7 +238,17 @@ class PeopleFilter(StyledForm, forms.Form):
         if self.errors:
             return data
         today = timezone.localdate()
-        start, end = data.get("date_from"), data.get("date_to")
+        start = data.get("date_from") or self.reading.get("date_from")
+        end = data.get("date_to") or self.reading.get("date_to")
+        kept = self.reading.get("calendar")
+        if data.get("calendar", "") == "" and kept is not None:
+            if kept != NOT_JUDGED and kept not in self.calendars:
+                self.add_error(
+                    "calendar",
+                    "The business calendar these counts used is no longer active. Open the tab "
+                    "again to count with the calendars as they are now.",
+                )
+                return data
         if end is None:
             end = max(today, start) if start else today
         if start is None:
@@ -240,9 +267,7 @@ class PeopleFilter(StyledForm, forms.Form):
 
     def chosen_calendar(self):
         """The business calendar chosen, or the default, or None (not judged, or none active)."""
-        if "calendar" not in self.fields:
-            return None
-        value = self.cleaned_data.get("calendar", "")
+        value = self.cleaned_data.get("calendar", "") or self.reading.get("calendar") or ""
         if value == NOT_JUDGED:
             return None
         if value == "":
@@ -274,9 +299,33 @@ class PeopleFilter(StyledForm, forms.Form):
                 recorded[name] = str(effective[name].pk)
         calendar = effective["calendar"]
         recorded["calendar"] = str(calendar.pk) if calendar else NOT_JUDGED
-        if effective["outside_only"]:
-            recorded["activity"] = OUTSIDE
+        recorded["activity"] = OUTSIDE if effective["outside_only"] else ALL
         return recorded
+
+    def applied(self):
+        """The period and calendar the summary applied, as the tab's own links carry them
+        (READING_PARAMS)."""
+        effective = self.effective()
+        calendar = effective["calendar"]
+        return {
+            READING_PARAMS["date_from"]: effective["date_from"].isoformat(),
+            READING_PARAMS["date_to"]: effective["date_to"].isoformat(),
+            READING_PARAMS["calendar"]: str(calendar.pk) if calendar else NOT_JUDGED,
+        }
+
+    @staticmethod
+    def reading_from(query):
+        """The `reading` a link carries (READING_PARAMS): what of it is well formed."""
+        reading = {}
+        for name in ("date_from", "date_to"):
+            try:
+                reading[name] = date.fromisoformat(query.get(READING_PARAMS[name], ""))
+            except ValueError:
+                pass
+        calendar = query.get(READING_PARAMS["calendar"], "")
+        if calendar == NOT_JUDGED or whole_number(calendar) is not None:
+            reading["calendar"] = calendar
+        return reading
 
     def inline(self):
         return [name for name in self.INLINE if name in self.fields]

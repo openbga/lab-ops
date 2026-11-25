@@ -125,13 +125,9 @@ class Summary:
         return [self.totals[measure.key] for measure in MEASURES]
 
 
-def markers(source_newest):
-    """The moment each list is drawn as of, from `source_newest(source)` (sources.newest)."""
-    return {source: source_newest(source) for source in LISTS}
-
-
 def summarize(effective, marks):
-    """The summary for `effective` (PeopleFilter.effective) as of `marks` (markers), unsorted."""
+    """The summary for `effective` (PeopleFilter.effective) as of `marks`, unsorted: for each list
+    (LISTS) the moment it is drawn as of (sources.newest), as views._people_marks reads them."""
     start = _day_start(effective["date_from"])
     end = (
         _day_start(effective["date_to"] + timedelta(days=1))

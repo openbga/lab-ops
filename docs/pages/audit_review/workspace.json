@@ -70,7 +70,7 @@
         },
         {
           "label": "People",
-          "description": "A tab with its own help: over a period, one row per account with counts of its sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many fell outside business hours. Each count opens Changes, Access records or Sign-ins filtered to exactly the rows it counted, drawn as of the same moment."
+          "description": "A tab with its own help: over a period, one row per account with counts of its sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many fell outside business hours. Each of the six counts opens Changes, Access records or Sign-ins filtered to exactly the rows it counted, drawn as of the same moment; the count outside business hours opens People again for that person, with only activity outside the hours."
         },
         {
           "label": "Workspace use",

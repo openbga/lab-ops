@@ -5442,10 +5442,12 @@ details.card:not([open]) > summary.card-header {
     content: none;
   }
 
-  /* A link that is a cell's whole value (the card's title, an email address) is a touch target. */
-  table.vr-table:not(.vr-table-scroll) > tbody > tr > :is(th, td) > a {
+  /* A link that is a cell's whole value (the card's title, an email address, a count) is a touch
+     target, in both dimensions. */
+  table.vr-table:not(.vr-table-scroll) > :is(tbody, tfoot) > tr > :is(th, td) > a {
     display: inline-flex;
     align-items: center;
+    min-width: var(--vr-touch-target);
     min-height: var(--vr-touch-target);
   }
 }
