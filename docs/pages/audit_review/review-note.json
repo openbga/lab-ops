@@ -23,7 +23,7 @@
   "good_to_know": [
     "A note cannot be changed or removed once added. Add another note to correct it.",
     "The note is not part of what was signed and does not change the review or its checksum.",
-    "If someone else added a note after you opened the review, yours is not saved and your typing is kept. Read the latest notes, then add it again.",
+    "If someone adds a note after you opened this form, yours is not saved and your typing is kept. The form then shows the latest notes; add yours again once read.",
     "Do not enter patient names or identifiers. Refer to a ticket or an account by its number or username."
   ],
   "sections": [

@@ -9,13 +9,15 @@ reads every review. Nobody changes or removes a signed review or a note: the dat
 
 Signing. A review is written signed, in one step: the reviewer enters their password again on the
 form at each signing (docs/roadmap.md, open decision 3), which the form checks before anything is
-locked (audit_review.review_forms.SignOffForm; a password not accepted is written to the sign-in
-history as a failed re-authentication and counts toward the failed sign-in limit). The service
-then holds the acting account (accounts.acting), decides from the account as it is held that it
-still may review, and writes the review with the sign-off: the signer's name, username and roles as
-they stand at that moment, the meaning (Reviewed), the time by the application's clock, and a
-SHA-256 checksum of exactly what was signed (signed_content), with its audit event, in one
-transaction. The seed signs its synthetic example through the same service without a password.
+locked (audit_review.review_forms.ReviewForm.check_password; a password not accepted is written to
+the sign-in history as a failed re-authentication and counts toward the failed sign-in limit). The
+service then holds the acting account (accounts.acting), decides from the account as it is held
+that it still may review and still has the password that was checked, and writes the review with
+the sign-off: the signer's name, username and roles as they stand at that moment, the meaning
+(Reviewed), the time by the application's clock, and a SHA-256 checksum of exactly what was signed
+(signed_content), with its audit event, in one transaction. Signings take a lock in turn before
+they are numbered (SIGNING_LOCK), so numbers follow the order they commit in. The seed signs its
+synthetic example through the same service without a password.
 
 Notes. A correction, or what a follow-up came to, is added as a note: who, when, the text. Notes are
 not part of what was signed. A note posts the review's revision as its page showed it (1 and one
@@ -66,6 +68,10 @@ MOST_INTERVAL = 366
 # The advisory lock (PostgreSQL's two-key form) a save of the interval takes. First keys 19553 to
 # 19562 name other locks (accounts.acting, core.reveal_confirmation and their neighbours).
 SCHEDULE_LOCK = (19563, 0)
+# The advisory lock every signing takes, until it commits, before it is given its number: numbers
+# then follow the order signings commit in, so a list drawn as of the newest number it holds
+# (review_views._upto) never later gains a smaller one.
+SIGNING_LOCK = (19564, 0)
 REFUSED = "This needs an explicit permission: Can review access and audit records."
 PASSWORD_CHANGED = (
     "Your password changed while this page was open. Enter your password again to sign this review."
@@ -228,6 +234,8 @@ def sign_review(
         findings, "findings", "Findings", TEXT_LIMIT, required=outcome == Outcome.FOLLOW_UP
     )
     follow_up = _text(follow_up, "follow_up", "Follow-up", TEXT_LIMIT)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(SIGNING_LOCK))
     pk = _next_id()
     review = Review(
         id=pk,
@@ -367,7 +375,7 @@ class Status:
 
     interval: int | None
     today: date
-    # The review signed most recently, or None.
+    # The review signed most recently (the highest number: SIGNING_LOCK), or None.
     last: Review | None = None
     # The day the next review is due: the last one's signing day plus the interval.
     due: date | None = None
@@ -418,7 +426,7 @@ def status(today=None):
     """Where reviews stand now (Status), read in the caller's reading."""
     today = today or timezone.localdate()
     interval = schedule().interval_days
-    last = Review.objects.order_by("-signed_at", "-id").first()
+    last = Review.objects.order_by("-id").first()  # numbers follow the order of signing
     summary = Review.objects.aggregate(count=Count("id"), covered_to=Max("period_to"))
     holes = gaps(Review.objects.values_list("period_from", "period_to"))
     found = Status(

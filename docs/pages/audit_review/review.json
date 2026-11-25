@@ -87,7 +87,7 @@
         },
         {
           "label": "How it was signed",
-          "description": "The reviewer entered their password on the form at signing. The second factor is not asked at signing."
+          "description": "Record a review asks for the reviewer's password at each signing, and not the second factor. A demonstration's example review is written by its seed without one."
         }
       ]
     },

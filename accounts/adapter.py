@@ -1,5 +1,6 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from django.core.exceptions import ValidationError
+from django.views.decorators.debug import sensitive_variables
 
 
 class ClosedSignupAdapter(DefaultAccountAdapter):
@@ -39,6 +40,9 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             _record_attempt(request, credentials)
         super().authentication_failed(request, **credentials)
 
+    # Every variable here and in what it calls (allauth, the authentication backends, which hold
+    # the password in their credentials) is left out of a traceback's report.
+    @sensitive_variables()
     def reauthenticate(self, user, password):
         # The password asked for again of the signed-in account (allauth's re-authentication
         # page): not accepted when no account accepted it, or when another account did.

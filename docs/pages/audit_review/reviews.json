@@ -18,7 +18,7 @@
       "title": "See whether a review is due",
       "steps": [
         "Read [[Next review due]] in [[Where reviews stand]]. Overdue means the interval has passed since the last review was signed.",
-        "Read [[Reviewed up to]] for the first day no review covers yet."
+        "Read [[Reviewed up to]] for the last day reviewed and the days after it, and [[Days no review covers]] for gaps between reviewed periods."
       ]
     },
     {
@@ -116,7 +116,7 @@
         },
         {
           "label": "Pages",
-          "description": "Fifty reviews per page, newest first. Every page, and the export, lists the reviews as they stood when the first page opened, so a review signed since does not move a row. Open the tab again from the menu to see it. Where reviews stand is read again on each page."
+          "description": "Fifty reviews per page, newest first. Every page, and the export, lists the reviews as they stood when the first page opened, so a review signed since does not move a row. Open the tab again from the menu to see it. The number of notes is counted as each page or export is made. Where reviews stand is read again on each page."
         },
         {
           "label": "Export CSV",

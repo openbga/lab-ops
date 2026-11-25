@@ -252,6 +252,18 @@ def _errors(form, exc):
             form.add_error(None, message)
 
 
+def _interval_reading():
+    """The interval and its history (reviews.interval_history) read at one moment: in a page's
+    own reading (one_reading), or, for a form sent and drawn again, holding the interval's lock
+    shared across both readings, so that no save of the interval commits between them. Only after
+    the service has run: this request then asks for the lock no more."""
+    with transaction.atomic(), connection.cursor() as cursor:
+        # A transaction of its own where the request has none (no ATOMIC_REQUESTS): the lock is
+        # held across both readings either way.
+        cursor.execute("SELECT pg_advisory_xact_lock_shared(%s, %s)", list(reviews.SCHEDULE_LOCK))
+        return reviews.schedule(), list(reviews.interval_history())
+
+
 def _carry_revision(form, revision):
     """A refused form drawn again posts `revision`, read with what the page now shows."""
     form.data = form.data.copy()
@@ -338,7 +350,8 @@ def review_note(request, pk):
         raise Http404("No such review.")
     # The notes the form shows and the revision it posts, from one statement.
     notes = list(review.notes.order_by("pk"))
-    form = NoteForm(request.POST or None, initial={"expected_revision": 1 + len(notes)})
+    sent = request.POST if request.method == "POST" else None  # an empty one is checked too
+    form = NoteForm(sent, initial={"expected_revision": 1 + len(notes)})
     if request.method == "POST" and form.is_valid():
         try:
             reviews.add_note(
@@ -381,11 +394,17 @@ def review_note(request, pk):
 def review_interval(request):
     """Set how often reviews are due."""
     require_reviewer(request.user)
-    current = reviews.schedule()
-    form = IntervalForm(
-        request.POST or None,
-        initial={"interval_days": current.interval_days, "expected_revision": current.revision},
-    )
+    if request.method == "POST":
+        # Decided by the service, which takes the interval's lock; read for the page only if it
+        # is drawn again (never before the service: the lock would be taken shared, then asked
+        # for exclusively, and two saves at once would wait for each other).
+        current = history = None
+        form = IntervalForm(request.POST)  # an empty one is checked too
+    else:
+        current, history = _interval_reading()  # in the page's own reading
+        form = IntervalForm(
+            initial={"interval_days": current.interval_days, "expected_revision": current.revision}
+        )
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
@@ -400,7 +419,7 @@ def review_interval(request):
             if reviews.STALE_INTERVAL in exc.messages:
                 # Drawn again with the interval as it stands and its revision, so that the change
                 # can be sent again once compared.
-                current = reviews.schedule()
+                current, history = _interval_reading()
                 _carry_revision(form, current.revision)
         except PermissionDenied as exc:
             form.add_error(None, _refused(request, exc))
@@ -410,6 +429,9 @@ def review_interval(request):
                 "Review interval saved." if changed else "The review interval is unchanged.",
             )
             return redirect(_list_url())
+    if current is None:
+        # A form sent and refused: the interval and its history as they stand now, read together.
+        current, history = _interval_reading()
     title = "Review interval"
     return _render(
         request,
@@ -418,7 +440,7 @@ def review_interval(request):
             "page_title": title,
             "form": form,
             "current": current,
-            "history": reviews.interval_history(),
+            "history": history,
             "submit_label": "Save interval",
             "cancel_url": _list_url(),
             "crumbs": _crumbs(title),

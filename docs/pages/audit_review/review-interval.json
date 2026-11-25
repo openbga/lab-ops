@@ -24,8 +24,8 @@
   "good_to_know": [
     "The next review is due that many days after the last review was signed, not after the last day it covered.",
     "Nothing is sent when a review falls due. The Reviews tab shows it as due or overdue.",
-    "Every change is kept with who made it, the before and after values and the reason, and is listed on this page and under Changes.",
-    "If someone saved a change after you opened the form, yours is not saved and your input is kept. Reload and compare first."
+    "Each change keeps who made it, the before and after values and the reason, shown on this form. Changes lists it without the reason.",
+    "If someone saved a change after you opened the form, yours is not saved and your input is kept. The form then shows the interval as it stands; compare, then save again."
   ],
   "sections": [
     {
@@ -41,7 +41,7 @@
         },
         {
           "label": "Reason",
-          "description": "Required. Why the interval changes. Kept with the change and shown in Changes to the interval and under Changes. At most 4,000 characters."
+          "description": "Required. Why the interval changes. Kept with the change and shown under Changes to the interval on this form; the Changes list names the change without its reason. At most 4,000 characters."
         },
         {
           "label": "Save interval",

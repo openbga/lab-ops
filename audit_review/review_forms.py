@@ -18,7 +18,7 @@ NO_PASSWORD = (
 TOO_MANY = "Too many attempts to enter your password. Wait a minute, then try again."
 
 
-@sensitive_variables("password")
+@sensitive_variables()  # every variable, here and in what it calls (allauth, the backends)
 def signing_refusal(request, password):
     """Why the password entered at signing is not accepted for the signed-in account of `request`,
     or "" when it is. Checked as a password asked for again is checked (accounts.adapter): a
@@ -54,8 +54,8 @@ class ReviewForm(StyledForm, forms.Form):
     period_to = forms.DateField(
         label="To",
         widget=forms.DateInput(attrs=DATE, format="%Y-%m-%d"),
-        help_text=f"The last day it covers: today or earlier, at most {reviews.MOST_DAYS} days "
-        "after From.",
+        help_text=f"The last day it covers: today or earlier. A period covers at most "
+        f"{reviews.MOST_DAYS} days, From and To included.",
     )
     examined = forms.MultipleChoiceField(
         label="Lists examined",
@@ -173,6 +173,6 @@ class IntervalForm(StyledForm, forms.Form):
         label="Reason",
         max_length=reviews.TEXT_LIMIT,
         widget=forms.Textarea(attrs={"rows": 2}),
-        help_text="Kept with the change in Changes to the interval and under Changes.",
+        help_text="Kept with the change and shown under Changes to the interval on this form.",
     )
     expected_revision = forms.IntegerField(widget=forms.HiddenInput, min_value=0)

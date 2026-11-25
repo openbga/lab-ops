@@ -140,8 +140,9 @@ records with the answer Django ends with, whatever it shows.
 
 ## Audit review workspace
 
-`audit_review` reads `AuditEvent`, `AccessRecord` and `SignInEvent` and its own `WorkspaceUse` and
-writes only the last. Its views (`audit_review.views`) decide access, the filters' choices and the
+`audit_review` reads `AuditEvent`, `AccessRecord` and `SignInEvent`. Its lists write only its own
+`WorkspaceUse`; its review records (below) write `Review`, `ReviewNote` and `ReviewSchedule`, each
+with an `AuditEvent`. Its views (`audit_review.views`) decide access, the filters' choices and the
 rows in one reading (`one_reading`, `reading_account`): an active staff account with a laboratory
 role and the `review_audit_records` capability (`audit_review.permissions`; `has_capability` reads
 the grant on the account or a group). Each list (`audit_review.sources`) orders by

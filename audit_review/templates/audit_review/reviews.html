@@ -54,6 +54,6 @@ Review with note_count), total, export_url, export_limit, exportable. Showing a 
   </div>
   {% pagination page_obj=page_obj noun="reviews" fixed_size=True %}
   {% endlist_results %}
-  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows. {% endif %}Reviews are listed as they stood when the first page opened. A signed review cannot be changed or removed; a note added later is shown on its page. Each page shown here and each export is recorded under Workspace use.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows. {% endif %}Reviews are listed as they stood when the first page opened; the number of notes is counted as each page or export is made. A signed review cannot be changed or removed; a note added later is shown on its page. Each page shown here and each export is recorded under Workspace use.</p>{% endfill %}
 {% endpanel %}
 {% endblock %}

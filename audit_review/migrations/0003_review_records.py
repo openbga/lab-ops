@@ -77,7 +77,7 @@ class Migration(migrations.Migration):
                     "follow_up",
                     models.TextField(blank=True, max_length=4000, verbose_name="follow-up"),
                 ),
-                ("signer_name", models.CharField(max_length=300)),
+                ("signer_name", models.TextField()),
                 ("signer_username", models.CharField(max_length=150)),
                 ("signer_roles", models.CharField(max_length=200)),
                 (
@@ -103,7 +103,7 @@ class Migration(migrations.Migration):
             name="ReviewNote",
             fields=[
                 ("id", models.BigAutoField(primary_key=True, serialize=False)),
-                ("author_name", models.CharField(max_length=300)),
+                ("author_name", models.TextField()),
                 ("text", models.TextField(max_length=4000)),
                 (
                     "added_at",

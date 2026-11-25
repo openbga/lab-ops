@@ -23,7 +23,7 @@ matches its checksum), examined_links ((label, url) pairs), list_url. Showing it
 {% panel title="What was reviewed" heading_id="reviewed-heading" class="mb-3" %}
   <dl class="vr-facts">
     {% fact label="Period covered" %}<time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"j F Y" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"j F Y" }}</time>{% endfact %}
-    {% fact label="Lists examined" empty="None" %}{% if examined_links %}<ul class="vr-plain-list mb-0">{% for label, url in examined_links %}<li><a href="{{ url }}">{{ label }}<span class="visually-hidden"> for the period covered</span></a></li>{% endfor %}</ul>{% endif %}{% endfact %}
+    {% fact label="Lists examined" empty="None" %}{% if examined_links %}<ul class="vr-plain-list vr-link-list mb-0">{% for label, url in examined_links %}<li><a href="{{ url }}">{{ label }}<span class="visually-hidden"> for the period covered</span></a></li>{% endfor %}</ul>{% endif %}{% endfact %}
     {% fact label="Other records examined" wide=True value=review.examined_other|linebreaksbr empty="None" %}
     {% fact label="Outcome" value=review.get_outcome_display %}
     {% fact label="Findings" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
@@ -39,7 +39,7 @@ matches its checksum), examined_links ((label, url) pairs), list_url. Showing it
     {% fact label="Signed" %}<time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"j F Y, H:i:s" }}</time>{% endfact %}
     {% fact label="SHA-256 checksum" wide=True %}<code class="vr-request-id vr-break-anywhere">{{ review.checksum }}</code><span class="d-block small {% if intact %}vr-muted{% else %}text-danger{% endif %}">{% if intact %}Matches the review as stored.{% else %}Does not match the review as stored.{% endif %}</span>{% endfact %}
   </dl>
-  {% fill footer %}<p class="vr-muted small mb-0">Signed with the reviewer's password entered at signing. The checksum is taken of the review's number, period, what was examined, outcome, findings, follow-up and this sign-off; notes are not part of it.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">Record a review asks for the reviewer's password at each signing. The checksum is taken of the review's number, period, what was examined, outcome, findings, follow-up and this sign-off; notes are not part of it.</p>{% endfill %}
 {% endpanel %}
 {% panel title="Notes" heading_id="notes-heading" count=notes|length class="mb-3" %}
   {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'audit_review:review-note' review.pk %}">Add a note</a>{% endfill %}

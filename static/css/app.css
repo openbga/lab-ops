@@ -5285,6 +5285,8 @@ details.card:not([open]) > summary.card-header {
   .vr-change-list > summary,
   .vr-history-item div > a,
   .vr-change-notes > summary,
+  .vr-link-list > li > a,
+  .vr-disclosure > summary,
   .vr-app-foot a,
   .vr-entrance-row > a,
   .vr-back-link {

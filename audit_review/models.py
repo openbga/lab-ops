@@ -127,7 +127,7 @@ class Review(models.Model):
         db_constraint=False,
         related_name="+",
     )
-    signer_name = models.CharField(max_length=300)
+    signer_name = models.TextField()
     signer_username = models.CharField(max_length=150)
     signer_roles = models.CharField(max_length=200)
     meaning = models.CharField(max_length=12, choices=Meaning.choices, default=Meaning.REVIEWED)
@@ -185,7 +185,7 @@ class ReviewNote(models.Model):
         db_constraint=False,
         related_name="+",
     )
-    author_name = models.CharField(max_length=300)
+    author_name = models.TextField()
     text = models.TextField(max_length=4000)
     # By the application's clock, as change events and sign-offs are timed.
     added_at = models.DateTimeField(default=timezone.now)
