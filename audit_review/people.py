@@ -91,14 +91,17 @@ def sort_value(raw, judged=True):
 
 def newest_change():
     """The Changes marker of a reading (sources.to_marker): the time of the newest change event
-    its snapshot holds, never later than now by this server's clock, or 0 when there is none. A
-    change begun after the snapshot was timed after every change it holds, so a later reading
-    with this marker leaves it out, unless the server that saved it had a clock running behind."""
-    latest = AuditEvent.objects.order_by("-occurred_at").values_list("occurred_at", flat=True)
-    latest = latest.first()
-    if latest is None:
-        return 0
-    return min(to_marker(latest), to_marker(timezone.now()))
+    its snapshot holds that is not timed ahead of this server's clock, or 0 when there is none
+    (or none since 1970). A change begun after the snapshot was timed after every change it
+    holds, so a later reading with this marker leaves it out, unless the server that saved it had
+    a clock running behind; a change timed ahead is counted once its time has passed."""
+    latest = (
+        AuditEvent.objects.filter(occurred_at__lte=timezone.now())
+        .order_by("-occurred_at")
+        .values_list("occurred_at", flat=True)
+        .first()
+    )
+    return 0 if latest is None else max(to_marker(latest), 0)
 
 
 def sort_label(sort):

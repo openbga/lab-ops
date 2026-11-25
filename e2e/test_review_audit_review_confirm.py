@@ -108,6 +108,9 @@ def test_each_phone_filter_sheet_and_available_column_chooser_restore_keyboard_f
             opener.click()
             sheet = page.get_by_role("dialog", name="Filter and sort")
             expect(sheet).to_be_visible()
+            # Opened, not still opening: a sheet still in its transition ignores Escape (seen
+            # once under load in a local gate, 2026-11-25).
+            expect(sheet).not_to_have_class(re.compile(r"\bshowing\b"))
             columns_button = sheet.get_by_role("button", name="Columns", exact=True)
             if columns_button.is_visible():
                 chooser_grids.add(columns_button.get_attribute("data-vr-columns-for"))

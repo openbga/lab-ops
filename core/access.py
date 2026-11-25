@@ -188,6 +188,7 @@ class AccessRecordMiddleware:
         if request.method == "HEAD" or response.status_code >= 500:
             return response  # nothing of the page is sent
         write(request, carried)
-        for action in actions:
-            action()
+        if response.status_code < 400:  # as another layer may have left it
+            for action in actions:
+                action()
         return response

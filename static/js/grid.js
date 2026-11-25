@@ -185,7 +185,7 @@
         order.splice(at, 0, id);
       });
       previous.hidden.forEach(function (id) {
-        if (!byId(grid, id) && order.indexOf(id) !== -1 && hidden.indexOf(id) === -1) {
+        if (!byId(grid, id) && hidden.indexOf(id) === -1 && hidden.length < LAYOUT_IDS) {
           hidden.push(id);
         }
       });

@@ -197,7 +197,8 @@ def newest(source):
 
 
 def to_marker(moment):
-    return int((moment - datetime(1970, 1, 1, tzinfo=UTC)) / timedelta(microseconds=1))
+    # Whole microseconds, exactly, however far from 1970 (no floating point).
+    return (moment - datetime(1970, 1, 1, tzinfo=UTC)) // timedelta(microseconds=1)
 
 
 def from_marker(marker):
