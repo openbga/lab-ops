@@ -2,6 +2,7 @@
 one, and set the review interval."""
 
 from django import forms
+from django.views.decorators.debug import sensitive_variables
 
 from accounts import confirmation
 from core.forms import StyledForm
@@ -17,6 +18,7 @@ NO_PASSWORD = (
 TOO_MANY = "Too many attempts to enter your password. Wait a minute, then try again."
 
 
+@sensitive_variables("password")
 def signing_refusal(request, password):
     """Why the password entered at signing is not accepted for the signed-in account of `request`,
     or "" when it is. Checked as a password asked for again is checked (accounts.adapter): a
@@ -129,7 +131,8 @@ class ReviewForm(StyledForm, forms.Form):
         name = confirmation.PASSWORD_FIELD
         if not self.is_valid():
             return False
-        refusal = signing_refusal(self.request, self.cleaned_data.get(name, ""))
+        # Checked once and not kept: nothing after this reads it.
+        refusal = signing_refusal(self.request, self.cleaned_data.pop(name, ""))
         if refusal:
             self.add_error(name, refusal)
             return False
