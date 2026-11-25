@@ -108,10 +108,12 @@ def test_reset_checks_unsaved_identities_under_the_gate_and_standalone_seed_chec
     monkeypatch.setattr(DeploymentCheck, "validate", record)
     with configured(DeploymentCheck):
         seed("reset_demo", interactive=False)
+        # Accounts given a password (adapted with Access review: the seed's example of an unused
+        # account, audit_review.seed, has none, so no password of it is checked).
         actual = sorted(
-            User.objects.filter(is_active=True).values_list(
-                "username", "first_name", "last_name", "email"
-            )
+            (user.username, user.first_name, user.last_name, user.email)
+            for user in User.objects.filter(is_active=True)
+            if user.has_usable_password()
         )
         assert len(actual) == 7 and sorted(observed) == actual
         observed.clear()

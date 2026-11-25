@@ -165,11 +165,12 @@ Use **Export CSV** to keep a copy of the reviews with their checksums.
 
 To review who holds access, open **Access review**. On **Accounts**, narrow by **Role**,
 **Capability** or **Second factor** and read under each role and capability who gave it and when;
-"Not in the change history" means no recorded change gave it, so find out how the account got it.
+"Not in the change history" means no recorded change gave it, or a later recorded change took it
+away and it came back by a path that records nothing, so find out how the account got it.
 On **Unused accounts**, the first time, select **Set the period** and enter the laboratory's
 number of days with a reason. Deactivate an account that is no longer needed in the account
-administration; Access review itself changes nothing. Export either list with **Export CSV** to
-keep it with the review.
+administration; Access review changes no account, role or grant, only its own period. Export
+either list with **Export CSV** to keep it with the review.
 
 ## Client journeys
 

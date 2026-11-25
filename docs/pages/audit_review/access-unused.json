@@ -10,7 +10,7 @@
     {
       "title": "Find accounts nobody uses",
       "steps": [
-        "Read the list: accounts that never signed in come first, then the oldest last sign-in.",
+        "Read the list: the account unused longest comes first, by its last sign-in, or by when it was created if it never signed in.",
         "Narrow it with [[Kind]], [[Role]] or [[Capability]] and select [[Apply]]."
       ]
     },
@@ -98,7 +98,7 @@
         },
         {
           "label": "Order",
-          "description": "Longest unused first: accounts that never signed in, oldest created first, then by last sign-in, oldest first. There is no other sort."
+          "description": "Longest unused first: by the last sign-in, or, for an account that never signed in, by when it was created, oldest first. There is no other sort."
         },
         {
           "label": "Pages",
@@ -114,7 +114,7 @@
         },
         {
           "label": "No unused accounts",
-          "description": "Every active account has signed in within the period."
+          "description": "No active account has gone without a sign-in for the whole period. An account that never signed in is listed once it was created longer ago than the period."
         }
       ]
     },

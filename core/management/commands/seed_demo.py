@@ -17,7 +17,7 @@ from accounts.passwords import (
     laboratory_named,
 )
 from accounts.roles import ROLE_LABELS, ROLES
-from accounts.setup import account_snapshot
+from accounts.setup import seed_snapshot
 from clients.services import hold_directory
 from core import demo, lab_profile
 from core.announcements import save_announcement
@@ -223,14 +223,14 @@ class Command(BaseCommand):
                 user.set_password(admin_password if role == "admin" else password)
                 user.save()
                 user.groups.add(group)
-                # Recorded as the account administration records a new account, so the access
-                # report (audit_review.access_report) can say who gave the role and when: by the
-                # demonstration's administrator, created first.
+                # Recorded as the account administration records a new account, less its email
+                # address (seed_snapshot), so the access report (audit_review.access_report) can
+                # say who gave the role and when: the demonstration's administrator, created first.
                 record_event(
                     actor=User.objects.get(username="demo_admin"),
                     action="account.created",
                     obj=user,
-                    after=account_snapshot(user),
+                    after=seed_snapshot(user),
                     reason="Demonstration seed",
                 )
         if created and not leftovers:

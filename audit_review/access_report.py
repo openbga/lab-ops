@@ -18,8 +18,13 @@ the role group's page records the capabilities granted to the group. For each on
 latest recorded change that gave it is shown; none is shown ("Not in the change history") when no
 recorded change gave it, or a later recorded change took it away (it was given again by a path that
 records nothing, such as the database directly). The history names roles by name: a group renamed
-on its own page is followed through its recorded renames. A deactivated account shows the recorded
-change that deactivated it. Names of the people who made a change are read as they stand now.
+on its own page is followed through its recorded renames, and a membership recorded under a name
+before a group was created or renamed with that name is not that group's (group names are unique,
+so it was of a group since removed or renamed with no recorded change; setup_lab's creation of the
+role groups is not counted: it records its new administrator, with its roles, just before them). A
+deactivated account
+shows the recorded change that deactivated it. Names of the people who made a change are read as
+they stand now.
 
 Unused accounts. An active account is unused when it has not signed in for the laboratory's period
 (UnusedPeriod) by the application's clock: its last sign-in (User.last_login, written at each
@@ -280,9 +285,15 @@ def cutoff(days, now=None):
     return (now or timezone.now()) - timedelta(days=days)
 
 
+def unused_since():
+    """Since when an account has gone unused: its last sign-in, or its creation when it never
+    signed in."""
+    return Coalesce("last_login", "date_joined")
+
+
 def unused_accounts(days, filters, now=None):
     """Active accounts with no sign-in in the last `days` days: a last sign-in before then, or none
-    and created before then. Longest unused first."""
+    and created before then. Longest unused first (unused_since), the account's id breaking ties."""
     before = cutoff(days, now)
     system_id = system_account_id()
     queryset = _kind(
@@ -299,7 +310,7 @@ def unused_accounts(days, filters, now=None):
         queryset = queryset.filter(holds_role(role))
     if capability := filters.get("capability"):
         queryset = queryset.filter(holds_capability(capability))
-    return queryset.order_by(F("last_login").asc(nulls_first=True), F("date_joined").asc(), "pk")
+    return queryset.order_by(unused_since().asc(), "pk")
 
 
 # ------------------------------------------------------------------------------ who gave what
@@ -380,12 +391,20 @@ def _apply(tracked, event):
             tracked.flags.pop(flag, None)
 
 
-def _renames(event):
-    """(old name, new name) when a recorded change of a group renamed it, else None."""
-    if event.action != "group.updated":
+def _naming(event):
+    """(old name or None, new name) when a recorded change of a group gave a group its name (it
+    created the group on its page, or renamed it), else None."""
+    before, after = event.before or {}, event.after or {}
+    new = after.get("name")
+    if not isinstance(new, str):
         return None
-    old, new = (event.before or {}).get("name"), (event.after or {}).get("name")
-    if isinstance(old, str) and isinstance(new, str) and old != new:
+    if event.action == "group.created" and not before:
+        # A group created on its page, in a transaction of its own before any account can be given
+        # it. Not setup_lab's: it records the account it creates before the role groups it
+        # creates with it (accounts.setup), so that account's roles would be dropped.
+        return None, new
+    old = before.get("name")
+    if event.action == "group.updated" and isinstance(old, str) and old != new:
         return old, new
     return None
 
@@ -409,11 +428,15 @@ def grant_history(account_ids, group_ids):
     )
     for event in events:
         if event.object_type == GROUP_OBJECT:
-            renamed = _renames(event)
-            if renamed is not None:
-                old, new = renamed
+            named = _naming(event)
+            if named is not None:
+                old, new = named
                 for tracked in accounts_tracked.values():
-                    if old in tracked.groups:
+                    # Group names are unique: a name a group is given now names no other group, so
+                    # a membership recorded under it before was of a group since removed or
+                    # renamed with no recorded change, and is not this group's.
+                    tracked.groups.pop(new, None)
+                    if old is not None and old in tracked.groups:
                         tracked.groups[new] = tracked.groups.pop(old)
             group_id = int(event.object_id) if event.object_id.isdigit() else None
             if group_id in groups_tracked:

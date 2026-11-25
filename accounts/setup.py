@@ -59,6 +59,15 @@ def account_snapshot(user):
     }
 
 
+def seed_snapshot(user):
+    """account_snapshot less the email address: what the demonstration seed records of an account
+    it creates (core seed_demo, audit_review.seed), so that the access report can say who gave its
+    roles, without copying the address into the change history."""
+    snapshot = account_snapshot(user)
+    snapshot.pop("email")
+    return snapshot
+
+
 def group_snapshot(group):
     return {
         "name": group.name,

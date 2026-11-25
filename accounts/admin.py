@@ -201,6 +201,20 @@ def _labels(permission_ids):
     }
 
 
+def _role_names(group_ids):
+    """{id: name} of these groups, read and held FOR SHARE until the transaction ends: a rename
+    on the role group page committed before is read, and one started now waits for this save to
+    commit, so a change recorded with these names comes before the rename in the history (the
+    access report, audit_review.access_report, follows renames in that order)."""
+    table = connection.ops.quote_name(Group._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT id, name FROM {table} WHERE id = ANY(%s) ORDER BY id FOR SHARE",
+            [sorted(group_ids)],
+        )
+        return dict(cursor.fetchall())
+
+
 def _owns_administration(user):
     return user.is_superuser and user.is_active and user.is_staff
 
@@ -307,13 +321,9 @@ class AccessRules:
         ):
             raise forms.ValidationError(CHANGED_SINCE_DRAWN)
         # What the save starts from: the audit's before values, and the roles and grants it
-        # changes by difference (AccountAdmin.save_related); and, read once now, the names of
-        # the roles it holds and is given, so the audit names each the same way before and after.
+        # changes by difference (AccountAdmin.save_related), which names the roles as they stand
+        # when it records the change (_role_names).
         self.held_reading = reading
-        posted = {group.pk for group in data.get("groups") or ()}
-        self.role_names = dict(
-            Group.objects.filter(pk__in=_group_ids(reading) | posted).values_list("pk", "name")
-        )
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
@@ -612,11 +622,10 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             for formset in formsets:
                 self.save_formset(request, form, formset, change=change)
             after.update(model_to_dict(obj, fields=COLUMNS))
-            # One reading of the names for both (taken with the check), so a role renamed meanwhile
-            # on the role group page (recorded there) does not show as a change of this account.
-            names = dict(form.role_names)
-            unnamed = set(after["groups"]) - set(names)
-            names.update(Group.objects.filter(pk__in=unnamed).values_list("pk", "name"))
+            # One reading of the names for both, so a role renamed on the role group page
+            # (recorded there) does not show as a change of this account; read as this save
+            # records the change, so the event names each role as it is named then (_role_names).
+            names = _role_names(set(before["groups"]) | set(after["groups"]))
             labels = _labels(set(before["user_permissions"]) | set(after["user_permissions"]))
             # Whether anything changed is decided on the values themselves (role ids), not on
             # their names: two roles renamed meanwhile could otherwise hide a change.
@@ -966,7 +975,16 @@ class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
             from .acting import close_access, role_members
 
             close_access(role_members([obj.pk]))
-        obj._audit_before = group_snapshot(Group.objects.get(pk=obj.pk)) if change else {}
+        if change:
+            # Then the group's row, held until this save commits, before its values are read for
+            # the audit: two saves of the page take turns, and the second records what it changed
+            # from the first's result, not from the page it was drawn with. An account save naming
+            # the group holds it shared (_role_names), so a rename waits for it.
+            obj._audit_before = group_snapshot(
+                Group.objects.select_for_update(no_key=True).get(pk=obj.pk)
+            )
+        else:
+            obj._audit_before = {}
         super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):

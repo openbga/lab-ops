@@ -3,7 +3,8 @@
 {% comment %}
 The Unused accounts tab of the Access review section (audit_review.access_views.unused_page), for
 holders of "Can review access and audit records": active accounts with no sign-in for the
-laboratory's period (UnusedPeriod), longest unused first (audit_review.access_report.unused_accounts).
+laboratory's period (UnusedPeriod), longest unused first: by the last sign-in, or the creation of an
+account that never signed in (audit_review.access_report.unused_accounts).
 Read-only, drawn in one reading as the accounts stand. With no period set, nothing is listed and the
 page asks for one. Context: grid, page_obj (a Page of access_report.AccountRow, or []), filter_form
 (audit_review.access_forms.UnusedFilter), active_filters, period, since (the moment before which a
@@ -17,7 +18,7 @@ context. Showing a page is recorded (WorkspaceUse).
 {% panel title=page_title table=True hidden_title=True class="mb-3" %}
   {% if period.days %}
   {% grid_toolbar label="Filter unused accounts" no_search=True invalid=filter_form.errors chips=active_filters grid=grid %}
-  {% list_results items=page_obj noun="accounts" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="No unused account matches these filters" no_results_body="Clear a filter to see every unused account." empty_title="No unused accounts" empty_body="Every active account has signed in within the period." %}
+  {% list_results items=page_obj noun="accounts" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="No unused account matches these filters" no_results_body="Clear a filter to see every unused account." empty_title="No unused accounts" empty_body="No active account has gone without a sign-in for the whole period. An account that never signed in is listed once it was created longer ago than the period." %}
   <div class="vr-table-wrap">
     <table class="table vr-table" data-vr-grid="{{ grid }}" data-vr-grid-version="1" aria-label="{{ page_title }}">
       <thead><tr>
@@ -32,7 +33,7 @@ context. Showing a page is recorded (WorkspaceUse).
         <tr>
           <th scope="row" class="vr-wrap"><span class="vr-break-anywhere">{{ row.name }}<span class="d-block vr-muted small">{{ row.username }}</span>{% if row.organization %}<span class="d-block vr-muted small">{{ row.organization }}</span>{% endif %}</span></th>
           <td>{{ row.kind }}</td>
-          <td class="vr-wrap"><div>{% for item in row.roles %}<span class="d-block">{{ item.text }}</span>{% endfor %}{% for item in row.capabilities %}<span class="d-block">{{ item.text }}<span class="vr-muted small"> · {{ item.note|lower }}</span></span>{% endfor %}{% if not row.roles and not row.capabilities %}<span class="vr-muted">None</span>{% endif %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.roles %}<span class="d-block">{{ item.text }}</span>{% endfor %}{% for item in row.capabilities %}<span class="d-block">{{ item.text }}<span class="vr-muted small"> · {{ item.note }}</span></span>{% endfor %}{% if not row.roles and not row.capabilities %}<span class="vr-muted">None</span>{% endif %}</div></td>
           <td>{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}"><span class="vr-nowrap">{{ row.last_sign_in|date:"Y-m-d" }}</span> <span class="vr-nowrap">{{ row.last_sign_in|date:"H:i" }}</span></time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
           <td class="vr-nowrap"><time datetime="{{ row.joined|date:'c' }}">{{ row.joined|date:"Y-m-d" }}</time></td>
         </tr>

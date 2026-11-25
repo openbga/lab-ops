@@ -465,13 +465,15 @@ def test_unused_accounts(reviewer, make_user, clinic):
     make_user("gone", "technical", last_login=old, is_active=False)
     make_user("portal_stale", client=clinic, last_login=old - timedelta(days=1))
     set_days(reviewer, 30)
+    # Longest unused first: by the last sign-in, or the creation of one that never signed in
+    # (stale and never_old went unused at the same moment: the older account first).
     names = [
         account.username for account in access_report.unused_accounts(30, {}) if account.username
     ]
-    assert names == ["never_old", "portal_stale", "stale"]
+    assert names == ["portal_stale", "stale", "never_old"]
     assert [a.username for a in access_report.unused_accounts(30, {"kind": "staff"})] == [
-        "never_old",
         "stale",
+        "never_old",
     ]
     assert [a.username for a in access_report.unused_accounts(30, {"role": "technical"})] == [
         "stale"
@@ -480,15 +482,15 @@ def test_unused_accounts(reviewer, make_user, clinic):
     page = http.get(reverse("access_review:unused"))
     assert "no sign-in for 30 days" in page.content.decode()
     assert [row.username for row in page.context["page_obj"]] == [
-        "never_old",
         "portal_stale",
         "stale",
+        "never_old",
     ]
     response = http.get(reverse("access_review:unused-export"))
     rows = list(csv.reader(io.StringIO(response.content.decode().lstrip("﻿"))))
-    assert [row[1] for row in rows[1:]] == ["never_old", "portal_stale", "stale"]
-    assert rows[3][-2:] == ["40", "30"]
-    assert rows[1][6] == "Never"
+    assert [row[1] for row in rows[1:]] == ["portal_stale", "stale", "never_old"]
+    assert rows[2][-2:] == ["40", "30"]
+    assert rows[3][6] == "Never" and rows[3][-2:] == ["40", "30"]
     uses = list(
         WorkspaceUse.objects.order_by("id").values_list("kind", "source", "rows", "filters")
     )

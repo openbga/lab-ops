@@ -6,17 +6,19 @@ without a password, which only a person signing on the form is asked for.
 
 For the Access review section (audit_review.access_report): an unused account period of 90 days,
 and one active staff account that has not signed in for longer (UNUSED_USERNAME, created months ago
-with the Technical staff role, recorded as the account administration records a new account). It
-has no password, so nobody can sign in as it. Synthetic data only."""
+with the Technical staff role, recorded as the account administration records a new account, less
+its email address: accounts.setup.seed_snapshot). It has no password, so nobody can sign in as it,
+and it is not added where an account already has its name or address. Synthetic data only."""
 
 from datetime import datetime, time, timedelta
 
 from django.contrib.auth.models import Group
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import User
-from accounts.setup import account_snapshot
+from accounts.setup import seed_snapshot
 from core.audit import record_event
 from desk.story import REVIEW_HOLDER
 from nonconformance.seed import happened_at
@@ -27,6 +29,7 @@ from .models import Review, ReviewSchedule, UnusedPeriod
 INTERVAL_DAYS = 31
 UNUSED_DAYS = 90
 UNUSED_USERNAME = "former_technician"
+UNUSED_EMAIL = "former.technician@example.invalid"
 
 
 def seed_setup(ctx):
@@ -60,7 +63,9 @@ def _unused(reviewer):
             expected_revision=0,
             reason="Demonstration: accounts nobody has used for about three months are reviewed.",
         )
-    if User.objects.filter(username=UNUSED_USERNAME).exists():
+    # An account already using its name or its address is left as it is, and none is added.
+    taken = Q(username__iexact=UNUSED_USERNAME) | Q(email__iexact=UNUSED_EMAIL)
+    if User.objects.filter(taken).exists():
         return
     now = timezone.now()
     created, signed_in = now - timedelta(days=200), now - timedelta(days=120)
@@ -68,7 +73,7 @@ def _unused(reviewer):
     with transaction.atomic(), happened_at(created):
         account = User(
             username=UNUSED_USERNAME,
-            email="former.technician@example.invalid",
+            email=UNUSED_EMAIL,
             first_name="Pat",
             last_name="Example",
             date_joined=created,
@@ -81,7 +86,7 @@ def _unused(reviewer):
             actor=admin,
             action="account.created",
             obj=account,
-            after=account_snapshot(account),
+            after=seed_snapshot(account),
             reason="Demonstration seed: a technician who no longer signs in",
         )
 

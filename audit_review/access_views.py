@@ -5,10 +5,11 @@ records" (audit_review.permissions).
 Each page and export is drawn in one reading (core.concurrency.one_reading): the account, its role
 and capability, the filters' choices, the accounts and what they hold come from one moment, which
 is the moment the page is drawn (the accounts as they stand, not as of an earlier page). Each page
-shown and each export is recorded (WorkspaceUse) with the answer it is about (core.access.keep), as
-in the audit review workspace. The period's form is opened in one reading and decided by the
-service (access_report.set_period), which holds the acting account and checks again that it may
-review.
+of the two lists shown and each export is recorded (WorkspaceUse) with the answer it is about
+(core.access.keep), as in the audit review workspace; the period's form is not, as the Reviews tab's
+forms are not (it shows the period and its changes, which Changes lists too). The period's form is
+opened in one reading and decided by the service (access_report.set_period), which holds the acting
+account and checks again that it may review.
 """
 
 import csv
@@ -258,8 +259,8 @@ def unused_page(request):
         )
     page = page_obj.number if form.is_valid() and period.days else None
     use = _use(request, UseKind.VIEWED, Source.UNUSED, form, total, page)
-    if form.is_valid():
-        use.filters["days"] = str(period.days) if period.days else "none"
+    # The period the page showed, whether or not its filters were accepted.
+    use.filters["days"] = str(period.days) if period.days else "none"
     access.keep(request, use)
     return response
 
@@ -400,6 +401,7 @@ def unused_period(request):
             "submit_label": "Save period",
             "cancel_url": reverse("access_review:unused"),
             "crumbs": [
+                ("Access review", None),
                 ("Unused accounts", reverse("access_review:unused")),
                 (title, None),
             ],

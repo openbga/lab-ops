@@ -567,7 +567,11 @@ def describe_filters(use, people, tickets, clients, calendars=None, reviews=None
     reviews = reviews or {}
     teams = teams or {}
     if filters.get("invalid"):
-        return "A filter was not accepted: nothing listed"
+        days = filters.get("days")
+        shown = ""
+        if days:
+            shown = "; no period set" if days == "none" else f"; unused after {days} days"
+        return f"A filter was not accepted: nothing listed{shown}"
 
     def calendar_name(value):
         found = calendars.get(int(value)) if str(value).isdigit() else None
