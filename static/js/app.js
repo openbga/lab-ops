@@ -395,8 +395,13 @@
     document.querySelectorAll(".vr-grid-sheet").forEach(function (sheet) {
       var field = sheet.querySelector("[aria-invalid=true]");
       if (!field || sheet.classList.contains("show")) return;
+      var button = document.querySelector('[data-bs-toggle="offcanvas"][aria-controls="' + sheet.id + '"]');
       sheet.addEventListener("shown.bs.offcanvas", function () {
         (field.tomselect ? field.tomselect.focus_node : field).focus();
+      }, { once: true });
+      // Opened from script, so Bootstrap returns focus to no button: closing it returns to its own.
+      sheet.addEventListener("hidden.bs.offcanvas", function () {
+        if (button && button.getClientRects().length) button.focus();
       }, { once: true });
       window.bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
     });

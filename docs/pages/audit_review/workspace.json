@@ -72,7 +72,7 @@
       "items": [
         {
           "label": "When",
-          "description": "The date and time to the second, in the laboratory's time zone. For an access record, a sign-in event and a workspace use, by the database's clock when the record was written."
+          "description": "The date and time to the second, in the laboratory's time zone. For an access record and a workspace use, by the database's clock when the record was written. For a sign-in event, when it happened by the database's clock: for a session that a limit ended, the moment the limit passed, which can be earlier than when the end was written down. For a change, by the application server's clock when it was saved."
         },
         {
           "label": "Person",
@@ -84,7 +84,7 @@
         },
         {
           "label": "Record",
-          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record or the ticket's form) is named by the ticket's number (the line below is empty for a ticket logged without an organization), an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
+          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record, the ticket's form or its service clock) is named by the ticket's number (the line below is empty for a ticket logged without an organization), an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
         },
         {
           "label": "What",
@@ -125,7 +125,7 @@
       "items": [
         {
           "label": "Person",
-          "description": "Any account, staff or client portal, active or not. Type part of a name, username or email address."
+          "description": "Any account, staff or client portal, active or not. Type part of a name, username or email address. An account deleted outside the application can no longer be chosen, and a page or export already filtered by it is refused; the application itself only deactivates accounts."
         },
         {
           "label": "Client organization",
@@ -141,7 +141,7 @@
         },
         {
           "label": "From and To",
-          "description": "Under More filters: days in the laboratory's time zone, both included. To must not be before From."
+          "description": "Under More filters: days in the laboratory's time zone, both included, matched against the date each row shows in When. To must not be before From."
         },
         {
           "label": "A filter that is not accepted",

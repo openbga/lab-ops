@@ -9,7 +9,9 @@ def remove_capability(apps, schema_editor):
     migration and never removes one.)"""
     Permission = apps.get_model("auth", "Permission")
     Permission.objects.filter(
-        content_type__app_label="accounts", codename="review_audit_records"
+        content_type__app_label="accounts",
+        content_type__model="user",
+        codename="review_audit_records",
     ).delete()
 
 

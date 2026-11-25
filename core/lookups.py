@@ -19,7 +19,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.paginator import EmptyPage, Paginator
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
@@ -170,14 +170,16 @@ def search(queryset, fields, text):
 @login_required
 @require_GET
 def lookup(request, name):
-    """JSON page of options: {"results": [{"value", "text"}], "more": bool}. The access check,
-    the count and the options come from one reading, so `more` describes the options sent."""
-    from core.concurrency import one_reading
+    """JSON page of options: {"results": [{"value", "text"}], "more": bool}. The account and its
+    access, the count and the options come from one reading, so `more` describes the options
+    sent."""
+    from core.concurrency import one_reading, reading_account
 
     entry = LOOKUPS.get(name)
     if entry is None:
         raise Http404("No such lookup.")
     with one_reading():
+        reading_account(request)  # the account as it stands in the reading becomes request.user
         queryset = entry.queryset(request)
         queryset = search(queryset, entry.search_fields, request.GET.get("q", "")[:MAX_QUERY])
         paginator = Paginator(queryset.order_by(*entry.ordering), entry.page_size)
@@ -185,7 +187,7 @@ def lookup(request, name):
             page = paginator.page(request.GET.get("page") or 1)
         except EmptyPage:
             return JsonResponse({"results": [], "more": False})
-        except ValueError:
+        except ValueError, PageNotAnInteger:
             page = paginator.page(1)
         results = [{"value": entry.value(obj), "text": entry.label(obj)} for obj in page]
         more = page.has_next()
@@ -218,12 +220,16 @@ class RemoteSelect(forms.Select):
         if not self.allow_multiple_selected and field.empty_label is not None:
             options.append(self.create_option(name, "", field.empty_label, not selected, 0))
         to_field = field.to_field_name or "pk"
-        try:
-            chosen = (
-                list(field.queryset.filter(**{f"{to_field}__in": selected})) if selected else []
-            )
-        except TypeError, ValueError, ValidationError:
-            chosen = []  # a value the field cannot read selects nothing; the form says why
+        model = field.queryset.model
+        key = model._meta.pk if to_field == "pk" else model._meta.get_field(to_field)
+        readable = set()
+        for item in selected:  # a value the field cannot read selects nothing; the form says why
+            try:
+                key.to_python(item)
+            except TypeError, ValueError, ValidationError:
+                continue
+            readable.add(item)
+        chosen = field.queryset.filter(**{f"{to_field}__in": readable}) if readable else []
         for obj in chosen:
             option_value = field.prepare_value(obj)
             options.append(

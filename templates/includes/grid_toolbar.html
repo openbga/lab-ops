@@ -47,7 +47,7 @@ Usage:
   </div>
   {% sheet id=sheet_id title="Filter and sort" below="sm" class="vr-grid-sheet" %}
 <form class="vr-grid-toolbar" method="get" action="{{ request.path }}" role="search" aria-label="{{ label }}" novalidate>
-  {% if not no_search %}{% grid_search value=q id=search_id label="Search" name="q" placeholder=placeholder %}{% endif %}
+  {% if not no_search %}{% grid_search value=q id=search_id label="Search" name="q" placeholder=placeholder errors=errors.q %}{% endif %}
   {% for field in inline %}{{ field.as_field_group }}{% endfor %}
   <div class="vr-filter-actions">
     {% if more %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ more_id }}" aria-expanded="{% if more_open or errors %}true{% else %}false{% endif %}" aria-controls="{{ more_id }}">{% icon name="funnel" %}More filters</button>{% endif %}

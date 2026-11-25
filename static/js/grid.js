@@ -265,7 +265,19 @@
       dialogOpener = opener;
       parts.title.textContent = "Columns";
       renderDialog(dialogGrid);
-      window.bootstrap.Modal.getOrCreateInstance(parts.dialog).show(opener);
+      // One dialog at a time: from a phone's "Filter and sort" sheet, the sheet closes first and
+      // focus comes back to its button when the Columns dialog closes.
+      var sheet = opener.closest(".vr-sheet.show");
+      var showDialog = function () {
+        window.bootstrap.Modal.getOrCreateInstance(parts.dialog).show(opener);
+      };
+      if (sheet) {
+        dialogOpener = document.querySelector('[data-bs-toggle="offcanvas"][aria-controls="' + sheet.id + '"]') || opener;
+        sheet.addEventListener("hidden.bs.offcanvas", showDialog, { once: true });
+        window.bootstrap.Offcanvas.getOrCreateInstance(sheet).hide();
+      } else {
+        showDialog();
+      }
       return;
     }
     var move = event.target.closest("[data-vr-col-move]");

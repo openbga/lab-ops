@@ -377,7 +377,9 @@ password or emailed code was accepted. Refusals by the limit are kept at most on
 same step and address. No entry holds a password, a code, or the username or email address as
 typed. A shared demonstration account sees its entries, with
 the browser and address only for the session it is using. Entries are kept with no retention
-period and are never changed or deleted; nobody reads another person's history in this release.
+period and are never changed or deleted. Apart from the person, only staff who hold the capability
+to review access and audit records read an account's history, every entry of it, in the Audit
+review workspace (below); no other page shows it.
 The history starts at the upgrade that added it.
 
 Before a change to access or security settings, the application asks the person making it to
@@ -445,10 +447,12 @@ sidebar's Oversight section. It has four lists, each newest first, 50 rows a pag
 change event), Access records (every sensitive read), Sign-ins (every account's sign-in history)
 and Workspace use (the workspace's own record of its use). Each is filtered by person (any
 account), action and days in the laboratory's time zone, all but Workspace use also by client
-organization, and Changes and Access records also by ticket number; on Changes a ticket takes its parts (entries, files, links,
-the complaint record and the ticket's form) and an organization its own record, contacts, sites,
-portal access and portal accounts and its tickets. Every page, and the export, is drawn as the list
-stood when its first page opened. Export CSV gives every matching row, at most 10,000, as a
+organization, and Changes and Access records also by ticket number; on Changes a ticket takes its
+parts (entries, files, links, the complaint record, the ticket's form and its service clock) and an
+organization its own record, contacts, sites, portal access and portal accounts and its tickets.
+Every page, and the export, is drawn as the list stood when its first page opened, except that
+which accounts and tickets belong to a filtered organization is read again for each page and the
+export. Export CSV gives every matching row, at most 10,000, as a
 spreadsheet file in which a cell that would run as a formula is written as text. Rows say who did
 what to which record and when, never a change's values or reason or what was shown; a ticket is
 named by its number and organization whatever its category, and opening it still needs access to

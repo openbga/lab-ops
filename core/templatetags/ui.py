@@ -331,7 +331,7 @@ COMPONENTS = {
     "required_note": Component(I + "required_note.html", ("note", "times")),
     "field": Component(I + "field.html", ("field", "prefix", "suffix", "no_help", "label")),
     "grid_search": Component(
-        I + "grid_search.html", ("value", "placeholder", "label", "name", "id")
+        I + "grid_search.html", ("value", "placeholder", "label", "name", "id", "errors")
     ),
     "grid_toolbar": Component(
         I + "grid_toolbar.html",
