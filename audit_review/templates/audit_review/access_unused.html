@@ -32,8 +32,8 @@ context. Showing a page is recorded (WorkspaceUse).
         <tr>
           <th scope="row" class="vr-wrap"><span class="vr-break-anywhere">{{ row.name }}<span class="d-block vr-muted small">{{ row.username }}</span>{% if row.organization %}<span class="d-block vr-muted small">{{ row.organization }}</span>{% endif %}</span></th>
           <td>{{ row.kind }}</td>
-          <td class="vr-wrap">{% for item in row.roles %}<span class="d-block vr-break-anywhere">{{ item.text }}</span>{% endfor %}{% for item in row.capabilities %}<span class="d-block vr-break-anywhere">{{ item.text }}<span class="vr-muted small"> · {{ item.note|lower }}</span></span>{% endfor %}{% if not row.roles and not row.capabilities %}<span class="vr-muted">None</span>{% endif %}</td>
-          <td class="vr-nowrap">{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}">{{ row.last_sign_in|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
+          <td class="vr-wrap"><div>{% for item in row.roles %}<span class="d-block">{{ item.text }}</span>{% endfor %}{% for item in row.capabilities %}<span class="d-block">{{ item.text }}<span class="vr-muted small"> · {{ item.note|lower }}</span></span>{% endfor %}{% if not row.roles and not row.capabilities %}<span class="vr-muted">None</span>{% endif %}</div></td>
+          <td>{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}"><span class="vr-nowrap">{{ row.last_sign_in|date:"Y-m-d" }}</span> <span class="vr-nowrap">{{ row.last_sign_in|date:"H:i" }}</span></time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
           <td class="vr-nowrap"><time datetime="{{ row.joined|date:'c' }}">{{ row.joined|date:"Y-m-d" }}</time></td>
         </tr>
         {% endfor %}

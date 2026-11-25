@@ -33,13 +33,13 @@ total, period (UnusedPeriod) and the toolbar context. Showing a page is recorded
         {% for row in page_obj %}
         <tr>
           <th scope="row" class="vr-wrap"><span class="vr-break-anywhere">{{ row.name }}<span class="d-block vr-muted small">{{ row.username }}</span>{% if row.organization %}<span class="d-block vr-muted small">{{ row.organization }}</span>{% endif %}</span></th>
-          <td class="vr-wrap"><span class="vr-break-anywhere">{{ row.kind }} · {{ row.status }}{% if row.deactivated %}<span class="d-block vr-muted small">Deactivated {{ row.deactivated.text }}</span>{% endif %}{% for item in row.console %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small">{{ item.note }}</span></span>{% endfor %}</span></td>
-          <td class="vr-wrap">{% for item in row.roles %}<span class="d-block vr-break-anywhere">{{ item.text }}<span class="d-block vr-muted small">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</td>
-          <td class="vr-wrap">{% for item in row.capabilities %}<span class="d-block vr-break-anywhere">{{ item.text }}<span class="d-block vr-muted small">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</td>
-          <td class="vr-wrap">{% for item in row.teams %}<span class="d-block vr-break-anywhere">{{ item.text }}{% if item.note %}<span class="vr-muted small"> · {{ item.note }}</span>{% endif %}</span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</td>
-          <td class="vr-wrap">{% if row.portal %}<span class="vr-break-anywhere">{{ row.portal }}</span>{% else %}<span class="vr-muted">Not a portal account</span>{% endif %}</td>
-          <td class="vr-wrap">{% if row.second_factor %}Set up{% else %}Not set up{% endif %}{% if row.required %}<span class="d-block vr-muted small">Required by the rule</span>{% endif %}</td>
-          <td class="vr-nowrap">{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}">{{ row.last_sign_in|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
+          <td class="vr-wrap"><div>{{ row.kind }} · {{ row.status }}{% if row.deactivated %}<span class="d-block vr-muted small vr-break-anywhere">Deactivated {{ row.deactivated.text }}</span>{% endif %}{% for item in row.console %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.roles %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.capabilities %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.teams %}<span class="d-block">{{ item.text }}{% if item.note %}<span class="vr-muted small"> · {{ item.note }}</span>{% endif %}</span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap">{% if row.portal %}{{ row.portal }}{% else %}<span class="vr-muted">Not a portal account</span>{% endif %}</td>
+          <td class="vr-wrap"><div>{% if row.second_factor %}Set up{% else %}Not set up{% endif %}{% if row.required %}<span class="d-block vr-muted small">Required by the rule</span>{% endif %}</div></td>
+          <td>{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}"><span class="vr-nowrap">{{ row.last_sign_in|date:"Y-m-d" }}</span> <span class="vr-nowrap">{{ row.last_sign_in|date:"H:i" }}</span></time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
