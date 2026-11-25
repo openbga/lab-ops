@@ -65,11 +65,9 @@ def active_filters(request, form):
     """Build removable links from validated, named filters without a query DSL."""
     chips = []
     for name, value in form.cleaned_data.items():
-        if name in {"sort", "page", "per_page", "saved"} or value in (None, "", [], ()):
+        if name in {"sort", "page", "per_page", "saved"} or value in (None, "", "all", [], ()):
             continue
         field = form.fields[name]
-        if value == "all" and hasattr(field, "choices"):
-            continue  # a choice list's "all" is no filter; typed text "all" is a search
         label = field.label or name.replace("_", " ").capitalize()
         display = value
         if hasattr(field, "choices") and not hasattr(field, "queryset"):

@@ -4873,16 +4873,6 @@ input[type="search"]::-webkit-search-decoration {
   display: none;
 }
 
-@media (max-width: 575.98px), (pointer: coarse) {
-  .vr-search-input {
-    padding-right: var(--vr-touch-target);
-  }
-
-  .vr-search-clear {
-    width: var(--vr-touch-target); /* a finger's target on phones */
-  }
-}
-
 :has(> .vr-search-input) {
   position: relative;
 }

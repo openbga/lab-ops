@@ -236,10 +236,9 @@ def grid_toolbar_values(values, body, slots, has_body):
     chips = values["chips"] or values["active_filters"] or []
     parts = [f"{chip['label']}: {chip['value']}" for chip in chips]
     search = str(values["q"] or "").strip()
-    # The search's own chip (by its field's name; a chip built without one, by its label and text).
+    # The search's own chip: by its field's name, or, for a chip built without one, by its text.
     searched = any(
-        chip.get("name") == "q"
-        or ("name" not in chip and chip["label"] == "Search" and str(chip["value"]) == search)
+        chip.get("name") == "q" or ("name" not in chip and str(chip["value"]) == search)
         for chip in chips
     )
     if search and not searched:
