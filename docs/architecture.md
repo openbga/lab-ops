@@ -770,8 +770,9 @@ read once for each request and never copied into the session, because two tabs o
 can answer at the same moment and each saves its whole session as it ends. A change made in the
 page (a column shown or hidden, the sidebar collapsed) is posted at once (`static/js/preferences.js`,
 with `keepalive`, so that it completes when the page is left); two changes of one setting made
-within a moment of each other, in one tab or two, are kept in the order they reach the server, which
-can differ from the order they were made. Every save compares
+within a moment of each other, in one tab or two, each write the setting as they are handled: the one
+written last is kept, which can differ from the order they were made, and a refusal answered late
+can still say a setting was not saved after a later save of it succeeded. Every save compares
 with what is stored, not with what the request read: a list's page size and sort, and the What's
 new mark, are combined with the stored value holding its row, and a list saves only the page
 size and sort it applied with valid filters, once the response is ready (not a sort it does not

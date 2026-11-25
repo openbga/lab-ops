@@ -39,6 +39,6 @@ the toolbar context (core.lists.toolbar_context). Showing a page is recorded (Wo
   </div>
   {% pagination page_obj=page_obj noun=noun filtered=active_filters fixed_size=True %}
   {% endlist_results %}
-  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows: narrow the filters to export this list. {% endif %}Rows are listed as they stood when the first page opened, though a row still being saved at that moment can appear on a later page, and an organization's accounts and tickets are read as they stand now; open the list again to see newer ones. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows: narrow the filters to export this list. {% endif %}Rows are listed as they stood when the first page opened, though a row still being saved at that moment (or, on Changes, a change saved by a server whose clock runs behind) can appear on a later page, and an organization's accounts and tickets are read as they stand now; open the list again to see newer ones. Each page shown here and each export is recorded under Workspace use. Nothing here can be changed or removed.</p>{% endfill %}
 {% endpanel %}
 {% endblock %}

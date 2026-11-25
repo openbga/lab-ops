@@ -421,9 +421,10 @@ def request_find(request):
     otherwise requests matching the text, the organization or contact, requests carrying a
     matching identifier, and matching client organizations."""
     user = request.user
-    term = request.GET.get("q", "").strip()
-    # Longer text is refused, not cut short: a shortened term could match something else.
-    errors = [f"Use at most {FIND_LIMIT} characters."] if len(term) > FIND_LIMIT else []
+    typed = request.GET.get("q", "")
+    term = typed.strip()
+    # Longer text, as typed, is refused, not cut short: a shortened term could match something else.
+    errors = [f"Use at most {FIND_LIMIT} characters."] if len(typed) > FIND_LIMIT else []
     visible = staff_requests(user)
     results, identifier_ids, organizations = [], [], []
     if term and not errors:
@@ -453,7 +454,7 @@ def request_find(request):
         "desk/find.html",
         {
             "page_title": "Find tickets",
-            "q": term,
+            "q": typed if errors else term,  # refused text stays as typed, to be corrected
             "errors": errors,
             "results": results,
             "identifier_ids": set(identifier_ids),

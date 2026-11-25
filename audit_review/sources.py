@@ -205,11 +205,31 @@ _ACTION_FIELD = {
 
 
 def _day_start(day):
-    """The start of `day` in the deployment's time zone (its first midnight, where the clocks went
-    back across midnight), as the dates on the page read. A day is the time from its start to the
-    next day's: rows in an hour repeated across midnight belong to the later day, whatever date
-    they show."""
-    return timezone.make_aware(datetime.combine(day, time.min))
+    """The first instant of `day` or later in the deployment's time zone, as the dates on the page
+    read: its midnight; the first one where the clocks went back across midnight; the moment the
+    clocks jumped where they went forward past midnight; the next day's start for a day the
+    calendar skipped. A day is the time from its start to the next day's: rows in an hour repeated
+    across midnight belong to the later day, whatever date they show."""
+    zone = timezone.get_current_timezone()
+    midnight = datetime.combine(day, time.min)
+    try:
+        # The two readings of local midnight differ only where it is missing or repeated; the
+        # start lies between them (searched to the microsecond).
+        earlier, later = sorted(
+            midnight.replace(tzinfo=zone, fold=fold).astimezone(UTC) for fold in (0, 1)
+        )
+        if earlier.astimezone(zone).date() >= day:
+            return earlier
+        step = timedelta(microseconds=1)
+        while later - earlier > step:
+            middle = earlier + (later - earlier) / 2
+            if middle.astimezone(zone).date() >= day:
+                later = middle
+            else:
+                earlier = middle
+        return later
+    except OverflowError:  # the first or last day the calendar holds
+        return timezone.make_aware(midnight)
 
 
 def _text_ids(model, **lookup):

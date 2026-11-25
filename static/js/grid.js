@@ -315,7 +315,7 @@
     var shown = function (element) {
       return element.checkVisibility
         ? element.checkVisibility({ visibilityProperty: true })
-        : element.getClientRects().length > 0;
+        : element.getClientRects().length > 0 && getComputedStyle(element).visibility === "visible";
     };
     var target = dialogOpener;
     if (!shown(target) && dialogGrid) {
