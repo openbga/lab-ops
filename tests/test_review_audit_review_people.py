@@ -292,7 +292,12 @@ def test_people_hours_drilldowns_match_service_clock_intervals(
     client, reviewer, agent, settings, zone, first, last
 ):
     from datetime import UTC, date, datetime, time, timedelta
-    from zoneinfo import ZoneInfo
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:  # adapted: CI's time zone data has no legacy keys such as CET, EET or EST
+        ZoneInfo(zone)
+    except ZoneInfoNotFoundError:
+        pytest.skip(f"This system's time zone data has no {zone}.")
 
     from django.urls import reverse
 

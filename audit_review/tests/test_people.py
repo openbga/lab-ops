@@ -650,10 +650,15 @@ def test_the_database_judges_hours_as_the_calendar_counts_them_across_clock_chan
     settings, agent, clinic, make_ticket, zone
 ):
     from datetime import UTC
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
     from audit_review import hours as business_hours
     from service_levels.business_time import open_intervals
 
+    try:  # CI's time zone data has no legacy keys such as CET or EST5EDT
+        ZoneInfo(zone)
+    except ZoneInfoNotFoundError:
+        pytest.skip(f"This system's time zone data has no {zone}.")
     settings.TIME_ZONE = zone
     every_day = {
         day: [["00:30", "01:30"], ["09:00", "17:00"], ["23:00", "24:00"]]
