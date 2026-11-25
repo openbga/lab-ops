@@ -41,7 +41,7 @@
       "items": [
         {
           "label": "Ticket number, organization, name, reference or identifier",
-          "description": "The search box, up to 200 characters. A ticket number (with or without REQ- and leading zeros) that exists and that you may read opens that ticket directly. Otherwise the text is matched, ignoring case, against the number, subject, organization name and account code, contact name, the caller's name (Reported by) and the reference given. When links to orders, samples and other records exist, a matching identifier lists every ticket that carries the link. Searches by patient, participant or donor keys are for staff with the patient capability only, and are matched exactly."
+          "description": "The search box, up to 200 characters; longer text is refused with a message under the box, and nothing is searched. A ticket number (with or without REQ- and leading zeros) that exists and that you may read opens that ticket directly. Otherwise the text is matched, ignoring case, against the number, subject, organization name and account code, contact name, the caller's name (Reported by) and the reference given. When links to orders, samples and other records exist, a matching identifier lists every ticket that carries the link. Searches by patient, participant or donor keys are for staff with the patient capability only, and are matched exactly."
         },
         {
           "label": "Find",

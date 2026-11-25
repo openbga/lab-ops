@@ -172,9 +172,9 @@ def rows_for(source, cleaned, upto):
     if action := cleaned.get("action"):
         records = records.filter(**{_ACTION_FIELD[source]: action})
     if start := cleaned.get("date_from"):
-        records = records.filter(_on_or_after(start))
-    if end := cleaned.get("date_to"):
-        records = records.filter(_on_or_before(end))
+        records = records.filter(occurred_at__gte=_day_start(start))
+    if (end := cleaned.get("date_to")) and end < date.max:  # date.max: no later day to stop at
+        records = records.filter(occurred_at__lt=_day_start(end + timedelta(days=1)))
     ticket = cleaned.get("ticket")
     organization = cleaned.get("organization")
     if source == Source.CHANGES:
@@ -204,26 +204,11 @@ _ACTION_FIELD = {
 }
 
 
-def _on_or_after(day):
-    """Records whose date in the deployment's time zone, as the page shows it, is `day` or later:
-    by that date, so that a day the clocks went back at midnight keeps its every hour, and within
-    a day of its start, so that the time index narrows the search."""
-    condition = Q(occurred_at__date__gte=day)
-    if day > date.min + timedelta(days=1):
-        condition &= Q(occurred_at__gte=_day_start(day - timedelta(days=1)))
-    return condition
-
-
-def _on_or_before(day):
-    """Records whose date in the deployment's time zone is `day` or earlier (as _on_or_after)."""
-    condition = Q(occurred_at__date__lte=day)
-    if day < date.max - timedelta(days=2):
-        condition &= Q(occurred_at__lt=_day_start(day + timedelta(days=2)))
-    return condition
-
-
 def _day_start(day):
-    """The start of `day` in the deployment's time zone."""
+    """The start of `day` in the deployment's time zone (its first midnight, where the clocks went
+    back across midnight), as the dates on the page read. A day is the time from its start to the
+    next day's: rows in an hour repeated across midnight belong to the later day, whatever date
+    they show."""
     return timezone.make_aware(datetime.combine(day, time.min))
 
 

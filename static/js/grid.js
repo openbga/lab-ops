@@ -305,10 +305,29 @@
   });
 
   // Bootstrap returns focus only for data-bs-toggle openers; this dialog is opened from script.
+  // When the opener is no longer shown (the screen turned between a phone's sheet and the inline
+  // toolbar while the dialog was open), focus goes to the one of that grid's Columns buttons or
+  // its sheet's button that is shown now.
   document.addEventListener("hidden.bs.modal", function (event) {
-    if (event.target.id === "vr-columns-dialog" && dialogOpener && dialogOpener.isConnected) {
-      dialogOpener.focus();
+    if (event.target.id !== "vr-columns-dialog" || !dialogOpener || !dialogOpener.isConnected) {
+      return;
     }
+    var shown = function (element) {
+      return element.checkVisibility
+        ? element.checkVisibility({ visibilityProperty: true })
+        : element.getClientRects().length > 0;
+    };
+    var target = dialogOpener;
+    if (!shown(target) && dialogGrid) {
+      var name = dialogGrid.table.getAttribute("data-vr-grid");
+      var filter = document.querySelector('[data-vr-filter-grid="' + name + '"]');
+      var candidates = Array.from(document.querySelectorAll('[data-vr-columns-for="' + name + '"]'));
+      if (filter) {
+        candidates = candidates.concat(Array.from(filter.querySelectorAll('[data-bs-toggle="offcanvas"]')));
+      }
+      target = candidates.find(shown) || target;
+    }
+    target.focus();
   });
 
   function initGrids() {

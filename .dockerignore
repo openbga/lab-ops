@@ -31,6 +31,6 @@
 !templates/**/*.html
 !*/templates/**/*.html
 !*/templates/**/*.txt
-**/tests/
+**/tests/**
 **/__pycache__/
 **/.DS_Store

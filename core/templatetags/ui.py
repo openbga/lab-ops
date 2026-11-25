@@ -231,7 +231,11 @@ def grid_toolbar_values(values, body, slots, has_body):
     chips = values["chips"] or values["active_filters"] or []
     parts = [f"{chip['label']}: {chip['value']}" for chip in chips]
     search = str(values["q"] or "").strip()
-    if search and not any(search == str(chip["value"]) for chip in chips):
+    errors = values["invalid"]
+    if not hasattr(errors, "keys"):  # not the form's errors: read them from the form
+        errors = getattr(values["filter_form"], "errors", None) or {}
+    refused = "q" in errors  # a search the form refused filters nothing
+    if search and not refused and not any(search == str(chip["value"]) for chip in chips):
         parts.append(f"Search: {search}")
     return {"filter_count": len(parts), "filter_summary": " · ".join(parts) or "No filters"}
 

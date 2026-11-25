@@ -154,7 +154,9 @@ by the application's clock, which also times each event, taken before the readin
 for Who opened it, a row whose write was under way in another request at that moment can still take
 a place in the later pages; so can a change saved by a process whose clock runs behind. The
 organization filter reads which accounts and tickets belong to the organization at each page and
-export, so an account moved since the first page counts for its new organization. The ticket and
+export, so an account moved since the first page counts for its new organization. A day filter runs
+from the day's first local midnight to the next day's (`sources._day_start`), so on a day whose
+clocks went back across midnight the repeated hour's rows belong to the later day. The ticket and
 organization filters on Changes match `object_type` and `object_id` against subqueries of the
 ticket's parts (`TICKET_PARTS`) and the organization's records, cast to text. Rows are built from
 ids and codes: names as they stand now, never `before`, `after` or `reason`; access rows reuse
@@ -765,7 +767,11 @@ behavior across pages. List filtering, sorting and pagination run on the authori
 DataTables manages column presentation. Table layout and other presentation preferences belong
 to individual accounts: stored in the database ([core/preferences.py](../core/preferences.py)),
 read once for each request and never copied into the session, because two tabs of one sign-in
-can answer at the same moment and each saves its whole session as it ends. Every save compares
+can answer at the same moment and each saves its whole session as it ends. A change made in the
+page (a column shown or hidden, the sidebar collapsed) is posted at once (`static/js/preferences.js`,
+with `keepalive`, so that it completes when the page is left); two changes of one setting made
+within a moment of each other, in one tab or two, are kept in the order they reach the server, which
+can differ from the order they were made. Every save compares
 with what is stored, not with what the request read: a list's page size and sort, and the What's
 new mark, are combined with the stored value holding its row, and a list saves only the page
 size and sort it applied with valid filters, once the response is ready (not a sort it does not

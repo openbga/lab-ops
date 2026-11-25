@@ -2870,8 +2870,8 @@ a.vr-navlink[aria-current="page"]:hover {
   font-size: var(--vr-font-size-1);
 }
 
-.vr-grid-search {
-  position: relative;
+.vr-grid-search-box {
+  position: relative; /* the field alone, so an error under it does not move the icon */
 }
 
 .vr-grid-search .vr-icon {

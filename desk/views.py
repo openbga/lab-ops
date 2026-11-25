@@ -406,6 +406,9 @@ def _ascii_digits(raw):
 # ------------------------------------------------------------------------------ Find
 
 
+FIND_LIMIT = 200  # characters of search text Find reads
+
+
 def _number(term):
     digits = term.upper().removeprefix("REQ-").lstrip("0")
     return whole_number(digits)
@@ -418,10 +421,12 @@ def request_find(request):
     otherwise requests matching the text, the organization or contact, requests carrying a
     matching identifier, and matching client organizations."""
     user = request.user
-    term = request.GET.get("q", "").strip()[:200]
+    term = request.GET.get("q", "").strip()
+    # Longer text is refused, not cut short: a shortened term could match something else.
+    errors = [f"Use at most {FIND_LIMIT} characters."] if len(term) > FIND_LIMIT else []
     visible = staff_requests(user)
     results, identifier_ids, organizations = [], [], []
-    if term:
+    if term and not errors:
         organizations = Client.objects.filter(
             Q(name__icontains=term)
             | Q(account_number__icontains=term)
@@ -449,6 +454,7 @@ def request_find(request):
         {
             "page_title": "Find tickets",
             "q": term,
+            "errors": errors,
             "results": results,
             "identifier_ids": set(identifier_ids),
             "organizations": organizations,

@@ -450,9 +450,10 @@ account), action and days in the laboratory's time zone, all but Workspace use a
 organization, and Changes and Access records also by ticket number; on Changes a ticket takes its
 parts (entries, files, links, the complaint record, the ticket's form and its service clock) and an
 organization its own record, contacts, sites, portal access and portal accounts and its tickets.
-Every page, and the export, is drawn as the list stood when its first page opened, except that
-which accounts and tickets belong to a filtered organization is read again for each page and the
-export. Export CSV gives every matching row, at most 10,000, as a
+Every page, and the export, is drawn as the list stood when its first page opened, except that a
+row still being saved at that moment (or a change saved by a server whose clock runs behind) can
+appear on a later page, and that which accounts and tickets belong to a filtered organization is
+read again for each page and the export. Export CSV gives every matching row, at most 10,000, as a
 spreadsheet file in which a cell that would run as a formula is written as text. Rows say who did
 what to which record and when, never a change's values or reason or what was shown; a ticket is
 named by its number and organization whatever its category, and opening it still needs access to

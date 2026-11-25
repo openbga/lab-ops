@@ -2,8 +2,8 @@
 {% with field_id=id|default:"grid-q" %}
 <div class="vr-field vr-grid-search">
   <label class="form-label" for="{{ field_id }}">{{ label|default:"Search" }}</label>
-  {% icon name="search" %}
-  <input class="form-control{% if errors %} is-invalid{% endif %}" type="search" id="{{ field_id }}" name="{{ name|default:'q' }}" value="{{ value|default:'' }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %} autocomplete="off" spellcheck="false"{% if errors %} aria-invalid="true" aria-describedby="{{ field_id }}_error"{% endif %}>
+  <div class="vr-grid-search-box">{% icon name="search" %}
+  <input class="form-control{% if errors %} is-invalid{% endif %}" type="search" id="{{ field_id }}" name="{{ name|default:'q' }}" value="{{ value|default:'' }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %} autocomplete="off" spellcheck="false"{% if errors %} aria-invalid="true" aria-describedby="{{ field_id }}_error"{% endif %}></div>
   {% if errors %}<ul class="vr-field-errors" id="{{ field_id }}_error">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
 </div>
 {% endwith %}

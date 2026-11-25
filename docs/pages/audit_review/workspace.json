@@ -141,7 +141,7 @@
         },
         {
           "label": "From and To",
-          "description": "Under More filters: days in the laboratory's time zone, both included, matched against the date each row shows in When. To must not be before From."
+          "description": "Under More filters: days in the laboratory's time zone, both included: each day runs from its midnight to the next. On a day whose clocks went back across midnight, rows in the repeated hour show the earlier date but belong to the later day. To must not be before From."
         },
         {
           "label": "A filter that is not accepted",

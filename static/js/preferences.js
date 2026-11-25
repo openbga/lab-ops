@@ -9,8 +9,6 @@
   }
 
   var cache = null;
-  // The save of each key under way (window.vrPreferences.set): the next waits for it.
-  var sending = {};
 
   function all() {
     if (!cache) {
@@ -46,50 +44,41 @@
       if (!document.body.hasAttribute("data-vr-user")) {
         return Promise.resolve();
       }
-      // One save of a key at a time, in the order they were made: an earlier save can never
-      // arrive after a later one and put back the value the person changed.
-      var previous = sending[key] || Promise.resolve();
-      var sent = previous.then(function () { return send(key, value); });
-      sending[key] = sent.catch(function () {});
-      return sent;
+      return fetch("/preferences/", {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true, // completes even if the user leaves the page right after the change
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({ key: key, value: value }),
+      }).then(
+        function (response) {
+          if (response.ok && !response.redirected) {
+            return;
+          }
+          if (response.status >= 500) {
+            notSaved("unknown"); // the server may have saved it before failing
+            return;
+          }
+          if (response.status !== 400 || response.redirected) {
+            notSaved("refused");
+            return;
+          }
+          // core/preferences.py answers a refusal at the limit with exactly this text.
+          return response.text().then(
+            function (reason) {
+              notSaved(reason.trim() === "Too many saved preferences." ? "full" : "refused");
+            },
+            function () {
+              notSaved("refused");
+            }
+          );
+        },
+        function () {
+          notSaved("unknown"); // no answer: the server may have saved it all the same
+        }
+      );
     },
   };
-
-  function send(key, value) {
-    return fetch("/preferences/", {
-      method: "POST",
-      credentials: "same-origin",
-      keepalive: true, // completes even if the user leaves the page right after the change
-      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-      body: JSON.stringify({ key: key, value: value }),
-    }).then(
-      function (response) {
-        if (response.ok && !response.redirected) {
-          return;
-        }
-        if (response.status >= 500) {
-          notSaved("unknown"); // the server may have saved it before failing
-          return;
-        }
-        if (response.status !== 400 || response.redirected) {
-          notSaved("refused");
-          return;
-        }
-        // core/preferences.py answers a refusal at the limit with exactly this text.
-        return response.text().then(
-          function (reason) {
-            notSaved(reason.trim() === "Too many saved preferences." ? "full" : "refused");
-          },
-          function () {
-            notSaved("refused");
-          }
-        );
-      },
-      function () {
-        notSaved("unknown"); // no answer: the server may have saved it all the same
-      }
-    );
-  }
 
   // A setting the server refused applies to this page only; one whose answer never came may have
   // been saved. Say so where Django messages appear, as for any failed background request

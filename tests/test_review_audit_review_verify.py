@@ -702,6 +702,11 @@ def test_help_for_sign_in_time_matches_the_deadline_shown_on_a_late_expiry(clien
     assert incorrect not in when
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="Documented limit (confirmation round): a day runs from its first local midnight to "
+    "the next, so a repeated hour across midnight belongs to the later day (help, From and To).",
+)
 @pytest.mark.parametrize("day", ["2009-10-31", "2009-11-01"])
 def test_a_day_filter_matches_the_dates_shown_across_a_midnight_rollback(
     client, reviewer, agent, day

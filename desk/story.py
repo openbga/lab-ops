@@ -883,7 +883,9 @@ def grant_capability():
         ),
     ):
         holder = User.objects.get(username=username)
-        permission = Permission.objects.get(codename=codename, content_type__app_label="accounts")
+        permission = Permission.objects.get(
+            codename=codename, content_type__app_label="accounts", content_type__model="user"
+        )
         if holder.user_permissions.filter(pk=permission.pk).exists():
             continue
         holder.user_permissions.add(permission)
