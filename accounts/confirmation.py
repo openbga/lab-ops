@@ -80,6 +80,9 @@ from django.core.exceptions import ValidationError
 
 PASSWORD_FIELD = "confirm_password"
 CODE_FIELD = "confirm_code"
+# The field allauth's re-authentication page posts the password in (accounts.forms.
+# PasswordReauthenticateForm): its view names no sensitive fields of its own.
+REAUTHENTICATION_FIELD = "password"
 LEGEND = "Confirm it is you"
 AGAIN = (
     "Your sign-in factors changed, or your confirmation ran out, while this page was open. Confirm "
@@ -280,13 +283,16 @@ def mark_sensitive(request):
     report never shows them: every request, before any view (core.request_logging), so also one
     refused before its form is built, and again when a form that asks is built, after a view's own
     sensitive_post_parameters replaced the list (allauth's sign-in pages name theirs; they carry no
-    confirmation)."""
+    confirmation). The password of allauth's re-authentication page (REAUTHENTICATION_FIELD) is
+    marked with them."""
     marked = getattr(request, "sensitive_post_parameters", None)
     if marked == "__ALL__":
         # A view marked everything (Django's admin password and add pages). Django's filter of a
         # traceback's variables reads the marker as a list of names, so name them all.
         marked = request.POST.keys()
-    request.sensitive_post_parameters = sorted({*(marked or ()), PASSWORD_FIELD, CODE_FIELD})
+    request.sensitive_post_parameters = sorted(
+        {*(marked or ()), PASSWORD_FIELD, CODE_FIELD, REAUTHENTICATION_FIELD}
+    )
 
 
 class ConfirmationField(forms.CharField):

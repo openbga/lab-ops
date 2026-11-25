@@ -49,6 +49,7 @@ SOURCES = {
     "session-limits": "Session limits, above",
     "second-factor": "Second sign-in factor, above",
     "reveal-confirmation": "Revealing patient information, above",
+    "audit-review": "Audit review, Reviews tab",
 }
 CHANGED = "Changed in the application configuration"
 SETTINGS_MODULE = "config.settings"
@@ -57,7 +58,7 @@ SETTINGS_MODULE = "config.settings"
 # says so and names the file. Whoever changes either file in this repository checks each fact
 # against it and updates the value (tests/test_security_settings.py prints it).
 RELEASE_FILES = ("config/settings.py", "config/logging.py")
-RELEASE_SETTINGS_SHA256 = "c16c313754920c9ee91902ccabe27b8324f04d0a92275806d68f0746153f1199"
+RELEASE_SETTINGS_SHA256 = "d04feaf6a7da6be5169979cc7090c8a038e23196ed90f752e1c47c181cf102bf"
 RELEASE_LOGGING_SHA256 = "ca4aaff0aa4cc877d50260cad2bbd5918b5cfbf88d26cbaa5b50e4e888e99fe0"
 MODULE = "settings module"
 FILES = (MODULE, *RELEASE_FILES)
@@ -164,6 +165,7 @@ RELEASE = {
             "change_password": "accounts.forms.ChangePasswordForm",
             "set_password": "accounts.forms.SetPasswordForm",
             "reset_password_from_key": "accounts.forms.ResetPasswordKeyForm",
+            "reauthenticate": "accounts.forms.PasswordReauthenticateForm",
         },
     ),
     # How stored passwords are read and written: Django's own list in this release. A mark of a
@@ -999,6 +1001,28 @@ def _reveal_confirmation():
     )
 
 
+def _review_interval():
+    """How often activity reviews are due, in days, or None (a database reading,
+    audit_review.reviews)."""
+    from audit_review.reviews import schedule
+
+    return schedule().interval_days
+
+
+def _review_schedule():
+    days = _review_interval()
+    return Fact(
+        "review-interval",
+        "Activity review interval",
+        f"Every {_count(days, 'day')}" if days else "Not set",
+        "audit-review",
+        "Holders of Can review access and audit records record each review of the activity "
+        "records on Audit review's Reviews tab, signed with their password, and set this interval "
+        "there with a reason. The next review is due this many days after the last one was "
+        "signed. None is set until a reviewer sets one.",
+    )
+
+
 def _reauthentication_window():
     from accounts.confirmation import window
 
@@ -1037,6 +1061,7 @@ def _patient(facts):
             "history in Audit review, and export them; each page shown and each export is "
             "recorded. Counted: active staff accounts with a laboratory role that hold it.",
         ),
+        _review_schedule(),
         Fact(
             "person-links",
             "Person-level links",

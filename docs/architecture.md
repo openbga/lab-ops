@@ -22,7 +22,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
-| `audit_review` | The read-only audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use |
+| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -140,8 +140,9 @@ records with the answer Django ends with, whatever it shows.
 
 ## Audit review workspace
 
-`audit_review` reads `AuditEvent`, `AccessRecord` and `SignInEvent` and its own `WorkspaceUse` and
-writes only the last. Its views (`audit_review.views`) decide access, the filters' choices and the
+`audit_review` reads `AuditEvent`, `AccessRecord` and `SignInEvent`. Its lists write only its own
+`WorkspaceUse`; its review records (below) write `Review`, `ReviewNote` and `ReviewSchedule`, each
+with an `AuditEvent`. Its views (`audit_review.views`) decide access, the filters' choices and the
 rows in one reading (`one_reading`, `reading_account`): an active staff account with a laboratory
 role and the `review_audit_records` capability (`audit_review.permissions`; `has_capability` reads
 the grant on the account or a group). Each list (`audit_review.sources`) orders by
@@ -194,6 +195,33 @@ count the address of its list with the person, period, marker, group and calenda
 returns exactly the rows counted. Its pages and exports are
 `WorkspaceUse` rows of the source `people`, which audit_review migration 0002 adds to the allowed
 values without rewriting a row.
+
+`audit_review.reviews` keeps the review records. `Review` holds the period, the lists examined
+(`EXAMINED`, a subset of `Source`, in an array checked by a constraint) and other records examined,
+the outcome, findings and follow-up, and the sign-off: `signed_by` (an id without a foreign key
+constraint, as for access records), the signer's name, username and roles as they stood
+(`roles_label`), the meaning (`Meaning.REVIEWED`), `signed_at` by the application's clock and
+`checksum`, the SHA-256 of `signed_content`: those fields as JSON with sorted keys and no spaces,
+notes excluded. `sign_review` holds the acting account (`accounts.acting`) and checks
+`may_review` and the checked password's hash on it, takes `SIGNING_LOCK` (an advisory lock held
+until it commits, so numbers follow the order signings commit in), then takes the id from the
+table's sequence so the number (`AR-` and at least six digits) is part of what is signed, and writes the
+review and its `audit_review.signed` event in one transaction. The view checks the password before calling it (`review_forms.signing_refusal`, through
+the allauth adapter's `reauthenticate`, so a refusal is a failed re-authentication in the sign-in
+history and counts toward the failed sign-in limit, and nothing is written to the session).
+`ReviewNote` rows are added by `add_note` under a row lock on the review, refused when the page's
+revision (1 plus the number of notes) is stale. Triggers from audit_review migration 0003 refuse
+`UPDATE` and `DELETE` on both tables with core's `prevent_record_mutation`; `reset_demo`'s
+`TRUNCATE` is not seen by row triggers. `ReviewSchedule` is one row (`id = 1`), written the first
+time the interval is saved, with a `revision` checked under an advisory lock and the change
+recorded as `audit_review.interval_changed` with a reason. `status()` works out where reviews stand
+on each request: the last review is the one with the highest number (signed last, in the order
+signings commit), and the next due day is the local date of its `signed_at` plus the interval, so
+servers whose clocks disagree can give a later signing an earlier time; gaps are computed from
+every review's period. The Reviews list is read as of the newest review
+id (`upto`), like the other lists, and its pages, each review page and its export are
+`WorkspaceUse` rows of the source `reviews`, which migration 0003 adds; the Changes list names a
+review's events by its number.
 [Audit review](../audit_review/views.py)
 
 ## Security settings

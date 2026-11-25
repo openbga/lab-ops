@@ -1,0 +1,84 @@
+{
+  "id": "audit-review-review-interval",
+  "routes": [
+    "audit_review:review-interval"
+  ],
+  "title": "Review interval",
+  "purpose": "Set how often reviews of the activity records are due, in days, with a reason. For holders of the review capability only.",
+  "summary": "Set how many days after the last signed review the next one is due, or clear it for no interval. The laboratory chooses the interval; none is set until a reviewer sets one.",
+  "tasks": [
+    {
+      "title": "Set or change the interval",
+      "steps": [
+        "Enter the days in [[Review every (days)]], such as 31 for about monthly or 92 for quarterly.",
+        "Say why in [[Reason]] and select [[Save interval]]."
+      ]
+    },
+    {
+      "title": "Stop counting when reviews are due",
+      "steps": [
+        "Empty [[Review every (days)]], give a reason and select [[Save interval]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The next review is due that many days after the last review was signed, not after the last day it covered.",
+    "Nothing is sent when a review falls due. The Reviews tab shows it as due or overdue.",
+    "Each change keeps who made it, the before and after values and the reason, shown on this form. Changes lists it without the reason.",
+    "If someone saved a change after you opened the form, yours is not saved and your input is kept. The form then shows the interval as it stands; compare, then save again."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Now",
+          "description": "The interval in force: every N days, or no interval set. No interval ships with the application."
+        },
+        {
+          "label": "Review every (days)",
+          "description": "A whole number from 1 to 366, or empty for no interval. The next review is due this many days after the day the last review was signed, by the laboratory's calendar."
+        },
+        {
+          "label": "Reason",
+          "description": "Required. Why the interval changes. Kept with the change and shown under Changes to the interval on this form; the Changes list names the change without its reason. At most 4,000 characters."
+        },
+        {
+          "label": "Save interval",
+          "description": "Saves the interval and returns to the Reviews tab with Review interval saved. When the value is the one already in force, nothing is recorded and the tab says The review interval is unchanged."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Reviews tab without saving."
+        }
+      ]
+    },
+    {
+      "title": "Changes to the interval",
+      "paragraphs": [
+        "Shown once the interval has been changed: the 10 newest changes, newest first, each with when, who, the new interval, what it was before and the reason. Every change is also listed under Changes as Audit review interval."
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Any holder of the review capability can set the interval. Your access is checked again when you save.",
+        "The form remembers the interval as it stood when you opened it. A change saved by someone else in the meantime refuses yours, with what you typed kept."
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/reviews.py",
+    "audit_review/review_forms.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/templates/audit_review/review_interval_form.html",
+    "audit_review/tests/test_reviews.py"
+  ]
+}

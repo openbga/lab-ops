@@ -39,7 +39,7 @@ from request_forms.models import FilledForm
 from service_levels.models import BusinessCalendar, RequestClock
 
 from . import hours
-from .models import Source, UseKind, WorkspaceUse
+from .models import Review, ReviewSchedule, Source, UseKind, WorkspaceUse
 
 PAGE_SIZE = 50
 # An export holds at most this many rows; a larger result is narrowed first.
@@ -401,6 +401,13 @@ def _changes(events, _accounts_read):
                 owner[(object_type, str(pk))] = ticket_id
     tickets = _tickets(set(owner.values()))
     organizations = _organizations(by_type)
+    # A review record is named by its number, which never changes.
+    review_type = Review._meta.label_lower
+    numbers = dict(
+        Review.objects.filter(
+            pk__in=[int(pk) for pk in by_type.get(review_type, ()) if pk.isdigit()]
+        ).values_list("pk", "number")
+    )
     # An account changed is named by its username as it stands now.
     user_type = get_user_model()._meta.label_lower
     usernames = {
@@ -416,6 +423,11 @@ def _changes(events, _accounts_read):
             record = _ticket_cell(tickets.get(ticket_id), ticket_id)
             if event.object_type != "desk.servicerequest":
                 record.text = f"{_type_label(event.object_type)} on {record.text}"
+        elif event.object_type == ReviewSchedule._meta.label_lower:
+            record = Cell("Audit review interval")
+        elif event.object_type == review_type and event.object_id.isdigit():
+            number = numbers.get(int(event.object_id))
+            record = Cell(f"Audit review {number or event.object_id}")
         else:
             name = usernames.get(event.object_id) if event.object_type == user_type else None
             record = Cell(
@@ -520,12 +532,21 @@ def _uses(uses, accounts):
             if str(use.filters.get(name, "")).isdigit()
         }
     )
+    reviews = dict(
+        Review.objects.filter(
+            pk__in={
+                int(use.filters["review"])
+                for use in uses
+                if str(use.filters.get("review", "")).isdigit()
+            }
+        ).values_list("pk", "number")
+    )
     cells = []
     for use in uses:
         cells.append(
             [
                 Cell(use.get_kind_display(), use.get_source_display()),
-                Cell(describe_filters(use, people, tickets, clients, calendars)),
+                Cell(describe_filters(use, people, tickets, clients, calendars, reviews)),
                 Cell(f"{use.rows:,}"),
                 _request_cell(use.request_ref),
             ]
@@ -533,11 +554,12 @@ def _uses(uses, accounts):
     return cells
 
 
-def describe_filters(use, people, tickets, clients, calendars=None):
+def describe_filters(use, people, tickets, clients, calendars=None, reviews=None):
     """The filters a use recorded, in words, with names as they stand now. `calendars` holds the
-    business calendars a use names, by id."""
+    business calendars a use names, by id, and `reviews` the numbers of the reviews it names."""
     filters = use.filters or {}
     calendars = calendars or {}
+    reviews = reviews or {}
     if filters.get("invalid"):
         return "A filter was not accepted: nothing listed"
 
@@ -576,6 +598,9 @@ def describe_filters(use, people, tickets, clients, calendars=None):
         from .people import sort_label  # people imports this module
 
         parts.append(f"Sorted by {sort_label(sort)}")
+    if review := filters.get("review"):
+        number = reviews.get(int(review)) if str(review).isdigit() else None
+        parts.append(f"Review {number or review}")
     if use.kind == UseKind.VIEWED and filters.get("page") not in (None, "", "1"):
         parts.append(f"Page {filters['page']}")
     return "; ".join(parts) or "No filters"

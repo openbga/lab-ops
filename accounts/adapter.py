@@ -1,11 +1,18 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from django.core.exceptions import ValidationError
+from django.views.decorators.debug import sensitive_variables
 
 
 class ClosedSignupAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         return False
 
+    # These hold the credentials of a sign-in (the password among them): every variable here, and in
+    # what they call, is left out of a traceback's report, except where the code called names its
+    # own sensitive variables: Django's authenticate() names only `credentials`, so the password
+    # argument of the authentication backend it calls stays in that frame (an accepted limit of
+    # Django's report filter; this release sends no report, docs/operations.md).
+    @sensitive_variables()
     def pre_authenticate(self, request, **credentials):
         try:
             super().pre_authenticate(request, **credentials)
@@ -25,12 +32,14 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
     # password that was checked (after any upgrade the check made), for accounts.confirmation.
     _verified = None
 
+    @sensitive_variables()
     def authenticate(self, request, **credentials):
         user = super().authenticate(request, **credentials)
         if self._reauthenticating is not None:
             self._verified = user
         return user
 
+    @sensitive_variables()
     def authentication_failed(self, request, **credentials):
         # A password not accepted (allauth calls this when no account accepted it, so not for a
         # deactivated account's right password, which pre_login refuses): at sign-in, recorded
@@ -39,6 +48,9 @@ class ClosedSignupAdapter(DefaultAccountAdapter):
             _record_attempt(request, credentials)
         super().authentication_failed(request, **credentials)
 
+    # Every variable here and in what it calls (allauth, the authentication backends, which hold
+    # the password in their credentials) is left out of a traceback's report.
+    @sensitive_variables()
     def reauthenticate(self, user, password):
         # The password asked for again of the signed-in account (allauth's re-authentication
         # page): not accepted when no account accepted it, or when another account did.

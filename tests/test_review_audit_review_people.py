@@ -638,7 +638,9 @@ def test_people_constraint_upgrade_with_an_old_writer_and_both_rollback_cases():
         with pytest.raises(IntegrityError), transaction.atomic():
             current_model.objects.create(account_id=41, kind="viewed", rows=0, source="invalid")
     finally:
-        move(current)
+        # Every audit_review migration, later ones included, applied again for the tests after.
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes("audit_review"))
 
 
 @pytest.mark.django_db(transaction=True)

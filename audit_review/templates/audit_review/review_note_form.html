@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Add a note to a signed review (audit_review.review_views.review_note): a form in the shared form
+dialog, a full page without script. It carries the review's revision as the page read it (1 and
+one more for each note); a note added meanwhile refuses it with the typing kept. Context:
+page_title, form (audit_review.review_forms.NoteForm), review, notes (its notes, from the reading
+whose revision the form posts), submit_label, cancel_url, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label %}
+  {% notice tone="info" label="No patient data" %}Refer to a ticket or an account by its number or username. Do not enter patient names or identifiers.{% endnotice %}
+  <p class="vr-form-note">Review <span class="vr-id">{{ review.number }}</span>, covering <time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"j F Y" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"j F Y" }}</time>, signed by <span class="vr-break-anywhere">{{ review.signer_name }}</span>. A note is kept with your name and the time, and cannot be changed or removed.</p>
+  {% if notes %}<details class="vr-form-note vr-disclosure" open><summary>Notes so far ({{ notes|length }})</summary>
+    <ol class="vr-plain-list mt-2 mb-0">{% for note in notes %}<li class="mb-2"><strong class="vr-break-anywhere">{{ note.author_name }}</strong> <span class="vr-muted small"><time datetime="{{ note.added_at|date:'c' }}">{{ note.added_at|date:"j F Y, H:i" }}</time></span><div class="vr-break-anywhere">{{ note.text|linebreaksbr }}</div></li>{% endfor %}</ol>
+  </details>{% endif %}
+  {{ form.text.as_field_group }}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+{% endform_page %}
+{% endblock %}

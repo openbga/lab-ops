@@ -158,6 +158,11 @@ STAFF_NAV = (
             "audit_review:sign-ins",
             "audit_review:people",
             "audit_review:uses",
+            "audit_review:reviews",
+            "audit_review:review",
+            "audit_review:review-create",
+            "audit_review:review-note",
+            "audit_review:review-interval",
         ),
     ),
     # Setup
@@ -419,6 +424,7 @@ SECTION_TABS = {
             Tab("Sign-ins", "audit_review:sign-ins"),
             Tab("People", "audit_review:people"),
             Tab("Workspace use", "audit_review:uses"),
+            Tab("Reviews", "audit_review:reviews"),
         ),
     ),
     "quality": TabSet(

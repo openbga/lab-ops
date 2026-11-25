@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+The Reviews tab of the audit review workspace (audit_review.review_views.reviews_page), for holders
+of "Can review access and audit records": where reviews stand (the interval, the last review, when
+the next is due, the days not yet reviewed and the gaps between reviewed periods) and the review
+records, newest first, 50 a page, every page drawn as of the moment the first was (the pager's and
+the export's links carry `upto`). Context: state (audit_review.reviews.Status), page_obj (a Page of
+Review with note_count), total, export_url, export_limit, exportable. Showing a page is recorded
+(WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The laboratory's record that its activity records were reviewed: the period each review covers, what was examined and found, and the reviewer's signed sign-off.</p>{% endblock %}
+{% block page_actions %}{% if exportable %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endif %}<a class="btn btn-primary" href="{% url 'audit_review:review-create' %}">Record a review</a>{% endblock %}
+{% block content %}
+{% section_tabs "audit-review" %}
+{% panel title="Where reviews stand" heading_id="standing-heading" class="mb-3" %}
+  {% fill actions %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'audit_review:review-interval' %}">{% if state.interval %}Change interval{% else %}Set interval{% endif %}</a>{% endfill %}
+  {% if state.state == "overdue" %}{% notice tone="danger" label="Overdue" %}The next review was due on <time datetime="{{ state.due|date:'Y-m-d' }}">{{ state.due|date:"j F Y" }}</time>, {{ state.days_left|cut:"-" }} day{{ state.days_left|cut:"-"|pluralize }} ago.{% endnotice %}
+  {% elif state.state == "none" %}{% notice tone="warning" label="No review yet" %}No review has been signed yet. Record one for the period you have reviewed.{% endnotice %}{% endif %}
+  <dl class="vr-facts">
+    {% fact label="Review interval" %}{% if state.interval %}Every {{ state.interval }} day{{ state.interval|pluralize }}{% else %}<span class="vr-muted">Not set</span>{% endif %}{% endfact %}
+    {% fact label="Last review" %}{% if state.last %}<a class="vr-id" href="{% url 'audit_review:review' state.last.pk %}">{{ state.last.number }}</a>, signed <time datetime="{{ state.last.signed_at|date:'c' }}">{{ state.last.signed_at|date:"j F Y" }}</time> by <span class="vr-break-anywhere">{{ state.last.signer_name }}</span>{% else %}<span class="vr-muted">None signed yet</span>{% endif %}{% endfact %}
+    {% fact label="Next review due" %}{% if state.state == "unset" %}<span class="vr-muted">No interval set</span>{% elif state.state == "none" %}Now{% else %}<time datetime="{{ state.due|date:'Y-m-d' }}">{{ state.due|date:"j F Y" }}</time> {% if state.state == "overdue" %}{% status label="Overdue" tone="danger" plain=True %}{% elif state.state == "today" %}{% status label="Due today" tone="warning" plain=True %}{% else %}<span class="vr-muted">in {{ state.days_left }} day{{ state.days_left|pluralize }}</span>{% endif %}{% endif %}{% endfact %}
+    {% fact label="Reviewed up to" %}{% if state.covered_to %}<time datetime="{{ state.covered_to|date:'Y-m-d' }}">{{ state.covered_to|date:"j F Y" }}</time>{% if state.unreviewed_from %}<span class="d-block vr-muted small">Activity from <time datetime="{{ state.unreviewed_from|date:'Y-m-d' }}">{{ state.unreviewed_from|date:"j F Y" }}</time> on is not reviewed yet.</span>{% endif %}{% else %}<span class="vr-muted">Nothing reviewed yet</span>{% endif %}{% endfact %}
+    {% if state.gap_count %}{% fact label="Days no review covers" wide=True %}<ul class="vr-plain-list mb-0">{% for first, last in state.gaps %}<li><time datetime="{{ first|date:'Y-m-d' }}">{{ first|date:"j F Y" }}</time>{% if last != first %} to <time datetime="{{ last|date:'Y-m-d' }}">{{ last|date:"j F Y" }}</time>{% endif %}</li>{% endfor %}</ul>{% if state.gap_count > state.gaps|length %}<span class="d-block vr-muted small">The newest {{ state.gaps|length }} of {{ state.gap_count }} gaps between reviewed periods.</span>{% endif %}{% endfact %}{% endif %}
+  </dl>
+  {% fill footer %}<p class="vr-muted small mb-0">The next review is due the set number of days after the last one was signed. Gaps are runs of days between the first and the last day reviewed that no review covers. The interval is the laboratory's choice; none is set until a reviewer sets it.</p>{% endfill %}
+{% endpanel %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {% list_results items=page_obj noun="reviews" paginate=False empty_title="No review recorded yet" empty_body="Record a review once you have examined the activity of a period: what you looked at, what you found, and your sign-off." action_url=review_create_url action_label="Record a review" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-label="Reviews">
+      <thead><tr>
+        <th scope="col">Review</th>
+        <th scope="col">Period covered</th>
+        <th scope="col">Outcome</th>
+        <th scope="col">Signed by</th>
+        <th scope="col">Signed</th>
+        <th scope="col" class="vr-number">Notes</th>
+      </tr></thead>
+      <tbody>
+        {% for review in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'audit_review:review' review.pk %}">{{ review.number }}</a></th>
+          <td class="vr-nowrap"><span><time datetime="{{ review.period_from|date:'Y-m-d' }}">{{ review.period_from|date:"Y-m-d" }}</time> to <time datetime="{{ review.period_to|date:'Y-m-d' }}">{{ review.period_to|date:"Y-m-d" }}</time></span></td>
+          <td class="vr-wrap">{% if review.outcome == "follow_up" %}{% status label=review.get_outcome_display tone="warning" plain=True %}{% else %}{{ review.get_outcome_display }}{% endif %}</td>
+          <td class="vr-wrap"><span class="vr-break-anywhere">{{ review.signer_name }}<span class="d-block vr-muted small">{{ review.signer_roles }}</span></span></td>
+          <td class="vr-nowrap"><time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"Y-m-d H:i" }}</time></td>
+          <td class="vr-number">{% if review.note_count %}{{ review.note_count }}{% else %}<span class="vr-muted">0</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="reviews" fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows. {% endif %}Reviews are listed as they stood when the first page opened; the number of notes is counted as each page or export is made. A signed review cannot be changed or removed; a note added later is shown on its page. Each page shown here and each export is recorded under Workspace use.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

@@ -76,6 +76,10 @@ FORM_SURFACES = {
     "nonconformance:action-cancel": "lg",
     "nonconformance:ticket-link": "lg",
     "nonconformance:ticket-unlink": "lg",
+    # Audit review records
+    "audit_review:review-create": "lg",
+    "audit_review:review-note": "lg",
+    "audit_review:review-interval": "lg",
 }
 
 

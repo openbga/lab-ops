@@ -8,7 +8,7 @@
   ],
   "title": "Audit review",
   "purpose": "Review who changed, opened, downloaded or was shown what, and who signed in, across every record and account, filter it, and export it. For holders of the review capability only.",
-  "summary": "Every change, sensitive read and sign-in across the application, newest first, in four lists, with counts by person on the People tab. Filter by person, ticket, organization, action and dates, and export the result.",
+  "summary": "Every change, sensitive read and sign-in across the application, newest first, in four lists, with counts by person on People and signed review records on Reviews. Filter by person, ticket, organization, action and dates, and export.",
   "tasks": [
     {
       "title": "Review what one person did",
@@ -48,13 +48,13 @@
   "good_to_know": [
     "Rows say who did what to which record and when. What changed or what was shown stays on the record's own pages.",
     "Each page you open here and each export, on every tab, is recorded, and other reviewers see it under [[Workspace use]]. Your own use is recorded too.",
-    "Nothing here can be changed or removed, by you or anyone else.",
+    "Nothing here can be changed or removed, by you or anyone else. A signed review is corrected with a note.",
     "Rows recorded after you opened the first page are not listed. Open the tab again from the menu to see them.",
     "The browser and address of a shared demonstration account are never shown: they may be another visitor's."
   ],
   "sections": [
     {
-      "title": "The four lists and People",
+      "title": "The four lists, People and Reviews",
       "items": [
         {
           "label": "Changes",
@@ -74,7 +74,11 @@
         },
         {
           "label": "Workspace use",
-          "description": "Each page of the four lists and of People that someone opened and each export, with who, when, which tab, the filters, how many rows matched and the request ID. Opening this tab is recorded too."
+          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. Opening this tab is recorded too."
+        },
+        {
+          "label": "Reviews",
+          "description": "A tab with its own help: the laboratory's signed records that the activity records were reviewed, with the period, what was examined, the outcome and the sign-off, and where reviews stand: the interval, when the next review is due, the last day reviewed and the days no review covers. Holders of the capability record and sign reviews, add notes and set the interval there."
         }
       ]
     },
@@ -180,7 +184,7 @@
       "title": "Who can use this page",
       "paragraphs": [
         "Staff with a laboratory role who hold the capability Can review access and audit records, given to the person or to a role group in the admin console. No role has it otherwise, the admin role included, and superuser status is not enough. Client portal accounts never hold it. Everyone else is refused, and nothing is recorded for them.",
-        "The workspace is read-only. It shows a ticket's number and organization whatever its category; opening the ticket still needs access to it. Your account, its role and capability and the rows are read together, at one moment, when the page opens.",
+        "The four lists and People are read-only: they change nothing they show. Reviews is where reviews are recorded and signed. The lists show a ticket's number and organization whatever its category; opening the ticket still needs access to it. Your account, its role and capability and the rows are read together, at one moment, when the page opens.",
         "Each page shown and each export is recorded with the page or file, before it is sent: if the record cannot be written, nothing is shown or exported. A refused request, a filter that sends you back, and a page that fails record nothing. These records, like the change history, access records and sign-in history, are never changed or deleted."
       ]
     }
