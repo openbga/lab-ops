@@ -78,7 +78,7 @@ PASSWORD_CHANGED = (
 )
 STALE_NOTE = (
     "A note was added to this review after you opened this form. Your note has been kept: read "
-    "the latest notes above, then add it again."
+    "the latest notes on this form, then add it again."
 )
 STALE_INTERVAL = (
     "The review interval was changed after you opened this form. Your input has been kept: "

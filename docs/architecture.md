@@ -205,7 +205,7 @@ constraint, as for access records), the signer's name, username and roles as the
 notes excluded. `sign_review` holds the acting account (`accounts.acting`) and checks
 `may_review` and the checked password's hash on it, takes `SIGNING_LOCK` (an advisory lock held
 until it commits, so numbers follow the order signings commit in), then takes the id from the
-table's sequence so the number (`AR-` and six digits) is part of what is signed, and writes the
+table's sequence so the number (`AR-` and at least six digits) is part of what is signed, and writes the
 review and its `audit_review.signed` event in one transaction. The view checks the password before calling it (`review_forms.signing_refusal`, through
 the allauth adapter's `reauthenticate`, so a refusal is a failed re-authentication in the sign-in
 history and counts toward the failed sign-in limit, and nothing is written to the session).

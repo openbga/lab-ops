@@ -33,7 +33,7 @@ the password aside. Context: page_title, form (audit_review.review_forms.ReviewF
   </fieldset>
   <fieldset class="vr-form-section">
     <legend>Sign-off</legend>
-    <p class="vr-form-note">By entering your password you sign this review as <strong>reviewed</strong> by you, {{ signer.get_full_name|default:signer.username }}. The record keeps your name, username and roles as they are now, the time and a checksum of what you signed. A signed review cannot be changed or removed; a note can be added to it later.</p>
+    <p class="vr-form-note">By entering your password you sign this review as <strong>reviewed</strong> by you, <span class="vr-break-anywhere">{{ signer.get_full_name|default:signer.username }}</span>. The record keeps your name, username and roles as they are now, the time and a checksum of what you signed. A signed review cannot be changed or removed; a note can be added to it later.</p>
     {{ form.password.as_field_group }}
   </fieldset>
 {% endform_page %}

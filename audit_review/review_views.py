@@ -264,10 +264,17 @@ def _interval_reading():
         return reviews.schedule(), list(reviews.interval_history())
 
 
-def _carry_revision(form, revision):
-    """A refused form drawn again posts `revision`, read with what the page now shows."""
+REDRAWN = "This form is shown again as {what} now stands. Check it, then send it again."
+
+
+def _carry_revision(form, revision, what):
+    """A refused form drawn again posts `revision`, read with what the page now shows. A revision
+    that was missing or not a number is repaired so: its error is said in words (`what` the form
+    shows), as no field on the page can be corrected."""
     form.data = form.data.copy()
     form.data["expected_revision"] = str(revision)
+    if form.errors.pop("expected_revision", None):
+        form.add_error(None, REDRAWN.format(what=what))
 
 
 def _refused(request, exc):
@@ -375,7 +382,7 @@ def review_note(request, pk):
     if request.method == "POST":
         # A form sent and drawn again posts the revision the notes it shows make, whatever it
         # was refused for (an empty field, a note added meanwhile).
-        _carry_revision(form, 1 + len(notes))
+        _carry_revision(form, 1 + len(notes), "the review")
     title = "Add a note"
     return _render(
         request,
@@ -432,7 +439,7 @@ def review_interval(request):
         # they stand now, read together, and their revision, so that it can be sent again once
         # compared.
         current, history = _interval_reading()
-        _carry_revision(form, current.revision)
+        _carry_revision(form, current.revision, "the interval")
     title = "Review interval"
     return _render(
         request,

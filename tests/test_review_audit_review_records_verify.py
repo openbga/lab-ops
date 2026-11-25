@@ -236,12 +236,14 @@ def test_empty_submission_binds_and_identifies_every_missing_required_field(
     if operation == "sign":
         path = reverse("audit_review:review-create")
         missing = {"period_from", "period_to", "outcome", "examined", "confirm_password"}
+    # Adapted (confirmation C3): a missing revision is repaired on the redraw and said in words,
+    # as the form's own error, beside the visible fields' errors.
     elif operation == "note":
         path = reverse("audit_review:review-note", args=[record.pk])
-        missing = {"text", "expected_revision"}
+        missing = {"text", "__all__"}
     else:
         path = reverse("audit_review:review-interval")
-        missing = {"reason", "expected_revision"}
+        missing = {"reason", "__all__"}
     response = client.post(path, {})
     assert response.status_code == 200
     form = response.context["form"]
