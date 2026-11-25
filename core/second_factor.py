@@ -189,6 +189,21 @@ def requires(user, current=None):
         return bool(cursor.fetchone()[0])
 
 
+def covered_among(ids, current=None):
+    """The ids of the active accounts among `ids` (every account when None) that the rule as it
+    stands (or `current`'s values) covers, read in one statement, as requires() decides for one."""
+    t = _tables()
+    source, source_params = _rule_source(current)
+    condition, params = _covered_sql()
+    among, among_params = ("", []) if ids is None else ("u.id = ANY(%s) AND ", [list(ids)])
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT u.id FROM {t['user']} u, {source} r WHERE {among}u.is_active AND {condition}",
+            [*source_params, *among_params, *params],
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+
 def reasons(user, current=None):
     """Which parts of the rule cover this active account now, in page order, as the setup page
     names them ("the Supervisor role", "client portal accounts"): the rule, the account, its roles

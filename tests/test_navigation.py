@@ -100,6 +100,9 @@ NON_PAGE_ROUTES = {
     "audit_review:people-export",
     "audit_review:uses-export",
     "audit_review:reviews-export",
+    # Access review: CSV exports of its lists
+    "access_review:accounts-export",
+    "access_review:unused-export",
 }
 
 # Items whose label is not the title (h1) of the page they open, with the title expected. The
@@ -250,8 +253,9 @@ ROLE_MENUS = {
     "client_services": COMMON_MENU | {"import"},  # spreadsheet import (M2-A)
     "account_manager": COMMON_MENU | {"import"},
     "technical": COMMON_MENU,
-    # Audit review also needs its capability (test_the_review_capability_adds_audit_review).
-    "admin": STAFF_KEYS - {"accounts-roles", "audit-review"},
+    # Audit review and Access review also need their capability
+    # (test_the_review_capability_adds_audit_review).
+    "admin": STAFF_KEYS - {"accounts-roles", "audit-review", "access-review"},
 }
 
 
@@ -330,7 +334,7 @@ def test_the_review_capability_adds_audit_review(client, staff, group_grant):
     client.force_login(supervisor)
     assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["supervisor"])
     grants.add(permission)
-    with_review = ROLE_MENUS["supervisor"] | {"audit-review"}
+    with_review = ROLE_MENUS["supervisor"] | {"audit-review", "access-review"}
     assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(with_review)
     assert 'id="vr-nav-oversight"' in region(
         client.get(reverse("dashboard")).content, '<nav class="vr-sidenav'

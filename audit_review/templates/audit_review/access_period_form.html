@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Set after how many days without a sign-in an active account is listed as unused
+(audit_review.access_views.unused_period), for holders of "Can review access and audit records",
+with a reason: a form in the shared form dialog, a full page without script. It carries the period's
+revision as the page read it; a change saved meanwhile refuses it with the input kept. Context:
+page_title, form (audit_review.access_forms.PeriodForm), current (UnusedPeriod), history (its audit
+events, newest first, shown folded above the field), submit_label, cancel_url, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block content %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label note="Changes are audited with before and after values." %}
+  {% notice tone="info" label="No patient data" %}Do not enter patient names or identifiers in the reason.{% endnotice %}
+  <p class="vr-form-note">Now: {% if current.days %}unused after {{ current.days }} day{{ current.days|pluralize }} without a sign-in{% else %}no period set{% endif %}. The period is the laboratory's own choice: this application ships none.</p>
+  {% if history %}<details class="vr-form-note vr-disclosure"><summary>Changes to the period ({{ history|length }})</summary>
+    <ol class="vr-plain-list mt-2 mb-0">{% for event in history %}<li class="mb-2"><time datetime="{{ event.occurred_at|date:'c' }}">{{ event.occurred_at|date:"j F Y, H:i" }}</time> · <span class="vr-break-anywhere">{{ event.actor.get_full_name|default:event.actor.username }}</span>: {% if event.after.days %}{{ event.after.days }} day{{ event.after.days|pluralize }}{% else %}no period{% endif %}{% if event.before.days %} (was {{ event.before.days }} day{{ event.before.days|pluralize }}){% else %} (was none){% endif %}{% if event.reason %}<span class="d-block vr-muted small vr-break-anywhere">{{ event.reason }}</span>{% endif %}</li>{% endfor %}</ol>
+  </details>{% endif %}
+  {{ form.days.as_field_group }}
+  {{ form.reason.as_field_group }}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+{% endform_page %}
+{% endblock %}

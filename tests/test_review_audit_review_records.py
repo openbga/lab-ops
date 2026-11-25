@@ -1142,6 +1142,16 @@ def _review_migration(name):
     return executor.loader.project_state(target).apps
 
 
+def _every_review_migration():
+    """Every audit_review migration, later ones included, applied again for the tests after
+    (adapted in place when audit_review 0004 was added: restoring to 0003 left it unapplied)."""
+    from django.db import connection
+    from django.db.migrations.executor import MigrationExecutor
+
+    executor = MigrationExecutor(connection)
+    executor.migrate(executor.loader.graph.leaf_nodes("audit_review"))
+
+
 @pytest.mark.django_db(transaction=True)
 def test_review_upgrade_keeps_workspace_uses_from_a_running_older_release():
     from concurrent.futures import ThreadPoolExecutor
@@ -1200,7 +1210,7 @@ def test_review_upgrade_keeps_workspace_uses_from_a_running_older_release():
         _review_migration(previous)
         assert set(old_use.objects.values_list("pk", flat=True)) == set(actual)
     finally:
-        _review_migration(latest)
+        _every_review_migration()
 
 
 @pytest.mark.parametrize("review_exists,use_exists", [(True, False), (False, True), (True, True)])
@@ -1234,7 +1244,7 @@ def test_rollback_preserves_signed_review_or_reviews_use(review_exists, use_exis
         if use_exists:
             assert WorkspaceUse.objects.get().pk == shown.pk
     finally:
-        _review_migration(latest)
+        _every_review_migration()
 
 
 @pytest.mark.django_db(transaction=True)

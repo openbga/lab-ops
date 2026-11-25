@@ -1,0 +1,139 @@
+{
+  "id": "access-review-unused",
+  "routes": [
+    "access_review:unused"
+  ],
+  "title": "Access review: unused accounts",
+  "purpose": "List the active accounts that have not signed in for the period the laboratory sets, longest unused first, and export them. For holders of the review capability only.",
+  "summary": "Active accounts with no sign-in for the period the laboratory sets, longest unused first, with their roles and capabilities. Nothing is listed until a period is set.",
+  "tasks": [
+    {
+      "title": "Find accounts nobody uses",
+      "steps": [
+        "Read the list: accounts that never signed in come first, then the oldest last sign-in.",
+        "Narrow it with [[Kind]], [[Role]] or [[Capability]] and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Set or change the period",
+      "steps": [
+        "Select [[Set the period]] or [[Change the period]].",
+        "Enter the days in [[Unused after (days)]], give a [[Reason]] and select [[Save period]]."
+      ]
+    },
+    {
+      "title": "Keep the list",
+      "steps": [
+        "Select [[Export CSV]]. The file holds every account listed, with how many days each has gone without a sign-in."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "No period ships with the application. Until a reviewer sets one, the tab lists nothing.",
+    "Deactivated accounts are not listed. Find them on the [[Accounts]] tab.",
+    "An account that never signed in is listed once it was created longer ago than the period.",
+    "Nothing is changed or deactivated here. Deactivate an account in the account administration.",
+    "Each page you open here and each export is recorded, and other reviewers see it under Workspace use in [[Audit review]]."
+  ],
+  "sections": [
+    {
+      "title": "The Unused accounts tab",
+      "paragraphs": [
+        "The second tab of Access review, beside Accounts. It lists the active staff and client portal accounts with no sign-in for the period the laboratory set, as they stand when the page is drawn. The line above the table names the period and the moment before which a last sign-in counts. The scheduled jobs' account is never listed. The tab is read-only.",
+        "An account is unused when its last sign-in is older than the period, counted back from now by the application's clock, or when it never signed in and was created before then."
+      ]
+    },
+    {
+      "title": "Actions",
+      "items": [
+        {
+          "label": "Set the period",
+          "description": "Opens the Unused account period form when no period is set. Change the period when one is."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of every account listed, in the order shown: Person, Username, Kind, Client organization, Roles, Capabilities, Last sign-in (Never when it never signed in), Created, Days without a sign-in (whole days since the last sign-in, or since it was created) and Unused after (days). Shown when 1 to 10,000 accounts are listed; when more are listed the export is refused and you narrow the filters. Not offered while no period is set. A cell that a spreadsheet would read as a formula starts with an apostrophe."
+        }
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Person",
+          "description": "The account's name with its username below, and the client organization of a client portal account. Always shown."
+        },
+        {
+          "label": "Kind",
+          "description": "Staff or Client portal."
+        },
+        {
+          "label": "Roles and capabilities",
+          "description": "The laboratory roles it holds, then each capability with how it holds it: directly, or through a role or group. Who gave them is on the Accounts tab. None when it holds nothing."
+        },
+        {
+          "label": "Last sign-in",
+          "description": "The last accepted sign-in, in the laboratory's time zone, or Never."
+        },
+        {
+          "label": "Created",
+          "description": "The day the account was created."
+        }
+      ]
+    },
+    {
+      "title": "Filters, order and pages",
+      "items": [
+        {
+          "label": "Kind",
+          "description": "Any kind, Staff or Client portal."
+        },
+        {
+          "label": "Role",
+          "description": "Accounts holding that laboratory role."
+        },
+        {
+          "label": "Capability",
+          "description": "Accounts holding the capability, granted to the account or through one of its groups."
+        },
+        {
+          "label": "Order",
+          "description": "Longest unused first: accounts that never signed in, oldest created first, then by last sign-in, oldest first. There is no other sort."
+        },
+        {
+          "label": "Pages",
+          "description": "Fifty accounts per page, each drawn as the accounts stand at that moment."
+        },
+        {
+          "label": "Columns",
+          "description": "Choose which columns show and in which order; Person always shows. The choice is saved for your account."
+        },
+        {
+          "label": "No period is set",
+          "description": "Shown instead of the list until a reviewer sets a period. The filters are hidden and nothing is exported."
+        },
+        {
+          "label": "No unused accounts",
+          "description": "Every active account has signed in within the period."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, as for the Audit review workspace. Everyone else is refused, and nothing is recorded for them.",
+        "Each page shown and each export is recorded under Workspace use in Audit review, as Access review: unused accounts, before it is sent: the filters as applied, the period in days (or that none was set), the page, and how many accounts were listed. If the record cannot be written, nothing is shown or exported. These records are never changed or deleted."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/access_report.py",
+    "audit_review/access_views.py",
+    "audit_review/access_forms.py",
+    "audit_review/access_urls.py",
+    "audit_review/sources.py",
+    "audit_review/models.py",
+    "audit_review/templates/audit_review/access_unused.html",
+    "audit_review/tests/test_access_report.py"
+  ]
+}

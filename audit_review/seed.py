@@ -2,21 +2,31 @@
 of last month's activity, signed by the demonstration's reviewer (desk.story.REVIEW_HOLDER, who
 holds "Can review access and audit records"), with a note added a few days later. Written through
 the audited services at moments in the past (nonconformance.seed.happened_at); the seed signs
-without a password, which only a person signing on the form is asked for. Synthetic data only."""
+without a password, which only a person signing on the form is asked for.
+
+For the Access review section (audit_review.access_report): an unused account period of 90 days,
+and one active staff account that has not signed in for longer (UNUSED_USERNAME, created months ago
+with the Technical staff role, recorded as the account administration records a new account). It
+has no password, so nobody can sign in as it. Synthetic data only."""
 
 from datetime import datetime, time, timedelta
 
+from django.contrib.auth.models import Group
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
+from accounts.setup import account_snapshot
+from core.audit import record_event
 from desk.story import REVIEW_HOLDER
 from nonconformance.seed import happened_at
 
-from . import reviews
-from .models import Review, ReviewSchedule
+from . import access_report, reviews
+from .models import Review, ReviewSchedule, UnusedPeriod
 
 INTERVAL_DAYS = 31
+UNUSED_DAYS = 90
+UNUSED_USERNAME = "former_technician"
 
 
 def seed_setup(ctx):
@@ -40,11 +50,48 @@ def _local(day, hour):
     return timezone.make_aware(datetime.combine(day, time(hour)))
 
 
+def _unused(reviewer):
+    """The unused account period, once (a laboratory that has set one since keeps its choice), and
+    the account the Unused accounts tab lists, once."""
+    if not UnusedPeriod.objects.exists():
+        access_report.set_period(
+            actor=reviewer,
+            days=UNUSED_DAYS,
+            expected_revision=0,
+            reason="Demonstration: accounts nobody has used for about three months are reviewed.",
+        )
+    if User.objects.filter(username=UNUSED_USERNAME).exists():
+        return
+    now = timezone.now()
+    created, signed_in = now - timedelta(days=200), now - timedelta(days=120)
+    admin = User.objects.get(username="demo_admin")
+    with transaction.atomic(), happened_at(created):
+        account = User(
+            username=UNUSED_USERNAME,
+            email="former.technician@example.invalid",
+            first_name="Pat",
+            last_name="Example",
+            date_joined=created,
+            last_login=signed_in,
+        )
+        account.set_unusable_password()
+        account.save()
+        account.groups.add(Group.objects.get(name="technical"))
+        record_event(
+            actor=admin,
+            action="account.created",
+            obj=account,
+            after=account_snapshot(account),
+            reason="Demonstration seed: a technician who no longer signs in",
+        )
+
+
 def seed_records(ctx):
     """One signed review of the previous calendar month, and a note on what its follow-up came
-    to, once."""
+    to, once; the unused account period and an unused account."""
     reviewer = User.objects.get(username=REVIEW_HOLDER)
     _interval(reviewer)
+    _unused(reviewer)
     if Review.objects.exists():
         return
     now = timezone.now()

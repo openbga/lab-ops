@@ -18,7 +18,7 @@ sites. Each deployment serves one laboratory.
 | Service requests | Offer pickup, supply order and other forms through the portal. Configure required fields and orderable items. |
 | Targets and references | Measure first response and resolution on the lab's business calendar, and tell the people responsible when a target passes. Link tickets to orders, samples and reports in existing systems. |
 | Quality records | Optionally record nonconformances with containment, impact on reported results, root cause, actions, an effectiveness check and independent closing. Open one from a complaint. |
-| Administration | Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history, and who opened each ticket, downloaded its files or was shown its patient-marked answers. Holders of an explicit review grant filter and export every change, access record and sign-in across the laboratory in Audit review, and count them by person over a period, including what happened outside business hours. Record each review of these records with its findings, signed with the reviewer's password, and see when the next one is due. Follow scheduled jobs and email notices that need attention, and close resolved tickets automatically after a set period. |
+| Administration | Set up roles, account permissions, announcements and the lab's contact details. Review attributed changes in the audit history, and who opened each ticket, downloaded its files or was shown its patient-marked answers. Holders of an explicit review grant filter and export every change, access record and sign-in across the laboratory in Audit review, and count them by person over a period, including what happened outside business hours. List every account's roles and capabilities with who gave them, and the accounts with no sign-in for a period the laboratory sets, in Access review. Record each review of these records with its findings, signed with the reviewer's password, and see when the next one is due. Follow scheduled jobs and email notices that need attention, and close resolved tickets automatically after a set period. |
 
 ## Hosted demo
 
@@ -49,7 +49,7 @@ following accounts. Running it again preserves their passwords and records.
 | Account | Where to start |
 | --- | --- |
 | `demo_admin` | Laboratory profile, teams, categories and service targets |
-| `demo_supervisor` | Complaints awaiting review, restricted ticket details and Audit review, with an example signed review |
+| `demo_supervisor` | Complaints awaiting review, restricted ticket details, Audit review, with an example signed review, and Access review, with an example unused account |
 | `demo_client_services` | Desk queues, calls, replies and assignments |
 | `demo_account_manager` | Client organizations, sites, contacts and portal access |
 | `demo_technical` | Technical questions assigned to the team |
@@ -98,7 +98,7 @@ characters and must not be a common or predictable password. For unattended setu
 **Accounts & roles** to create staff accounts. An administrator creates each account. Each account
 can enrol an authenticator app, and **Security settings** chooses which accounts must have one. Staff need an explicit **Can view patient information** grant
 to access person-level identifiers, including staff with the administrator role, and an explicit
-**Can review access and audit records** grant to open **Audit review**.
+**Can review access and audit records** grant to open **Audit review** and **Access review**.
 
 Under **Setup**, enter your laboratory profile, configure teams and choose ticket categories.
 Add client organizations and contacts, then grant portal access to the appropriate organization

@@ -37,6 +37,7 @@ from desk.models import ComplaintReview, RequestEntry, ServiceRequest
 from links.models import LinkAttachment
 from request_forms.models import FilledForm
 from service_levels.models import BusinessCalendar, RequestClock
+from teams.models import Team
 
 from . import hours
 from .models import Review, ReviewSchedule, Source, UseKind, WorkspaceUse
@@ -541,12 +542,15 @@ def _uses(uses, accounts):
             }
         ).values_list("pk", "number")
     )
+    teams = Team.objects.in_bulk(
+        {int(use.filters["team"]) for use in uses if str(use.filters.get("team", "")).isdigit()}
+    )
     cells = []
     for use in uses:
         cells.append(
             [
                 Cell(use.get_kind_display(), use.get_source_display()),
-                Cell(describe_filters(use, people, tickets, clients, calendars, reviews)),
+                Cell(describe_filters(use, people, tickets, clients, calendars, reviews, teams)),
                 Cell(f"{use.rows:,}"),
                 _request_cell(use.request_ref),
             ]
@@ -554,12 +558,14 @@ def _uses(uses, accounts):
     return cells
 
 
-def describe_filters(use, people, tickets, clients, calendars=None, reviews=None):
+def describe_filters(use, people, tickets, clients, calendars=None, reviews=None, teams=None):
     """The filters a use recorded, in words, with names as they stand now. `calendars` holds the
-    business calendars a use names, by id, and `reviews` the numbers of the reviews it names."""
+    business calendars a use names, by id, `reviews` the numbers of the reviews it names and
+    `teams` the teams it names."""
     filters = use.filters or {}
     calendars = calendars or {}
     reviews = reviews or {}
+    teams = teams or {}
     if filters.get("invalid"):
         return "A filter was not accepted: nothing listed"
 
@@ -594,13 +600,48 @@ def describe_filters(use, people, tickets, clients, calendars=None, reviews=None
         parts.append("Only activity outside business hours")
     elif filters.get("activity") == "all":
         parts.append("All activity")
+    parts.extend(_access_filters(filters, teams))
     if sort := filters.get("sort"):
-        from .people import sort_label  # people imports this module
+        if use.source == Source.ACCOUNTS:
+            from .access_report import SORTS
 
-        parts.append(f"Sorted by {sort_label(sort)}")
+            parts.append(f"Sorted by {SORTS.get(sort, sort)}")
+        else:
+            from .people import sort_label  # people imports this module
+
+            parts.append(f"Sorted by {sort_label(sort)}")
     if review := filters.get("review"):
         number = reviews.get(int(review)) if str(review).isdigit() else None
         parts.append(f"Review {number or review}")
     if use.kind == UseKind.VIEWED and filters.get("page") not in (None, "", "1"):
         parts.append(f"Page {filters['page']}")
     return "; ".join(parts) or "No filters"
+
+
+def _access_filters(filters, teams):
+    """The Access review lists' own filters (audit_review.access_forms), in words."""
+    from .access_forms import AccountFilter
+
+    choices = {
+        name: dict(field.choices)
+        for name, field in AccountFilter.base_fields.items()
+        if name in ("kind", "status", "role", "capability", "console", "second_factor")
+    }
+    labels = {
+        "kind": "Kind",
+        "status": "Status",
+        "role": "Role",
+        "capability": "Capability",
+        "console": "Admin console",
+        "second_factor": "Second factor",
+    }
+    parts = []
+    for name, label in labels.items():
+        if value := filters.get(name):
+            parts.append(f"{label}: {choices[name].get(value) or value}")
+    if team := filters.get("team"):
+        found = teams.get(int(team)) if str(team).isdigit() else None
+        parts.append(f"Team: {found.name if found else f'Team {team}'}")
+    if days := filters.get("days"):
+        parts.append("No period set" if days == "none" else f"Unused after {days} days")
+    return parts

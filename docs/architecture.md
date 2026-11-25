@@ -22,7 +22,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
-| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval |
+| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval; the Access review section (`access_review` URLs at `/access-review/`): the access report and the unused accounts with their period |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -223,6 +223,42 @@ id (`upto`), like the other lists, and its pages, each review page and its expor
 `WorkspaceUse` rows of the source `reviews`, which migration 0003 adds; the Changes list names a
 review's events by its number.
 [Audit review](../audit_review/views.py)
+
+## Access review
+
+`audit_review.access_report` draws the Access review section, mounted at `/access-review/` with
+the namespace `access_review` (`audit_review.access_urls`, `audit_review.access_views`), for the
+same holders as the workspace (`require_reviewer`). Each page and export runs in one reading
+(`one_reading`, `reading_account`) and describes the accounts as they stand at that moment, not
+as of a first page: `describe` reads a page's groups, direct capability grants, group grants,
+teams, portal access, authenticators and the second-factor rule in a few queries per batch of 500
+accounts. Whether the rule covers an account comes from `core.second_factor.covered_among`, which
+answers `requires` for many active accounts in one statement. The scheduled jobs' account
+(`jobs.actor.system_account_id`) is its own kind.
+
+Who gave a role, capability or admin console access comes from `AuditEvent`, read in order of
+`(occurred_at, id)` (`grant_history`). Account events `account.created`, `account.updated`,
+`setup.account_created` and `setup.account_roles_added` carry `groups`, `permissions` and the
+`is_active`, `is_staff` and `is_superuser` flags before and after; the seed's
+`account.capability_granted` names one capability; group events `group.created`, `group.updated`
+and `setup.group_created` carry a group's permissions, and a `group.updated` that changes `name`
+moves recorded memberships to the new name. For each item held now the latest event that gave it,
+not taken away since, is shown; otherwise "Not in the change history". A capability through a group
+names both the grant to the group and the account's membership. Actor names are read as they stand
+now. `seed_demo` records an `account.created` event (actor `demo_admin`) for each demonstration
+staff account it creates, so their roles are attributed.
+
+The Unused accounts list (`unused_accounts`) keeps active accounts, without the jobs' account,
+whose `last_login` is before now minus the period, or that never signed in and whose `date_joined`
+is before then, ordered `last_login` nulls first, then `date_joined`. The period is
+`UnusedPeriod`, one row (`id = 1`, days null or 1 to 366, both checked by constraints) written the
+first time it is saved, never by a migration. `set_period` holds the acting account, takes
+`PERIOD_LOCK` (`pg_advisory_xact_lock(19565, 0)`), refuses a `revision` other than the one the form
+showed, and records `access_review.unused_period_changed` with a reason; the form's own reading
+takes the same lock shared. Pages and exports are `WorkspaceUse` rows of the sources `accounts` and
+`unused`, which audit_review migration 0004 adds to the allowed values (the check constraint is
+dropped and recreated, no row rewritten) along with the `UnusedPeriod` table.
+[Access review](../audit_review/access_report.py)
 
 ## Security settings
 

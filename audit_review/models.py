@@ -18,6 +18,10 @@ class Source(models.TextChoices):
     USES = "uses", "Workspace use"
     # The review records (Review): their list, their pages and their export.
     REVIEWS = "reviews", "Reviews"
+    # The Access review section (audit_review.access_report): every account and what it holds,
+    # and the accounts unused for the laboratory's period. Their uses are recorded here too.
+    ACCOUNTS = "accounts", "Access review: accounts"
+    UNUSED = "unused", "Access review: unused accounts"
 
 
 class UseKind(models.TextChoices):
@@ -228,3 +232,29 @@ class ReviewSchedule(models.Model):
 
     def __str__(self):
         return "Review interval"
+
+
+class UnusedPeriod(models.Model):
+    """After how many days without a sign-in an active account is listed as unused
+    (audit_review.access_report). One row, written the first time a reviewer saves the period,
+    never by a migration, so an empty database stays empty (core.demo); until then none is set and
+    nothing is listed as unused. `revision` is the stale-edit check of the form."""
+
+    days = models.PositiveSmallIntegerField("unused after", null=True, blank=True)
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = "unused account period"
+        constraints = [
+            models.CheckConstraint(condition=Q(id=1), name="unused_period_single"),
+            models.CheckConstraint(
+                condition=Q(days__isnull=True) | Q(days__gte=1, days__lte=366),
+                name="unused_period_bounds",
+                violation_error_message="Choose from 1 to 366 days.",
+            ),
+        ]
+
+    def __str__(self):
+        return "Unused account period"

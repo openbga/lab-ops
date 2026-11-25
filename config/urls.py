@@ -162,4 +162,5 @@ urlpatterns = [
     # Optional module: its addresses are Not found while it is off (core.modules).
     path("quality/", include("nonconformance.urls")),
     path("audit-review/", include("audit_review.urls")),
+    path("access-review/", include("audit_review.access_urls")),
 ]
