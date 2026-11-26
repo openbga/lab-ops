@@ -21,8 +21,11 @@ nothing, such as the database directly). The history names roles by name, and a 
 own page is followed through its recorded renames. Known limit: the application never removes a
 group, so a name belongs to one group; a group removed outside the application (the database
 directly) and replaced under the same name is not told apart from it, and who gave a membership of
-the removed group can be shown for the replacement. A deactivated account shows the recorded change
-that deactivated it. Names of the people who made a change are read as they stand now.
+the removed group can be shown for the replacement. The changes are replayed in the order of their
+recorded time, by the application's clock; two recorded at the same moment, or by a server whose
+clock runs behind another's, can be replayed in another order than they were made, and who gave a
+role can then be shown wrongly or not at all. A deactivated account shows the recorded change that
+deactivated it. Names of the people who made a change are read as they stand now.
 
 Unused accounts. An active account is unused when it has not signed in for the laboratory's period
 (UnusedPeriod) by the application's clock: its last sign-in (User.last_login, written at each

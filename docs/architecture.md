@@ -237,7 +237,10 @@ answers `requires` for many active accounts in one statement. The scheduled jobs
 (`jobs.actor.system_account_id`) is its own kind.
 
 Who gave a role, capability or admin console access comes from `AuditEvent`, read in order of
-`(occurred_at, id)` (`grant_history`). Account events `account.created`, `account.updated`,
+`(occurred_at, id)` (`grant_history`): the time each change was recorded by the application's clock,
+then its random id, so two changes recorded at the same moment, or by a server whose clock runs
+behind another's, can be replayed in another order than they were made, and who gave a role can then
+be shown wrongly or not at all. Account events `account.created`, `account.updated`,
 `setup.account_created` and `setup.account_roles_added` carry `groups`, `permissions` and the
 `is_active`, `is_staff` and `is_superuser` flags before and after; the seed's
 `account.capability_granted` names one capability; group events `group.created`, `group.updated` and
