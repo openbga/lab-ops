@@ -150,14 +150,13 @@ def _example_role(grants):
 
 
 def _seeded(account):
-    """Whether the seed created `account`: its creation event is the seed's own (UNUSED_REASON,
-    recorded as by the demonstration's administrator)."""
+    """Whether the seed created `account`: its creation event carries the seed's own reason
+    (UNUSED_REASON), whoever the account that made it is called now."""
     return AuditEvent.objects.filter(
         action="account.created",
         object_type="accounts.user",
         object_id=str(account.pk),
         reason=UNUSED_REASON,
-        actor__username="demo_admin",
     ).exists()
 
 
