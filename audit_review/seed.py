@@ -66,9 +66,9 @@ def _unused(reviewer):
     # An account already using its name or its address is left as it is, and none is added. One
     # saved with the same name or address while the seed runs makes the account's insert fail: the
     # example is then left out (the insert's savepoint rolled back), and the seed goes on; any other
-    # failure stops the seed. Known limit: one saved meanwhile under the same address in other
-    # letter case is not seen (the address is unique as typed), as for the other demonstration
-    # accounts.
+    # failure, a refused insert for another reason included, stops the seed. Known limit: one saved
+    # meanwhile under the same address in other letter case is not seen (the address is unique as
+    # typed), as for the other demonstration accounts.
     taken = Q(username__iexact=UNUSED_USERNAME) | Q(email__iexact=UNUSED_EMAIL)
     if User.objects.filter(taken).exists():
         return
@@ -91,7 +91,9 @@ def _unused(reviewer):
         try:
             with transaction.atomic():
                 account.save()
-        except IntegrityError:
+        except IntegrityError as refused:
+            if _constraint(refused) not in TAKEN:
+                raise
             return
         account.groups.add(Group.objects.get(name="technical"))
         record_event(
@@ -101,6 +103,15 @@ def _unused(reviewer):
             after=seed_snapshot(account),
             reason="Demonstration seed: a technician who no longer signs in",
         )
+
+
+# The constraints that refuse an account whose username or address is taken (accounts.User).
+TAKEN = ("accounts_user_username_key", "accounts_user_email_key")
+
+
+def _constraint(error):
+    diagnostics = getattr(error.__cause__, "diag", None)
+    return getattr(diagnostics, "constraint_name", None)
 
 
 def seed_records(ctx):

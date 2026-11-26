@@ -36,7 +36,9 @@ def test_workspace_use_shows_the_one_day_list_visit_after_an_empty_result(page, 
     expect(page.get_by_text("No unused accounts", exact=True).first).to_be_visible()
     expect(
         page.get_by_text(
-            re.compile("creation if it never signed in, is older than the period")
+            # Adapted in the second confirmation round to the reworded empty state, which leaves
+            # out the scheduled jobs' account.
+            re.compile("a creation if it never signed in, older than the period")
         ).first
     ).to_be_visible()
     assert visits.count() == before + 1

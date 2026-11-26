@@ -241,32 +241,27 @@ Who gave a role, capability or admin console access comes from `AuditEvent`, rea
 `setup.account_created` and `setup.account_roles_added` carry `groups`, `permissions` and the
 `is_active`, `is_staff` and `is_superuser` flags before and after; the seed's
 `account.capability_granted` names one capability; group events `group.created`, `group.updated` and
-`setup.group_created` carry a group's permissions and name. Each recorded membership is kept with
-the group its name belonged to when it was recorded (`_Membership`), as the recorded changes of
-groups name them (their creation, their renames and any other change, each of which names the
-group): a `group.updated` that changes `name` moves the group's memberships to the new name; a
-membership is credited only to the group it was recorded for, or, where no recorded change had named
-a group so, to the group with that name now; a group created on its page or renamed with a name also
-drops the memberships recorded under it for no known group (names are unique). `setup_lab` records
-the role groups it creates before the account it creates (until this release it recorded them just
-after, so its `setup.group_created` drops nothing). So a group removed and replaced outside the
-admin console under the same name, with no recorded change of either, can still be credited with the
-removed group's membership. Every writer of an account's roles (the account page when the save
-changes roles, the add-account page, `setup_lab`) names them from `accounts.setup.held_role_names`,
-which reads them `FOR SHARE` as the change is recorded, and the role group page holds the group's
-row before reading its values for the audit, so a rename or a second save waits and the history
-names each grant in the order it was made; an account save that does not change the account's roles
-names them as read, so a rename committed while it saves can leave the earlier name in its event (no
-change of roles is read from it). Known limit, which predates Access review: when the role group
-page takes a capability away, it reads the members whose access gates it takes before it holds the
-group's row, so a member who joins, or a grant made, in between is gated only by the removal's own
-signal (`accounts.acting`), after the row; were that member's roles being changed at the same
-moment, PostgreSQL would refuse one of the two saves as a deadlock. For each item held now the
-latest event that gave it, not taken away since, is shown; otherwise "Not in the change history". A
-capability through a group names both the grant to the group and the account's membership. Actor
-names are read as they stand now. `seed_demo` records an `account.created` event (actor
-`demo_admin`, the account's snapshot without its email address: `accounts.setup.seed_snapshot`) for
-each demonstration staff account it creates, so their roles are attributed.
+`setup.group_created` carry a group's permissions and name. A `group.updated` that changes `name`
+moves the memberships recorded under the old name to the new one. Known limit: the application never
+removes a group, so a name belongs to one group; a group removed outside the application and
+replaced under the same name is not told apart from it, and who gave a membership of the removed
+group can be shown for the replacement. Every writer of an account's roles (the account page when
+the save changes roles, the add-account page, `setup_lab`) names them from
+`accounts.setup.held_role_names`, which reads them `FOR SHARE` as the change is recorded, and the
+role group page holds the group's row before reading its values for the audit, so a rename or a
+second save waits and the history names each grant in the order it was made; an account save that
+does not change the account's roles names them as read, so a rename committed while it saves can
+leave the earlier name in its event (no change of roles is read from it). Known limit, which
+predates Access review: when the role group page takes a capability away, it reads the members whose
+access gates it takes before it holds the group's row, so a member who joins, or a grant made, in
+between is gated only by the removal's own signal (`accounts.acting`), after the row; were that
+member's roles being changed at the same moment, PostgreSQL would refuse one of the two saves as a
+deadlock. For each item held now the latest event that gave it, not taken away since, is shown;
+otherwise "Not in the change history". A capability through a group names both the grant to the
+group and the account's membership. Actor names are read as they stand now. `seed_demo` records an
+`account.created` event (actor `demo_admin`, the account's snapshot without its email address:
+`accounts.setup.seed_snapshot`) for each demonstration staff account it creates, so their roles are
+attributed.
 
 The Unused accounts list (`unused_accounts`) keeps active accounts, without the jobs' account, whose
 `last_login` is before now minus the period, or that never signed in and whose `date_joined` is

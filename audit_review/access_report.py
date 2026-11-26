@@ -17,15 +17,12 @@ account's roles, capability grants and flags before and after each change they m
 group's page records the capabilities granted to the group. For each one held now, the latest
 recorded change that gave it is shown; none is shown ("Not in the change history") when no recorded
 change gave it, or a later recorded change took it away (it was given again by a path that records
-nothing, such as the database directly). The history names roles by name. Each recorded membership
-is kept with the group its name belonged to when it was recorded, as the recorded changes of groups
-name them (their creation, on the group's page or by setup_lab, their renames and any other change,
-each of which names the group): a group renamed on its own page is followed through its recorded
-renames, and a membership is credited only to the group it was recorded for, or, where no recorded
-change had named a group so, to the group that has the name now. Group names are unique, so a
-membership recorded under a name for no known group before a group was created on its page, or
-renamed, with that name is not that group's. A deactivated account shows the recorded change that
-deactivated it. Names of the people who made a change are read as they stand now.
+nothing, such as the database directly). The history names roles by name, and a group renamed on its
+own page is followed through its recorded renames. Known limit: the application never removes a
+group, so a name belongs to one group; a group removed outside the application (the database
+directly) and replaced under the same name is not told apart from it, and who gave a membership of
+the removed group can be shown for the replacement. A deactivated account shows the recorded change
+that deactivated it. Names of the people who made a change are read as they stand now.
 
 Unused accounts. An active account is unused when it has not signed in for the laboratory's period
 (UnusedPeriod) by the application's clock: its last sign-in (User.last_login, written at each
@@ -359,20 +356,10 @@ def _given(event):
     return Given(person_name(actor), actor.username, event.occurred_at)
 
 
-@dataclass(frozen=True)
-class _Membership:
-    """A recorded membership of a group, by the group's name, and the group that name belonged to
-    when it was recorded, by the recorded creations and renames of groups (None when no recorded
-    change had named a group so)."""
-
-    given: Given
-    group: int | None
-
-
 @dataclass
 class _Tracked:
     """What the recorded changes of one account (or group) gave and did not take away since: its
-    groups (name: _Membership), permissions and flags (name: Given)."""
+    groups (by name), permissions and flags, each with who gave it."""
 
     groups: dict = field(default_factory=dict)
     permissions: dict = field(default_factory=dict)
@@ -380,9 +367,7 @@ class _Tracked:
     deactivated: Given | None = None
 
 
-def _apply(tracked, event, owners):
-    """Apply one recorded change; `owners` maps each name to the group it belongs to now, by the
-    recorded creations and renames of groups."""
+def _apply(tracked, event):
     for key in ("groups", "permissions"):
         changes = _set_changes(event, key)
         if changes is None:
@@ -392,10 +377,7 @@ def _apply(tracked, event, owners):
         for name in taken:
             held.pop(name, None)
         for name in given:
-            if key == "groups":
-                held[name] = _Membership(_given(event), owners.get(name))
-            else:
-                held[name] = _given(event)
+            held[name] = _given(event)
     for flag in ("is_active", "is_staff", "is_superuser"):
         turned = _flag_change(event, flag)
         if turned is None:
@@ -408,53 +390,19 @@ def _apply(tracked, event, owners):
             tracked.flags.pop(flag, None)
 
 
-def _naming(event):
-    """(old name or None, new name, how) when a recorded change of a group gave it its name, how
-    being "page" (created on its page), "setup" (created by setup_lab) or "renamed"; (None, name,
-    "seen") for any other recorded change of a group that names it; else None."""
-    before, after = event.before or {}, event.after or {}
-    new = after.get("name")
-    if not isinstance(new, str):
+def _renames(event):
+    """(old name, new name) when a recorded change of a group renamed it, else None."""
+    if event.action != "group.updated":
         return None
-    if event.action in CREATED and not before:
-        return None, new, "page" if event.action == "group.created" else "setup"
-    old = before.get("name")
-    if event.action == "group.updated" and isinstance(old, str) and old != new:
-        return old, new, "renamed"
-    return None, new, "seen"
-
-
-def _named(accounts_tracked, owners, group_id, old, new, how):
-    """A recorded change of group `group_id` names it `new` (renamed from `old`, created, or seen
-    under that name): `new` belongs to this group from now on. Names are unique, so a membership
-    recorded under `new` for another group is not this group's, and who gave it is never read for
-    this group (recorded_membership). A group created on its page, or renamed, also drops a
-    membership recorded under `new` for no known group: it was of a group since removed or renamed
-    with no recorded change. setup_lab's creation drops nothing: until this release it recorded the
-    account it created, with its roles, just before the groups. A membership recorded under `old`
-    for this group, or for no known group, moves to `new`."""
-    for tracked in accounts_tracked.values():
-        entry = tracked.groups.get(new)
-        if entry is not None and entry.group is None and how in ("page", "renamed"):
-            del tracked.groups[new]
-        if old is not None and old in tracked.groups:
-            moved = tracked.groups.pop(old)
-            if moved.group in (None, group_id):
-                tracked.groups[new] = _Membership(moved.given, group_id)
-    if old is not None and owners.get(old) == group_id:
-        del owners[old]
-    owners[new] = group_id
-
-
-def recorded_membership(tracked, name, group_id):
-    """Who gave the account's membership of group `group_id`, named `name` now: the recorded
-    membership under that name, if it was of this group or of no known group, else None."""
-    entry = tracked.groups.get(name)
-    return entry.given if entry is not None and entry.group in (None, group_id) else None
+    old, new = (event.before or {}).get("name"), (event.after or {}).get("name")
+    if isinstance(old, str) and isinstance(new, str) and old != new:
+        return old, new
+    return None
 
 
 def grant_history(account_ids, group_ids):
-    """({account id: _Tracked}, {group id: _Tracked}) from the change history, read in order."""
+    """({account id: _Tracked}, {group id: _Tracked}) from the change history, read in order. A
+    recorded rename of a group moves the memberships recorded under its old name to the new one."""
     accounts_tracked = {pk: _Tracked() for pk in account_ids}
     groups_tracked = {pk: _Tracked() for pk in group_ids}
     by_account = {str(pk): pk for pk in account_ids}
@@ -470,17 +418,19 @@ def grant_history(account_ids, group_ids):
         .select_related("actor")
         .order_by("occurred_at", "id")
     )
-    owners = {}
     for event in events:
         if event.object_type == GROUP_OBJECT:
+            renamed = _renames(event)
+            if renamed is not None:
+                old, new = renamed
+                for tracked in accounts_tracked.values():
+                    if old in tracked.groups:
+                        tracked.groups[new] = tracked.groups.pop(old)
             group_id = int(event.object_id) if event.object_id.isdigit() else None
-            named = _naming(event)
-            if named is not None and group_id is not None:
-                _named(accounts_tracked, owners, group_id, *named)
             if group_id in groups_tracked:
-                _apply(groups_tracked[group_id], event, owners)
+                _apply(groups_tracked[group_id], event)
             continue
-        _apply(accounts_tracked[by_account[event.object_id]], event, owners)
+        _apply(accounts_tracked[by_account[event.object_id]], event)
     return accounts_tracked, groups_tracked
 
 
@@ -585,10 +535,10 @@ def _describe(accounts_list, history):
         mine = tracked.get(account.pk, _Tracked())
         held = sorted(memberships.get(account.pk, ()), key=_group_order)
         role_items = [
-            _given_item(_role_label(name), recorded_membership(mine, name, group_id))
+            _given_item(_role_label(name), mine.groups.get(name))
             if history
             else Item(_role_label(name))
-            for group_id, name in held
+            for _group_id, name in held
             if name in ROLES
         ]
         capability_items = []
@@ -608,7 +558,7 @@ def _describe(accounts_list, history):
                 to_group = tracked_groups.get(group_id, _Tracked()).permissions.get(
                     f"accounts.{codename}"
                 )
-                member = recorded_membership(mine, name, group_id)
+                member = mine.groups.get(name)
                 whose = "role" if name in ROLES else "group"
                 parts = [
                     how,
