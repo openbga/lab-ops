@@ -10,8 +10,8 @@ with the Technical staff role, recorded as the account administration records a 
 its email address: accounts.setup.seed_snapshot). It has no password, so nobody can sign in as it,
 and it is not added where an account already has its name or address. And one signed access review
 of the staff accounts (audit_review.access_reviews), signed by the same reviewer three days ago:
-every grant kept but the unused account's, decided for removal and still held. Synthetic data
-only."""
+every grant kept but the unused account's Technical staff role, decided for removal and still held.
+Synthetic data only."""
 
 from datetime import datetime, time, timedelta
 
@@ -27,7 +27,15 @@ from desk.story import REVIEW_HOLDER
 from nonconformance.seed import happened_at
 
 from . import access_report, access_reviews, reviews
-from .models import AccessReview, AccessScope, Decision, Review, ReviewSchedule, UnusedPeriod
+from .models import (
+    AccessReview,
+    AccessScope,
+    Decision,
+    GrantKind,
+    Review,
+    ReviewSchedule,
+    UnusedPeriod,
+)
 
 INTERVAL_DAYS = 31
 UNUSED_DAYS = 90
@@ -117,9 +125,29 @@ def _constraint(error):
     return getattr(diagnostics, "constraint_name", None)
 
 
+def _example_role(grants):
+    """The keys of the grants the example review decides to remove: the Technical staff role of
+    the unused example account (UNUSED_USERNAME, without a usable password and not signed in for
+    UNUSED_DAYS), when it is the account the seed adds; none for an account of that name that is
+    someone else's."""
+    account = User.objects.filter(username=UNUSED_USERNAME).first()
+    if account is None or account.has_usable_password():
+        return set()
+    if (account.last_login or account.date_joined) > access_report.cutoff(UNUSED_DAYS):
+        return set()
+    technical = Group.objects.filter(name="technical").values_list("pk", flat=True).first()
+    return {
+        grant.key
+        for grant in grants
+        if grant.account_id == account.pk
+        and grant.kind == GrantKind.GROUP
+        and grant.code == str(technical)
+    }
+
+
 def _access_review(reviewer):
-    """One signed access review of the staff accounts, once: every grant kept, but those of the
-    unused account (UNUSED_USERNAME, when the seed added it), decided for removal. The grants are
+    """One signed access review of the staff accounts, once: every grant kept, but the unused
+    example account's Technical staff role (_example_role), decided for removal. The grants are
     read as they stand and signed through the service, as if three days ago."""
     if AccessReview.objects.exists():
         return
@@ -128,9 +156,7 @@ def _access_review(reviewer):
         current = access_reviews.reading(AccessScope.STAFF)
         if current.too_many or not current.grants:
             return
-        unused = {
-            grant.key for grant in current.grants if grant.account_username == UNUSED_USERNAME
-        }
+        unused = _example_role(current.grants)
         decisions = {
             grant.key: Decision.REMOVE if grant.key in unused else Decision.KEEP
             for grant in current.grants

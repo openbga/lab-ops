@@ -8,7 +8,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### High impact
 
-- **Added:** Record a signed access review that keeps or removes each grant (2026-11-26, Access review)
+- **Added:** Record a signed access review with a keep or remove decision for each grant (2026-11-26, Access review)
 
   On the new Reviews tab of Access review, decide Keep or Remove for every grant the staff or portal accounts hold, sign with your password, and see which removals are still held.
 

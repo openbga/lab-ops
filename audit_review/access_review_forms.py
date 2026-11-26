@@ -119,7 +119,10 @@ class AccessReviewForm(StyledForm, forms.Form):
         return groups
 
     def undecided(self):
-        return sum(1 for grant in self.grants if grant.field_name in self.errors)
+        """How many grants the form shows without a decision chosen."""
+        return sum(
+            1 for grant in self.grants if self[grant.field_name].value() not in Decision.values
+        )
 
     @sensitive_variables()
     def full_clean(self):

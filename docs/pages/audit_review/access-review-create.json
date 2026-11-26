@@ -142,7 +142,7 @@
       "title": "Who can use this page",
       "paragraphs": [
         "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused. Your access is checked again when you sign: if the capability or your role was removed meanwhile, nothing is signed.",
-        "Each time the form is drawn, with every grant it lists, it is recorded under Workspace use in Audit review, with the source Access review: reviews, the accounts chosen and how many grants were listed. If the record cannot be written, the page is not shown. Signing is recorded as a change, listed under Changes as Access review signed, with the number, the accounts covered, the counts, the grants decided for removal by username, the findings, follow-up, sign-off and checksum. The password and email addresses are never part of the record or the change."
+        "Each time the form is drawn, with every grant it lists, it is recorded under Workspace use in Audit review, with the source Access review: reviews, the accounts chosen and how many grants were listed. If the record cannot be written, the page is not shown. Signing is recorded as a change, listed under Changes as Access review signed, with the number, the accounts covered, the counts, the grants decided for removal by username, the findings, follow-up, sign-off and checksum. The password is never part of the record or the change, and no email address field is copied into them; an account is named by its name and username, shown as chosen even where the username is an address."
       ]
     }
   ],

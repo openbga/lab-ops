@@ -22,25 +22,31 @@ portal account by deactivating it there. A review's page shows, for each grant d
 whether the account still holds it (still_held), read as it stands when the page is drawn.
 
 Signing. As for review records (audit_review.reviews): the reviewer enters their password again at
-each signing, which the form checks before anything is locked. The service then reads the accounts
-the scope covers and takes their access gates shared, with the signer's own, in key order (accounts.
-acting.share_access: the order close_access takes them in, so the two never wait for each other in a
-cycle), before anything else it locks; then it holds the acting account (hold_actor) and decides
-from the account as held that it still may review and still has the password that was checked. From
-then until the review commits, no change in this application takes a reviewed account's grants away
-or widens them (each takes the account's gate exclusively), and the grants read are those the review
-records. The moment of signing is taken, then the accounts and their grants are read again, as they
-stand, and compared with what the form showed (fingerprint): any difference, an account added to the
+each signing, which the form checks before anything is locked. The service then reads which
+accounts the scope covers and takes their access gates shared, with the signer's own, in key order
+(accounts.acting.share_access: the order close_access takes them in, so the two never wait for each
+other in a cycle), before anything else it locks; then it holds the acting account (hold_actor) and
+decides from the account as held that it still may review and still has the password that was
+checked. It reads the accounts and their grants again, as they stand, and compares them, with the
+accounts chosen, with what the form showed (fingerprint): any difference, an account added to the
 scope or leaving it included, refuses the signing, and the form is drawn again as the grants stand,
-keeping the decisions on grants that did not change. Only what the reading shows is written: the
-review, a decision for each grant (AccessReviewItem), the sign-off (the signer's name, username and
-roles as they stand, the meaning Reviewed, the moment, and a SHA-256 checksum of exactly what was
-signed, signed_content) and its audit event, in one transaction. Known limit: an account created,
-or made active, after the reading and committed before the review is not in it; it was not active
-when the grants were read.
+keeping the decisions on grants that did not change. Then it reads the signer's roles and takes the
+moment of signing, so everything the review records was read before that moment. Only what the
+reading shows is written: the review, a decision for each grant (AccessReviewItem), the sign-off
+(the signer's name, username and roles, the meaning Reviewed, the moment, and a SHA-256 checksum of
+exactly what was signed, signed_content) and its audit event, in one transaction.
 
-Nothing here shows a password, a second factor's secret or codes, an account's email address, or
-anything of a ticket.
+Known limit, one rule: what waits for a signing is what takes an account's gate exclusively, the
+account's page, a removal of a role, a capability or a team membership, and portal access; until
+the review commits those wait, and what the review records of the reviewed accounts' memberships,
+direct grants, flags, status and portal access stays true. Whatever changes without the gate goes
+on: a name (of an account's group, a site or an organization), a capability added to a group, an
+account created or made active. Such a change saved while the signing reads, or between the
+reading and the moment of signing, can be recorded as it was just before.
+
+Nothing here shows a password, a second factor's secret or codes, or anything of a ticket. An
+account is named by its name and username as chosen; no email address field is copied, though a
+username chosen as an address is shown as it is.
 """
 
 import hashlib
@@ -52,6 +58,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from accounts.acting import share_access
@@ -146,9 +153,15 @@ def _json(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def fingerprint(grants):
-    """A digest of exactly what a form showed: every grant in order, with its words."""
-    return hashlib.sha256(_json([grant.shown() for grant in grants]).encode()).hexdigest()
+def fingerprint(grants, scope, organization=None):
+    """A digest of exactly what a form showed: the accounts chosen (the scope and the
+    organization's id), and every grant in order, with its words."""
+    shown = {
+        "scope": scope,
+        "organization": organization.pk if organization is not None else None,
+        "grants": [grant.shown() for grant in grants],
+    }
+    return hashlib.sha256(_json(shown).encode()).hexdigest()
 
 
 def scope_accounts(scope, organization=None):
@@ -158,7 +171,7 @@ def scope_accounts(scope, organization=None):
     if scope == AccessScope.STAFF:
         if organization is not None:
             raise ValueError("Only client portal accounts are reviewed by organization.")
-        queryset = queryset.filter(client__isnull=True)
+        queryset = queryset.filter(client__isnull=True).filter(_holds_something())
         system_id = access_report.system_account_id()
         if system_id is not None:
             queryset = queryset.exclude(pk=system_id)
@@ -171,13 +184,25 @@ def scope_accounts(scope, organization=None):
     return access_report.ordered(queryset, access_report.DEFAULT_SORT)
 
 
+def _holds_something():
+    """Admin console access, superuser status, a group, or a capability given directly: what
+    read_grants lists for a staff account."""
+    User = get_user_model()
+    groups = User.groups.through.objects.filter(user_id=OuterRef("pk"))
+    direct = User.user_permissions.through.objects.filter(
+        user_id=OuterRef("pk"),
+        permission__in=access_report._capability_permissions(list(CAPABILITIES)),
+    )
+    return Q(is_staff=True) | Q(is_superuser=True) | Q(Exists(groups)) | Q(Exists(direct))
+
+
 def _group_words(name):
     return f"{ROLE_LABELS[name]} role" if name in ROLES else f"Group “{name}”"
 
 
 def _portal(account, access):
     """(code, words) of a portal account's grant: its organization, and the whole organization,
-    the sites granted (by id and name) or only the tickets it raised."""
+    the sites granted (by a digest of their ids, and by name) or only the tickets it raised."""
     client = str(account.client_id)
     if access is None or not access.applies_to(account):
         return f"{client}:none", "Only the tickets it raised"
@@ -186,9 +211,11 @@ def _portal(account, access):
     sites = sorted(access.sites.all(), key=lambda site: (site.name.lower(), site.pk))
     if not sites:
         return f"{client}:none", "Only the tickets it raised"
+    # The sites by id, as a digest: a code stays short whatever the number of sites.
     ids = ",".join(str(site.pk) for site in sorted(sites, key=lambda site: site.pk))
+    digest = hashlib.sha256(ids.encode()).hexdigest()[:32]
     names = ", ".join(site.name for site in sites)
-    return f"{client}:{ids}", f"Tickets of {names}, and those it raised"
+    return f"{client}:sites:{digest}", f"Tickets of {names}, and those it raised"
 
 
 def read_grants(accounts_list):
@@ -284,24 +311,27 @@ class Reading:
 
     accounts: int
     grants: list
+    scope: str = AccessScope.STAFF
+    organization: object = None
     too_many: bool = False
 
     @property
     def fingerprint(self):
-        return fingerprint(self.grants)
+        return fingerprint(self.grants, self.scope, self.organization)
 
 
 def reading(scope, organization=None):
     """The scope's accounts and their grants, as they stand, in the caller's reading; none and
     too_many beyond MOST_ACCOUNTS accounts or MOST_GRANTS grants."""
+    chosen = {"scope": scope, "organization": organization}
     accounts_list = list(scope_accounts(scope, organization)[: MOST_ACCOUNTS + 1])
     if len(accounts_list) > MOST_ACCOUNTS:
-        return Reading(accounts=len(accounts_list), grants=[], too_many=True)
+        return Reading(accounts=len(accounts_list), grants=[], too_many=True, **chosen)
     grants = read_grants(accounts_list)
     accounts = len({grant.account_id for grant in grants})
     if len(grants) > MOST_GRANTS:
-        return Reading(accounts=accounts, grants=[], too_many=True)
-    return Reading(accounts=accounts, grants=grants)
+        return Reading(accounts=accounts, grants=[], too_many=True, **chosen)
+    return Reading(accounts=accounts, grants=grants, **chosen)
 
 
 # ------------------------------------------------------------------------------ what is signed
@@ -427,9 +457,8 @@ def sign_access_review(
         raise ValidationError({"confirm_password": PASSWORD_CHANGED})
     findings = text_value(findings, "findings", "Findings", TEXT_LIMIT)
     follow_up = text_value(follow_up, "follow_up", "Follow-up", TEXT_LIMIT)
-    # The moment of signing, then what is read as of it: the signer's roles, and the grants.
-    signed_at = timezone.now()
-    signer_roles = roles_label(signer)
+    # What is recorded is read first, the grants and then the signer's roles, and the moment of
+    # signing is taken after it: everything the review holds was read before that moment.
     current = reading(scope, organization)
     if current.too_many:
         raise ValidationError(TOO_MANY)
@@ -437,6 +466,10 @@ def sign_access_review(
         raise ValidationError(STALE)
     if not current.grants:
         raise ValidationError(NOTHING)
+    signer_roles = roles_label(signer)
+    signed_at = timezone.now()
+    # The organization's name as the reading holds it, the name its decisions record.
+    organization_name = current.grants[0].organization_name if organization is not None else ""
     chosen = _decisions(current.grants, decisions)
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(SIGNING_LOCK))
@@ -446,7 +479,7 @@ def sign_access_review(
         number=f"{ACCESS_NUMBER_PREFIX}{pk:06d}",
         scope=scope,
         organization_id=organization.pk if organization is not None else None,
-        organization_name=organization.name if organization is not None else "",
+        organization_name=organization_name,
         accounts=current.accounts,
         grants=len(current.grants),
         removals=chosen.count(Decision.REMOVE),

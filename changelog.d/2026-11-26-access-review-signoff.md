@@ -2,7 +2,7 @@
 date: 2026-11-26
 type: added
 impact: high
-title: Record a signed access review that keeps or removes each grant
+title: Record a signed access review with a keep or remove decision for each grant
 area: Access review
 link: access_review:reviews
 ---

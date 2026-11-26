@@ -289,15 +289,19 @@ carried over to changed words, and the form posts a `fingerprint` of every grant
 `sign_access_review` reads the ids of the accounts the scope covers before any lock, takes their
 access gates shared with the signer's, in key order (`accounts.acting.share_access`, the order
 `close_access` uses), before anything else it locks, then holds the acting account (`hold_actor`)
-and checks `may_review` and the checked password's hash on it. While the review commits, no change
-in this application widens or removes a reviewed account's grants, since each takes the gate
-exclusively. It then takes the moment of signing, reads the accounts and grants again and compares
-them with the posted fingerprint; any difference refuses the signing, and the view draws the form
-again over the new reading, keeping the decisions whose field names are unchanged. Known limit: an
-account created or made active after that reading and committed before the review is not in it.
+and checks `may_review` and the checked password's hash on it. It reads the accounts and grants
+again and compares them, with the scope and organization, with the posted fingerprint; any
+difference refuses the signing, and the view draws the form again over the new reading, keeping the
+decisions whose field names are unchanged. Then it reads the signer's roles and takes the moment of
+signing, so everything recorded was read before it. Until the review commits, what takes a reviewed
+account's gate exclusively waits (the account's page, removing a role, a capability or a team
+membership, portal access). Known limit, one rule: what changes without that gate goes on, such as
+a name of a group, site or organization, a capability added to a group on its page, or an account
+created or made active; such a change saved while the signing reads can be recorded as it was just
+before.
 Numbers (`AC-` and at least six digits) come from the table's sequence under the advisory lock
 `(19566, 0)`, so they follow the order signings commit in. The review, an `AccessReviewItem` for each
-grant with its decision, and the `access_review.signed` event (no email address) are written in one
+grant with its decision, and the `access_review.signed` event (no email address field) are written in one
 transaction, with a SHA-256 of `signed_content`. Triggers from audit_review migration 0005 refuse
 `UPDATE` and `DELETE` on both tables with `prevent_record_mutation`; reversing the migration is
 refused while any access review or a use of the tab is recorded. The review records decisions and
