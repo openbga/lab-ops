@@ -1,0 +1,341 @@
+"""End dates of capabilities given directly (accounts.grant_ends, accounts.models.CapabilityEnd):
+every check treats an ended grant as gone, the end goes with its grant, and the account's page in
+the admin console sets it with the grant, checked against the page as drawn and audited."""
+
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo
+
+import pytest
+from django.contrib.auth.models import Group, Permission
+from django.db import transaction
+from django.test import override_settings
+from django.urls import reverse
+from django.utils import timezone
+
+from accounts import grant_ends
+from accounts.admin import CHANGED_SINCE_DRAWN, NOT_DIRECT, AccountChangeForm, end_field
+from accounts.models import CapabilityEnd, User
+from accounts.roles import CAPABILITIES, direct_grants, has_capability, roles_and_capabilities
+from accounts.tests.test_confirm_identity import page_data
+from core.models import AuditEvent
+
+pytestmark = pytest.mark.django_db
+PATIENT = "view_patient_information"
+REVIEW = "review_audit_records"
+
+
+def capability(codename):
+    return Permission.objects.get(content_type__app_label="accounts", codename=codename)
+
+
+def give(user, codename, ends_at=None):
+    user.user_permissions.add(capability(codename))
+    if ends_at is not None:
+        CapabilityEnd.objects.create(user=user, permission=capability(codename), ends_at=ends_at)
+
+
+def past():
+    return timezone.now() - timedelta(hours=1)
+
+
+def future():
+    return timezone.now() + timedelta(days=3)
+
+
+@pytest.fixture
+def owner(make_user):
+    return make_user("owner", "admin", is_staff=True, is_superuser=True)
+
+
+# --- every check -------------------------------------------------------------------------------
+
+
+def test_a_grant_with_an_end_to_come_holds_and_an_ended_one_gives_nothing(make_user):
+    holder = make_user("holder", "technical")
+    give(holder, PATIENT, future())
+    assert has_capability(holder, PATIENT)
+    assert roles_and_capabilities(holder)[1] == {PATIENT}
+    CapabilityEnd.objects.filter(user=holder).update(ends_at=past())
+    assert not has_capability(holder, PATIENT)
+    assert roles_and_capabilities(holder) == ({"technical"}, set())
+    # Still stored on the account, giving nothing, until removed.
+    assert holder.user_permissions.filter(codename=PATIENT).exists()
+    assert not direct_grants(user_id=holder.pk).exists()
+
+
+def test_an_end_applies_to_the_direct_grant_only_not_a_roles(make_user):
+    holder = make_user("member", "supervisor")
+    Group.objects.get(name="supervisor").permissions.add(capability(PATIENT))
+    give(holder, PATIENT, past())
+    assert has_capability(holder, PATIENT)  # through the role
+    assert roles_and_capabilities(holder)[1] == {PATIENT}
+
+
+def test_ending_one_capability_leaves_the_other(make_user):
+    holder = make_user("both", "supervisor")
+    give(holder, PATIENT, past())
+    give(holder, REVIEW)
+    assert roles_and_capabilities(holder)[1] == {REVIEW}
+    assert has_capability(holder, REVIEW) and not has_capability(holder, PATIENT)
+
+
+def test_the_second_factor_rule_and_security_settings_count_only_grants_in_force(make_user):
+    from core import second_factor
+    from core.models import SecondFactorRule
+    from core.security_settings import patient_capability_holders
+
+    ended = make_user("ended", "technical")
+    give(ended, PATIENT, past())
+    ending = make_user("ending", "technical")
+    give(ending, PATIENT, future())
+    SecondFactorRule.objects.update_or_create(pk=1, defaults={"patient_information": True})
+    assert set(second_factor.covered_among([ended.pk, ending.pk])) == {ending.pk}
+    assert patient_capability_holders() == 1
+
+
+def test_the_audit_review_workspace_follows_the_end(make_user, client):
+    reviewer = make_user("reviewer", "supervisor")
+    give(reviewer, REVIEW, future())
+    client.force_login(reviewer)
+    assert client.get(reverse("audit_review:changes")).status_code == 200
+    CapabilityEnd.objects.filter(user=reviewer).update(ends_at=past())
+    assert client.get(reverse("audit_review:changes")).status_code == 403
+
+
+def test_checks_in_one_transaction_agree_on_the_moment(make_user):
+    """transaction_timestamp(): the clock at the transaction's start, so a grant read twice in one
+    change or page reading is read the same way both times."""
+    from django.db import connection
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT transaction_timestamp(), clock_timestamp()")
+            start, _clock = cursor.fetchone()
+        holder = make_user("moment", "technical")
+        give(holder, PATIENT, start + timedelta(microseconds=1))
+        assert has_capability(holder, PATIENT)
+        assert has_capability(holder, PATIENT)  # still: the moment is the transaction's start
+
+
+# --- the end goes with its grant ---------------------------------------------------------------
+
+
+def test_removing_the_grant_removes_its_end_and_a_grant_given_anew_has_none(make_user):
+    holder = make_user("again", "technical")
+    give(holder, PATIENT, past())
+    holder.user_permissions.remove(capability(PATIENT))
+    assert not CapabilityEnd.objects.filter(user=holder).exists()
+    give(holder, PATIENT, past())
+    holder.user_permissions.clear()
+    assert not CapabilityEnd.objects.exists()
+    give(holder, PATIENT, past())
+    capability(PATIENT).user_set.remove(holder)  # from the permission's side
+    assert not CapabilityEnd.objects.exists()
+    # An end left behind by a path that bypasses the signals does not end a grant given anew.
+    CapabilityEnd.objects.create(user=holder, permission=capability(PATIENT), ends_at=past())
+    holder.user_permissions.add(capability(PATIENT))
+    assert not CapabilityEnd.objects.exists()
+    assert has_capability(holder, PATIENT)
+
+
+def test_setting_an_end_takes_the_accounts_access_gate(make_user, monkeypatch):
+    holder = make_user("gated", "technical")
+    give(holder, PATIENT)
+    closed = []
+    monkeypatch.setattr("accounts.acting.close_access", lambda ids: closed.append(list(ids)))
+    end = CapabilityEnd.objects.create(
+        user=holder, permission=capability(PATIENT), ends_at=future()
+    )
+    end.ends_at = past()
+    end.save()
+    assert closed == [[holder.pk], [holder.pk]]
+
+
+# --- the day and the moment --------------------------------------------------------------------
+
+
+@override_settings(TIME_ZONE="America/New_York")
+def test_a_last_day_ends_at_the_start_of_the_next_day_in_the_laboratorys_zone():
+    zone = ZoneInfo("America/New_York")
+    for day in (date(2026, 12, 31), date(2027, 3, 13), date(2027, 3, 14), date(2026, 11, 1)):
+        moment = grant_ends.end_of(day)
+        assert moment.astimezone(zone).date() == day + timedelta(days=1)
+        assert moment.astimezone(zone).hour == 0
+        assert grant_ends.last_day_of(moment) == day
+        # The same moment read back from the database (UTC) gives the same day and ISO form.
+        assert grant_ends.last_day_of(moment.astimezone(ZoneInfo("UTC"))) == day
+        assert grant_ends.iso(moment) == grant_ends.iso(moment.astimezone(ZoneInfo("UTC")))
+
+
+def test_a_new_day_must_be_today_or_later_but_a_kept_one_is_never_refused():
+    today = grant_ends.today()
+    yesterday = today - timedelta(days=1)
+    assert grant_ends.check_new_day(today, None) is None
+    assert grant_ends.check_new_day(yesterday, None) == grant_ends.PAST_DAY
+    assert grant_ends.check_new_day(yesterday, yesterday) is None
+    assert grant_ends.check_new_day(None, yesterday) is None
+
+
+# --- the account page --------------------------------------------------------------------------
+
+
+def test_every_capability_has_a_last_day_field_on_the_account_page():
+    fields = AccountChangeForm.base_fields
+    assert {end_field(codename) for codename in CAPABILITIES} <= set(fields)
+
+
+def change(http, account, **changes):
+    url = reverse("admin:accounts_user_change", args=[account.pk])
+    form = http.get(url).context["adminform"].form
+    return form, http.post(url, page_data(form, **changes))
+
+
+def test_a_superuser_sets_a_last_day_with_the_grant_and_it_is_audited(owner, make_user, client):
+    person = make_user("temp", "technical")
+    client.force_login(owner)
+    day = grant_ends.today() + timedelta(days=10)
+    _form, response = change(
+        client,
+        person,
+        user_permissions=[capability(PATIENT).pk],
+        **{end_field(PATIENT): day.isoformat()},
+    )
+    assert response.status_code == 302, response.content[:2000]
+    end = CapabilityEnd.objects.get(user=person)
+    assert end.ends_at == grant_ends.end_of(day)
+    assert has_capability(person, PATIENT)
+    event = AuditEvent.objects.filter(action="account.updated", object_id=str(person.pk)).get()
+    assert event.before["capability_ends"] == {}
+    assert event.after["capability_ends"] == {
+        f"accounts.{PATIENT}": grant_ends.iso(grant_ends.end_of(day))
+    }
+    assert event.after["permissions"] == [f"accounts.{PATIENT}"]
+    # The page drawn again shows the day.
+    form = (
+        client.get(reverse("admin:accounts_user_change", args=[person.pk]))
+        .context["adminform"]
+        .form
+    )
+    assert form.initial[end_field(PATIENT)] == day
+
+
+def test_an_end_only_change_is_saved_and_clearing_it_removes_the_end(owner, make_user, client):
+    person = make_user("shorten", "technical")
+    give(person, PATIENT, grant_ends.end_of(grant_ends.today() + timedelta(days=30)))
+    client.force_login(owner)
+    day = grant_ends.today() + timedelta(days=2)
+    _form, response = change(client, person, **{end_field(PATIENT): day.isoformat()})
+    assert response.status_code == 302
+    assert CapabilityEnd.objects.get(user=person).ends_at == grant_ends.end_of(day)
+    _form, response = change(client, person, **{end_field(PATIENT): ""})
+    assert response.status_code == 302
+    assert not CapabilityEnd.objects.filter(user=person).exists()
+    events = AuditEvent.objects.filter(action="account.updated", object_id=str(person.pk))
+    moment = grant_ends.iso(grant_ends.end_of(day))
+    assert sorted(
+        (
+            list(event.before["capability_ends"].values()),
+            list(event.after["capability_ends"].values()),
+        )
+        for event in events
+    ) == sorted(
+        [
+            (
+                [grant_ends.iso(grant_ends.end_of(grant_ends.today() + timedelta(days=30)))],
+                [moment],
+            ),
+            ([moment], []),
+        ]
+    )
+
+
+def test_a_day_for_a_capability_not_given_directly_is_refused(owner, make_user, client):
+    person = make_user("nogrant", "supervisor")
+    Group.objects.get(name="supervisor").permissions.add(capability(PATIENT))  # through the role
+    client.force_login(owner)
+    day = grant_ends.today() + timedelta(days=5)
+    _form, response = change(client, person, **{end_field(PATIENT): day.isoformat()})
+    assert response.status_code == 200
+    assert NOT_DIRECT in response.context["adminform"].form.errors[end_field(PATIENT)]
+    assert not CapabilityEnd.objects.exists()
+    assert not AuditEvent.objects.filter(action="account.updated").exists()
+
+
+def test_a_new_day_in_the_past_is_refused_and_a_kept_past_day_is_not(owner, make_user, client):
+    person = make_user("pastday", "technical")
+    client.force_login(owner)
+    yesterday = grant_ends.today() - timedelta(days=1)
+    _form, response = change(
+        client,
+        person,
+        user_permissions=[capability(PATIENT).pk],
+        **{end_field(PATIENT): yesterday.isoformat()},
+    )
+    assert response.status_code == 200
+    assert grant_ends.PAST_DAY in response.context["adminform"].form.errors[end_field(PATIENT)]
+    assert not person.user_permissions.exists()
+    # An end already past, kept as it is while another field changes, is saved as it stands.
+    give(person, PATIENT, grant_ends.end_of(yesterday))
+    form, response = change(client, person, first_name="Renamed")
+    assert "Ended" in form.fields[end_field(PATIENT)].help_text
+    assert response.status_code == 302
+    assert CapabilityEnd.objects.get(user=person).ends_at == grant_ends.end_of(yesterday)
+    assert not has_capability(person, PATIENT)
+
+
+def test_an_end_changed_after_the_page_was_opened_refuses_the_save(owner, make_user, client):
+    person = make_user("stale", "technical")
+    give(person, PATIENT, grant_ends.end_of(grant_ends.today() + timedelta(days=30)))
+    client.force_login(owner)
+    url = reverse("admin:accounts_user_change", args=[person.pk])
+    form = client.get(url).context["adminform"].form
+    with transaction.atomic():
+        CapabilityEnd.objects.filter(user=person).update(
+            ends_at=grant_ends.end_of(grant_ends.today() + timedelta(days=3))
+        )
+    response = client.post(url, page_data(form, first_name="Late"))
+    assert response.status_code == 200
+    assert CHANGED_SINCE_DRAWN in response.context["adminform"].form.non_field_errors()
+    person.refresh_from_db()
+    assert person.first_name == ""
+    # An end added elsewhere since the page opened refuses it too.
+    CapabilityEnd.objects.all().delete()
+    form = client.get(url).context["adminform"].form
+    CapabilityEnd.objects.create(user=person, permission=capability(PATIENT), ends_at=future())
+    response = client.post(url, page_data(form, first_name="Late"))
+    assert CHANGED_SINCE_DRAWN in response.context["adminform"].form.non_field_errors()
+
+
+def test_removing_the_capability_on_the_page_removes_its_end(owner, make_user, client):
+    person = make_user("remove", "technical")
+    give(person, PATIENT, grant_ends.end_of(grant_ends.today() + timedelta(days=30)))
+    client.force_login(owner)
+    _form, response = change(client, person, user_permissions=[], **{end_field(PATIENT): ""})
+    assert response.status_code == 302
+    assert not CapabilityEnd.objects.exists() and not person.user_permissions.exists()
+    event = AuditEvent.objects.get(action="account.updated", object_id=str(person.pk))
+    assert list(event.before["capability_ends"]) == [f"accounts.{PATIENT}"]
+    assert event.after["capability_ends"] == {} and event.after["permissions"] == []
+
+
+def test_an_account_without_ends_records_no_end_key(owner, make_user, client):
+    person = make_user("plain", "technical")
+    client.force_login(owner)
+    _form, response = change(client, person, first_name="Plain")
+    assert response.status_code == 302
+    event = AuditEvent.objects.get(action="account.updated", object_id=str(person.pk))
+    assert "capability_ends" not in event.before and "capability_ends" not in event.after
+
+
+def test_the_account_list_leaves_out_an_ended_capability(owner, make_user, client):
+    ended = make_user("ended1", "technical")
+    give(ended, PATIENT, past())
+    ending = make_user("ending1", "technical")
+    give(ending, PATIENT, future())
+    client.force_login(owner)
+    response = client.get(reverse("admin:accounts_user_changelist"))
+    rows = {u.username: u for u in response.context["cl"].result_list}
+    admin_view = response.context["cl"].model_admin
+    assert admin_view.capabilities(rows["ended1"]) == "—"
+    assert admin_view.capabilities(rows["ending1"]) == "Can view patient information"
+    assert admin_view.capabilities(User.objects.get(pk=ended.pk)) == "—"  # without the prefetch

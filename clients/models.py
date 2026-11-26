@@ -245,6 +245,10 @@ class PortalAccess(models.Model):
     )
     whole_organization = models.BooleanField(default=False)
     sites = models.ManyToManyField(ClientSite, blank=True, related_name="portal_accesses")
+    # When the access ends (accounts.grant_ends): from this moment on, by the database's clock, it
+    # grants nothing (clients.portal.current_access) and the account sees only the tickets it
+    # raised. None: until changed. Set with the scope (clients.services.set_portal_access).
+    ends_at = models.DateTimeField(null=True, blank=True)
     revision = models.PositiveIntegerField(default=1)
 
     class Meta:

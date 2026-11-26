@@ -38,15 +38,21 @@ def current_access(user):
     """The account's effective portal grant, or None.
 
     None for an account that is not an active portal account, has no access record, holds
-    access granted for another organization (it was moved: PortalAccess.applies_to), or holds an
-    access that grants nothing (neither the whole organization nor any site, as after a reset).
-    Every portal read that depends on scope (desk.portal_scope, portal_contacts) uses this, so
-    "no grant" means the same everywhere: the account's own portal requests, no site choice, and
-    only the contacts who serve the whole organization.
+    access granted for another organization (it was moved: PortalAccess.applies_to), holds an
+    access that has ended (its end, PortalAccess.ends_at, has passed by the database's clock at the
+    start of the transaction: accounts.grant_ends), or holds an access that grants nothing
+    (neither the whole organization nor any site, as after a reset). Every portal read that
+    depends on scope (desk.portal_scope, portal_contacts) uses this, so "no grant" means the same
+    everywhere: the account's own portal requests, no site choice, and only the contacts who
+    serve the whole organization.
     """
+    from accounts.grant_ends import in_force
+
     if not user.is_authenticated or user.client_id is None or not user.is_active:
         return None
-    access = PortalAccess.objects.filter(user=user, client_id=user.client_id).first()
+    access = (
+        PortalAccess.objects.filter(user=user, client_id=user.client_id).filter(in_force()).first()
+    )
     if access is None or not access.applies_to(user):
         return None
     if not access.whole_organization and not access.sites.exists():

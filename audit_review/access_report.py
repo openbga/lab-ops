@@ -6,8 +6,9 @@ records" with a laboratory role (audit_review.permissions), as the audit review 
 The report. For each account: its kind (staff, client portal, or the scheduled jobs' own) and
 whether it is active, its admin console access (staff status, superuser), its roles (the role
 groups of accounts.roles.ROLES) and capabilities (accounts.roles.CAPABILITIES, granted to the
-account or through one of its groups), its teams, its portal organization and what of it the
-account may see (clients.models.PortalAccess), whether it has a second factor and whether the
+account, with the grant's last day or shown as ended, or through one of its groups), its teams,
+its portal organization and what of it the account may see (clients.models.PortalAccess, with its
+last day, or what it sees once that has passed), whether it has a second factor and whether the
 laboratory's rule requires one (core.second_factor), and its last sign-in. Each is read as it stands
 when the page is drawn, in one reading (core.concurrency.one_reading).
 
@@ -45,11 +46,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.db.models import CharField, Exists, F, OuterRef, Q, Value
+from django.db.models import CharField, Exists, F, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce, Concat, Lower, NullIf, Trim
 from django.utils import timezone
 
-from accounts.roles import CAPABILITIES, ROLE_LABELS, ROLES
+from accounts.grant_ends import ended, has_ended, last_day_of
+from accounts.models import CapabilityEnd
+from accounts.roles import CAPABILITIES, ROLE_LABELS, ROLES, direct_grants
 from clients.models import PortalAccess
 from core import second_factor
 from core.audit import record_event
@@ -190,13 +193,12 @@ def holds_role(role):
 
 
 def holds_capability(codename):
-    """Granted to the account or to one of its groups, as accounts.roles.has_capability counts it
-    (whatever the account's kind or status: the report shows what is stored)."""
+    """Granted to the account (while the grant has not ended) or to one of its groups, as
+    accounts.roles.has_capability counts it (whatever the account's kind or status: the report
+    shows what is stored)."""
     User = get_user_model()
     permissions = _capability_permissions([codename])
-    direct = User.user_permissions.through.objects.filter(
-        user_id=OuterRef("pk"), permission__in=permissions
-    )
+    direct = direct_grants(user_id=OuterRef("pk"), permission__in=permissions)
     grouped = User.groups.through.objects.filter(
         user_id=OuterRef("pk"), group__permissions__in=permissions
     )
@@ -461,15 +463,46 @@ def _group_words(name):
 
 
 def _portal_text(account, access, sites):
+    """What a portal account sees, in words: its access (read with `over`, has_ended) as it
+    stands, with its last day, or what it sees once that has passed."""
     if account.client_id is None:
         return ""
     if access is None or not access.applies_to(account):
         return "Only the tickets it raised"
+    if access.over:
+        return f"Only the tickets it raised (access ended after {_day(access.ends_at)})"
     if access.whole_organization:
-        return "Its organization's tickets"
-    if sites:
-        return "Tickets of " + ", ".join(sites) + ", and those it raised"
-    return "Only the tickets it raised"
+        words = "Its organization's tickets"
+    elif sites:
+        words = "Tickets of " + ", ".join(sites) + ", and those it raised"
+    else:
+        return "Only the tickets it raised"
+    return f"{words}, last day {_day(access.ends_at)}" if access.ends_at else words
+
+
+def _day(ends_at):
+    return last_day_of(ends_at).isoformat()
+
+
+def direct_with_ends(grants):
+    """(user id, codename, ends_at or None, ended) of each grant of `grants` (rows of
+    User.user_permissions' table), its end read in the same statement and `ended` by the
+    database's clock (accounts.grant_ends)."""
+    ends = CapabilityEnd.objects.filter(
+        user_id=OuterRef("user_id"), permission_id=OuterRef("permission_id")
+    )
+    return grants.annotate(
+        ends_at=Subquery(ends.values("ends_at")[:1]), over=Exists(ends.filter(ended()))
+    ).values_list("user_id", "permission__codename", "ends_at", "over")
+
+
+def direct_words(ends_at, over):
+    """How a capability given directly is held, in words, with its last day."""
+    if ends_at is None:
+        return "Directly"
+    if over:
+        return f"Directly, ended after {_day(ends_at)}, gives nothing"
+    return f"Directly, last day {_day(ends_at)}"
 
 
 def describe(rows, *, history=True):
@@ -493,10 +526,12 @@ def _describe(accounts_list, history):
         memberships.setdefault(user_id, []).append((group_id, name))
         group_ids.add(group_id)
     capabilities = {}
-    for user_id, codename in User.user_permissions.through.objects.filter(
-        user_id__in=ids, permission__in=_capability_permissions(list(CAPABILITIES))
-    ).values_list("user_id", "permission__codename"):
-        capabilities.setdefault(user_id, set()).add(codename)
+    for user_id, codename, ends_at, over in direct_with_ends(
+        User.user_permissions.through.objects.filter(
+            user_id__in=ids, permission__in=_capability_permissions(list(CAPABILITIES))
+        )
+    ):
+        capabilities.setdefault(user_id, {})[codename] = (ends_at, over)
     group_grants = {}
     for group_id, codename in Group.permissions.through.objects.filter(
         group_id__in=group_ids, permission__in=_capability_permissions(list(CAPABILITIES))
@@ -521,7 +556,9 @@ def _describe(accounts_list, history):
         )
     portal = {
         access.user_id: access
-        for access in PortalAccess.objects.filter(user_id__in=ids).prefetch_related("sites")
+        for access in PortalAccess.objects.filter(user_id__in=ids)
+        .annotate(over=has_ended())
+        .prefetch_related("sites")
     }
     with_factor = set(
         Authenticator.objects.filter(
@@ -546,10 +583,13 @@ def _describe(accounts_list, history):
         ]
         capability_items = []
         for codename, label in CAPABILITIES.items():
-            if codename in capabilities.get(account.pk, ()):
+            if codename in capabilities.get(account.pk, {}):
+                ends_at, over = capabilities[account.pk][codename]
+                how = direct_words(ends_at, over)
+                text = f"{label} (ended)" if over else label
                 given = mine.permissions.get(f"accounts.{codename}")
                 capability_items.append(
-                    _given_item(label, given, "Directly") if history else Item(label, "Directly")
+                    _given_item(text, given, how) if history else Item(text, how, missing=over)
                 )
             for group_id, name in held:
                 if codename not in group_grants.get(group_id, ()):

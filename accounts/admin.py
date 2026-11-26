@@ -29,6 +29,10 @@ rules:
   password page, Mark as compromised, removing an authenticator) asks the superuser to confirm it
   is them, unless they did in the last few minutes (accounts.confirmation). Ending sessions does
   not ask.
+- A capability given directly may have a last day (accounts.grant_ends), set on the account's
+  page with the grant: after that day it gives nothing. Ends are part of what the page shows and
+  saves, so a page opened before another change of an end refuses to save over it, and the
+  account's change event records them before and after (only when the account has or had one).
 """
 
 import hashlib
@@ -64,7 +68,8 @@ from core.audit import record_event
 
 from .confirmation import ConfirmIdentity
 from .forms import PasswordGuidance
-from .models import User
+from .grant_ends import check_new_day, end_of, ended, has_ended, iso, last_day_of
+from .models import CapabilityEnd, User
 from .roles import CAPABILITIES, ROLES
 from .setup import account_snapshot, group_snapshot, held_role_names, with_held_role_names
 
@@ -92,10 +97,21 @@ class SuperuserOnly:
 
 
 def capability_names(user):
-    """Capability labels the account holds, from prefetched permissions; as accounts.roles."""
+    """Capability labels the account holds, from prefetched permissions and ended grants
+    (AccountAdmin.get_queryset); as accounts.roles."""
     if user.client_id is not None or not user.is_active:
         return []
-    direct = {(p.content_type.app_label, p.codename) for p in user.user_permissions.all()}
+    if hasattr(user, "ended_grants"):
+        over = {end.permission_id for end in user.ended_grants}
+    else:
+        over = set(
+            CapabilityEnd.objects.filter(ended(), user=user).values_list("permission_id", flat=True)
+        )
+    direct = {
+        (p.content_type.app_label, p.codename)
+        for p in user.user_permissions.all()
+        if p.pk not in over
+    }
     grouped = {
         (p.content_type.app_label, p.codename)
         for g in user.groups.all()
@@ -124,8 +140,10 @@ CHANGED_SINCE_DRAWN = (
 )
 
 
-# What the account page shows and saves: names, email, organization, flags, roles and
-# capabilities (not the password, the sign-in time or the date joined, which it does not edit).
+# What the account page shows and saves: names, email, organization, flags, roles, capabilities
+# and the ends of those given directly (not the password, the sign-in time or the date joined,
+# which it does not edit).
+ENDS = "capability_ends"
 PAGE_FIELDS = (
     "username",
     "first_name",
@@ -137,9 +155,39 @@ PAGE_FIELDS = (
     "is_staff",
     "is_superuser",
     "user_permissions",
+    ENDS,
 )
 RELATIONS = ("groups", "user_permissions")
-COLUMNS = tuple(name for name in PAGE_FIELDS if name not in RELATIONS)
+COLUMNS = tuple(name for name in PAGE_FIELDS if name not in (*RELATIONS, ENDS))
+
+
+def end_field(codename):
+    """The account page's field for the last day of a capability given directly."""
+    return f"last_day_{codename}"
+
+
+def capability_ids():
+    """{codename: permission id} of the capabilities (accounts.roles.CAPABILITIES)."""
+    return dict(
+        Permission.objects.filter(
+            content_type__app_label="accounts", codename__in=list(CAPABILITIES)
+        ).values_list("codename", "pk")
+    )
+
+
+def read_ends(user):
+    """{codename: (ends_at, ended)} of the ends of capabilities given to `user` directly, read in
+    one statement; `ended` says whether the end has passed by the database's clock."""
+    rows = (
+        CapabilityEnd.objects.filter(
+            user=user,
+            permission__content_type__app_label="accounts",
+            permission__codename__in=list(CAPABILITIES),
+        )
+        .annotate(ended=has_ended())
+        .values_list("permission__codename", "ends_at", "ended")
+    )
+    return {codename: (ends_at, over) for codename, ends_at, over in rows}
 
 
 def _plain(value):
@@ -157,13 +205,18 @@ def _digest(values):
     return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def account_reading(user):
+def account_reading(user, ends=None):
     """The page's fields of `user` as stored: its columns from this instance, its roles as
-    (id, name) pairs and its capability grants as ids, each read once, sorted. The fingerprint
-    takes the roles' ids: a role renamed on its own page changes no account."""
+    (id, name) pairs, its capability grants as ids and the ends of those given directly as
+    {codename: moment in UTC, ISO 8601} (`ends`, a read_ends reading, when the caller has one),
+    each read once, sorted. The fingerprint takes the roles' ids: a role renamed on its own page
+    changes no account."""
     reading = model_to_dict(user, fields=COLUMNS)
     reading["groups"] = sorted(user.groups.values_list("pk", "name"))
     reading["user_permissions"] = sorted(user.user_permissions.values_list("pk", flat=True))
+    if ends is None:
+        ends = read_ends(user)
+    reading[ENDS] = {codename: iso(ends_at) for codename, (ends_at, _over) in ends.items()}
     return reading
 
 
@@ -178,7 +231,8 @@ def drawn_state(user):
 
 def _snapshot(reading, group_names, permission_labels):
     """account_snapshot's shape (the audit's) of an account_reading whose roles are ids, with
-    the names and labels given, so that before and after name a role the same way."""
+    the names and labels given, so that before and after name a role the same way. The ends of
+    capabilities are added by the caller (save_related), only when the account has or had one."""
     return {
         "username": reading["username"],
         "email": reading["email"],
@@ -191,6 +245,11 @@ def _snapshot(reading, group_names, permission_labels):
         "groups": sorted(group_names[pk] for pk in reading["groups"]),
         "permissions": sorted(permission_labels[pk] for pk in reading["user_permissions"]),
     }
+
+
+def _end_labels(ends):
+    """The audit's form of capability ends: {app.codename: ISO moment}, as permissions are named."""
+    return {f"accounts.{codename}": moment for codename, moment in sorted(ends.items())}
 
 
 def _labels(permission_ids):
@@ -325,9 +384,34 @@ class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
         return context
 
 
+END_HELP = (
+    "Optional. After this day ends, in the laboratory's time zone, the capability given directly "
+    "above gives nothing, until it is removed or a later day is set. A capability given through a "
+    "role or group has no end. Leave empty for no end."
+)
+NOT_DIRECT = (
+    "Give this capability to the account directly (under User permissions), or clear its last day."
+)
+
+
+class CapabilityEndField(forms.DateField):
+    """The last day of one capability given directly (accounts.grant_ends)."""
+
+    def __init__(self, label):
+        super().__init__(
+            required=False,
+            label=f"Last day of “{label}”",
+            widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            help_text=END_HELP,
+        )
+
+
 class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
     # The account as drawn: a save is refused when it has changed since (AccessRules).
     drawn = DrawnStateField(required=False)
+    # One for each capability (accounts.roles.CAPABILITIES; tests check none is missing).
+    last_day_view_patient_information = CapabilityEndField(CAPABILITIES["view_patient_information"])
+    last_day_review_audit_records = CapabilityEndField(CAPABILITIES["review_audit_records"])
 
     def __init__(self, *args, **kwargs):
         from jobs.actor import is_system_account
@@ -336,14 +420,58 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
         if self.instance.pk and not self.is_bound:
             # The values this form draws, not a second reading of the account: a role added
             # between the two would otherwise be in the fingerprint and missing from the page.
+            # The ends drawn and fingerprinted are one reading too.
+            ends = read_ends(self.instance)
+            for codename, (ends_at, over) in ends.items():
+                name = end_field(codename)
+                if name not in self.fields:
+                    continue
+                self.initial[name] = last_day_of(ends_at)
+                if over:
+                    self.fields[name].help_text = (
+                        "Ended: this day has passed, so the capability gives nothing. Choose a "
+                        "later day, or clear it, to give it again, or remove the capability. "
+                        + END_HELP
+                    )
             drawn = {name: self.initial[name] for name in PAGE_FIELDS if name in self.initial}
-            self.initial["drawn"] = _digest({**account_reading(self.instance), **drawn})
+            self.initial["drawn"] = _digest({**account_reading(self.instance, ends), **drawn})
         password = self.fields.get("password")
         if password is not None and self.instance.pk and is_system_account(self.instance):
             # Its page is read only and its password form refuses it: offer neither. (A read-only
             # page shows the widget, not the field's help text, so the widget gives the reason.)
             password.widget = ReservedPasswordWidget()
             password.help_text = ReservedPasswordWidget.explanation
+
+    def clean(self):
+        """The last days, checked once the account is held as the page was drawn (AccessRules
+        sets held_reading; nothing is checked here when an earlier check refused the save): a
+        day only for a capability the page gives directly, and a new day today or later."""
+        data = super().clean()
+        held = getattr(self, "held_reading", None)
+        if held is None:
+            return data
+        ids = capability_ids()
+        posted = {permission.pk for permission in data.get("user_permissions") or ()}
+        for codename in CAPABILITIES:
+            name = end_field(codename)
+            day = data.get(name)
+            if day is None or name not in self.fields:
+                continue
+            if "user_permissions" in data and ids.get(codename) not in posted:
+                self.add_error(name, NOT_DIRECT)
+                continue
+            stored = held[ENDS].get(codename)
+            past = check_new_day(day, last_day_of(_moment(stored)))
+            if past:
+                self.add_error(name, past)
+        return data
+
+
+def _moment(value):
+    """An end as account_reading holds it (ISO 8601) as an aware moment, or None."""
+    from datetime import datetime
+
+    return datetime.fromisoformat(value) if value else None
 
 
 class AccountCreationForm(ConfirmIdentity, PasswordGuidance, AccessRules, AdminUserCreationForm):
@@ -484,6 +612,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 "groups",
                 Prefetch("user_permissions", queryset=permissions),
                 Prefetch("groups__permissions", queryset=permissions),
+                Prefetch(
+                    "capability_ends",
+                    queryset=CapabilityEnd.objects.filter(ended()),
+                    to_attr="ended_grants",
+                ),
             )
         )
 
@@ -533,6 +666,16 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 "no laboratory role and no capability. A capability is an explicit permission "
                 "under accounts (for example accounts | user | Can view patient information), "
                 "given here or through a group. Untick Active instead of deleting a user.",
+            },
+        ),
+        (
+            "Capability end dates",
+            {
+                "fields": tuple(end_field(codename) for codename in CAPABILITIES),
+                "description": "A capability given directly above can have a last day, for "
+                "access needed only for a while. After that day it gives nothing, and the access "
+                "report shows it as ended. Each check of the capability compares the end with "
+                "the database's clock.",
             },
         ),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
@@ -609,6 +752,7 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 after[name] = (kept - removed) | added
             for formset in formsets:
                 self.save_formset(request, form, formset, change=change)
+            after[ENDS] = self._save_ends(obj, form, held[ENDS], after["user_permissions"])
             after.update(model_to_dict(obj, fields=COLUMNS))
             # One reading of the names for both, so a role renamed on the role group page
             # (recorded there) does not show as a change of this account. When the save changes
@@ -627,7 +771,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             # their names: two roles renamed meanwhile could otherwise hide a change.
             changed = _digest(before) != _digest(after)
             obj._audit_before = _snapshot(before, names, labels)
+            after_ends = after[ENDS]
             after = _snapshot(after, names, labels)
+            if before[ENDS] or after_ends:
+                obj._audit_before[ENDS] = _end_labels(before[ENDS])
+                after[ENDS] = _end_labels(after_ends)
         before = obj._audit_before
         if changed:
             record_event(
@@ -646,6 +794,35 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 request,
                 f"{released} ticket{'s' if released != 1 else ''} returned to their team queues.",
             )
+
+    @staticmethod
+    def _save_ends(obj, form, held_ends, granted):
+        """Set the ends of the capabilities given directly as the form asks, from the ends the
+        check held (held_ends, {codename: ISO moment}) and the grants after the save (`granted`,
+        permission ids): an end only for a capability given directly; a day kept as drawn keeps
+        its stored moment. Returns the ends after the save, as held_ends reads them. Setting one
+        takes the account's gate (accounts.grant_ends), which this save holds already."""
+        ids = capability_ids()
+        after = {}
+        for codename, permission_id in ids.items():
+            day = form.cleaned_data.get(end_field(codename))
+            if day is None or permission_id not in granted:
+                continue
+            stored = held_ends.get(codename)
+            kept = stored is not None and last_day_of(_moment(stored)) == day
+            after[codename] = stored if kept else iso(end_of(day))
+        for codename, permission_id in ids.items():
+            want, have = after.get(codename), held_ends.get(codename)
+            if want == have:
+                continue
+            ends = CapabilityEnd.objects.filter(user=obj, permission_id=permission_id)
+            if want is None:
+                ends.delete()
+            else:
+                CapabilityEnd.objects.update_or_create(
+                    user=obj, permission_id=permission_id, defaults={"ends_at": _moment(want)}
+                )
+        return after
 
     @admin.display(description="Open sessions")
     def open_sessions(self, user):

@@ -1,5 +1,6 @@
 {% comment %}
 What one portal account sees, in words (clients.models.PortalAccess). Context: access (the
 account's current PortalAccess, or None when its access is not set or was granted for another
-organization; clients.views._portal_accounts decides).
-{% endcomment %}{% if access is None %}<span class="vr-muted">Only tickets it raised (access not set)</span>{% elif access.whole_organization %}The whole organization{% else %}{% with sites=access.sites.all %}{% if sites %}{% for site in sites %}{{ site.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}<span class="vr-muted">Only tickets it raised</span>{% endif %}{% endwith %}{% endif %}
+organization; clients.views._portal_accounts decides, and sets access.last_day, the day its end
+falls on or None, and access.ended, whether that end has passed by the database's clock).
+{% endcomment %}{% if access is None %}<span class="vr-muted">Only tickets it raised (access not set)</span>{% elif access.ended %}<span class="vr-muted">Only tickets it raised (access ended after {{ access.last_day|date:"Y-m-d" }})</span>{% else %}{% if access.whole_organization %}The whole organization{% else %}{% with sites=access.sites.all %}{% if sites %}{% for site in sites %}{{ site.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}<span class="vr-muted">Only tickets it raised</span>{% endif %}{% endwith %}{% endif %}{% if access.last_day %}<span class="d-block vr-muted small">Last day {{ access.last_day|date:"Y-m-d" }}</span>{% endif %}{% endif %}

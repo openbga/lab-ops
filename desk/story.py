@@ -40,6 +40,9 @@ CAPABILITY_HOLDER = "demo_supervisor"
 # work includes reviewing who opened and changed what.
 REVIEW_CAPABILITY = "review_audit_records"
 REVIEW_HOLDER = "demo_supervisor"
+# The patient-information grant is time-limited (accounts.grant_ends): its last day is this many
+# days after the seed's day, so the demonstration, reset each day, shows an end to come.
+CAPABILITY_DAYS = 90
 
 # Who does what in the story.
 AGENT, LEAD, TECH, MANAGER = (
@@ -895,6 +898,36 @@ def grant_capability():
             obj=holder,
             after={"capability": codename},
             reason=reason,
+        )
+    end_capability()
+
+
+def end_capability():
+    """The last day of demo_supervisor's patient-information grant, CAPABILITY_DAYS after today,
+    set once and audited (the account page records an end in the account's change event; the seed,
+    as for its grants, records an event of its own)."""
+    from accounts.grant_ends import end_of, iso, today
+    from accounts.models import CapabilityEnd
+
+    holder = User.objects.get(username=CAPABILITY_HOLDER)
+    permission = Permission.objects.get(
+        codename=CAPABILITY, content_type__app_label="accounts", content_type__model="user"
+    )
+    if not holder.user_permissions.filter(pk=permission.pk).exists():
+        return
+    if CapabilityEnd.objects.filter(user=holder, permission=permission).exists():
+        return
+    ends_at = end_of(today() + timedelta(days=CAPABILITY_DAYS))
+    with transaction.atomic():  # setting an end takes the account's access gate
+        CapabilityEnd.objects.create(user=holder, permission=permission, ends_at=ends_at)
+        record_event(
+            actor=User.objects.get(username="demo_admin"),
+            action="account.capability_end_set",
+            obj=holder,
+            before={"capability": CAPABILITY, "ends_at": None},
+            after={"capability": CAPABILITY, "ends_at": iso(ends_at)},
+            reason="Demonstration seed: the supervisor's patient information access is "
+            "time-limited",
         )
 
 

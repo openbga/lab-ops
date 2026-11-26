@@ -10,9 +10,9 @@ and narrows by its portal access (clients.models.PortalAccess):
 - never: a request in a restricted category that the account did not raise.
 
 An account without an effective grant (clients.portal.current_access: no access record, access
-granted for another organization, or access that lists nothing), an inactive account and a staff
-account see only what they raised in the portal (staff raise none there). A request outside the
-result answers 404.
+granted for another organization, access that has ended, or access that lists nothing), an
+inactive account and a staff account see only what they raised in the portal (staff raise none
+there). A request outside the result answers 404.
 """
 
 from django.core.exceptions import ValidationError

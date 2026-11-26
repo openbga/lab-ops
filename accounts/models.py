@@ -156,6 +156,28 @@ class User(AbstractUser):
         permissions = list(CAPABILITIES.items())
 
 
+class CapabilityEnd(models.Model):
+    """When a capability given directly to an account ends (accounts.grant_ends): from `ends_at` on,
+    by the database's clock, the grant gives nothing (accounts.roles.direct_grants), though it
+    stays on the account until it is removed or a later end is set. At most one for each account
+    and capability; it goes with the grant (accounts.acting removes it when the grant is removed,
+    and a grant given anew starts without one). A capability given through a role or group has no
+    end. Set on the account's page in the admin console (accounts.admin), which records it in the
+    account's change event."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="capability_ends")
+    permission = models.ForeignKey("auth.Permission", on_delete=models.CASCADE, related_name="+")
+    ends_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "permission"], name="one_end_per_grant")
+        ]
+
+    def __str__(self):
+        return f"End of {self.permission_id} for {self.user_id}"
+
+
 class SignInFactor(models.TextChoices):
     """What a sign-in proved, or the step at which an attempt failed (accounts.signin_history).
     A failure at the second step names neither kind of code: the form takes either."""

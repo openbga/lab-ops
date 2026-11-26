@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.text import Truncator
 
+from accounts.grant_ends import has_ended, last_day_of
 from accounts.models import User
 from accounts.roles import require_staff
 from core import access
@@ -189,16 +190,22 @@ def _posted_revision(form):
 
 def _portal_accounts(client):
     """Portal accounts of the organization, each with `current_access`: its PortalAccess when
-    granted for this organization, else None (not set, or left from another organization)."""
+    granted for this organization, else None (not set, or left from another organization). An
+    access carries `last_day` (its end as a day, or None) and `ended` (its end has passed by the
+    database's clock, read in the same statement: accounts.grant_ends)."""
     accounts = list(
         User.objects.filter(client=client)
         .select_related("portal_access__contact")
         .prefetch_related("portal_access__sites")
+        .annotate(access_ended=has_ended("portal_access__ends_at"))
         .order_by("-is_active", "email")
     )
     for account in accounts:
         access = getattr(account, "portal_access", None)
         account.current_access = access if access and access.applies_to(account) else None
+        if account.current_access is not None:
+            access.last_day = last_day_of(access.ends_at)
+            access.ended = account.access_ended
     return accounts
 
 
@@ -294,7 +301,12 @@ def portal_access_edit(request, pk, user_pk):
     require_client_manager(request.user)
     client = get_object_or_404(Client, pk=pk)
     account = get_object_or_404(User, pk=user_pk, client=client)
-    stored = PortalAccess.objects.filter(user=account).select_related("contact").first()
+    stored = (
+        PortalAccess.objects.filter(user=account)
+        .select_related("contact")
+        .annotate(ended=has_ended())
+        .first()
+    )
     # Access granted for another organization (the account was moved) shows as not set; saving
     # replaces it, with a reason because a record exists.
     access = stored if stored and stored.applies_to(account) else None
@@ -304,6 +316,7 @@ def portal_access_edit(request, pk, user_pk):
         "scope": "sites"
         if access and not access.whole_organization and granted
         else "organization",
+        "last_day": last_day_of(access.ends_at) if access else None,
         "expected_revision": stored.revision if stored else 0,
     }
     form = PortalAccessForm(request.POST or None, account=account, access=stored, initial=initial)
@@ -317,6 +330,7 @@ def portal_access_edit(request, pk, user_pk):
                 contact=data["contact"],
                 whole_organization=data["whole_organization"],
                 sites=data.get("sites") or (),
+                last_day=data.get("last_day"),
                 expected_client_id=client.pk,  # the organization this form was decided for
                 expected_revision=data.get("expected_revision"),
                 reason=data.get("reason", ""),
