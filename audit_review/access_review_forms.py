@@ -144,13 +144,16 @@ class AccessReviewForm(StyledForm, forms.Form):
         self.checked_hash = getattr(self.request, confirmation.CHECKED, None)
         return True
 
-    def redraw(self, grants, fingerprint, message):
-        """Draw the form again over `grants` (read as they stand now): the decisions sent are kept
-        for the grants shown before and unchanged (the same field), the others are marked changed
-        and undecided, the fingerprint is the new reading's, and only `message` is shown as an
-        error. The password is asked for again."""
+    def redraw(self, grants, fingerprint, message, scope, organization=None):
+        """Draw the form again over `grants`, the grants of `scope` and `organization` read as
+        they stand now: the decisions sent are kept for the grants shown before and unchanged (the
+        same field), the others are marked changed and undecided, the form posts that scope and the
+        new reading's fingerprint, and only `message` is shown as an error. The password is asked
+        for again."""
         sent = set(str(self.data.get("shown", "")).split(","))
         data = self.data.copy()
+        data["scope"] = scope
+        data["organization"] = str(organization.pk) if organization is not None else ""
         data["expected"] = fingerprint
         data["shown"] = shown(grants)
         data.pop(confirmation.PASSWORD_FIELD, None)

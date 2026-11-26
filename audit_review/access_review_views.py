@@ -38,6 +38,10 @@ from .sources import EXPORT_LIMIT, PAGE_SIZE
 from .views import _cell
 
 LIST_TITLE = "Access review: reviews"
+CHOICE_REFUSED = (
+    "The accounts this form was sent for were not accepted, so it now lists the staff accounts. "
+    "Check the decisions below, then sign again."
+)
 
 
 def _list_url():
@@ -302,11 +306,15 @@ def review_create(request):
     if request.method == "POST":
         form = AccessReviewForm(request.POST, grants=current.grants, request=request)
         if not choice.is_valid():
-            form = form.redraw(current.grants, current.fingerprint, choice.errors.as_text())
+            form = form.redraw(
+                current.grants, current.fingerprint, CHOICE_REFUSED, scope, organization
+            )
         elif request.POST.get("expected") != current.fingerprint:
             # Changed since the form was drawn: drawn again as the grants stand, before the
             # password is checked (a form sent again costs no attempt).
-            form = form.redraw(current.grants, current.fingerprint, access_reviews.STALE)
+            form = form.redraw(
+                current.grants, current.fingerprint, access_reviews.STALE, scope, organization
+            )
         elif form.check_password():
             data = form.cleaned_data
             try:
@@ -324,7 +332,13 @@ def review_create(request):
             except ValidationError as exc:
                 if access_reviews.STALE in exc.messages:
                     current = access_reviews.reading(scope, organization)
-                    form = form.redraw(current.grants, current.fingerprint, access_reviews.STALE)
+                    form = form.redraw(
+                        current.grants,
+                        current.fingerprint,
+                        access_reviews.STALE,
+                        scope,
+                        organization,
+                    )
                 else:
                     _errors(form, exc)
             except PermissionDenied as exc:

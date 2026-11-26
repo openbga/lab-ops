@@ -408,7 +408,7 @@ def posted(response, decide=Decision.KEEP, **extra):
         name: re.search(rf'name="{name}" value="([^"]*)"', body).group(1)
         for name in ("scope", "expected", "shown")
     }
-    found = re.search(r'name="organization" value="([^"]*)"', body)
+    found = re.search(r'<input type="hidden" name="organization" value="([^"]*)"', body)
     data["organization"] = found.group(1) if found else ""
     for name in set(re.findall(r'name="(d-[0-9a-f]+)"', body)):
         data[name] = decide
@@ -685,3 +685,22 @@ def test_the_changes_list_names_a_signing_by_its_number(client, reviewer, superv
     client.force_login(reviewer)
     response = client.get(reverse("audit_review:changes"))
     assert f"Access review {review.number}".encode() in response.content
+
+
+def test_a_form_sent_for_accounts_not_accepted_is_drawn_again_for_the_staff_accounts(
+    client, reviewer, supervisor, clinic
+):
+    client.force_login(reviewer)
+    data = posted(form_page(client), organization=str(clinic.pk))  # staff with an organization
+    response = client.post(reverse("access_review:review-create"), data)
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "were not accepted, so it now lists the staff accounts" in body
+    assert re.search(r'name="scope" value="staff"', body)
+    hidden = re.search(r'<input type="hidden" name="organization"[^>]*>', body).group(0)
+    assert f'value="{clinic.pk}"' not in hidden
+    assert not AccessReview.objects.exists()
+    # Sent again as drawn, it signs for the staff accounts.
+    response = client.post(reverse("access_review:review-create"), posted(response))
+    assert response.status_code == 302
+    assert AccessReview.objects.get().scope == "staff"
