@@ -103,6 +103,8 @@ NON_PAGE_ROUTES = {
     # Access review: CSV exports of its lists
     "access_review:accounts-export",
     "access_review:unused-export",
+    "access_review:reviews-export",
+    "access_review:review-export",
 }
 
 # Items whose label is not the title (h1) of the page they open, with the title expected. The

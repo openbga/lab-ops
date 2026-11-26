@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+The Reviews tab of the Access review section (audit_review.access_review_views.reviews_page), for
+holders of "Can review access and audit records": the signed access reviews, newest first, 50 a
+page, every page drawn as of the moment the first was (the pager's and the export's links carry
+`upto`). Context: page_obj (a Page of AccessReview), total, last (the newest review, or None),
+export_url, export_limit, exportable, create_url. Showing a page is recorded (WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">The laboratory's record that someone went through who holds what and decided, for each grant, to keep it or remove it, with their signed sign-off.</p>{% endblock %}
+{% block page_actions %}{% if exportable %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endif %}<a class="btn btn-primary" href="{{ create_url }}">Record an access review</a>{% endblock %}
+{% block content %}
+{% section_tabs "access-review" %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {% list_results items=page_obj noun="access reviews" paginate=False empty_title="No access review recorded yet" empty_body="Record one when you have gone through who holds what: a decision for each grant, and your sign-off." action_url=create_url action_label="Record an access review" %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-label="Access reviews">
+      <thead><tr>
+        <th scope="col">Access review</th>
+        <th scope="col">Accounts reviewed</th>
+        <th scope="col" class="vr-number">Grants</th>
+        <th scope="col" class="vr-number">Decided to remove</th>
+        <th scope="col">Signed by</th>
+        <th scope="col">Signed</th>
+      </tr></thead>
+      <tbody>
+        {% for review in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'access_review:review' review.pk %}">{{ review.number }}</a></th>
+          <td class="vr-wrap"><span class="vr-break-anywhere">{{ review.scope_label }}</span><span class="d-block vr-muted small">{{ review.accounts }} account{{ review.accounts|pluralize }}</span></td>
+          <td class="vr-number">{{ review.grants }}</td>
+          <td class="vr-number">{% if review.removals %}{{ review.removals }}{% else %}<span class="vr-muted">0</span>{% endif %}</td>
+          <td class="vr-wrap"><span class="vr-break-anywhere">{{ review.signer_name }}<span class="d-block vr-muted small">{{ review.signer_roles }}</span></span></td>
+          <td class="vr-nowrap"><time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"Y-m-d H:i" }}</time></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="access reviews" fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows. {% endif %}Access reviews are listed as they stood when the first page opened. A signed access review cannot be changed or removed; its page shows whether each grant decided for removal is still held. Each page shown here and each export is recorded under Workspace use in Audit review.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

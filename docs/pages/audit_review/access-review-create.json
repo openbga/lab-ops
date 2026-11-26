@@ -1,0 +1,162 @@
+{
+  "id": "access-review-review-create",
+  "routes": [
+    "access_review:review-create"
+  ],
+  "title": "Record an access review",
+  "purpose": "Go through every grant the chosen accounts hold now, decide whether to keep or remove each, and sign the access review with your password. For holders of the review capability only.",
+  "summary": "List every grant the chosen accounts hold now, decide Keep or Remove for each, add findings and follow-up, and sign with your password. Signing records decisions; it removes nothing.",
+  "tasks": [
+    {
+      "title": "Review the staff accounts",
+      "steps": [
+        "Leave [[Accounts to review]] on Staff accounts, or choose it and select [[Show]].",
+        "Under [[Grants held now]], choose [[Keep]] or [[Remove]] for every grant.",
+        "Say why in [[Findings]] and who removes what in [[Follow-up]].",
+        "Enter your password in [[Your password]] and select [[Sign access review]]."
+      ]
+    },
+    {
+      "title": "Review one organization's portal accounts",
+      "steps": [
+        "Choose Client portal accounts in [[Accounts to review]], the organization in [[Organization]], and select [[Show]].",
+        "Decide each grant, then sign as above."
+      ]
+    },
+    {
+      "title": "Remove what you decided to remove",
+      "steps": [
+        "After signing, ask a superuser to remove the role, capability or admin console access, or deactivate the portal account, on the account's page in the admin console.",
+        "The access review's page then shows each removal as No longer held."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Signing removes nothing. A grant is removed where it is given, in the admin console, by a superuser.",
+    "If an account or its grants change while you work, signing is refused and the list is drawn again. Decide the grants marked [[New or changed]] and sign again.",
+    "A wrong password signs nothing and keeps your decisions. It counts as a failed attempt toward the failed sign-in limit.",
+    "There are no drafts, and a signed access review cannot be changed or removed. Check every decision before you sign.",
+    "Do not enter patient names or identifiers. Refer to people by username and to tickets by number."
+  ],
+  "sections": [
+    {
+      "title": "Accounts to review",
+      "items": [
+        {
+          "label": "Accounts to review",
+          "description": "Staff accounts (the default) or Client portal accounts. Staff accounts are the active staff accounts, leaving out the scheduled jobs' own account and accounts that hold no role, group, capability or admin console access. Client portal accounts are the active portal accounts. Deactivated accounts are never listed."
+        },
+        {
+          "label": "Organization",
+          "description": "For client portal accounts: Every organization, or one organization's portal accounts. Choosing one with Staff accounts is refused with Choose an organization only for client portal accounts, and the staff accounts are listed until it is corrected."
+        },
+        {
+          "label": "Show",
+          "description": "Lists the grants of the accounts chosen, as they stand now. Opening the page lists the staff accounts."
+        },
+        {
+          "label": "Too many to review at once",
+          "description": "An access review covers at most 500 accounts and 900 grants. A choice with more shows this notice and no form. Review the client portal accounts of one organization at a time."
+        },
+        {
+          "label": "Nothing to review",
+          "description": "No active account in the choice holds anything to review. Choose other accounts."
+        }
+      ]
+    },
+    {
+      "title": "Grants held now",
+      "paragraphs": [
+        "The line above the list counts the accounts and grants, as they stand now, and how many grants had no decision when the page was drawn; that count does not change as you choose. Accounts are listed by the name shown, then username, each with its username and, for a portal account, its organization. Your own account is marked You. Each grant shows its words and a line below:"
+      ],
+      "items": [
+        {
+          "label": "Admin console",
+          "description": "The account can open the admin console."
+        },
+        {
+          "label": "Superuser",
+          "description": "The account is a superuser."
+        },
+        {
+          "label": "A role",
+          "description": "Membership of a laboratory role group, such as Technical staff role, with Gives and the capability below when the role group gives one."
+        },
+        {
+          "label": "Another group",
+          "description": "Membership of a group that is not a role, such as Group “night shift”, with Gives and the capability below when the group gives one."
+        },
+        {
+          "label": "A capability given directly",
+          "description": "Can view patient information or Can review access and audit records granted to the account itself, with Given directly below. A capability held only through a group is part of that group's grant."
+        },
+        {
+          "label": "Portal account",
+          "description": "For a client portal account, the account itself, with what of its organization it may see below: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised."
+        },
+        {
+          "label": "Keep and Remove",
+          "description": "Required for every grant, with no default. A grant left undecided shows Choose Keep or Remove, and nothing is signed. Your decision is recorded; nothing is removed."
+        },
+        {
+          "label": "New or changed",
+          "description": "Marks a grant that was not on the form you sent, after the accounts or their grants changed. It needs a decision."
+        }
+      ]
+    },
+    {
+      "title": "What you found",
+      "items": [
+        {
+          "label": "Findings",
+          "description": "Optional. What you found, such as why a grant is to be removed. Refer to people by username. At most 4,000 characters."
+        },
+        {
+          "label": "Follow-up",
+          "description": "Optional. Who removes what and by when, such as a ticket number. At most 4,000 characters."
+        }
+      ]
+    },
+    {
+      "title": "Sign-off",
+      "items": [
+        {
+          "label": "Your password",
+          "description": "Your own password, entered at each signing. It is checked only once every decision and field is accepted, so a form sent back for another reason costs no attempt. A password not accepted shows Incorrect password, signs nothing, keeps your decisions and text (never the password) and is written to your sign-in history as a failed re-authentication, where it counts toward the failed sign-in limit. After too many attempts in a short time, wait before trying again. An account with no password cannot sign. The second factor is not asked, and signing does not count as confirming it is you for other changes."
+        },
+        {
+          "label": "Sign access review",
+          "description": "Reads the accounts and their grants again as they stand and, when they are what the form showed, writes the access review in one step: a number such as AC-000001, every grant with your decision, the findings and follow-up, your name, username and roles as they are now, the meaning Reviewed, the time by the application's clock and a SHA-256 checksum of what you signed. It then opens the access review's page. There are no drafts. The access review cannot be changed or removed afterwards: the database refuses it."
+        },
+        {
+          "label": "Accounts or grants changed",
+          "description": "When an account was added to or left the choice, or an account's name, username or grants changed after the form was drawn, signing is refused and the form is drawn again as they stand. Your decisions are kept for the grants that did not change; the others are marked New or changed and need one. Enter your password again and sign."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Reviews tab without saving."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused. Your access is checked again when you sign: if the capability or your role was removed meanwhile, nothing is signed.",
+        "Each time the form is drawn, with every grant it lists, it is recorded under Workspace use in Audit review, with the source Access review: reviews, the accounts chosen and how many grants were listed. If the record cannot be written, the page is not shown. Signing is recorded as a change, listed under Changes as Access review signed, with the number, the accounts covered, the counts, the grants decided for removal by username, the findings, follow-up, sign-off and checksum. The password is never part of the record or the change, and no email address field is copied into them; an account is named by its name and username, shown as chosen even where the username is an address."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/access_reviews.py",
+    "audit_review/access_review_forms.py",
+    "audit_review/access_review_views.py",
+    "audit_review/review_forms.py",
+    "audit_review/review_views.py",
+    "audit_review/models.py",
+    "audit_review/sources.py",
+    "audit_review/access_report.py",
+    "audit_review/templates/audit_review/access_review_form.html",
+    "accounts/confirmation.py",
+    "accounts/roles.py"
+  ]
+}

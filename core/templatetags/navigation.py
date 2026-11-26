@@ -171,7 +171,13 @@ STAFF_NAV = (
         "Access review",
         "access_review:accounts",
         "key",
-        ("access_review:unused", "access_review:unused-period"),
+        (
+            "access_review:unused",
+            "access_review:unused-period",
+            "access_review:reviews",
+            "access_review:review",
+            "access_review:review-create",
+        ),
     ),
     # Setup
     NavItem(
@@ -444,6 +450,7 @@ SECTION_TABS = {
         (
             Tab("Accounts", "access_review:accounts"),
             Tab("Unused accounts", "access_review:unused"),
+            Tab("Reviews", "access_review:reviews"),
         ),
     ),
     "quality": TabSet(

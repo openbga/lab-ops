@@ -74,7 +74,7 @@
         },
         {
           "label": "Workspace use",
-          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, and the same for the Accounts and Unused accounts tabs of [[Access review]], with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. Opening this tab is recorded too."
+          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, and the same for the Accounts, Unused accounts and Reviews tabs of [[Access review]], with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. On the Reviews tab of Access review, each access review opened reads as Access review AC-000001, and each time its record form is drawn as Accounts: Staff accounts; Record an access review, with the grants listed as the rows. Opening this tab is recorded too."
         },
         {
           "label": "Reviews",
@@ -206,6 +206,7 @@
     "audit_review/hours.py",
     "audit_review/people.py",
     "audit_review/tests/test_people.py",
-    "service_levels/business_time.py"
+    "service_levels/business_time.py",
+    "audit_review/access_review_views.py"
   ]
 }

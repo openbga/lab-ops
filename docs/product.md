@@ -189,7 +189,7 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
-| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set. |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set; and they record and sign access reviews there, deciding to keep or remove each grant the accounts hold. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -516,8 +516,34 @@ sorts by person or last sign-in, and exports as a spreadsheet file. The Unused a
 the active accounts with no sign-in for the period the laboratory sets (1 to 366 days, changed with
 a reason; none ships, so nothing is listed until a reviewer sets one), longest unused first, with an
 export. Both tabs show the accounts as they stand when each page is drawn and change nothing; each
-page and export is recorded as Workspace use. Confirming or removing each grant with a sign-off, and
-end dates on grants, are planned on the [roadmap](roadmap.md).
+page and export is recorded as Workspace use.
+
+The Reviews tab of Access review keeps the laboratory's signed access reviews
+([45 CFR §164.308(a)(3)(ii)(B)](https://www.ecfr.gov/current/title-45/section-164.308), workforce
+clearance, and §164.308(a)(4)(ii)(C), access establishment and modification, both addressable,
+read 2026-11-26). A holder of the capability chooses the staff accounts or the client portal accounts, of
+every organization or of one. The form lists every active account in that choice with each grant it
+holds now: admin console access, superuser status, each role or other group it belongs to (with the
+capability the group gives, if any), each capability given to it directly, and for a portal account
+the portal account itself with what of its organization it may see. The scheduled jobs' account and
+staff accounts that hold no role, group, capability or admin console access are left out. One review
+covers at most 500 accounts and 900 grants. The reviewer decides Keep or Remove for every grant, with
+no default, may add findings and follow-up, and signs by entering their password again, as for the
+audit reviews: there are no drafts, the second factor is not asked, and a password not accepted
+signs nothing, keeps what was typed and is a failed re-authentication in the sign-in history. If an
+account or its grants changed after the form was opened, signing is refused and the form is drawn
+again as they stand, keeping the decisions on grants that did not change and marking the others "New
+or changed". The review gets a number (AC-000001) and keeps every grant with its decision, the
+signer's name, username and roles as they stood, the meaning Reviewed, the time and a SHA-256
+checksum of what was signed; the database refuses to change or delete it. The review records
+decisions and removes nothing: a superuser removes a role, capability or admin console access, or
+deactivates a portal account, on the account's page in the admin console. The review's page shows,
+for each grant decided for removal, whether the account still holds it, read as the accounts stand
+when the page is drawn and not part of what was signed, and checks the checksum against the review
+as stored. The list and each review's decisions export as spreadsheet files. Each page, export and
+drawing of the form is recorded as Workspace use, and each signing is a change event. Access reviews
+have no notes, no interval or due date, no reminder and no second approver. End dates on grants are
+planned on the [roadmap](roadmap.md).
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

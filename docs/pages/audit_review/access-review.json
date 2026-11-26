@@ -1,0 +1,177 @@
+{
+  "id": "access-review-review",
+  "routes": [
+    "access_review:review"
+  ],
+  "title": "Access review",
+  "purpose": "Read one signed access review: the accounts it covered, every grant with the decision to keep or remove it, whether each removal is done, the findings and follow-up, and the sign-off with its checksum. For holders of the review capability only.",
+  "summary": "One signed access review: every grant reviewed with its decision, whether each grant decided for removal is still held, the findings and follow-up, and who signed it and when.",
+  "tasks": [
+    {
+      "title": "Check whether the removals are done",
+      "steps": [
+        "Read [[To remove]]. [[Still held]] means the account still holds the grant now; [[No longer held]] means it does not.",
+        "For one still held, ask a superuser to remove it on the account's page in the admin console."
+      ]
+    },
+    {
+      "title": "Check what was decided",
+      "steps": [
+        "Read [[Every grant reviewed]] for each account's grants with Keep or Remove, and [[Findings]] and [[Follow-up]] for why."
+      ]
+    },
+    {
+      "title": "Check the sign-off",
+      "steps": [
+        "Read [[Sign-off]]. Under [[SHA-256 checksum]], Matches the access review as stored means it is as it was signed."
+      ]
+    },
+    {
+      "title": "Keep the decisions",
+      "steps": [
+        "Select [[Export CSV]]. The file holds one row for each grant, with whether each one decided for removal is held now."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Still held and No longer held are read as the accounts stand when the page opens. They are not part of what was signed.",
+    "A deactivated account holds nothing, so all its grants decided for removal show No longer held.",
+    "The access review cannot be changed or removed, and notes cannot be added to it.",
+    "A [[Checksum does not match]] notice means the stored access review differs from what was signed. Compare it with an earlier export or a backup."
+  ],
+  "sections": [
+    {
+      "title": "Page header",
+      "items": [
+        {
+          "label": "Signed",
+          "description": "Every access review is signed: there are no drafts."
+        },
+        {
+          "label": "Accounts reviewed",
+          "description": "Shown beside Signed: Staff accounts, Client portal accounts, or Client portal accounts of one organization."
+        },
+        {
+          "label": "Removals still held",
+          "description": "Shown when at least one grant decided for removal is still held now."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of the access review's decisions, one row for each grant in the order listed: Access review, Person, Username, Client organization, Grant, Detail, Decision, Held now (Yes or No for a grant decided for removal, read as the file is made; empty for a grant kept) and Signed at (with its offset). A cell that a spreadsheet would read as a formula starts with an apostrophe."
+        }
+      ]
+    },
+    {
+      "title": "What was reviewed",
+      "items": [
+        {
+          "label": "Accounts reviewed",
+          "description": "Which accounts the access review covered: Staff accounts, Client portal accounts, or Client portal accounts of the organization named."
+        },
+        {
+          "label": "Accounts",
+          "description": "How many accounts it listed: those in the choice that held something to review at signing."
+        },
+        {
+          "label": "Grants",
+          "description": "How many grants it listed, each with a decision."
+        },
+        {
+          "label": "Decided to remove",
+          "description": "How many grants the reviewer decided to remove."
+        },
+        {
+          "label": "Findings",
+          "description": "What the reviewer found, as they wrote it. None recorded when empty."
+        },
+        {
+          "label": "Follow-up",
+          "description": "Who removes what and by when, as the reviewer wrote it. None recorded when empty."
+        }
+      ]
+    },
+    {
+      "title": "To remove",
+      "items": [
+        {
+          "label": "A grant decided for removal",
+          "description": "The grant's words and detail, with the account's name, username and, for a portal account, its organization, as they were read for the signing. The count beside the heading is how many there are. Every grant was kept when there are none."
+        },
+        {
+          "label": "Still held",
+          "description": "The account holds the grant now: it is active and still has the admin console access or superuser status, the membership of that role or group, or the capability given directly. A portal account is held while it is active in the organization it was reviewed in, whatever sites it may see now."
+        },
+        {
+          "label": "No longer held",
+          "description": "The account does not hold the grant now, or it is deactivated or no longer exists. A deactivated account holds nothing."
+        },
+        {
+          "label": "How a grant is removed",
+          "description": "Nothing on this page changes an account. A superuser removes roles, capabilities and admin console access, and deactivates a portal account, on the account's page in the admin console. Each such change is recorded in the change history."
+        }
+      ]
+    },
+    {
+      "title": "Every grant reviewed",
+      "items": [
+        {
+          "label": "An account",
+          "description": "Its name and username, and for a portal account its organization, as they were read for the signing, in the order the form listed them."
+        },
+        {
+          "label": "A grant",
+          "description": "Its words as the form showed them: Admin console, Superuser, a role such as Technical staff role, a group such as Group “night shift”, a capability with Given directly, or Portal account with what of its organization it could see; and Gives with the capability when a role or group gave one."
+        },
+        {
+          "label": "Keep or Remove",
+          "description": "The reviewer's decision for the grant."
+        }
+      ]
+    },
+    {
+      "title": "Sign-off",
+      "items": [
+        {
+          "label": "Signed by",
+          "description": "The reviewer's name and username as they stood at signing. A later change to the account does not change them."
+        },
+        {
+          "label": "Roles held then",
+          "description": "The reviewer's roles at signing, such as Supervisor. An account with the admin role shows Administrator alone."
+        },
+        {
+          "label": "Meaning",
+          "description": "What the signature means: Reviewed, by the person who carried out the access review. It is the only meaning an access review is signed with."
+        },
+        {
+          "label": "Signed",
+          "description": "The date and time of the signing, to the second, by the application's clock, in the laboratory's time zone. The grants were read just before it."
+        },
+        {
+          "label": "SHA-256 checksum",
+          "description": "Taken at signing of exactly what was signed: the number, the accounts covered, every grant with its decision, the counts, the findings, the follow-up, the signer (account, name, username and roles), the meaning and the time. Each time the page opens it is taken again of the access review as stored and compared: Matches the access review as stored, or Does not match the access review as stored with a Checksum does not match notice above. Still held and No longer held are not covered. The checksum shows that the stored access review changed after signing; it does not say who changed it. The application never changes an access review, and the database refuses to."
+        },
+        {
+          "label": "How it was signed",
+          "description": "Record an access review asks for the reviewer's password at each signing, and not the second factor. A demonstration's example access review is written by its seed without one."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused. A number that names no access review shows Not found.",
+        "Each time the page is shown and each export is recorded under Workspace use in Audit review, with the source Access review: reviews and the access review's number. If the record cannot be written, nothing is shown or exported."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/access_reviews.py",
+    "audit_review/access_review_views.py",
+    "audit_review/models.py",
+    "audit_review/sources.py",
+    "audit_review/seed.py",
+    "audit_review/reviews.py",
+    "audit_review/templates/audit_review/access_review_detail.html"
+  ]
+}

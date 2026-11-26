@@ -22,7 +22,7 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
-| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval; the Access review section (`access_review` URLs at `/access-review/`): the access report and the unused accounts with their period |
+| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval; the Access review section (`access_review` URLs at `/access-review/`): the access report, the unused accounts with their period, and the signed access reviews |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -276,6 +276,40 @@ form showed, and records `access_review.unused_period_changed` with a reason; th
 takes the same lock shared. The two lists' pages and exports are `WorkspaceUse` rows of the sources
 `accounts` and `unused`, which audit_review migration 0004 adds to the allowed values (the check
 constraint is dropped and recreated, no row rewritten) along with the `UnusedPeriod` table.
+
+`audit_review.access_reviews` keeps the signed access reviews (the Reviews tab,
+`audit_review.access_review_views`). A review covers one `AccessScope`: active staff accounts
+without the jobs' account, or active portal accounts, of every organization or of one; at most
+`MOST_ACCOUNTS` accounts (their gates are held until it commits) and `MOST_GRANTS` grants (one form
+field each, under Django's field limit). `read_grants` reads each account's grants as they stand:
+the console flags, group memberships with the capabilities each group gives, capabilities given
+directly, and a portal account with its `PortalAccess`. A grant's identity is its account, kind and
+code; its form field is named from a digest of everything shown about it, so a decision is never
+carried over to changed words, and the form posts a `fingerprint` of every grant it showed.
+`sign_access_review` reads the ids of the accounts the scope covers before any lock, takes their
+access gates shared with the signer's, in key order (`accounts.acting.share_access`, the order
+`close_access` uses), before anything else it locks, then holds the acting account (`hold_actor`)
+and checks `may_review` and the checked password's hash on it. It reads the accounts and grants
+again and compares them, with the scope and organization, with the posted fingerprint; any
+difference refuses the signing, and the view draws the form again over the new reading, keeping the
+decisions whose field names are unchanged. Then it reads the signer's roles and takes the moment of
+signing, so everything recorded was read before it. Until the review commits, what takes a reviewed
+account's gate exclusively waits (the account's page, removing a role, a capability or a team
+membership, portal access). Known limit, one rule: what changes without that gate goes on, such as
+a name of a group, site or organization, a capability added to a group on its page, or an account
+created or made active; such a change saved while the signing reads can be recorded as it was just
+before.
+Numbers (`AC-` and at least six digits) come from the table's sequence under the advisory lock
+`(19566, 0)`, so they follow the order signings commit in. The review, an `AccessReviewItem` for each
+grant with its decision, and the `access_review.signed` event (no email address field) are written in one
+transaction, with a SHA-256 of `signed_content`. Triggers from audit_review migration 0005 refuse
+`UPDATE` and `DELETE` on both tables with `prevent_record_mutation`; reversing the migration is
+refused while any access review or a use of the tab is recorded. The review records decisions and
+changes no account. `still_held` reads, when a review page or its export is drawn, whether each grant
+decided for removal is still held: a deactivated or missing account holds nothing, and a portal
+account is held while it is active in the organization it was reviewed in. The tab's pages, each
+review page, both exports and each drawing of the form are `WorkspaceUse` rows of the source
+`grant_review` ("Access review: reviews"), which migration 0005 adds to the allowed values.
 [Access review](../audit_review/access_report.py)
 
 ## Security settings
