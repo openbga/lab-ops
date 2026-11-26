@@ -427,9 +427,13 @@ def sign_access_review(
         raise ValidationError({"confirm_password": PASSWORD_CHANGED})
     findings = text_value(findings, "findings", "Findings", TEXT_LIMIT)
     follow_up = text_value(follow_up, "follow_up", "Follow-up", TEXT_LIMIT)
+    # The moment of signing, then what is read as of it: the signer's roles, and the grants.
     signed_at = timezone.now()
+    signer_roles = roles_label(signer)
     current = reading(scope, organization)
-    if current.too_many or current.fingerprint != expected:
+    if current.too_many:
+        raise ValidationError(TOO_MANY)
+    if current.fingerprint != expected:
         raise ValidationError(STALE)
     if not current.grants:
         raise ValidationError(NOTHING)
@@ -451,7 +455,7 @@ def sign_access_review(
         signed_by_id=signer.pk,
         signer_name=access_report.person_name(signer),
         signer_username=signer.username,
-        signer_roles=roles_label(signer),
+        signer_roles=signer_roles,
         meaning=Meaning.REVIEWED,
         signed_at=signed_at,
         request_ref=(request_ref or "")[:32],
