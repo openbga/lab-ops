@@ -43,8 +43,13 @@ def test_fresh_database_gets_lab_groups_and_an_admin_without_capabilities(settin
     assert not result.warnings
     events = AuditEvent.objects.order_by("occurred_at", "id")
     assert {e.actor for e in events} == {owner}
-    assert [e.action for e in events][0] == "setup.account_created"
-    assert "password" not in str(events[0].after)
+    # The account is recorded after the role groups setup created before it (Access review reads
+    # the groups first; changed with audit_review.access_report).
+    actions = [e.action for e in events]
+    assert actions.count("setup.account_created") == 1
+    created = actions.index("setup.account_created")
+    assert created > max(i for i, action in enumerate(actions) if action == "setup.group_created")
+    assert "password" not in str(events[created].after)
 
 
 def test_rerun_changes_nothing_and_never_resets_a_password():

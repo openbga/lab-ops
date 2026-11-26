@@ -11,22 +11,21 @@ account may see (clients.models.PortalAccess), whether it has a second factor an
 laboratory's rule requires one (core.second_factor), and its last sign-in. Each is read as it stands
 when the page is drawn, in one reading (core.concurrency.one_reading).
 
-Who gave each role, capability and admin console access, and when, is read from the change
-history (core.models.AuditEvent): the account administration, setup_lab and the demonstration seed
-record an account's roles, capability grants and flags before and after each change they make, and
-the role group's page records the capabilities granted to the group. For each one held now, the
-latest recorded change that gave it is shown; none is shown ("Not in the change history") when no
-recorded change gave it, or a later recorded change took it away (it was given again by a path that
-records nothing, such as the database directly). The history names roles by name. Each recorded
-membership is kept with the group its name belonged to when it was recorded, by the recorded
-creations and renames of groups: a group renamed on its own page is followed through its recorded
-renames, and a membership is credited only to the group it was recorded for (or, where no recorded
-change had named a group so, to the group that has the name now). Group names are unique, so a
-membership recorded under a name before a group was created, or renamed, with that name is not that
-group's. setup_lab records the account it creates, with its roles, just before the role groups it
-creates with it; within one run the groups are read first. A deactivated account
-shows the recorded change that deactivated it. Names of the people who made a change are read as
-they stand now.
+Who gave each role, capability and admin console access, and when, is read from the change history
+(core.models.AuditEvent): the account administration, setup_lab and the demonstration seed record an
+account's roles, capability grants and flags before and after each change they make, and the role
+group's page records the capabilities granted to the group. For each one held now, the latest
+recorded change that gave it is shown; none is shown ("Not in the change history") when no recorded
+change gave it, or a later recorded change took it away (it was given again by a path that records
+nothing, such as the database directly). The history names roles by name. Each recorded membership
+is kept with the group its name belonged to when it was recorded, as the recorded changes of groups
+name them (their creation, on the group's page or by setup_lab, their renames and any other change,
+each of which names the group): a group renamed on its own page is followed through its recorded
+renames, and a membership is credited only to the group it was recorded for, or, where no recorded
+change had named a group so, to the group that has the name now. Group names are unique, so a
+membership recorded under a name for no known group before a group was created on its page, or
+renamed, with that name is not that group's. A deactivated account shows the recorded change that
+deactivated it. Names of the people who made a change are read as they stand now.
 
 Unused accounts. An active account is unused when it has not signed in for the laboratory's period
 (UnusedPeriod) by the application's clock: its last sign-in (User.last_login, written at each
@@ -410,28 +409,33 @@ def _apply(tracked, event, owners):
 
 
 def _naming(event):
-    """(old name or None, new name) when a recorded change of a group gave it its name (it created
-    the group, on its page or in setup_lab, or renamed it), else None."""
+    """(old name or None, new name, how) when a recorded change of a group gave it its name, how
+    being "page" (created on its page), "setup" (created by setup_lab) or "renamed"; (None, name,
+    "seen") for any other recorded change of a group that names it; else None."""
     before, after = event.before or {}, event.after or {}
     new = after.get("name")
     if not isinstance(new, str):
         return None
     if event.action in CREATED and not before:
-        return None, new
+        return None, new, "page" if event.action == "group.created" else "setup"
     old = before.get("name")
     if event.action == "group.updated" and isinstance(old, str) and old != new:
-        return old, new
-    return None
+        return old, new, "renamed"
+    return None, new, "seen"
 
 
-def _named(accounts_tracked, owners, group_id, old, new):
-    """A recorded change gave group `group_id` the name `new` (from `old`, when renamed). Names are
-    unique, so a membership recorded under `new` before was of another group, and is dropped. A
-    membership recorded under `old` for this group, or for no known group, is this group's and
-    moves to `new`; one recorded for another group is not, and is dropped."""
+def _named(accounts_tracked, owners, group_id, old, new, how):
+    """A recorded change of group `group_id` names it `new` (renamed from `old`, created, or seen
+    under that name): `new` belongs to this group from now on. Names are unique, so a membership
+    recorded under `new` for another group is not this group's, and who gave it is never read for
+    this group (recorded_membership). A group created on its page, or renamed, also drops a
+    membership recorded under `new` for no known group: it was of a group since removed or renamed
+    with no recorded change. setup_lab's creation drops nothing: until this release it recorded the
+    account it created, with its roles, just before the groups. A membership recorded under `old`
+    for this group, or for no known group, moves to `new`."""
     for tracked in accounts_tracked.values():
         entry = tracked.groups.get(new)
-        if entry is not None and entry.group != group_id:
+        if entry is not None and entry.group is None and how in ("page", "renamed"):
             del tracked.groups[new]
         if old is not None and old in tracked.groups:
             moved = tracked.groups.pop(old)
@@ -440,39 +444,6 @@ def _named(accounts_tracked, owners, group_id, old, new):
     if old is not None and owners.get(old) == group_id:
         del owners[old]
     owners[new] = group_id
-
-
-# The events one run of setup_lab records, all at its end (accounts.setup), are at most this far
-# apart.
-SETUP_RUN = timedelta(seconds=5)
-
-
-def _setup_runs_first(events):
-    """`events` in order, but within one run of setup_lab (consecutive setup events of one actor,
-    at most SETUP_RUN apart) the role groups it created first: setup records the account it creates,
-    with its roles, just before the groups, though the groups were created first."""
-    ordered, block = [], []
-
-    def flush():
-        ordered.extend(e for e in block if e.object_type == GROUP_OBJECT)
-        ordered.extend(e for e in block if e.object_type != GROUP_OBJECT)
-        block.clear()
-
-    for event in events:
-        in_run = (
-            block
-            and event.action.startswith("setup.")
-            and event.actor_id == block[0].actor_id
-            and event.occurred_at - block[0].occurred_at <= SETUP_RUN
-        )
-        if not in_run:
-            flush()
-        if event.action.startswith("setup."):
-            block.append(event)
-        else:
-            ordered.append(event)
-    flush()
-    return ordered
 
 
 def recorded_membership(tracked, name, group_id):
@@ -500,7 +471,7 @@ def grant_history(account_ids, group_ids):
         .order_by("occurred_at", "id")
     )
     owners = {}
-    for event in _setup_runs_first(list(events)):
+    for event in events:
         if event.object_type == GROUP_OBJECT:
             group_id = int(event.object_id) if event.object_id.isdigit() else None
             named = _naming(event)

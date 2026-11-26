@@ -242,20 +242,22 @@ Who gave a role, capability or admin console access comes from `AuditEvent`, rea
 `is_active`, `is_staff` and `is_superuser` flags before and after; the seed's
 `account.capability_granted` names one capability; group events `group.created`, `group.updated` and
 `setup.group_created` carry a group's permissions and name. Each recorded membership is kept with
-the group its name belonged to when it was recorded (`_Membership`), by the recorded creations and
-renames of groups: a `group.updated` that changes `name` moves the group's memberships to the new
-name; a group created (on its page or by `setup_lab`) or renamed with a name drops the memberships
-recorded under it for another group, or for none known (names are unique); `setup_lab` records the
-account it creates, with its roles, just before the role groups it creates with it, so within one
-run (consecutive `setup.*` events of one actor, at most five seconds apart) the groups are read
-first. A membership is credited only to the group it was recorded for, or, where no recorded change
-had named a group so, to the group with that name now; so a group removed and replaced outside the
-admin console under the same name, with no recorded creation, can still be credited with the removed
-group's membership. Every writer of an account's roles (the account page when the save changes
-roles, the add-account page, `setup_lab`) names them from `accounts.setup.held_role_names`, which
-reads them `FOR SHARE` as the change is recorded, and the role group page holds the group's row
-before reading its values for the audit, so a rename or a second save waits and the history names
-each grant in the order it was made. Known limit, which predates Access review: when the role group
+the group its name belonged to when it was recorded (`_Membership`), as the recorded changes of
+groups name them (their creation, their renames and any other change, each of which names the
+group): a `group.updated` that changes `name` moves the group's memberships to the new name; a
+membership is credited only to the group it was recorded for, or, where no recorded change had named
+a group so, to the group with that name now; a group created on its page or renamed with a name also
+drops the memberships recorded under it for no known group (names are unique). `setup_lab` records
+the role groups it creates before the account it creates (until this release it recorded them just
+after, so its `setup.group_created` drops nothing). So a group removed and replaced outside the
+admin console under the same name, with no recorded change of either, can still be credited with the
+removed group's membership. Every writer of an account's roles (the account page when the save
+changes roles, the add-account page, `setup_lab`) names them from `accounts.setup.held_role_names`,
+which reads them `FOR SHARE` as the change is recorded, and the role group page holds the group's
+row before reading its values for the audit, so a rename or a second save waits and the history
+names each grant in the order it was made; an account save that does not change the account's roles
+names them as read, so a rename committed while it saves can leave the earlier name in its event (no
+change of roles is read from it). Known limit, which predates Access review: when the role group
 page takes a capability away, it reads the members whose access gates it takes before it holds the
 group's row, so a member who joins, or a grant made, in between is gated only by the removal's own
 signal (`accounts.acting`), after the row; were that member's roles being changed at the same

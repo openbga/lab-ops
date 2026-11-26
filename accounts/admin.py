@@ -614,7 +614,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             # (recorded there) does not show as a change of this account. When the save changes
             # the account's roles, read as it records the change and held (held_role_names), so
             # the event names each role as it is named then; otherwise a plain reading, so an
-            # edit of a name or an address holds up no save of the role group page.
+            # edit of a name or an address holds up no save of the role group page. Known limit:
+            # such a save names the roles as read, so a rename committed while it saves can leave
+            # the earlier name in its event (the roles it records are unchanged before and after).
             ids = set(before["groups"]) | set(after["groups"])
             if set(before["groups"]) != set(after["groups"]):
                 names = held_role_names(ids)

@@ -114,7 +114,7 @@
         },
         {
           "label": "No unused accounts",
-          "description": "No active account's last sign-in, or creation if it never signed in, is older than the period."
+          "description": "No active account, the scheduled jobs' own aside, has a last sign-in, or a creation if it never signed in, older than the period."
         }
       ]
     },

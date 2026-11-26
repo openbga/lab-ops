@@ -262,8 +262,11 @@ def setup_lab(
     elif roles:
         actor.groups.add(*Group.objects.filter(name__in=roles))
     if user_created:
+        # Recorded after the role groups it creates, as they were created first: the access
+        # report (audit_review.access_report) reads which group each recorded role belongs to in
+        # the order of the change history.
         created = with_held_role_names(account_snapshot(actor), actor)
-        events.insert(0, ("setup.account_created", actor, {}, created))
+        events.append(("setup.account_created", actor, {}, created))
 
     for action, obj, before_state, after_state in events:
         record_event(

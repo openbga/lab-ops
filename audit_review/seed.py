@@ -64,10 +64,11 @@ def _unused(reviewer):
             reason="Demonstration: accounts nobody has used for about three months are reviewed.",
         )
     # An account already using its name or its address is left as it is, and none is added. One
-    # saved with the same name or address while the seed runs makes the insert fail: the example is
-    # then left out (its savepoint rolled back), and the seed goes on. Known limit: one saved
-    # meanwhile under the same address in other letter case is not seen (the address is unique as
-    # typed), as for the other demonstration accounts.
+    # saved with the same name or address while the seed runs makes the account's insert fail: the
+    # example is then left out (the insert's savepoint rolled back), and the seed goes on; any other
+    # failure stops the seed. Known limit: one saved meanwhile under the same address in other
+    # letter case is not seen (the address is unique as typed), as for the other demonstration
+    # accounts.
     taken = Q(username__iexact=UNUSED_USERNAME) | Q(email__iexact=UNUSED_EMAIL)
     if User.objects.filter(taken).exists():
         return
@@ -77,14 +78,7 @@ def _unused(reviewer):
         return
     now = timezone.now()
     created, signed_in = now - timedelta(days=200), now - timedelta(days=120)
-    try:
-        _add_unused(admin, created, signed_in)
-    except IntegrityError:
-        return
-
-
-def _add_unused(admin, created, signed_in):
-    with transaction.atomic(), happened_at(created):
+    with happened_at(created), transaction.atomic():
         account = User(
             username=UNUSED_USERNAME,
             email=UNUSED_EMAIL,
@@ -94,7 +88,11 @@ def _add_unused(admin, created, signed_in):
             last_login=signed_in,
         )
         account.set_unusable_password()
-        account.save()
+        try:
+            with transaction.atomic():
+                account.save()
+        except IntegrityError:
+            return
         account.groups.add(Group.objects.get(name="technical"))
         record_event(
             actor=admin,

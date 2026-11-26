@@ -18,7 +18,7 @@ context. Showing a page is recorded (WorkspaceUse).
 {% panel title=page_title table=True hidden_title=True class="mb-3" %}
   {% if period.days %}
   {% grid_toolbar label="Filter unused accounts" no_search=True invalid=filter_form.errors chips=active_filters grid=grid %}
-  {% list_results items=page_obj noun="accounts" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="No unused account matches these filters" no_results_body="Clear a filter to see every unused account." empty_title="No unused accounts" empty_body="No active account's last sign-in, or creation if it never signed in, is older than the period." %}
+  {% list_results items=page_obj noun="accounts" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="No unused account matches these filters" no_results_body="Clear a filter to see every unused account." empty_title="No unused accounts" empty_body="No active account, the scheduled jobs' own aside, has a last sign-in, or a creation if it never signed in, older than the period." %}
   <div class="vr-table-wrap">
     <table class="table vr-table" data-vr-grid="{{ grid }}" data-vr-grid-version="1" aria-label="{{ page_title }}">
       <thead><tr>
