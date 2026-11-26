@@ -49,13 +49,13 @@ jobs:
 
   browser:
     # The journeys run at four views each and take over an hour in one job, so they are split by
-    # file into four jobs of about 12 to 25 minutes each, depending on the runner. Each job has its
+    # file into four jobs of about 20 to 30 minutes each, depending on the runner. Each job has its
     # own database, so the split changes nothing about isolation: one worker and one disposable test
-    # database per job. The limit leaves room for a slow runner (a 25-minute limit cancelled a job
-    # that had passed in 20 minutes on another run).
+    # database per job. The limit leaves room for a slow runner (a 40-minute limit cancelled a job,
+    # twice, whose journeys had passed in 27 minutes on another run).
     name: browser (${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
