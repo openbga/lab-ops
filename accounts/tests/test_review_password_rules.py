@@ -331,7 +331,11 @@ def test_new_cli_passwords_run_the_configured_validators(monkeypatch, command):
             monkeypatch.setenv("DEMO_PASSWORD", PHRASE)
             monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "Rows of yellow birches at the lake")
             call_command(command, verbosity=0, stdout=StringIO())
-    created = set(User.objects.filter(is_active=True).values_list("username", flat=True))
+    # Accounts given a password (adapted with Access review: the seed's example of an unused
+    # account, audit_review.seed, has none, so no password of it is checked).
+    created = {
+        user.username for user in User.objects.filter(is_active=True) if user.has_usable_password()
+    }
     assert created and created <= set(seen), (created, seen)
 
 

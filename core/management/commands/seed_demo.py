@@ -17,6 +17,7 @@ from accounts.passwords import (
     laboratory_named,
 )
 from accounts.roles import ROLE_LABELS, ROLES
+from accounts.setup import seed_snapshot
 from clients.services import hold_directory
 from core import demo, lab_profile
 from core.announcements import save_announcement
@@ -222,6 +223,16 @@ class Command(BaseCommand):
                 user.set_password(admin_password if role == "admin" else password)
                 user.save()
                 user.groups.add(group)
+                # Recorded as the account administration records a new account, less its email
+                # address (seed_snapshot), so the access report (audit_review.access_report) can
+                # say who gave the role and when: the demonstration's administrator, created first.
+                record_event(
+                    actor=User.objects.get(username="demo_admin"),
+                    action="account.created",
+                    obj=user,
+                    after=seed_snapshot(user),
+                    reason="Demonstration seed",
+                )
         if created and not leftovers:
             # The seal that makes this database the demonstration's for reset_demo (core.demo).
             # Only for a laboratory this seed created in an empty database: a laboratory set up

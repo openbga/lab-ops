@@ -207,6 +207,11 @@ def test_save_and_continue_audits_the_pages_own_role_and_permission_differences_
     event = AuditEvent.objects.get(
         action="account.updated", actor=confirm_editor, object_id=str(account.pk)
     )
+    # Adapted with Access review: the account page names the roles as they stand when it records
+    # the change (accounts.setup.held_role_names), one reading for both sides, so the rename
+    # committed while the save waited is read: "Desk renamed".
+    keep.refresh_from_db()
+    assert keep.name == "Desk renamed"
     assert set(event.before["groups"]) == {keep.name, drop.name}
     assert set(event.after["groups"]) == {keep.name, new.name}
     labels = [f"auth.{grant.codename}" for grant in grants]

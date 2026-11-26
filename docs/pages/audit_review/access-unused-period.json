@@ -1,0 +1,84 @@
+{
+  "id": "access-review-unused-period",
+  "routes": [
+    "access_review:unused-period"
+  ],
+  "title": "Unused account period",
+  "purpose": "Set after how many days without a sign-in an active account is listed as unused, with a reason. For holders of the review capability only.",
+  "summary": "Set how many days without a sign-in make an active account unused, or clear it to list none. The laboratory chooses the period; none is set until a reviewer sets one.",
+  "tasks": [
+    {
+      "title": "Set or change the period",
+      "steps": [
+        "Enter the days in [[Unused after (days)]], such as 90 for about three months.",
+        "Say why in [[Reason]] and select [[Save period]]."
+      ]
+    },
+    {
+      "title": "Stop listing unused accounts",
+      "steps": [
+        "Empty [[Unused after (days)]], give a reason and select [[Save period]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The period counts back from the moment the list is drawn, not from the start of the day.",
+    "Nothing is sent and no account is deactivated when it passes the period. The Unused accounts tab lists it.",
+    "Each change keeps who made it, the before and after values and the reason, shown on this form.",
+    "If someone saved a change after you opened the form, yours is not saved and your input is kept. Compare with the period as it now stands, then save again."
+  ],
+  "sections": [
+    {
+      "title": "Fields and actions",
+      "items": [
+        {
+          "label": "Now",
+          "description": "The period in force: unused after N days without a sign-in, or no period set. No period ships with the application."
+        },
+        {
+          "label": "Unused after (days)",
+          "description": "A whole number from 1 to 366, or empty for no period. An active account is listed as unused when its last sign-in is older than this many days, or it never signed in and was created before then."
+        },
+        {
+          "label": "Reason",
+          "description": "Required. Why the period changes. Kept with the change and shown under Changes to the period on this form. At most 4,000 characters. Do not enter patient names or identifiers."
+        },
+        {
+          "label": "Save period",
+          "description": "Saves the period and returns to the Unused accounts tab with Unused account period saved. When the value is the one already in force, nothing is recorded and the tab says The period is unchanged."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the Unused accounts tab without saving."
+        }
+      ]
+    },
+    {
+      "title": "Changes to the period",
+      "paragraphs": [
+        "Shown once the period has been changed: the 10 newest changes, newest first, each with when, who, the new period, what it was before and the reason. Every change is also a change event listed under Changes in Audit review."
+      ]
+    },
+    {
+      "title": "Rules",
+      "paragraphs": [
+        "Any holder of the review capability can set the period. Your access is checked again when you save, so a reviewer who lost the capability since opening the form is refused.",
+        "The form remembers the period as it stood when you opened it. A change saved by someone else in the meantime refuses yours, with what you typed kept and the form showing the period as it now stands."
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records. Everyone else is refused."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/access_report.py",
+    "audit_review/access_views.py",
+    "audit_review/access_forms.py",
+    "audit_review/models.py",
+    "audit_review/templates/audit_review/access_period_form.html",
+    "audit_review/tests/test_access_report.py"
+  ]
+}

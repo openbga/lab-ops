@@ -27,7 +27,9 @@ business calendar, and select **Export CSV** to keep what was reviewed. **People
 account's sign-ins, failed sign-ins, tickets opened, files downloaded, patient information shown
 and changes over a period, with how much fell outside business hours; select a count to open the
 rows behind it. **Reviews** keeps the signed record of each review (journey 13). Each page opened
-there and each export is itself recorded.
+there and each export is itself recorded. The same grant opens **Access review**: **Accounts** lists every
+account with its roles and capabilities and who gave them, and **Unused accounts** lists active
+accounts with no sign-in for the laboratory's period.
 [Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys
@@ -160,6 +162,15 @@ write the findings and the follow-up, referring to tickets and accounts by numbe
 never to a patient. Enter your password and select **Sign review**. The signed review cannot be
 changed. To correct it, or to record what the follow-up came to, open it and choose **Add a note**.
 Use **Export CSV** to keep a copy of the reviews with their checksums.
+
+To review who holds access, open **Access review**. On **Accounts**, narrow by **Role**,
+**Capability** or **Second factor** and read under each role and capability who gave it and when;
+"Not in the change history" means no recorded change gave it, or a later recorded change took it
+away and it came back by a path that records nothing, so find out how the account got it.
+On **Unused accounts**, the first time, select **Set the period** and enter the laboratory's
+number of days with a reason. Deactivate an account that is no longer needed in the account
+administration; Access review changes no account, role or grant, only its own period. Export
+either list with **Export CSV** to keep it with the review.
 
 ## Client journeys
 

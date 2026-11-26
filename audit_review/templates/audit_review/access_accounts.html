@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+The Accounts tab of the Access review section (audit_review.access_views.accounts_page), for holders
+of "Can review access and audit records": every account with its kind and status, admin console
+access, roles, capabilities, teams, portal access, second factor and last sign-in, each role,
+capability and admin console access with who gave it and when from the change history
+(audit_review.access_report). Read-only, drawn in one reading as the accounts stand. Context: grid,
+sort, page_obj (a Page of access_report.AccountRow, or [] when a filter is invalid), filter_form
+(audit_review.access_forms.AccountFilter), active_filters, export_url, export_limit, exportable,
+total, period (UnusedPeriod) and the toolbar context. Showing a page is recorded (WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Every account and what it holds now, with who gave each role, capability and admin console access, and when.</p>{% endblock %}
+{% block page_actions %}{% if exportable %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endif %}{% endblock %}
+{% block content %}
+{% section_tabs "access-review" %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {% grid_toolbar label="Filter accounts" no_search=True invalid=filter_form.errors chips=active_filters grid=grid sort=sort %}
+  {% list_results items=page_obj noun="accounts" filtered=active_filters invalid=filter_form.errors clear_url=request.path paginate=False error_body="Correct the highlighted filter above. Nothing is listed until every filter is valid." no_results_title="No account matches these filters" no_results_body="Clear a filter to see more accounts." empty_title="No accounts yet" empty_body="Accounts appear here once they are created." %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" data-vr-grid="{{ grid }}" data-vr-grid-version="1" aria-label="{{ page_title }}">
+      <thead><tr>
+        {% sort_header label="Person" asc="person" desc="-person" sort=sort col="person" locked=True %}
+        <th scope="col" data-vr-col="account" data-vr-col-label="Account">Account</th>
+        <th scope="col" data-vr-col="roles" data-vr-col-label="Roles">Roles</th>
+        <th scope="col" data-vr-col="capabilities" data-vr-col-label="Capabilities">Capabilities</th>
+        <th scope="col" data-vr-col="teams" data-vr-col-priority="low" data-vr-col-label="Teams">Teams</th>
+        <th scope="col" data-vr-col="portal" data-vr-col-priority="low" data-vr-col-label="Portal access">Portal access</th>
+        <th scope="col" data-vr-col="second-factor" data-vr-col-label="Second factor">Second factor</th>
+        {% sort_header label="Last sign-in" asc="last_sign_in" desc="-last_sign_in" sort=sort col="last-sign-in" %}
+      </tr></thead>
+      <tbody>
+        {% for row in page_obj %}
+        <tr>
+          <th scope="row" class="vr-wrap"><span class="vr-break-anywhere">{{ row.name }}<span class="d-block vr-muted small">{{ row.username }}</span>{% if row.organization %}<span class="d-block vr-muted small">{{ row.organization }}</span>{% endif %}</span></th>
+          <td class="vr-wrap"><div>{{ row.kind }} · {{ row.status }}{% if row.deactivated %}<span class="d-block vr-muted small vr-break-anywhere">Deactivated {{ row.deactivated.text }}</span>{% endif %}{% for item in row.console %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.roles %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.capabilities %}<span class="d-block">{{ item.text }}<span class="d-block vr-muted small vr-break-anywhere">{{ item.note }}</span></span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap"><div>{% for item in row.teams %}<span class="d-block">{{ item.text }}{% if item.note %}<span class="vr-muted small"> · {{ item.note }}</span>{% endif %}</span>{% empty %}<span class="vr-muted">None</span>{% endfor %}</div></td>
+          <td class="vr-wrap">{% if row.portal %}{{ row.portal }}{% else %}<span class="vr-muted">Not a portal account</span>{% endif %}</td>
+          <td class="vr-wrap"><div>{% if row.second_factor %}Set up{% else %}Not set up{% endif %}{% if row.required %}<span class="d-block vr-muted small">Required by the rule</span>{% endif %}</div></td>
+          <td>{% if row.last_sign_in %}<time datetime="{{ row.last_sign_in|date:'c' }}"><span class="vr-nowrap">{{ row.last_sign_in|date:"Y-m-d" }}</span> <span class="vr-nowrap">{{ row.last_sign_in|date:"H:i" }}</span></time>{% else %}<span class="vr-muted">Never</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="accounts" filtered=active_filters fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">{% if total > export_limit %}An export holds at most {{ export_limit|floatformat:"0g" }} rows: narrow the filters to export this list. {% endif %}Each page and each export shows the accounts as they stand when it is drawn. Who gave a role, a capability or admin console access is the latest recorded change that gave it; “Not in the change history” means no recorded change gave it, or a later one took it away. A deactivated account's roles and capabilities give it nothing until it is made active again. Names are read as they stand now. {% if period.days %}Accounts with no sign-in for {{ period.days }} day{{ period.days|pluralize }} are listed under Unused accounts. {% endif %}Each page shown here and each export is recorded under Workspace use in Audit review.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

@@ -66,7 +66,7 @@ from .confirmation import ConfirmIdentity
 from .forms import PasswordGuidance
 from .models import User
 from .roles import CAPABILITIES, ROLES
-from .setup import account_snapshot, group_snapshot
+from .setup import account_snapshot, group_snapshot, held_role_names, with_held_role_names
 
 
 class SuperuserOnly:
@@ -307,13 +307,9 @@ class AccessRules:
         ):
             raise forms.ValidationError(CHANGED_SINCE_DRAWN)
         # What the save starts from: the audit's before values, and the roles and grants it
-        # changes by difference (AccountAdmin.save_related); and, read once now, the names of
-        # the roles it holds and is given, so the audit names each the same way before and after.
+        # changes by difference (AccountAdmin.save_related), which names the roles as they stand
+        # when it records the change (accounts.setup.held_role_names).
         self.held_reading = reading
-        posted = {group.pk for group in data.get("groups") or ()}
-        self.role_names = dict(
-            Group.objects.filter(pk__in=_group_ids(reading) | posted).values_list("pk", "name")
-        )
 
 
 class ReservedPasswordWidget(ReadOnlyPasswordHashWidget):
@@ -586,7 +582,9 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         obj = form.instance
         if not change:
             super().save_related(request, form, formsets, change)
-            after = account_snapshot(obj)
+            # Its roles named as this save records them (held_role_names): a rename meanwhile on
+            # the role group page is read, or waits for this save.
+            after = with_held_role_names(account_snapshot(obj), obj)
             changed = after != obj._audit_before
         else:
             # Roles and capability grants by difference from the reading the check held. A role
@@ -612,11 +610,18 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             for formset in formsets:
                 self.save_formset(request, form, formset, change=change)
             after.update(model_to_dict(obj, fields=COLUMNS))
-            # One reading of the names for both (taken with the check), so a role renamed meanwhile
-            # on the role group page (recorded there) does not show as a change of this account.
-            names = dict(form.role_names)
-            unnamed = set(after["groups"]) - set(names)
-            names.update(Group.objects.filter(pk__in=unnamed).values_list("pk", "name"))
+            # One reading of the names for both, so a role renamed on the role group page
+            # (recorded there) does not show as a change of this account. When the save changes
+            # the account's roles, read as it records the change and held (held_role_names), so
+            # the event names each role as it is named then; otherwise a plain reading, so an
+            # edit of a name or an address holds up no save of the role group page. Known limit:
+            # such a save names the roles as read, so a rename committed while it saves can leave
+            # the earlier name in its event (the roles it records are unchanged before and after).
+            ids = set(before["groups"]) | set(after["groups"])
+            if set(before["groups"]) != set(after["groups"]):
+                names = held_role_names(ids)
+            else:
+                names = dict(Group.objects.filter(pk__in=ids).values_list("pk", "name"))
             labels = _labels(set(before["user_permissions"]) | set(after["user_permissions"]))
             # Whether anything changed is decided on the values themselves (role ids), not on
             # their names: two roles renamed meanwhile could otherwise hide a change.
@@ -961,12 +966,24 @@ class RoleGroupAdmin(SuperuserOnly, GroupAdmin):
         stored = set(obj.permissions.values_list("pk", flat=True)) if change else set()
         if change and chosen is not None and stored - {p.pk for p in chosen}:
             # A permission taken away: every member's access gate before the group's row, so the
-            # removal waits for their changes under way (accounts.acting). Adding waits for
-            # nothing.
+            # removal waits for their changes under way (accounts.acting). Adding takes no gate.
+            # Known limit (docs/architecture.md, Access review): the members and grants are read
+            # here, before the row is held, so a member who joins, or a grant made, in between is
+            # gated only by the removal's own signal, after the row.
             from .acting import close_access, role_members
 
             close_access(role_members([obj.pk]))
-        obj._audit_before = group_snapshot(Group.objects.get(pk=obj.pk)) if change else {}
+        if change:
+            # Then the group's row, held until this save commits, before its values are read for
+            # the audit: two saves of the page take turns, and the second records what it changed
+            # from the first's result, not from the page it was drawn with. An account save that
+            # changes roles holds the groups it names shared until it commits (accounts.setup.
+            # held_role_names), so this save waits for it.
+            obj._audit_before = group_snapshot(
+                Group.objects.select_for_update(no_key=True).get(pk=obj.pk)
+            )
+        else:
+            obj._audit_before = {}
         super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):

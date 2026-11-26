@@ -189,7 +189,7 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
-| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -503,6 +503,21 @@ the laboratory's (§164.316(b)(2)(i) names six years from creation or from when 
 in effect, whichever is later). Nothing reminds anyone when a review is due, a review has no second
 approver, and counts are not stored with it. A sign-off for other records, such as controlled
 documents, is planned on the [roadmap](roadmap.md).
+
+Access review, also under Oversight and for the same holders, shows who can do what. Its Accounts
+tab lists every account, staff, client portal and the scheduled jobs' own, with its kind and
+status, admin console access, roles, capabilities (given to the account or through a role or
+group), teams, portal access, whether it has a second factor and whether the laboratory's rule
+requires one, and its last sign-in. For each role, capability and admin console access it names
+who gave it and when, read from the change history, or says "Not in the change history" when no
+recorded change gave it; a deactivated account names who deactivated it. It filters by kind,
+status, role, capability, person, team, organization, admin console access and second factor,
+sorts by person or last sign-in, and exports as a spreadsheet file. The Unused accounts tab lists
+the active accounts with no sign-in for the period the laboratory sets (1 to 366 days, changed with
+a reason; none ships, so nothing is listed until a reviewer sets one), longest unused first, with an
+export. Both tabs show the accounts as they stand when each page is drawn and change nothing; each
+page and export is recorded as Workspace use. Confirming or removing each grant with a sign-off, and
+end dates on grants, are planned on the [roadmap](roadmap.md).
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

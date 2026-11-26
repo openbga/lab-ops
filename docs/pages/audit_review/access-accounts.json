@@ -1,0 +1,206 @@
+{
+  "id": "access-review-accounts",
+  "routes": [
+    "access_review:accounts"
+  ],
+  "title": "Access review",
+  "purpose": "List every account with what it holds now: its kind and status, admin console access, roles, capabilities, teams, portal access, second factor and last sign-in, with who gave each role, capability and admin console access, and when. For holders of the review capability only.",
+  "summary": "Every account and what it holds now, with who gave each role, capability and admin console access, and when, as the change history records it.",
+  "tasks": [
+    {
+      "title": "Check who holds a role or capability",
+      "steps": [
+        "Choose it in [[Role]], or open [[More filters]] and choose it in [[Capability]], then select [[Apply]].",
+        "Read the line under each role or capability for who gave it and when, or Not in the change history."
+      ]
+    },
+    {
+      "title": "Find accounts missing a required second factor",
+      "steps": [
+        "Open [[More filters]], set [[Second factor]] to Required by the rule and not set up, and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Review one person or one organization's portal accounts",
+      "steps": [
+        "Open [[More filters]], choose them in [[Person]] or the organization in [[Client organization]], and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "See who has not signed in lately",
+      "steps": [
+        "Select the [[Last sign-in]] heading to put accounts that never signed in first, then the oldest sign-ins.",
+        "Or open the [[Unused accounts]] tab for active accounts with no sign-in for the laboratory's period."
+      ]
+    },
+    {
+      "title": "Keep the report",
+      "steps": [
+        "Filter and sort the list, then select [[Export CSV]]. The file holds every account listed, not just this page."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Not in the change history means no recorded change gave it, or a later one took it away and it came back some other way. Check how the account got it.",
+    "The list shows accounts as they stand when each page is drawn. Open the page again to see a change made since.",
+    "A deactivated account still shows its roles and capabilities. They give it nothing until it is made active again.",
+    "Each page you open here and each export is recorded, and other reviewers see it under Workspace use in [[Audit review]]."
+  ],
+  "sections": [
+    {
+      "title": "The Accounts tab",
+      "paragraphs": [
+        "The first tab of Access review, under Oversight in the sidebar, beside Unused accounts. It lists every account, staff, client portal and the scheduled jobs' own, active or deactivated, with what it holds as it stands when the page is drawn. It shows no password, second factor secret or code, the account's email address or anything of a ticket. A username is shown as it was chosen, even where it is an email address. The tab is read-only: roles, capabilities and admin console access are changed in the account administration.",
+        "When the laboratory has set an unused account period, the note under the table says how many days without a sign-in list an account under Unused accounts."
+      ]
+    },
+    {
+      "title": "Columns",
+      "items": [
+        {
+          "label": "Person",
+          "description": "The account's name with its username below, and below that the client organization of a client portal account. An account with no name shows its username. Always shown."
+        },
+        {
+          "label": "Account",
+          "description": "The kind and the status. Kind is Staff, Client portal, or Scheduled jobs for the account the scheduled jobs act as, whose status is Nobody signs in. Status is Active or Deactivated; a deactivated account shows who deactivated it and when, when the change history records it. Below, Admin console when the account can open the admin console and Superuser when it is one, each with who gave it."
+        },
+        {
+          "label": "Roles",
+          "description": "The laboratory roles the account holds, in the usual role order, each with who gave it and when. None when it holds no role."
+        },
+        {
+          "label": "Capabilities",
+          "description": "Can view patient information and Can review access and audit records, each once for every way the account holds it. Directly: granted to the account, with who gave it. Through a role or a group: granted to that role or group, with who granted it to the role or group and who gave the account the role or group. None when it holds neither."
+        },
+        {
+          "label": "Teams",
+          "description": "The teams the account belongs to, by name, marked Lead when it leads the team and Inactive team when the team is inactive."
+        },
+        {
+          "label": "Portal access",
+          "description": "For a client portal account, which of its organization's tickets it may see: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised. Not a portal account for staff."
+        },
+        {
+          "label": "Second factor",
+          "description": "Set up when the account has an authenticator app or another second factor, else Not set up. Required by the rule when the laboratory's second-factor rule on Security settings covers this account now. Only an active account is ever required."
+        },
+        {
+          "label": "Last sign-in",
+          "description": "The account's last accepted sign-in, in the laboratory's time zone, or Never."
+        }
+      ]
+    },
+    {
+      "title": "Who gave it",
+      "items": [
+        {
+          "label": "Given by",
+          "description": "The person who made the latest recorded change that gave the role, capability or admin console access, with their username and the time. Names are read as they stand now."
+        },
+        {
+          "label": "Where it is read from",
+          "description": "The change history. Saving an account or a role group in the account administration, creating accounts and roles when the laboratory is set up, and the demonstration seed record what an account or group held before and after each change."
+        },
+        {
+          "label": "Not in the change history",
+          "description": "No recorded change gave it, or a later recorded change took it away and it was given back by a way that records nothing, such as the database directly. Shown muted."
+        },
+        {
+          "label": "A renamed group",
+          "description": "When a group is renamed on its own page, the account's recorded membership follows the new name, so who gave it is still shown."
+        },
+        {
+          "label": "Deactivated",
+          "description": "The latest recorded change that deactivated the account. Made active again, it no longer shows."
+        }
+      ]
+    },
+    {
+      "title": "Filters",
+      "items": [
+        {
+          "label": "Kind",
+          "description": "Any kind, Staff or Client portal. The scheduled jobs' account shows only with Any kind."
+        },
+        {
+          "label": "Status",
+          "description": "Any status, Active or Deactivated. The scheduled jobs' account is never listed as Deactivated."
+        },
+        {
+          "label": "Role",
+          "description": "Accounts holding that laboratory role."
+        },
+        {
+          "label": "Capability",
+          "description": "Under More filters: accounts holding the capability, granted to the account or through one of its groups, whatever their kind or status."
+        },
+        {
+          "label": "Person",
+          "description": "Under More filters: one account, staff or client portal, active or not. Type part of a name, username or email address."
+        },
+        {
+          "label": "Team",
+          "description": "Under More filters: the members of one team."
+        },
+        {
+          "label": "Client organization",
+          "description": "Under More filters: the organization's client portal accounts."
+        },
+        {
+          "label": "Admin console",
+          "description": "Under More filters: Any, Can open the admin console, or Superuser."
+        },
+        {
+          "label": "Second factor",
+          "description": "Under More filters: Any, Set up, Not set up, or Required by the rule and not set up (active accounts the second-factor rule covers now that have none)."
+        },
+        {
+          "label": "A filter that is not accepted",
+          "description": "Nothing is listed until it is corrected, and the field says why. The use is recorded as a filter not accepted, without the values."
+        }
+      ]
+    },
+    {
+      "title": "Sorting, pages and export",
+      "items": [
+        {
+          "label": "Sorting",
+          "description": "Select Person for A to Z, then Z to A, by the name shown (first name, then last name, as one name), then username. Select Last sign-in for oldest first, with Never first, then newest first, with Never last. The sort you choose is saved for your account and used the next time you open the tab."
+        },
+        {
+          "label": "Pages",
+          "description": "Fifty accounts per page. Each page is drawn as the accounts stand at that moment, so an account changed since the last page can move, appear or disappear."
+        },
+        {
+          "label": "Columns",
+          "description": "Choose which columns show and in which order; Person always shows. The choice is saved for your account."
+        },
+        {
+          "label": "Export CSV",
+          "description": "A spreadsheet file of every account listed, in the order shown: Person, Username, Kind, Client organization, Status, Deactivated, Admin console, Roles, Capabilities, Teams, Portal access, Second factor, Required by the rule, Last sign-in and Created, with who gave each item in brackets. Shown when 1 to 10,000 accounts are listed; when more are listed the export is refused and you narrow the filters. A cell that a spreadsheet would read as a formula starts with an apostrophe."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, directly or through a group, as for the Audit review workspace. Everyone else is refused, and nothing is recorded for them.",
+        "Each page shown and each export is recorded under Workspace use in Audit review, as Access review: accounts, before it is sent: the filters as applied, the sort when it is not by person A to Z, the page, and how many accounts were listed. If the record cannot be written, nothing is shown or exported. These records are never changed or deleted."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/access_report.py",
+    "audit_review/access_views.py",
+    "audit_review/access_forms.py",
+    "audit_review/access_urls.py",
+    "audit_review/sources.py",
+    "audit_review/models.py",
+    "audit_review/permissions.py",
+    "audit_review/templates/audit_review/access_accounts.html",
+    "audit_review/tests/test_access_report.py",
+    "core/second_factor.py",
+    "core/templatetags/navigation.py"
+  ]
+}

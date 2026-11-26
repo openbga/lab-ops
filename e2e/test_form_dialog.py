@@ -504,6 +504,7 @@ def audit_review_surfaces():
         "audit_review:review-create": reverse("audit_review:review-create"),
         "audit_review:review-note": reverse("audit_review:review-note", args=[review.pk]),
         "audit_review:review-interval": reverse("audit_review:review-interval"),
+        "access_review:unused-period": reverse("access_review:unused-period"),
     }
 
 
@@ -575,7 +576,11 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
             expect(dialog, name).to_be_hidden()
             expect(page, name).not_to_have_url(re.compile(re.escape(path) + r"$"))
 
-    reviewer_only = {name: path for name, path in paths.items() if name.startswith("audit_review:")}
+    reviewer_only = {
+        name: path
+        for name, path in paths.items()
+        if name.startswith(("audit_review:", "access_review:"))
+    }
     open_and_cancel({name: path for name, path in paths.items() if name not in reviewer_only})
     # The review forms need the capability "Can review access and audit records", which the
     # demonstration gives its supervisor.

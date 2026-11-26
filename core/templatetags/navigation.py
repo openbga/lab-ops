@@ -165,6 +165,14 @@ STAFF_NAV = (
             "audit_review:review-interval",
         ),
     ),
+    # Oversight: the Access review section (audit_review.access_report), for the same holders
+    NavItem(
+        "access-review",
+        "Access review",
+        "access_review:accounts",
+        "key",
+        ("access_review:unused", "access_review:unused-period"),
+    ),
     # Setup
     NavItem(
         "request-categories",
@@ -299,7 +307,7 @@ STAFF_SECTIONS = (
     ("desk", "Service desk", ("requests", "teams")),
     ("clients", "Clients", ("clients", "import")),
     ("quality", "Quality", ("nonconformances",)),
-    ("oversight", "Oversight", ("audit-review",)),
+    ("oversight", "Oversight", ("audit-review", "access-review")),
     (
         "setup",
         "Setup",
@@ -329,6 +337,7 @@ STAFF_MENU_ROLES = {
     "nonconformances": ROLES,
     # Oversight: any staff role, with the capability below (CAPABILITY_ITEMS)
     "audit-review": ROLES,
+    "access-review": ROLES,
     # Setup items: the admin role sets up the taxonomy, clocks and systems
     "request-categories": ("admin",),
     "service-targets": ("admin",),
@@ -348,7 +357,10 @@ STAFF_MENU_ROLES = {
 MODULE_ITEMS = {"nonconformances": "nonconformance"}
 # Items that also need an explicit capability (accounts.roles.CAPABILITIES): shown only to an
 # account that holds it, directly or through a group.
-CAPABILITY_ITEMS = {"audit-review": "review_audit_records"}
+CAPABILITY_ITEMS = {
+    "audit-review": "review_audit_records",
+    "access-review": "review_audit_records",
+}
 
 
 def visible_staff_items(user, roles=None, request=None, capabilities=None):
@@ -425,6 +437,13 @@ SECTION_TABS = {
             Tab("People", "audit_review:people"),
             Tab("Workspace use", "audit_review:uses"),
             Tab("Reviews", "audit_review:reviews"),
+        ),
+    ),
+    "access-review": TabSet(
+        "Access review lists",
+        (
+            Tab("Accounts", "access_review:accounts"),
+            Tab("Unused accounts", "access_review:unused"),
         ),
     ),
     "quality": TabSet(

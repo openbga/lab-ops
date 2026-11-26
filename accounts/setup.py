@@ -59,6 +59,38 @@ def account_snapshot(user):
     }
 
 
+def held_role_names(group_ids):
+    """{id: name} of these groups, read and held FOR SHARE until the transaction ends. A rename on
+    the role group page committed before is read, and one started now waits for this transaction,
+    so a change recorded with these names comes before the rename in the change history: the
+    access report (audit_review.access_report) follows renames in that order. Every writer of an
+    account's roles (the account administration, setup_lab) names them from this reading."""
+    from django.db import connection
+
+    table = connection.ops.quote_name(Group._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT id, name FROM {table} WHERE id = ANY(%s) ORDER BY id FOR SHARE",
+            [sorted(group_ids)],
+        )
+        return dict(cursor.fetchall())
+
+
+def with_held_role_names(snapshot, user):
+    """account_snapshot `snapshot` of `user` with its roles named from held_role_names."""
+    ids = list(user.groups.values_list("pk", flat=True)) if user.pk else []
+    return {**snapshot, "groups": sorted(held_role_names(ids).values())}
+
+
+def seed_snapshot(user):
+    """account_snapshot less the email address: what the demonstration seed records of an account
+    it creates (core seed_demo, audit_review.seed), so that the access report can say who gave its
+    roles, without copying the address into the change history."""
+    snapshot = account_snapshot(user)
+    snapshot.pop("email")
+    return snapshot
+
+
 def group_snapshot(group):
     return {
         "name": group.name,
@@ -215,20 +247,23 @@ def setup_lab(
     if roles and not user_created:
         # The roles it holds, read once (the gate taken above, when a role was missing, makes a
         # change on the account page come first): only the missing ones are added, and the
-        # event names each role from this one reading, so a role renamed meanwhile on its own
-        # page, or given meanwhile on the account page, is not recorded as setup's.
+        # event names before and after from this one reading of who holds them, so a role given
+        # meanwhile on the account page is not recorded as setup's; their names are read as the
+        # event records them (held_role_names), so a rename meanwhile is recorded after it.
         held, added = _roles_to_add(actor, roles, gated)
         if added:
             actor.groups.add(*added)
-            before = {**account_snapshot(actor), "groups": sorted(held.values())}
-            after = {**before, "groups": sorted([*held.values(), *added.values()])}
+            names = {**held, **added, **held_role_names([*held, *added])}
+            before = {**account_snapshot(actor), "groups": sorted(names[pk] for pk in held)}
+            after = {**before, "groups": sorted(names[pk] for pk in (*held, *added))}
             names = [role for role in roles if role in added.values()]
             result.did(f"Added roles to '{actor.username}': {', '.join(names)}.")
             events.append(("setup.account_roles_added", actor, before, after))
     elif roles:
         actor.groups.add(*Group.objects.filter(name__in=roles))
     if user_created:
-        events.insert(0, ("setup.account_created", actor, {}, account_snapshot(actor)))
+        created = with_held_role_names(account_snapshot(actor), actor)
+        events.insert(0, ("setup.account_created", actor, {}, created))
 
     for action, obj, before_state, after_state in events:
         record_event(

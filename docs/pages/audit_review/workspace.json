@@ -74,7 +74,7 @@
         },
         {
           "label": "Workspace use",
-          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. Opening this tab is recorded too."
+          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, and the same for the Accounts and Unused accounts tabs of [[Access review]], with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. Opening this tab is recorded too."
         },
         {
           "label": "Reviews",

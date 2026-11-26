@@ -7,8 +7,9 @@ from django.utils import timezone
 
 
 class Source(models.TextChoices):
-    """The tabs of the audit review workspace: four lists (audit_review.sources) and the summary by
-    person (audit_review.people)."""
+    """What a workspace use is about: the tabs of the audit review workspace, four lists
+    (audit_review.sources), the summary by person (audit_review.people) and the review records,
+    and the two tabs of Access review (audit_review.access_report)."""
 
     CHANGES = "changes", "Changes"
     ACCESS = "access", "Access records"
@@ -18,6 +19,10 @@ class Source(models.TextChoices):
     USES = "uses", "Workspace use"
     # The review records (Review): their list, their pages and their export.
     REVIEWS = "reviews", "Reviews"
+    # The Access review section (audit_review.access_report): every account and what it holds,
+    # and the accounts unused for the laboratory's period. Their uses are recorded here too.
+    ACCOUNTS = "accounts", "Access review: accounts"
+    UNUSED = "unused", "Access review: unused accounts"
 
 
 class UseKind(models.TextChoices):
@@ -26,9 +31,10 @@ class UseKind(models.TextChoices):
 
 
 class WorkspaceUse(models.Model):
-    """One use of the audit review workspace: a page of one of its lists shown, or a list exported
-    (audit_review.views). Who, when, which list, the filters as the form accepted them (ids, codes
-    and dates, never text as typed), how many rows matched and the request ID.
+    """One use of the audit review workspace or of Access review: a page of one of its lists shown,
+    a review opened, or a list exported (audit_review.views, review_views, access_views). Who,
+    when, which list, the filters as the form accepted them (ids, codes and dates, never text as
+    typed), how many rows matched and the request ID.
 
     History: the database refuses to change or delete a row (migration 0001); reset_demo empties
     the table with TRUNCATE, which row triggers do not see. Written with the answer it is about
@@ -228,3 +234,29 @@ class ReviewSchedule(models.Model):
 
     def __str__(self):
         return "Review interval"
+
+
+class UnusedPeriod(models.Model):
+    """After how many days without a sign-in an active account is listed as unused
+    (audit_review.access_report). One row, written the first time a reviewer saves the period,
+    never by a migration, so an empty database stays empty (core.demo); until then none is set and
+    nothing is listed as unused. `revision` is the stale-edit check of the form."""
+
+    days = models.PositiveSmallIntegerField("unused after", null=True, blank=True)
+    revision = models.PositiveIntegerField(default=0)
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = "unused account period"
+        constraints = [
+            models.CheckConstraint(condition=Q(id=1), name="unused_period_single"),
+            models.CheckConstraint(
+                condition=Q(days__isnull=True) | Q(days__gte=1, days__lte=366),
+                name="unused_period_bounds",
+                violation_error_message="Choose from 1 to 366 days.",
+            ),
+        ]
+
+    def __str__(self):
+        return "Unused account period"

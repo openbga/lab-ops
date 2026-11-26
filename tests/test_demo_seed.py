@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.roles import CAPABILITIES, ROLES, has_capability, has_role
+from audit_review.seed import UNUSED_USERNAME
 from clients.models import Client, ClientContact
 from core import lab_profile
 from core.announcements import announcements_for, withdraw_announcement
@@ -146,8 +147,12 @@ def test_fresh_seed_announces_the_demo_accounts_without_the_admin(monkeypatch):
     assert notice.body.endswith("Anyone can use these accounts. Erased every day at 08:00 UTC.")
     assert "demo_admin" not in notice.body and ADMIN_ONLY not in notice.body
     listed = {line.split(":")[0] for line in notice.body.splitlines() if line.startswith("demo_")}
+    # Every account but the administrator is published, except the Access review's example of an
+    # unused account (audit_review.seed), which has no password: nobody signs in as it.
+    unused = User.objects.get(username=UNUSED_USERNAME)
+    assert not unused.has_usable_password() and not unused.credentials_locked
     assert listed == set(
-        User.objects.exclude(pk=admin.pk).values_list("username", flat=True)
+        User.objects.exclude(pk__in=[admin.pk, unused.pk]).values_list("username", flat=True)
     ) and all(User.objects.get(username=name).check_password(SHARED) for name in listed)
     assert AuditEvent.objects.get(action="announcement.posted").actor == admin
     # Published accounts cannot change their own credentials; the administrator's can.
