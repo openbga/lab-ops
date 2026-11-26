@@ -16,6 +16,7 @@ submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is reco
 {% block page_intro %}<p class="vr-page-intro">Go through every grant the chosen accounts hold now and decide whether each is kept or removed. The review records your decisions and your signature; it removes nothing itself.</p>{% endblock %}
 {% block content %}
 {% panel title="Accounts to review" heading_id="choice-heading" class="mb-3" %}
+  {# form: filter #}
   <form class="vr-form" method="get" novalidate>
     {% if choice.errors %}{% notice tone="danger" blocking=True %}Correct the highlighted choice below.{% endnotice %}{% endif %}
     <div class="row g-3 align-items-end">
