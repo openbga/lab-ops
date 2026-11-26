@@ -28,8 +28,9 @@ account's sign-ins, failed sign-ins, tickets opened, files downloaded, patient i
 and changes over a period, with how much fell outside business hours; select a count to open the
 rows behind it. **Reviews** keeps the signed record of each review (journey 13). Each page opened
 there and each export is itself recorded. The same grant opens **Access review**: **Accounts** lists every
-account with its roles and capabilities and who gave them, and **Unused accounts** lists active
-accounts with no sign-in for the laboratory's period.
+account with its roles and capabilities and who gave them, **Unused accounts** lists active
+accounts with no sign-in for the laboratory's period, and **Reviews** keeps the signed access
+reviews (journey 13).
 [Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys
@@ -171,6 +172,16 @@ On **Unused accounts**, the first time, select **Set the period** and enter the 
 number of days with a reason. Deactivate an account that is no longer needed in the account
 administration; Access review changes no account, role or grant, only its own period. Export
 either list with **Export CSV** to keep it with the review.
+
+To record an access review, open **Reviews** in Access review and select **Record an access
+review**. Choose **Staff accounts**, or **Client portal accounts** and an **Organization**, and
+select **Show**. Every grant each active account holds now is listed: choose **Keep** or **Remove**
+for each, write the findings and who removes what in **Follow-up**, enter your password and select
+**Sign access review**. If an account or its grants changed meanwhile, the form is drawn again with
+the changed grants marked **New or changed**; decide them and sign again. Signing removes nothing:
+a superuser then removes each grant decided for removal, or deactivates the portal account, on the
+account's page in the admin console. The review's page shows each removal as **Still held** or
+**No longer held** as the accounts stand when it is opened.
 
 ## Client journeys
 

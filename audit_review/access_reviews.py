@@ -12,7 +12,7 @@ MOST_ACCOUNTS accounts. For each account, every grant it holds as it stands (Gra
 admin console access and superuser status, each group it is a member of (a role, or another group,
 with the capabilities the group gives), each capability given to it directly, and for a client
 portal account the portal account itself, with what of its organization it may see. An account that
-holds none of these (a staff account with no role, capability or admin console access) is not
+holds none of these (a staff account with no group, capability or admin console access) is not
 listed: it opens nothing but its own account pages.
 
 Decisions. The reviewer decides Keep or Remove for every grant listed; there is no default. The

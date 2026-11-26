@@ -28,7 +28,6 @@ class ScopeForm(StyledForm, forms.Form):
         queryset=Client.objects.none(),
         required=False,
         empty_label="Every organization",
-        help_text="For client portal accounts: one organization's, or every organization's.",
     )
 
     def __init__(self, *args, **kwargs):

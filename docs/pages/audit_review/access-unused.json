@@ -39,7 +39,7 @@
     {
       "title": "The Unused accounts tab",
       "paragraphs": [
-        "The second tab of Access review, beside Accounts. It lists the active staff and client portal accounts with no sign-in for the period the laboratory set, as they stand when the page is drawn. The line above the table names the period and the moment before which a last sign-in counts. The scheduled jobs' account is never listed. The tab is read-only.",
+        "The second tab of Access review, between Accounts and Reviews. It lists the active staff and client portal accounts with no sign-in for the period the laboratory set, as they stand when the page is drawn. The line above the table names the period and the moment before which a last sign-in counts. The scheduled jobs' account is never listed. The tab is read-only.",
         "An account is unused when its last sign-in is older than the period, counted back from now by the application's clock, or when it never signed in and was created before then."
       ]
     },

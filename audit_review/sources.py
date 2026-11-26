@@ -40,7 +40,15 @@ from service_levels.models import BusinessCalendar, RequestClock
 from teams.models import Team
 
 from . import hours
-from .models import Review, ReviewSchedule, Source, UseKind, WorkspaceUse
+from .models import (
+    ACCESS_NUMBER_PREFIX,
+    AccessReview,
+    Review,
+    ReviewSchedule,
+    Source,
+    UseKind,
+    WorkspaceUse,
+)
 
 PAGE_SIZE = 50
 # An export holds at most this many rows; a larger result is narrowed first.
@@ -386,6 +394,9 @@ def _ticket_cell(ticket, ticket_id):
     return Cell(str(ticket), ticket.client.name if ticket.client_id else "")
 
 
+ACCESS_REVIEW_TYPE = AccessReview._meta.label_lower
+
+
 def _changes(events, _accounts_read):
     # The ticket each event's object belongs to, read by the object's model.
     by_type = {}
@@ -429,6 +440,9 @@ def _changes(events, _accounts_read):
         elif event.object_type == review_type and event.object_id.isdigit():
             number = numbers.get(int(event.object_id))
             record = Cell(f"Audit review {number or event.object_id}")
+        elif event.object_type == ACCESS_REVIEW_TYPE and event.object_id.isdigit():
+            # An access review's number follows from its id (access_reviews.sign_access_review).
+            record = Cell(f"Access review {ACCESS_NUMBER_PREFIX}{int(event.object_id):06d}")
         else:
             name = usernames.get(event.object_id) if event.object_type == user_type else None
             record = Cell(

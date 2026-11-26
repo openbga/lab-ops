@@ -24,7 +24,7 @@ submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is reco
       <div class="col-sm-2"><button type="submit" class="btn btn-outline-secondary w-100">Show</button></div>
     </div>
   </form>
-  {% fill footer %}<p class="vr-muted small mb-0">A review covers active accounts only, at most {{ most_accounts }} accounts and {{ most_grants }} grants. Staff accounts leave out the scheduled jobs' own account and accounts that hold no role, capability or admin console access.</p>{% endfill %}
+  {% fill footer %}<p class="vr-muted small mb-0">Choose an organization to review the client portal accounts of that organization only. A review covers active accounts only, at most {{ most_accounts }} accounts and {{ most_grants }} grants. Staff accounts leave out the scheduled jobs' own account and accounts that hold no role, group, capability or admin console access.</p>{% endfill %}
 {% endpanel %}
 {% if reading.too_many %}
 {% notice tone="warning" label="Too many to review at once" %}A review covers at most {{ most_accounts }} accounts and {{ most_grants }} grants, and this choice has more. Review the client portal accounts of one organization at a time.{% endnotice %}
@@ -38,7 +38,7 @@ submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is reco
   <fieldset class="vr-form-section">
     <legend>Grants held now</legend>
     <p class="vr-form-note">{{ reading.accounts }} account{{ reading.accounts|pluralize }} and {{ reading.grants|length }} grant{{ reading.grants|length|pluralize }}{% if organization %} of {{ organization.name }}{% endif %}, as they stand now.{% if undecided %} <strong>{{ undecided }} grant{{ undecided|pluralize }} still need{{ undecided|pluralize:"s," }} a decision.</strong>{% endif %}</p>
-    <ol class="vr-plain-list vr-review-accounts">
+    <ul class="list-unstyled vr-review-accounts">
       {% for account in accounts %}
       <li class="vr-review-account">
         <fieldset>
@@ -53,7 +53,7 @@ submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is reco
         </fieldset>
       </li>
       {% endfor %}
-    </ol>
+    </ul>
   </fieldset>
   <fieldset class="vr-form-section">
     <legend>What you found</legend>

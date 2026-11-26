@@ -27,6 +27,8 @@ NON_PAGE_ROUTES = {
     "audit_review:reviews-export": "CSV download of the audit review's Reviews list",
     "access_review:accounts-export": "CSV download of the access review's Accounts list",
     "access_review:unused-export": "CSV download of the access review's Unused accounts list",
+    "access_review:reviews-export": "CSV download of the access review's Reviews list",
+    "access_review:review-export": "CSV download of one access review's decisions",
     "health": "JSON process health probe",
     "ready": "JSON database readiness probe",
     "lookup": "JSON option lookup for remote selects (core/lookups.py)",

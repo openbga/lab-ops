@@ -50,7 +50,7 @@
     {
       "title": "The Accounts tab",
       "paragraphs": [
-        "The first tab of Access review, under Oversight in the sidebar, beside Unused accounts. It lists every account, staff, client portal and the scheduled jobs' own, active or deactivated, with what it holds as it stands when the page is drawn. It shows no password, second factor secret or code, the account's email address or anything of a ticket. A username is shown as it was chosen, even where it is an email address. The tab is read-only: roles, capabilities and admin console access are changed in the account administration.",
+        "The first tab of Access review, under Oversight in the sidebar, beside Unused accounts and Reviews. It lists every account, staff, client portal and the scheduled jobs' own, active or deactivated, with what it holds as it stands when the page is drawn. It shows no password, second factor secret or code, the account's email address or anything of a ticket. A username is shown as it was chosen, even where it is an email address. The tab is read-only: roles, capabilities and admin console access are changed in the account administration. To record a decision to keep or remove each grant, with your sign-off, use the Reviews tab.",
         "When the laboratory has set an unused account period, the note under the table says how many days without a sign-in list an account under Unused accounts."
       ]
     },

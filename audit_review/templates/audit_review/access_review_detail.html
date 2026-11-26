@@ -32,7 +32,7 @@ export_url. Showing it is recorded (WorkspaceUse).
 {% endpanel %}
 {% panel title="To remove" heading_id="removals-heading" count=removals|length class="mb-3" %}
   {% if removals %}
-  <ul class="vr-plain-list mb-0">
+  <ul class="list-unstyled mb-0">
     {% for item, held in removals %}
     <li class="vr-review-removal">
       <span class="vr-break-anywhere"><strong>{{ item.label }}</strong>{% if item.detail %} <span class="vr-muted small">{{ item.detail }}</span>{% endif %}</span>
@@ -47,18 +47,18 @@ export_url. Showing it is recorded (WorkspaceUse).
   {% fill footer %}<p class="vr-muted small mb-0">Whether a grant is still held is read as the accounts stand when this page is drawn; it is not part of what was signed. A superuser removes roles, capabilities and admin console access, and deactivates a portal account, on the account's page in the admin console. A deactivated account holds nothing.</p>{% endfill %}
 {% endpanel %}
 {% panel title="Every grant reviewed" heading_id="grants-heading" count=review.grants class="mb-3" %}
-  <ol class="vr-plain-list vr-review-accounts mb-0">
+  <ul class="list-unstyled vr-review-accounts mb-0">
     {% for account in accounts %}
     <li class="vr-review-account">
       <p class="vr-review-account-name mb-1"><span class="vr-break-anywhere">{{ account.name }}</span> <span class="vr-muted small vr-break-anywhere">{{ account.username }}</span>{% if account.organization %}<span class="d-block vr-muted small">{{ account.organization }}</span>{% endif %}</p>
-      <ul class="vr-plain-list">
+      <ul class="list-unstyled mb-0">
         {% for item, held in account.rows %}
         <li class="vr-review-item"><span class="vr-break-anywhere">{{ item.label }}{% if item.detail %} <span class="vr-muted small">{{ item.detail }}</span>{% endif %}</span> <span class="vr-nowrap">{% if item.decision == "remove" %}{% status label="Remove" tone="warning" plain=True %}{% else %}{% status label="Keep" tone="neutral" plain=True %}{% endif %}</span></li>
         {% endfor %}
       </ul>
     </li>
     {% endfor %}
-  </ol>
+  </ul>
 {% endpanel %}
 {% panel title="Sign-off" heading_id="sign-off-heading" class="mb-3" %}
   <dl class="vr-facts">
