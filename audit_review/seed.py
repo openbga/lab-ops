@@ -8,7 +8,10 @@ For the Access review section (audit_review.access_report): an unused account pe
 and one active staff account that has not signed in for longer (UNUSED_USERNAME, created months ago
 with the Technical staff role, recorded as the account administration records a new account, less
 its email address: accounts.setup.seed_snapshot). It has no password, so nobody can sign in as it,
-and it is not added where an account already has its name or address. Synthetic data only."""
+and it is not added where an account already has its name or address. And one signed access review
+of the staff accounts (audit_review.access_reviews), signed by the same reviewer three days ago:
+every grant kept but the unused account's, decided for removal and still held. Synthetic data
+only."""
 
 from datetime import datetime, time, timedelta
 
@@ -23,8 +26,8 @@ from core.audit import record_event
 from desk.story import REVIEW_HOLDER
 from nonconformance.seed import happened_at
 
-from . import access_report, reviews
-from .models import Review, ReviewSchedule, UnusedPeriod
+from . import access_report, access_reviews, reviews
+from .models import AccessReview, AccessScope, Decision, Review, ReviewSchedule, UnusedPeriod
 
 INTERVAL_DAYS = 31
 UNUSED_DAYS = 90
@@ -114,12 +117,51 @@ def _constraint(error):
     return getattr(diagnostics, "constraint_name", None)
 
 
+def _access_review(reviewer):
+    """One signed access review of the staff accounts, once: every grant kept, but those of the
+    unused account (UNUSED_USERNAME, when the seed added it), decided for removal. The grants are
+    read as they stand and signed through the service, as if three days ago."""
+    if AccessReview.objects.exists():
+        return
+    signed = timezone.now() - timedelta(days=3)
+    with transaction.atomic(), happened_at(signed):
+        current = access_reviews.reading(AccessScope.STAFF)
+        if current.too_many or not current.grants:
+            return
+        unused = {
+            grant.key for grant in current.grants if grant.account_username == UNUSED_USERNAME
+        }
+        decisions = {
+            grant.key: Decision.REMOVE if grant.key in unused else Decision.KEEP
+            for grant in current.grants
+        }
+        if unused:
+            findings = (
+                f"{UNUSED_USERNAME} has not signed in for months: the technician left the "
+                "laboratory. Every other account's roles and capabilities match the person's "
+                "current job."
+            )
+            follow_up = "Superuser to remove the role and deactivate the account this week."
+        else:
+            findings = "Every account's roles and capabilities match the person's current job."
+            follow_up = ""
+        access_reviews.sign_access_review(
+            actor=reviewer,
+            scope=AccessScope.STAFF,
+            decisions=decisions,
+            expected=current.fingerprint,
+            findings=findings,
+            follow_up=follow_up,
+        )
+
+
 def seed_records(ctx):
     """One signed review of the previous calendar month, and a note on what its follow-up came
-    to, once; the unused account period and an unused account."""
+    to, once; the unused account period and an unused account; one signed access review."""
     reviewer = User.objects.get(username=REVIEW_HOLDER)
     _interval(reviewer)
     _unused(reviewer)
+    _access_review(reviewer)
     if Review.objects.exists():
         return
     now = timezone.now()

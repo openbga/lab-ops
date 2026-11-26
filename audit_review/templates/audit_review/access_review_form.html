@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Record an access review and sign it (audit_review.access_review_views.review_create), for holders
+of "Can review access and audit records": a full page, never the form dialog (it can list hundreds
+of grants). The accounts to review are chosen first (choice: audit_review.access_review_forms.
+ScopeForm, sent with GET); the review lists every grant of every active account they cover as it
+stands, grouped by account, each with Keep and Remove and no default. A form drawn again after the
+grants changed keeps the decisions on grants that did not change and marks the others "New or
+changed". Signing asks for the password every time. Context: page_title, form
+(AccessReviewForm), choice, scope, organization, reading (access_reviews.Reading), accounts (the
+form's grants by account, each row (grant, bound decision field, changed)), undecided, signer,
+submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is recorded (WorkspaceUse).
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Go through every grant the chosen accounts hold now and decide whether each is kept or removed. The review records your decisions and your signature; it removes nothing itself.</p>{% endblock %}
+{% block content %}
+{% panel title="Accounts to review" heading_id="choice-heading" class="mb-3" %}
+  <form class="vr-form" method="get" novalidate>
+    {% if choice.errors %}{% notice tone="danger" blocking=True %}Correct the highlighted choice below.{% endnotice %}{% endif %}
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-5">{{ choice.scope.as_field_group }}</div>
+      <div class="col-sm-5">{{ choice.organization.as_field_group }}</div>
+      <div class="col-sm-2"><button type="submit" class="btn btn-outline-secondary w-100">Show</button></div>
+    </div>
+  </form>
+  {% fill footer %}<p class="vr-muted small mb-0">A review covers active accounts only, at most {{ most_accounts }} accounts and {{ most_grants }} grants. Staff accounts leave out the scheduled jobs' own account and accounts that hold no role, capability or admin console access.</p>{% endfill %}
+{% endpanel %}
+{% if reading.too_many %}
+{% notice tone="warning" label="Too many to review at once" %}A review covers at most {{ most_accounts }} accounts and {{ most_grants }} grants, and this choice has more. Review the client portal accounts of one organization at a time.{% endnotice %}
+{% elif not reading.grants %}
+{% empty_state title="Nothing to review" body="No active account in this choice holds anything to review. Choose other accounts above." %}
+{% else %}
+{% form_page form=form cancel_url=cancel_url submit_label=submit_label id="access-review-form" %}
+  {% fill note %}Every grant needs Keep or Remove.{% endfill %}
+  {% notice tone="info" label="No patient data" %}Refer to people by username and to tickets by number. Do not enter patient names or identifiers.{% endnotice %}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  <fieldset class="vr-form-section">
+    <legend>Grants held now</legend>
+    <p class="vr-form-note">{{ reading.accounts }} account{{ reading.accounts|pluralize }} and {{ reading.grants|length }} grant{{ reading.grants|length|pluralize }}{% if organization %} of {{ organization.name }}{% endif %}, as they stand now.{% if undecided %} <strong>{{ undecided }} grant{{ undecided|pluralize }} still need{{ undecided|pluralize:"s," }} a decision.</strong>{% endif %}</p>
+    <ol class="vr-plain-list vr-review-accounts">
+      {% for account in accounts %}
+      <li class="vr-review-account">
+        <fieldset>
+          <legend class="vr-review-account-name"><span class="vr-break-anywhere">{{ account.name }}</span> <span class="vr-muted small vr-break-anywhere">{{ account.username }}</span>{% if account.organization %}<span class="d-block vr-muted small">{{ account.organization }}</span>{% endif %}{% if account.account_id == signer.pk %} {% status label="You" tone="info" plain=True %}{% endif %}</legend>
+          {% for grant, field, changed in account.rows %}
+          <fieldset class="vr-decision"{% if field.errors %} aria-invalid="true" aria-describedby="{{ field.auto_id }}_error"{% endif %}>
+            <legend class="vr-decision-grant"><span class="vr-break-anywhere">{{ grant.label }}</span>{% if grant.detail %}<span class="d-block vr-muted small">{{ grant.detail }}</span>{% endif %}{% if changed %} {% status label="New or changed" tone="warning" plain=True %}{% endif %}</legend>
+            <div class="vr-decision-choices">{{ field }}</div>
+            {% if field.errors %}<ul class="vr-field-errors" id="{{ field.auto_id }}_error">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </fieldset>
+          {% endfor %}
+        </fieldset>
+      </li>
+      {% endfor %}
+    </ol>
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>What you found</legend>
+    {{ form.findings.as_field_group }}
+    {{ form.follow_up.as_field_group }}
+  </fieldset>
+  <fieldset class="vr-form-section">
+    <legend>Sign-off</legend>
+    <p class="vr-form-note">By entering your password you sign this access review as <strong>reviewed</strong> by you, <span class="vr-break-anywhere">{{ signer.get_full_name|default:signer.username }}</span>. The record keeps every grant listed with your decision, your name, username and roles as they are now, the time and a checksum of what you signed. A signed access review cannot be changed or removed. Removing a grant is done where it is given, after signing.</p>
+    {{ form.password.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endif %}
+{% endblock %}

@@ -9,7 +9,7 @@ from django.utils import timezone
 class Source(models.TextChoices):
     """What a workspace use is about: the tabs of the audit review workspace, four lists
     (audit_review.sources), the summary by person (audit_review.people) and the review records,
-    and the two tabs of Access review (audit_review.access_report)."""
+    and the three tabs of Access review (audit_review.access_report and access_reviews)."""
 
     CHANGES = "changes", "Changes"
     ACCESS = "access", "Access records"
@@ -23,6 +23,9 @@ class Source(models.TextChoices):
     # and the accounts unused for the laboratory's period. Their uses are recorded here too.
     ACCOUNTS = "accounts", "Access review: accounts"
     UNUSED = "unused", "Access review: unused accounts"
+    # The signed access reviews (AccessReview): their list, their pages, the form that lists the
+    # grants to decide on, and their exports.
+    ACCESS_REVIEWS = "grant_review", "Access review: reviews"
 
 
 class UseKind(models.TextChoices):
@@ -260,3 +263,167 @@ class UnusedPeriod(models.Model):
 
     def __str__(self):
         return "Unused account period"
+
+
+# ------------------------------------------------------------------------------ Access reviews
+
+ACCESS_NUMBER_PREFIX = "AC-"
+
+
+class AccessScope(models.TextChoices):
+    """Which accounts an access review covers: the active staff accounts (the scheduled jobs' own
+    aside), or the active client portal accounts, of every organization or of one."""
+
+    STAFF = "staff", "Staff accounts"
+    PORTAL = "portal", "Client portal accounts"
+
+
+class GrantKind(models.TextChoices):
+    """What an access review item is about (audit_review.access_reviews.Grant)."""
+
+    CONSOLE = "console", "Admin console access"
+    GROUP = "group", "Role or group"
+    CAPABILITY = "capability", "Capability given directly"
+    PORTAL = "portal", "Portal access"
+
+
+class Decision(models.TextChoices):
+    KEEP = "keep", "Keep"
+    REMOVE = "remove", "Remove"
+
+
+class AccessReview(models.Model):
+    """A review of who holds what, signed by the reviewer who carried it out
+    (audit_review.access_reviews): which accounts it covered, each grant they held then with the
+    reviewer's decision to keep it or remove it (AccessReviewItem), the findings and follow-up, and
+    the sign-off: who signed, by name, username and roles as they stood when they signed, the
+    meaning (Reviewed), when, and a SHA-256 checksum of exactly what was signed
+    (access_reviews.signed_content). Written once, signed: the database refuses to change or delete
+    a row (migration 0005). reset_demo empties the table with TRUNCATE, which row triggers do not
+    see."""
+
+    Scope = AccessScope
+    Meaning = Meaning
+
+    id = models.BigAutoField(primary_key=True)
+    number = models.CharField(max_length=20, unique=True)
+    scope = models.CharField(max_length=12, choices=AccessScope.choices)
+    # For client portal accounts, the one organization reviewed, if one was chosen: by id, as for
+    # the signer (a record outlives what it names), and by name as it stood when signed.
+    organization = models.ForeignKey(
+        "clients.Client",
+        null=True,
+        blank=True,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="+",
+    )
+    organization_name = models.TextField(blank=True)
+    # How many accounts and grants were reviewed, and how many grants the reviewer decided to
+    # remove: counted from the items when signed.
+    accounts = models.PositiveIntegerField()
+    grants = models.PositiveIntegerField()
+    removals = models.PositiveIntegerField()
+    findings = models.TextField(blank=True, max_length=4000)
+    follow_up = models.TextField("follow-up", blank=True, max_length=4000)
+    signed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="+",
+    )
+    signer_name = models.TextField()
+    signer_username = models.CharField(max_length=150)
+    signer_roles = models.CharField(max_length=200)
+    meaning = models.CharField(max_length=12, choices=Meaning.choices, default=Meaning.REVIEWED)
+    # By the application's clock, as change events are timed: the grants were read as they stood
+    # at this moment (access_reviews.sign_access_review).
+    signed_at = models.DateTimeField()
+    checksum = models.CharField("SHA-256 checksum", max_length=64)
+    request_ref = models.CharField("request ID", max_length=32, blank=True)
+
+    class Meta:
+        # Written only by audit_review.access_reviews: no model permission to grant, and no admin.
+        default_permissions = ()
+        verbose_name = "access review"
+        ordering = ["-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(scope__in=AccessScope.values), name="access_review_scope"
+            ),
+            models.CheckConstraint(
+                condition=Q(organization__isnull=True) | Q(scope=AccessScope.PORTAL),
+                name="access_review_organization_portal",
+            ),
+            models.CheckConstraint(
+                condition=Q(meaning__in=Meaning.values), name="access_review_meaning"
+            ),
+            models.CheckConstraint(
+                condition=Q(removals__lte=F("grants")), name="access_review_removals"
+            ),
+            models.CheckConstraint(
+                condition=Q(checksum__regex=r"^[0-9a-f]{64}$"), name="access_review_checksum"
+            ),
+        ]
+
+    def __str__(self):
+        return self.number
+
+    @property
+    def scope_label(self):
+        label = self.get_scope_display()
+        if self.organization_name:
+            return f"{label} of {self.organization_name}"
+        return label
+
+
+class AccessReviewItem(models.Model):
+    """One grant an account held when an access review was signed, and the reviewer's decision:
+    keep it or remove it. Part of what was signed. The account is kept by id and by its name and
+    username as they stood; the grant by its kind, its code (the flag, the group's id, the
+    capability's codename, or the portal organization with the sites granted) and the words the
+    form showed. The database refuses to change or delete a row (migration 0005)."""
+
+    Kind = GrantKind
+    Decision = Decision
+
+    id = models.BigAutoField(primary_key=True)
+    review = models.ForeignKey(AccessReview, on_delete=models.PROTECT, related_name="items")
+    # The order the form showed: by account (the name shown, then the username), then grant.
+    position = models.PositiveIntegerField()
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="+",
+    )
+    account_name = models.TextField()
+    account_username = models.CharField(max_length=150)
+    organization_name = models.TextField(blank=True)
+    kind = models.CharField(max_length=12, choices=GrantKind.choices)
+    code = models.CharField(max_length=200)
+    label = models.TextField()
+    detail = models.TextField(blank=True)
+    decision = models.CharField(max_length=8, choices=Decision.choices)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = "access review decision"
+        ordering = ["review", "position"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["review", "position"], name="access_review_item_position"
+            ),
+            models.UniqueConstraint(
+                fields=["review", "account", "kind", "code"], name="access_review_item_grant"
+            ),
+            models.CheckConstraint(
+                condition=Q(kind__in=GrantKind.values), name="access_review_item_kind"
+            ),
+            models.CheckConstraint(
+                condition=Q(decision__in=Decision.values), name="access_review_item_decision"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.review_id}: {self.account_username} {self.label} ({self.decision})"

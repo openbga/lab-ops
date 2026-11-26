@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One access review (audit_review.access_review_views.review_page), for holders of "Can review access
+and audit records": the accounts it covered, the grants decided for removal with whether each is
+still held now, every grant reviewed with its decision, the findings and follow-up, and the
+sign-off with its checksum checked against the review as stored. Nothing here changes the review or
+any account. Context: review (AccessReview), accounts (its items by account, each row (item, held
+now or None for a grant kept)), removals ((item, held now) pairs), still_held, intact, list_url,
+export_url. Showing it is recorded (WorkspaceUse).
+{% endcomment %}
+{% block title %}{{ review.number }} · Access review · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Reviews" section_url=list_url current=review.number %}{% endblock %}
+{% block page_heading %}Access review <span class="vr-id">{{ review.number }}</span>{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% status label="Signed" tone="success" %}</li>
+  <li>{{ review.scope_label }}</li>
+  {% if still_held %}<li>{% status label="Removals still held" tone="warning" plain=True %}</li>{% endif %}
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{{ export_url }}">{% icon name="download" %}Export CSV</a>{% endblock %}
+{% block content %}
+{% if not intact %}{% notice tone="danger" label="Checksum does not match" %}This access review as stored differs from what was signed: it was changed after signing outside this application. Compare it with an earlier export or a backup.{% endnotice %}{% endif %}
+{% panel title="What was reviewed" heading_id="reviewed-heading" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Accounts reviewed" value=review.scope_label %}
+    {% fact label="Accounts" value=review.accounts %}
+    {% fact label="Grants" value=review.grants %}
+    {% fact label="Decided to remove" value=review.removals %}
+    {% fact label="Findings" wide=True value=review.findings|linebreaksbr empty="None recorded" %}
+    {% fact label="Follow-up" wide=True value=review.follow_up|linebreaksbr empty="None recorded" %}
+  </dl>
+{% endpanel %}
+{% panel title="To remove" heading_id="removals-heading" count=removals|length class="mb-3" %}
+  {% if removals %}
+  <ul class="vr-plain-list mb-0">
+    {% for item, held in removals %}
+    <li class="vr-review-removal">
+      <span class="vr-break-anywhere"><strong>{{ item.label }}</strong>{% if item.detail %} <span class="vr-muted small">{{ item.detail }}</span>{% endif %}</span>
+      <span class="d-block small"><span class="vr-break-anywhere">{{ item.account_name }}</span> <span class="vr-muted vr-break-anywhere">{{ item.account_username }}</span>{% if item.organization_name %} <span class="vr-muted">· {{ item.organization_name }}</span>{% endif %}</span>
+      <span class="d-block">{% if held %}{% status label="Still held" tone="warning" plain=True %}{% else %}{% status label="No longer held" tone="success" plain=True %}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vr-muted mb-0">Every grant was kept.</p>
+  {% endif %}
+  {% fill footer %}<p class="vr-muted small mb-0">Whether a grant is still held is read as the accounts stand when this page is drawn; it is not part of what was signed. A superuser removes roles, capabilities and admin console access, and deactivates a portal account, on the account's page in the admin console. A deactivated account holds nothing.</p>{% endfill %}
+{% endpanel %}
+{% panel title="Every grant reviewed" heading_id="grants-heading" count=review.grants class="mb-3" %}
+  <ol class="vr-plain-list vr-review-accounts mb-0">
+    {% for account in accounts %}
+    <li class="vr-review-account">
+      <p class="vr-review-account-name mb-1"><span class="vr-break-anywhere">{{ account.name }}</span> <span class="vr-muted small vr-break-anywhere">{{ account.username }}</span>{% if account.organization %}<span class="d-block vr-muted small">{{ account.organization }}</span>{% endif %}</p>
+      <ul class="vr-plain-list">
+        {% for item, held in account.rows %}
+        <li class="vr-review-item"><span class="vr-break-anywhere">{{ item.label }}{% if item.detail %} <span class="vr-muted small">{{ item.detail }}</span>{% endif %}</span> <span class="vr-nowrap">{% if item.decision == "remove" %}{% status label="Remove" tone="warning" plain=True %}{% else %}{% status label="Keep" tone="neutral" plain=True %}{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endfor %}
+  </ol>
+{% endpanel %}
+{% panel title="Sign-off" heading_id="sign-off-heading" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Signed by" %}<span class="vr-break-anywhere">{{ review.signer_name }}</span><span class="d-block vr-muted small">{{ review.signer_username }}</span>{% endfact %}
+    {% fact label="Roles held then" value=review.signer_roles %}
+    {% fact label="Meaning" value=review.get_meaning_display %}
+    {% fact label="Signed" %}<time datetime="{{ review.signed_at|date:'c' }}">{{ review.signed_at|date:"j F Y, H:i:s" }}</time>{% endfact %}
+    {% fact label="SHA-256 checksum" wide=True %}<code class="vr-request-id vr-break-anywhere">{{ review.checksum }}</code><span class="d-block small {% if intact %}vr-muted{% else %}text-danger{% endif %}">{% if intact %}Matches the access review as stored.{% else %}Does not match the access review as stored.{% endif %}</span>{% endfact %}
+  </dl>
+  {% fill footer %}<p class="vr-muted small mb-0">The grants were read as they stood at the moment of signing. The checksum is taken of the review's number, the accounts it covered, every grant with its decision, the findings, the follow-up and this sign-off.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

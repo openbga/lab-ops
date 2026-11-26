@@ -617,6 +617,7 @@ def describe_filters(use, people, tickets, clients, calendars=None, reviews=None
     if review := filters.get("review"):
         number = reviews.get(int(review)) if str(review).isdigit() else None
         parts.append(f"Review {number or review}")
+    parts.extend(_access_review_filters(filters))
     if use.kind == UseKind.VIEWED and filters.get("page") not in (None, "", "1"):
         parts.append(f"Page {filters['page']}")
     return "; ".join(parts) or "No filters"
@@ -648,6 +649,23 @@ def _access_filters(filters, teams):
         parts.append(f"Team: {found.name if found else f'Team {team}'}")
     if days := filters.get("days"):
         parts.append("No period set" if days == "none" else f"Unused after {_days(days)}")
+    return parts
+
+
+def _access_review_filters(filters):
+    """The Access review Reviews tab's uses (audit_review.access_review_views), in words: the form
+    that lists the grants to decide on, with the accounts it covered, and an access review shown or
+    exported, by its number (AccessReview.number follows from its id)."""
+    from .models import ACCESS_NUMBER_PREFIX, AccessScope
+
+    parts = []
+    if scope := filters.get("scope"):
+        parts.append(f"Accounts: {dict(AccessScope.choices).get(scope, scope)}")
+    if filters.get("form") == "new":
+        parts.append("Record an access review")
+    if review := filters.get("access_review"):
+        number = f"{ACCESS_NUMBER_PREFIX}{int(review):06d}" if str(review).isdigit() else review
+        parts.append(f"Access review {number}")
     return parts
 
 

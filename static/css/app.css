@@ -3340,6 +3340,53 @@ fieldset.vr-field > legend {
   margin-bottom: var(--vr-space-4);
 }
 
+/* Access review (audit_review): one block per account, one row per grant with Keep and Remove side
+   by side under its name, on a phone as on a desktop. */
+.vr-review-account {
+  padding: var(--vr-space-3) 0;
+  border-top: var(--vr-border-width) solid var(--vr-border);
+}
+
+.vr-review-account > fieldset,
+.vr-decision {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vr-review-account-name {
+  float: none;
+  width: 100%;
+  margin: 0 0 var(--vr-space-2);
+  padding: 0;
+  font-size: var(--vr-font-size-4);
+  font-weight: var(--vr-font-weight-semibold);
+}
+
+.vr-decision {
+  margin-bottom: var(--vr-space-3);
+}
+
+.vr-decision-grant {
+  float: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: var(--vr-font-size-4);
+}
+
+.vr-decision-choices .vr-choices {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--vr-space-6);
+}
+
+.vr-review-item,
+.vr-review-removal {
+  margin-bottom: var(--vr-space-2);
+}
+
 .vr-form .row > [class*="col"] > .vr-field,
 .vr-form-section > .vr-field:last-child {
   margin-bottom: 0;
