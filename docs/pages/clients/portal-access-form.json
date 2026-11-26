@@ -57,7 +57,7 @@
         },
         {
           "label": "Last day of this access (optional)",
-          "description": "The last day the access holds. It ends at the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; a later time-zone change does not move it). A newly chosen day must be today or later, or the field shows: Choose today or a later day. To end it now, remove it instead. A day kept as stored, even one already past, is never refused. Leave it empty for no end. Changing only the last day is a change of existing access and needs the reason."
+          "description": "The last day the access holds. It ends at the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; a later time-zone change does not move it). A newly chosen day must be today or later, or the field shows: Choose today or a later day. It must also be within the next 100 years: Choose a day within the next 100 years, or leave it empty for no end. A day left as the page showed it, even one already past, is never refused and keeps the end as saved, even if the laboratory's time zone changed after the page opened. Leave it empty for no end. Changing only the last day is a change of existing access and needs the reason."
         },
         {
           "label": "Reason for change",
@@ -78,7 +78,7 @@
         },
         {
           "label": "Account moved from another organization",
-          "description": "Its access is emptied when it moves, however the move is made, and the reset is recorded in the history: no linked contact, no sites, not the whole organization, no last day. Moving it back restores nothing. It sees only the tickets it raised here until you set its access. If the account moves while this form is open, saving is refused; reload it on the account's new organization."
+          "description": "Its access is emptied when it moves, however the move is made: no linked contact, no sites, not the whole organization, no last day. A move made in the application is recorded in the access's history as a reset; one made directly in the database is not. Moving it back restores nothing. It sees only the tickets it raised here until you set its access. If the account moves while this form is open, saving is refused; reload it on the account's new organization."
         },
         {
           "label": "Restricted tickets",

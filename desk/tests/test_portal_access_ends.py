@@ -13,7 +13,7 @@ from accounts import grant_ends
 from accounts.models import User
 from clients.models import ClientSite, PortalAccess
 from clients.portal import current_access, portal_contacts
-from clients.services import reset_portal_access, set_portal_access
+from clients.services import set_portal_access
 from core.models import AuditEvent
 from desk.models import Channel
 from desk.portal_scope import portal_requests, portal_sites, site_required
@@ -106,7 +106,7 @@ def test_a_new_last_day_in_the_past_is_refused_a_kept_one_is_not(clinic, manager
     yesterday = grant_ends.today() - timedelta(days=1)
     with pytest.raises(ValidationError) as refused:
         grant(manager, portal, clinic, last_day=yesterday)
-    assert refused.value.message_dict == {"last_day": [grant_ends.PAST_DAY]}
+    assert refused.value.message_dict == {"last_day": [grant_ends.PORTAL_PAST_DAY]}
     assert not PortalAccess.objects.exists()
     grant(manager, portal, clinic, last_day=grant_ends.today())  # today is allowed
     PortalAccess.objects.filter(user=portal).update(ends_at=grant_ends.end_of(yesterday))
@@ -143,16 +143,23 @@ def test_an_end_only_change_is_a_change_and_clearing_it_gives_access_again(clini
 
 
 def test_a_move_to_another_organization_takes_the_end_away_with_the_access(
-    clinic, water, manager, portal
+    clinic, water, manager, portal, make_user
 ):
     grant(manager, portal, clinic, last_day=grant_ends.today() + timedelta(days=3))
-    User.objects.filter(pk=portal.pk).update(client=water)
-    portal.refresh_from_db()
-    reset_portal_access(actor=manager, user_id=portal.pk, expected_client_id=water.pk)
+    portal.client = water
+    portal.changed_by = manager  # a move through the application records the reset
+    portal.save(update_fields=["client"])
     access = PortalAccess.objects.get(user=portal)
     assert access.ends_at is None and access.client_id == water.pk
     event = AuditEvent.objects.get(action="portal_access.reset")
     assert event.before["ends_at"] is not None and event.after["ends_at"] is None
+    # A move made without a save (queryset.update): the database's move trigger empties the end
+    # with the rest of the access.
+    other = make_user("other_reader", client=clinic)
+    grant(manager, other, clinic, last_day=grant_ends.today() + timedelta(days=3))
+    User.objects.filter(pk=other.pk).update(client=water)
+    access = PortalAccess.objects.get(user=other)
+    assert access.ends_at is None and not access.whole_organization
 
 
 def test_the_organization_page_and_set_access_say_when_access_ends(clinic, manager, portal, client):
@@ -164,12 +171,13 @@ def test_the_organization_page_and_set_access_say_when_access_ends(clinic, manag
     edit = reverse("clients:portal-access-edit", args=[clinic.pk, portal.pk])
     response = client.get(edit)
     assert response.context["form"].initial["last_day"] == day
-    assert "Access ended" not in response.content.decode()
+    notice = "The last day of this access has passed"  # the notice's own words, not the help's
+    assert notice not in response.content.decode()
     end_now(portal)
     page = client.get(reverse("clients:client-detail", args=[clinic.pk])).content.decode()
     ended_day = grant_ends.last_day_of(PortalAccess.objects.get(user=portal).ends_at)
     assert f"Only tickets it raised (access ended after {ended_day.isoformat()})" in page
-    assert "Access ended" in client.get(edit).content.decode()
+    assert notice in client.get(edit).content.decode()
 
 
 def test_set_access_saves_a_last_day_and_refuses_a_past_one(clinic, manager, portal, client):
@@ -179,7 +187,7 @@ def test_set_access_saves_a_last_day_and_refuses_a_past_one(clinic, manager, por
     form = {"scope": "organization", "expected_revision": "0"}
     response = client.post(edit, {**form, "last_day": yesterday.isoformat()})
     assert response.status_code == 200
-    assert grant_ends.PAST_DAY in response.context["form"].errors["last_day"]
+    assert grant_ends.PORTAL_PAST_DAY in response.context["form"].errors["last_day"]
     assert not PortalAccess.objects.exists()
     day = grant_ends.today() + timedelta(days=30)
     response = client.post(edit, {**form, "last_day": day.isoformat()})
@@ -199,3 +207,50 @@ def test_staff_without_a_client_role_cannot_set_access(clinic, portal, make_user
     assert not PortalAccess.objects.exists()
     client.force_login(portal)
     assert client.post(edit, {"scope": "organization"}).status_code == 403
+
+
+def test_an_end_left_from_another_organization_is_never_kept(clinic, water, manager, portal):
+    """Access granted for another organization (a supported older record) shows no day; saving
+    without one leaves no end, and a day chosen is a new choice."""
+    old = PortalAccess.objects.create(
+        user=portal,
+        client=water,
+        whole_organization=True,
+        ends_at=grant_ends.end_of(grant_ends.today() + timedelta(days=5)),
+    )
+    set_portal_access(
+        actor=manager,
+        user_id=portal.pk,
+        expected_client_id=clinic.pk,
+        whole_organization=True,
+        shown_last_day=None,
+        expected_revision=old.revision,
+        reason="First decision for this organization",
+    )
+    old.refresh_from_db()
+    assert old.client_id == clinic.pk and old.ends_at is None
+
+
+def test_a_changed_day_from_the_page_is_a_new_choice_and_a_shown_one_is_kept(
+    clinic, manager, portal, client
+):
+    yesterday = grant_ends.today() - timedelta(days=1)
+    grant(manager, portal, clinic)
+    PortalAccess.objects.filter(user=portal).update(ends_at=grant_ends.end_of(yesterday))
+    client.force_login(manager)
+    edit = reverse("clients:portal-access-edit", args=[clinic.pk, portal.pk])
+    form = client.get(edit).context["form"]
+    assert form["shown_last_day"].value() == yesterday
+    data = {
+        "scope": "organization",
+        "shown_last_day": yesterday.isoformat(),
+        "expected_revision": form["expected_revision"].value(),
+        "reason": "Synthetic change",
+    }
+    response = client.post(edit, {**data, "last_day": (yesterday - timedelta(days=1)).isoformat()})
+    assert response.context["form"].errors["last_day"] == [grant_ends.PORTAL_PAST_DAY]
+    contact = clinic.contacts.create(name="Kept Day Contact", phone="555")
+    response = client.post(edit, {**data, "last_day": yesterday.isoformat(), "contact": contact.pk})
+    assert response.status_code == 302
+    access = PortalAccess.objects.get(user=portal)
+    assert access.contact == contact and access.ends_at == grant_ends.end_of(yesterday)

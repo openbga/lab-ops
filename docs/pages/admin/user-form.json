@@ -120,7 +120,7 @@
         },
         {
           "label": "Last day of “Can view patient information” / Last day of “Can review access and audit records”",
-          "description": "Change only, under Capability end dates; optional, one date for each capability. It applies only to the capability given to the account directly (ticked under User permissions); a capability given through a role or group has no end date. A day for a capability not given directly is refused: Give this capability to the account directly (under User permissions), or clear its last day. A newly chosen day must be today or later: Choose today or a later day. To end it now, remove it instead. A day kept as stored, even one already past, is never refused. Leave empty for no end."
+          "description": "Change only, under Capability end dates; optional, one date for each capability. It applies only to the capability given to the account directly (ticked under User permissions); a capability given through a role or group has no end date. A day for a capability not given directly is refused: Give this capability to the account directly (under User permissions), or clear its last day. A newly chosen day must be today or later: Choose today or a later day. To end it now, remove it instead. It must also be within the next 100 years: Choose a day within the next 100 years, or leave it empty for no end. A day left as the page showed it, even one already past, is never refused and keeps the end as saved, even if the laboratory's time zone changed after the page opened. Leave empty for no end."
         },
         {
           "label": "When a last day ends",

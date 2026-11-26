@@ -68,7 +68,7 @@ from core.audit import record_event
 
 from .confirmation import ConfirmIdentity
 from .forms import PasswordGuidance
-from .grant_ends import check_new_day, end_of, ended, has_ended, iso, last_day_of
+from .grant_ends import check_new_day, chosen_end, ended, has_ended, iso, last_day_of
 from .models import CapabilityEnd, User
 from .roles import CAPABILITIES, ROLES
 from .setup import account_snapshot, group_snapshot, held_role_names, with_held_role_names
@@ -164,6 +164,11 @@ COLUMNS = tuple(name for name in PAGE_FIELDS if name not in (*RELATIONS, ENDS))
 def end_field(codename):
     """The account page's field for the last day of a capability given directly."""
     return f"last_day_{codename}"
+
+
+def shown_field(codename):
+    """The account page's hidden field holding the last day as the page showed it."""
+    return f"shown_last_day_{codename}"
 
 
 def capability_ids():
@@ -406,33 +411,49 @@ class CapabilityEndField(forms.DateField):
         )
 
 
+class ShownDayField(forms.DateField):
+    """The last day as the page showed it, sent back with the form: a day sent back unchanged
+    keeps the end as stored, whatever the time zone is when it is saved. Never a change of its
+    own."""
+
+    widget = forms.HiddenInput
+
+    def __init__(self):
+        super().__init__(required=False)
+
+    def has_changed(self, initial, data):
+        return False
+
+
 class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
     # The account as drawn: a save is refused when it has changed since (AccessRules).
     drawn = DrawnStateField(required=False)
     # One for each capability (accounts.roles.CAPABILITIES; tests check none is missing).
     last_day_view_patient_information = CapabilityEndField(CAPABILITIES["view_patient_information"])
     last_day_review_audit_records = CapabilityEndField(CAPABILITIES["review_audit_records"])
+    shown_last_day_view_patient_information = ShownDayField()
+    shown_last_day_review_audit_records = ShownDayField()
 
     def __init__(self, *args, **kwargs):
         from jobs.actor import is_system_account
 
         super().__init__(*args, **kwargs)
+        ends = read_ends(self.instance) if self.instance.pk else {}
+        for codename, (_ends_at, over) in ends.items():
+            # Said whenever the page is drawn, a page drawn again after a refusal included.
+            if over and end_field(codename) in self.fields:
+                self.fields[end_field(codename)].help_text = (
+                    "Ended: this day has passed, so the capability gives nothing. Choose a later "
+                    "day, or clear it, to give it again, or remove the capability. " + END_HELP
+                )
         if self.instance.pk and not self.is_bound:
             # The values this form draws, not a second reading of the account: a role added
             # between the two would otherwise be in the fingerprint and missing from the page.
             # The ends drawn and fingerprinted are one reading too.
-            ends = read_ends(self.instance)
-            for codename, (ends_at, over) in ends.items():
-                name = end_field(codename)
-                if name not in self.fields:
-                    continue
-                self.initial[name] = last_day_of(ends_at)
-                if over:
-                    self.fields[name].help_text = (
-                        "Ended: this day has passed, so the capability gives nothing. Choose a "
-                        "later day, or clear it, to give it again, or remove the capability. "
-                        + END_HELP
-                    )
+            for codename, (ends_at, _over) in ends.items():
+                if end_field(codename) in self.fields:
+                    self.initial[end_field(codename)] = last_day_of(ends_at)
+                    self.initial[shown_field(codename)] = last_day_of(ends_at)
             drawn = {name: self.initial[name] for name in PAGE_FIELDS if name in self.initial}
             self.initial["drawn"] = _digest({**account_reading(self.instance, ends), **drawn})
         password = self.fields.get("password")
@@ -442,10 +463,19 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
             password.widget = ReservedPasswordWidget()
             password.help_text = ReservedPasswordWidget.explanation
 
+    def shown_day(self, codename, stored):
+        """The day the page showed for this capability's end: as the page sent it back, or, from
+        a page that did not send it, the day of the stored end (`stored`, ISO 8601) now."""
+        name = shown_field(codename)
+        if name in self.data and name in self.fields:
+            return self.cleaned_data.get(name)
+        return last_day_of(_moment(stored))
+
     def clean(self):
         """The last days, checked once the account is held as the page was drawn (AccessRules
         sets held_reading; nothing is checked here when an earlier check refused the save): a
-        day only for a capability the page gives directly, and a new day today or later."""
+        day only for a capability the page gives directly, and a new day (not the one the page
+        showed) today or later and within accounts.grant_ends.MOST_YEARS."""
         data = super().clean()
         held = getattr(self, "held_reading", None)
         if held is None:
@@ -460,10 +490,9 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
             if "user_permissions" in data and ids.get(codename) not in posted:
                 self.add_error(name, NOT_DIRECT)
                 continue
-            stored = held[ENDS].get(codename)
-            past = check_new_day(day, last_day_of(_moment(stored)))
-            if past:
-                self.add_error(name, past)
+            refused = check_new_day(day, self.shown_day(codename, held[ENDS].get(codename)))
+            if refused:
+                self.add_error(name, refused)
         return data
 
 
@@ -671,7 +700,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         (
             "Capability end dates",
             {
-                "fields": tuple(end_field(codename) for codename in CAPABILITIES),
+                "fields": tuple(
+                    name
+                    for codename in CAPABILITIES
+                    for name in (end_field(codename), shown_field(codename))
+                ),
                 "description": "A capability given directly above can have a last day, for "
                 "access needed only for a while. After that day it gives nothing, and the access "
                 "report shows it as ended. Each check of the capability compares the end with "
@@ -799,9 +832,10 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
     def _save_ends(obj, form, held_ends, granted):
         """Set the ends of the capabilities given directly as the form asks, from the ends the
         check held (held_ends, {codename: ISO moment}) and the grants after the save (`granted`,
-        permission ids): an end only for a capability given directly; a day kept as drawn keeps
-        its stored moment. Returns the ends after the save, as held_ends reads them. Setting one
-        takes the account's gate (accounts.grant_ends), which this save holds already."""
+        permission ids): an end only for a capability given directly; a day sent back as the page
+        showed it keeps its stored moment (accounts.grant_ends.chosen_end). Returns the ends after
+        the save, as held_ends reads them. Setting one takes the account's gate
+        (accounts.grant_ends), which this save holds already."""
         ids = capability_ids()
         after = {}
         for codename, permission_id in ids.items():
@@ -809,8 +843,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
             if day is None or permission_id not in granted:
                 continue
             stored = held_ends.get(codename)
-            kept = stored is not None and last_day_of(_moment(stored)) == day
-            after[codename] = stored if kept else iso(end_of(day))
+            moment = chosen_end(day, form.shown_day(codename, stored), _moment(stored))
+            after[codename] = iso(moment)
         for codename, permission_id in ids.items():
             want, have = after.get(codename), held_ends.get(codename)
             if want == have:

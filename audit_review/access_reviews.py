@@ -65,7 +65,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from accounts.acting import share_access
-from accounts.grant_ends import has_ended
+from accounts.grant_ends import has_ended, iso
 from accounts.roles import CAPABILITIES, ROLE_LABELS, ROLES, direct_grants
 from clients.models import PortalAccess
 from core.audit import record_event
@@ -126,6 +126,10 @@ class Grant:
     code: str
     label: str
     detail: str
+    # The grant's end, as stored (accounts.grant_ends.iso), or "": part of what the form showed,
+    # so a moved end is a changed grant even where its last day reads the same. Not signed: the
+    # words (detail) name the last day.
+    ends: str = ""
 
     @property
     def key(self):
@@ -143,6 +147,7 @@ class Grant:
             self.code,
             self.label,
             self.detail,
+            self.ends,
         ]
 
     @property
@@ -263,8 +268,12 @@ def read_grants(accounts_list):
         name = access_report.person_name(account)
         organization = account.client.name if account.client_id is not None else ""
 
-        def grant(kind, code, label, detail="", account=account, name=name, org=organization):
-            return Grant(account.pk, name, account.username, org, kind, code, label, detail)
+        def grant(
+            kind, code, label, detail="", ends=None, account=account, name=name, org=organization
+        ):
+            return Grant(
+                account.pk, name, account.username, org, kind, code, label, detail, iso(ends) or ""
+            )
 
         for flag, label in access_report.CONSOLE:
             if getattr(account, flag):
@@ -282,11 +291,14 @@ def read_grants(accounts_list):
                 ends_at = direct[account.pk][codename]
                 until = f", last day {access_report._day(ends_at)}" if ends_at else ""
                 grants.append(
-                    grant(GrantKind.CAPABILITY, codename, label, f"Given directly{until}")
+                    grant(GrantKind.CAPABILITY, codename, label, f"Given directly{until}", ends_at)
                 )
         if account.client_id is not None:
-            code, detail = _portal(account, portal.get(account.pk))
-            grants.append(grant(GrantKind.PORTAL, code, PORTAL_LABEL, detail))
+            access = portal.get(account.pk)
+            code, detail = _portal(account, access)
+            held = access is not None and access.applies_to(account) and not access.over
+            ends = access.ends_at if held else None
+            grants.append(grant(GrantKind.PORTAL, code, PORTAL_LABEL, detail, ends))
     return grants
 
 

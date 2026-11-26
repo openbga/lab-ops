@@ -498,6 +498,10 @@ def portal_access_state(access, site_ids=None):
     }
 
 
+# set_portal_access's `shown_last_day` when the form sent none back.
+UNSHOWN = object()
+
+
 @transaction.atomic
 def set_portal_access(
     *,
@@ -507,6 +511,7 @@ def set_portal_access(
     whole_organization=False,
     sites=(),
     last_day=None,
+    shown_last_day=UNSHOWN,
     expected_client_id,
     expected_revision=None,
     reason="",
@@ -521,14 +526,18 @@ def set_portal_access(
     belong to the same organization. Scope is the whole organization, or one or more listed
     sites (new ones active); listed sites are cleared when the scope is the whole organization.
     `last_day` (a date, or None for no end) is the last day the access holds; it ends at the start
-    of the next day in the laboratory's time zone (accounts.grant_ends), and a new last day must be
-    today or later (a day kept as stored is never refused). Changing existing access needs a
+    of the next day in the laboratory's time zone (accounts.grant_ends). `shown_last_day` is the
+    day the form showed (UNSHOWN, for a caller that sends none: the stored end's day now; None: no
+    day shown, as for access not yet set or granted for another organization): a day sent back as
+    shown keeps the end as stored (accounts.grant_ends.chosen_end), and only an end of access
+    granted for the account's organization is kept; any other day is a new choice, which must be
+    today or later and within accounts.grant_ends.MOST_YEARS. Changing existing access needs a
     reason and the revision the form was opened at (a missing revision is refused like a stale
     one); setting it the first time does not. Audited as `portal_access.set` with ids, flags and
     the end only.
     """
     from accounts.acting import close_access
-    from accounts.grant_ends import check_new_day, end_of, last_day_of
+    from accounts.grant_ends import PORTAL_PAST_DAY, check_new_day, chosen_end, last_day_of
     from accounts.models import User
 
     require_client_manager(actor)
@@ -567,15 +576,18 @@ def set_portal_access(
             raise ValidationError(
                 {"sites": "Choose at least one site, or give access to the whole organization."}
             )
-    stored_day = last_day_of(access.ends_at) if access.pk is not None else None
-    past = check_new_day(last_day, stored_day)
-    if past:
-        raise ValidationError({"last_day": past})
+    # Only an end of access granted for this organization is kept: one left from another
+    # organization (or none) is never this organization's choice.
+    applies = access.pk is not None and access.client_id == account.client_id
+    stored_end = access.ends_at if applies else None
+    shown = last_day_of(stored_end) if shown_last_day is UNSHOWN else shown_last_day
+    refused = check_new_day(last_day, shown, past=PORTAL_PAST_DAY)
+    if refused:
+        raise ValidationError({"last_day": refused})
     access.client_id = account.client_id
     access.contact = contact
     access.whole_organization = bool(whole_organization)
-    if last_day != stored_day:
-        access.ends_at = end_of(last_day)
+    access.ends_at = chosen_end(last_day, shown, stored_end)
     after = portal_access_state(access, site_ids)
     if access.pk is not None:
         if after == before:

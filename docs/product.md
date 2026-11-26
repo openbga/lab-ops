@@ -552,8 +552,10 @@ have no notes, no interval or due date, no reminder and no second approver.
 A capability given directly to an account and a portal account's access may each have a last day,
 set by a superuser on the account's page in the admin console and by client services, account
 managers and admins on the portal account's Set access page. A newly chosen day must be today or
-later. The grant gives nothing from the start of the next day in the laboratory's time zone, and
-every check of the grant compares the end with the database's clock. An ended grant stays on the
+later and within the next 100 years; a day left as the page showed it keeps the end as saved, even
+after a change of the laboratory's time zone. The grant gives nothing from the start of the next
+day in the laboratory's time zone, and every check of the grant compares the end with the
+database's clock. An ended grant stays on the
 account, giving nothing, until someone removes it or sets a later day; setting or moving an end is
 recorded in the account's or the access's change event. A capability given through a role or group
 has no end date, and neither do roles, admin console access or team memberships. Nothing reminds

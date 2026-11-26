@@ -164,3 +164,33 @@ def test_a_grant_decided_for_removal_is_not_held_once_its_end_has_passed(make_us
     CapabilityEnd.objects.filter(user=holder).update(ends_at=past())
     held = {item.code: access_reviews.still_held(items)[item.pk] for item in items}
     assert held == {"view_patient_information": False, "review_audit_records": True}
+
+
+@pytest.mark.parametrize("scope", [AccessScope.STAFF, AccessScope.PORTAL])
+def test_an_end_moved_within_the_same_last_day_refuses_the_signing(
+    make_user, reviewer, clinic, scope
+):
+    """The grant's end, as stored, is part of what the form showed: an end moved by hours, its
+    last day reading the same, is a changed grant."""
+    holder = make_user("holder", "technical")
+    holder.user_permissions.add(patient_permission())
+    moment = grant_ends.end_of(day_ahead())
+    end(holder, patient_permission(), moment)
+    portal = make_user("portal", client=clinic)
+    PortalAccess.objects.create(user=portal, client=clinic, whole_organization=True, ends_at=moment)
+    current = access_reviews.reading(scope)
+    earlier = moment - timedelta(hours=1)
+    assert grant_ends.last_day_of(earlier) == grant_ends.last_day_of(moment)
+    CapabilityEnd.objects.filter(user=holder).update(ends_at=earlier)
+    PortalAccess.objects.filter(user=portal).update(ends_at=earlier)
+    assert [g.detail for g in access_reviews.reading(scope).grants] == [
+        g.detail for g in current.grants
+    ]
+    with pytest.raises(ValidationError) as refused, transaction.atomic():
+        access_reviews.sign_access_review(
+            actor=reviewer,
+            scope=scope,
+            decisions={grant.key: Decision.KEEP for grant in current.grants},
+            expected=current.fingerprint,
+        )
+    assert access_reviews.STALE in refused.value.messages

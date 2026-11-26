@@ -51,17 +51,26 @@ and cannot hold staff roles or capabilities.
 A capability given directly (`accounts.models.CapabilityEnd`) and a portal access
 (`PortalAccess.ends_at`) may end ([accounts/grant_ends.py](../accounts/grant_ends.py)). The form
 takes a last day; the end stored is the start of the next day in `TIME_ZONE` as set when the day
-is saved, so a later zone change does not move it. There is one clock: every check compares the
+is saved, so a later zone change does not move it. Each form sends back, hidden, the day it
+showed: a day sent back unchanged keeps the stored end (`grant_ends.chosen_end`), so a save made
+after a zone change does not move an end nobody edited, and only an end of access granted for the
+account's current organization is kept; any other day is a new choice (today or later, within 100
+years). There is one clock: every check compares the
 end with `transaction_timestamp()`, the database's time at the start of the checking transaction,
 in the statement that reads the grant, so every process agrees and every check within one change
 or one page reading gives the same answer. The choke points are `accounts.roles.direct_grants`
-(every reading of what an account holds directly: `has_capability`, the sidebar's
-`roles_and_capabilities`, the Security settings holder counts, the access report and the access
-review) and `clients.portal.current_access` (every portal scope reading); the second-factor rule's
-SQL repeats the same condition. An ended grant stays stored, giving nothing; removing a direct
+(every check of whether an account holds a capability directly: `has_capability`, the sidebar's
+`roles_and_capabilities`, the Security settings holder counts, the access report's capability
+filter, the access review's choice of staff accounts and whether a removal is still held) and
+`clients.portal.current_access` (every portal scope reading); the second-factor rule's SQL repeats
+the same condition. Pages that list stored grants, ended ones included, read each grant with its
+end and whether it has ended in the same statement (`audit_review.access_report.direct_with_ends`;
+the admin account list, the access report's rows and the access review's list of grants) and leave
+out or mark the ended ones. An ended grant stays stored, giving nothing; removing a direct
 grant deletes its end and a grant given anew starts without one (an `m2m_changed` receiver).
-Saving a `CapabilityEnd` takes the account's access gate exclusively (`pre_save`, like a removal),
-and a portal access save already does. Known limits: a change that checked the grant before the
+Saving a `CapabilityEnd`, and saving a `PortalAccess` with another end through `save()`, takes
+the account's access gate exclusively (`pre_save` receivers, like a removal). The move trigger of
+`clients.0007`, replaced in `clients.0008`, empties the end with the rest of the access. Known limits: a change that checked the grant before the
 end and commits after it is a holder's change, since nothing waits for an end; and paths that
 bypass `save()` (`QuerySet.update`, raw SQL) do not take the gate.
 

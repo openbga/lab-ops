@@ -15,7 +15,13 @@ statement run on its own (outside a transaction) is its own transaction.
 
 Nothing removes an ended grant: it stays on the account, giving nothing, until someone removes it
 or sets a later day (which gives it again). Setting or moving an end is an access change: it takes
-the account's access gate (accounts.acting.close_access) like a removal.
+the account's access gate (accounts.acting.close_access) like a removal, whatever saves it (a
+CapabilityEnd saved, a PortalAccess saved with another end). Paths that bypass save()
+(QuerySet.update, raw SQL) take no gate.
+
+A form sends back the last day it showed. A day sent back unchanged keeps the end as stored, even
+when the time zone changed after the page was drawn and the same end now falls on another day
+(chosen_end); any other day is a new choice, checked by check_new_day.
 """
 
 from datetime import UTC, datetime, time, timedelta
@@ -81,16 +87,33 @@ def today():
 
 
 PAST_DAY = "Choose today or a later day. To end it now, remove it instead."
+# Set access cannot take portal access away (it gives the whole organization or listed sites).
+PORTAL_PAST_DAY = "Choose today or a later day."
+MOST_YEARS = 100
+TOO_LATE = f"Choose a day within the next {MOST_YEARS} years, or leave it empty for no end."
 
 
-def check_new_day(last_day, stored_last_day):
-    """The error for a last day chosen in the past, or None. A day kept as stored, even one already
-    past, is not a new choice and is never refused."""
-    if last_day is None or last_day == stored_last_day:
+def check_new_day(last_day, shown_day, past=PAST_DAY):
+    """The error for a newly chosen last day, or None: one in the past (`past`, the page's
+    wording) or more than MOST_YEARS ahead. A day sent back as the page showed it (`shown_day`),
+    even one already past, is not a new choice and is never refused."""
+    if last_day is None or last_day == shown_day:
         return None
-    if last_day < today():
-        return PAST_DAY
+    now = today()
+    if last_day < now:
+        return past
+    if last_day > now + timedelta(days=MOST_YEARS * 366):
+        return TOO_LATE
     return None
+
+
+def chosen_end(last_day, shown_day, stored_end):
+    """The end a save stores: the stored one (`stored_end`) when the page sent the day back as it
+    showed it (`shown_day`), whatever the time zone is now; otherwise the end of the day chosen,
+    or None for no end. The caller has refused a new day check_new_day refuses."""
+    if last_day == shown_day:
+        return stored_end
+    return end_of(last_day)
 
 
 def iso(ends_at):
@@ -106,6 +129,23 @@ def _on_end_saved(sender, instance, raw=False, **kwargs):
     """An end set or moved: it can take access away, so it takes the account's access gate
     (accounts.acting.close_access), as a removal does."""
     if raw:
+        return
+    from .acting import close_access
+
+    close_access([instance.user_id])
+
+
+def _on_access_saved(sender, instance, raw=False, update_fields=None, **kwargs):
+    """A portal access's end set, moved or cleared, by any path that saves it: it can take access
+    away, so it takes the account's access gate, as the portal access form does. A new access only
+    gives, and takes none. (A change of its scope saved without the form is the gates' existing
+    limit: accounts.acting.)"""
+    if raw or instance.pk is None:
+        return
+    if update_fields is not None and "ends_at" not in update_fields:
+        return
+    stored = type(instance).objects.filter(pk=instance.pk).values_list("ends_at", flat=True)
+    if list(stored) == [instance.ends_at]:
         return
     from .acting import close_access
 
@@ -133,9 +173,12 @@ def _on_direct_grants(sender, instance, action, reverse, model, pk_set, **kwargs
 def connect():
     from django.db.models.signals import m2m_changed, pre_save
 
+    from clients.models import PortalAccess
+
     from .models import CapabilityEnd, User
 
     pre_save.connect(_on_end_saved, sender=CapabilityEnd, dispatch_uid="grant-end-gate")
+    pre_save.connect(_on_access_saved, sender=PortalAccess, dispatch_uid="portal-access-gate")
     m2m_changed.connect(
         _on_direct_grants, sender=User.user_permissions.through, dispatch_uid="grant-end-goes"
     )

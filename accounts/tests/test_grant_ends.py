@@ -339,3 +339,101 @@ def test_the_account_list_leaves_out_an_ended_capability(owner, make_user, clien
     assert admin_view.capabilities(rows["ended1"]) == "—"
     assert admin_view.capabilities(rows["ending1"]) == "Can view patient information"
     assert admin_view.capabilities(User.objects.get(pk=ended.pk)) == "—"  # without the prefetch
+
+
+# --- a day sent back as the page showed it (review round 1) -----------------------------------
+
+
+def test_a_day_sent_back_as_shown_keeps_the_end_and_a_changed_one_is_new_after_a_zone_change(
+    owner, make_user, client
+):
+    person = make_user("zones", "technical")
+    client.force_login(owner)
+    day = grant_ends.today() + timedelta(days=40)
+    with override_settings(TIME_ZONE="Etc/UTC"):
+        give(person, PATIENT, grant_ends.end_of(day))
+        stored = CapabilityEnd.objects.get(user=person).ends_at
+        url = reverse("admin:accounts_user_change", args=[person.pk])
+        form = client.get(url).context["adminform"].form
+        kept = page_data(form, first_name="Kept")
+        moved = page_data(form, **{end_field(PATIENT): (day + timedelta(days=2)).isoformat()})
+    with override_settings(TIME_ZONE="Asia/Tokyo"):
+        assert client.post(url, kept).status_code == 302
+        assert CapabilityEnd.objects.get(user=person).ends_at == stored
+        form = client.get(url).context["adminform"].form  # the page as it now reads
+        assert form.initial[end_field(PATIENT)] == day + timedelta(days=1)
+        moved["drawn"] = form.initial["drawn"]
+        assert client.post(url, moved).status_code == 302
+        assert CapabilityEnd.objects.get(user=person).ends_at == grant_ends.end_of(
+            day + timedelta(days=2)
+        )
+
+
+def test_a_page_that_sends_no_shown_day_is_read_as_showing_the_stored_day(owner, make_user, client):
+    person = make_user("noshown", "technical")
+    give(person, PATIENT, grant_ends.end_of(grant_ends.today() - timedelta(days=3)))
+    client.force_login(owner)
+    url = reverse("admin:accounts_user_change", args=[person.pk])
+    form = client.get(url).context["adminform"].form
+    data = page_data(form, first_name="Legacy")
+    data.pop(f"shown_last_day_{PATIENT}")
+    assert client.post(url, data).status_code == 302  # the past day as stored: not a new choice
+    # A different day, from a page that did not send what it showed, is a new choice.
+    data = page_data(client.get(url).context["adminform"].form)
+    data.pop(f"shown_last_day_{PATIENT}")
+    data[end_field(PATIENT)] = (grant_ends.today() - timedelta(days=1)).isoformat()
+    response = client.post(url, data)
+    assert grant_ends.PAST_DAY in response.context["adminform"].form.errors[end_field(PATIENT)]
+
+
+@pytest.mark.parametrize("years", [99, 101])
+def test_a_new_day_more_than_a_hundred_years_ahead_is_refused(owner, make_user, client, years):
+    person = make_user(f"far{years}", "technical")
+    client.force_login(owner)
+    day = grant_ends.today() + timedelta(days=365 * years)
+    _form, response = change(
+        client, person, user_permissions=[capability(PATIENT).pk], **{end_field(PATIENT): day}
+    )
+    if years == 99:
+        assert response.status_code == 302
+        assert CapabilityEnd.objects.get(user=person).ends_at == grant_ends.end_of(day)
+    else:
+        assert response.status_code == 200
+        errors = response.context["adminform"].form.errors[end_field(PATIENT)]
+        assert grant_ends.TOO_LATE in errors
+        assert not person.user_permissions.exists()
+
+
+def test_the_ended_help_is_drawn_again_on_a_refused_page(owner, make_user, client):
+    person = make_user("helpagain", "technical")
+    give(person, PATIENT, past())
+    client.force_login(owner)
+    form, response = change(
+        client,
+        person,
+        **{end_field(REVIEW): (grant_ends.today() + timedelta(days=3)).isoformat()},
+    )
+    assert response.status_code == 200  # the review capability is not given directly
+    refused = response.context["adminform"].form
+    assert refused.fields[end_field(PATIENT)].help_text.startswith("Ended:")
+    assert not refused.fields[end_field(REVIEW)].help_text.startswith("Ended:")
+
+
+def test_a_portal_access_saved_with_another_end_takes_the_gate(make_user, monkeypatch):
+    from clients.models import Client, PortalAccess
+
+    clinic = Client.objects.create(name="Gate Clinic")
+    portal = make_user("gateportal", client=clinic)
+    closed = []
+    monkeypatch.setattr("accounts.acting.close_access", lambda ids: closed.append(list(ids)))
+    access = PortalAccess.objects.create(user=portal, client=clinic, whole_organization=True)
+    access.contact = None
+    access.save()  # no end changed
+    access.whole_organization = False
+    access.save(update_fields=["whole_organization"])
+    assert closed == []  # a new access, and saves that leave the end as it is
+    access.ends_at = future()
+    access.save()
+    access.ends_at = None
+    access.save(update_fields=["ends_at"])
+    assert closed == [[portal.pk], [portal.pk]]

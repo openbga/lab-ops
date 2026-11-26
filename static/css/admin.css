@@ -85,12 +85,13 @@ html[data-theme="dark"] {
   font-size: 0.75rem;
 }
 
-/* Phone widths: the admin console's text, password and email fields and its buttons are touch
-   targets of at least 44 px (docs/ui-standards.md section 13). */
+/* Phone widths: the admin console's text, password, email and date fields and its buttons are
+   touch targets of at least 44 px (docs/ui-standards.md section 13). */
 @media (max-width: 767px) {
   #content input[type="text"],
   #content input[type="password"],
   #content input[type="email"],
+  #content input[type="date"],
   #content input[type="submit"],
   #content button[type="submit"],
   #content textarea,

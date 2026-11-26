@@ -33,6 +33,7 @@ from .models import Client, ClientContact, ClientSite, PortalAccess
 from .permissions import require_client_manager
 from .services import (
     CHANGED,
+    UNSHOWN,
     add_contact,
     create_client,
     create_site,
@@ -317,6 +318,7 @@ def portal_access_edit(request, pk, user_pk):
         if access and not access.whole_organization and granted
         else "organization",
         "last_day": last_day_of(access.ends_at) if access else None,
+        "shown_last_day": last_day_of(access.ends_at) if access else None,
         "expected_revision": stored.revision if stored else 0,
     }
     form = PortalAccessForm(request.POST or None, account=account, access=stored, initial=initial)
@@ -331,6 +333,11 @@ def portal_access_edit(request, pk, user_pk):
                 whole_organization=data["whole_organization"],
                 sites=data.get("sites") or (),
                 last_day=data.get("last_day"),
+                # As the page showed it; a page that did not send it is read as showing the
+                # stored day now.
+                shown_last_day=data.get("shown_last_day")
+                if "shown_last_day" in request.POST
+                else UNSHOWN,
                 expected_client_id=client.pk,  # the organization this form was decided for
                 expected_revision=data.get("expected_revision"),
                 reason=data.get("reason", ""),

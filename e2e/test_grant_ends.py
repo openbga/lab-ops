@@ -26,7 +26,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 User = get_user_model()
 PORTAL_ACCOUNT = "demo_client_water"
 STAFF = "demo_technical"
-PAST_DAY = "Choose today or a later day. To end it now, remove it instead."
+# Set access's own wording (accounts.grant_ends.PORTAL_PAST_DAY), as the whole text of an element:
+# the page help quotes it too.
+PAST_DAY = re.compile(r"^Choose today or a later day\.$")
 NOT_DIRECT = (
     "Give this capability to the account directly (under User permissions), or clear its last day."
 )
@@ -116,7 +118,8 @@ def test_ended_portal_access_is_shown_as_ended(page: Page, demo):
     access = PortalAccess.objects.get(user__username=PORTAL_ACCOUNT)
     ended_day = today() - timedelta(days=3)
     access.ends_at = end_of(ended_day)
-    access.save(update_fields=["ends_at"])
+    with transaction.atomic():  # setting an end takes the account's access gate
+        access.save(update_fields=["ends_at"])
 
     sign_in(page, "demo_account_manager", demo.password)
     page.goto(f"/clients/{water().pk}/")
