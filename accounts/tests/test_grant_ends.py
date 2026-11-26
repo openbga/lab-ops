@@ -2,7 +2,7 @@
 every check treats an ended grant as gone, the end goes with its grant, and the account's page in
 the admin console sets it with the grant, checked against the page as drawn and audited."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -163,8 +163,8 @@ def test_a_last_day_ends_at_the_start_of_the_next_day_in_the_laboratorys_zone():
         assert moment.astimezone(zone).hour == 0
         assert grant_ends.last_day_of(moment) == day
         # The same moment read back from the database (UTC) gives the same day and ISO form.
-        assert grant_ends.last_day_of(moment.astimezone(ZoneInfo("UTC"))) == day
-        assert grant_ends.iso(moment) == grant_ends.iso(moment.astimezone(ZoneInfo("UTC")))
+        assert grant_ends.last_day_of(moment.astimezone(UTC)) == day
+        assert grant_ends.iso(moment) == grant_ends.iso(moment.astimezone(UTC))
 
 
 def test_a_new_day_must_be_today_or_later_but_a_kept_one_is_never_refused():
