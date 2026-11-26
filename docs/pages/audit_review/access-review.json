@@ -95,7 +95,7 @@
       "items": [
         {
           "label": "A grant decided for removal",
-          "description": "The grant's words and detail, with the account's name, username and, for a portal account, its organization, as they stood at signing. The count beside the heading is how many there are. Every grant was kept when there are none."
+          "description": "The grant's words and detail, with the account's name, username and, for a portal account, its organization, as they were read for the signing. The count beside the heading is how many there are. Every grant was kept when there are none."
         },
         {
           "label": "Still held",
@@ -116,7 +116,7 @@
       "items": [
         {
           "label": "An account",
-          "description": "Its name and username, and for a portal account its organization, as they stood at signing, in the order the form listed them."
+          "description": "Its name and username, and for a portal account its organization, as they were read for the signing, in the order the form listed them."
         },
         {
           "label": "A grant",
@@ -145,7 +145,7 @@
         },
         {
           "label": "Signed",
-          "description": "The date and time of the signing, to the second, by the application's clock, in the laboratory's time zone. The grants were read as they stood at that moment."
+          "description": "The date and time of the signing, to the second, by the application's clock, in the laboratory's time zone. The grants were read just before it."
         },
         {
           "label": "SHA-256 checksum",

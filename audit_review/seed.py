@@ -23,6 +23,7 @@ from django.utils import timezone
 from accounts.models import User
 from accounts.setup import seed_snapshot
 from core.audit import record_event
+from core.models import AuditEvent
 from desk.story import REVIEW_HOLDER
 from nonconformance.seed import happened_at
 
@@ -41,6 +42,8 @@ INTERVAL_DAYS = 31
 UNUSED_DAYS = 90
 UNUSED_USERNAME = "former_technician"
 UNUSED_EMAIL = "former.technician@example.invalid"
+# The reason of the creation event the seed records for the example, by which it knows its own.
+UNUSED_REASON = "Demonstration seed: a technician who no longer signs in"
 
 
 def seed_setup(ctx):
@@ -112,7 +115,7 @@ def _unused(reviewer):
             action="account.created",
             obj=account,
             after=seed_snapshot(account),
-            reason="Demonstration seed: a technician who no longer signs in",
+            reason=UNUSED_REASON,
         )
 
 
@@ -127,13 +130,14 @@ def _constraint(error):
 
 def _example_role(grants):
     """The keys of the grants the example review decides to remove: the Technical staff role of
-    the unused example account (UNUSED_USERNAME, without a usable password and not signed in for
-    UNUSED_DAYS), when it is the account the seed adds; none for an account of that name that is
-    someone else's."""
+    the unused example account, the account named UNUSED_USERNAME whose creation the seed recorded
+    (_seeded), while it has no usable password and Unused accounts lists it for UNUSED_DAYS (the
+    same rule, access_report.unused_accounts); none for an account of that name that someone else
+    created."""
     account = User.objects.filter(username=UNUSED_USERNAME).first()
-    if account is None or account.has_usable_password():
+    if account is None or account.has_usable_password() or not _seeded(account):
         return set()
-    if (account.last_login or account.date_joined) > access_report.cutoff(UNUSED_DAYS):
+    if not access_report.unused_accounts(UNUSED_DAYS, {}).filter(pk=account.pk).exists():
         return set()
     technical = Group.objects.filter(name="technical").values_list("pk", flat=True).first()
     return {
@@ -143,6 +147,18 @@ def _example_role(grants):
         and grant.kind == GrantKind.GROUP
         and grant.code == str(technical)
     }
+
+
+def _seeded(account):
+    """Whether the seed created `account`: its creation event is the seed's own (UNUSED_REASON,
+    recorded as by the demonstration's administrator)."""
+    return AuditEvent.objects.filter(
+        action="account.created",
+        object_type="accounts.user",
+        object_id=str(account.pk),
+        reason=UNUSED_REASON,
+        actor__username="demo_admin",
+    ).exists()
 
 
 def _access_review(reviewer):

@@ -336,8 +336,8 @@ class AccessReview(models.Model):
     signer_username = models.CharField(max_length=150)
     signer_roles = models.CharField(max_length=200)
     meaning = models.CharField(max_length=12, choices=Meaning.choices, default=Meaning.REVIEWED)
-    # By the application's clock, as change events are timed: the grants were read as they stood
-    # at this moment (access_reviews.sign_access_review).
+    # By the application's clock, as change events are timed: taken just after the grants were read
+    # (access_reviews.sign_access_review).
     signed_at = models.DateTimeField()
     checksum = models.CharField("SHA-256 checksum", max_length=64)
     request_ref = models.CharField("request ID", max_length=32, blank=True)

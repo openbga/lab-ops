@@ -37,7 +37,7 @@ submit_label, cancel_url, most_accounts, most_grants, crumbs. Drawing it is reco
   {% for field in form.hidden_fields %}{{ field }}{% endfor %}
   <fieldset class="vr-form-section">
     <legend>Grants held now</legend>
-    <p class="vr-form-note vr-break-anywhere">{{ reading.accounts }} account{{ reading.accounts|pluralize }} and {{ reading.grants|length }} grant{{ reading.grants|length|pluralize }}{% if organization %} of <span class="vr-break-anywhere">{{ organization.name }}</span>{% endif %}, as they stand now.{% if undecided %} <strong>{{ undecided }} grant{{ undecided|pluralize }} still need{{ undecided|pluralize:"s," }} a decision.</strong>{% endif %}</p>
+    <p class="vr-form-note vr-break-anywhere">{{ reading.accounts }} account{{ reading.accounts|pluralize }} and {{ reading.grants|length }} grant{{ reading.grants|length|pluralize }}{% if organization %} of <span class="vr-break-anywhere">{{ reading.organization_name }}</span>{% endif %}, as they stand now.{% if undecided %} <strong>{{ undecided }} grant{{ undecided|pluralize }} still need{{ undecided|pluralize:"s," }} a decision.</strong> <span class="vr-muted">Counted when this page was drawn.</span>{% endif %}</p>
     <ul class="list-unstyled vr-review-accounts">
       {% for account in accounts %}
       <li class="vr-review-account">

@@ -319,6 +319,16 @@ class Reading:
     def fingerprint(self):
         return fingerprint(self.grants, self.scope, self.organization)
 
+    @property
+    def organization_name(self):
+        """The chosen organization's name as this reading holds it (its accounts' organization),
+        or as the organization was read when nothing is listed."""
+        if self.organization is None:
+            return ""
+        if self.grants:
+            return self.grants[0].organization_name
+        return self.organization.name
+
 
 def reading(scope, organization=None):
     """The scope's accounts and their grants, as they stand, in the caller's reading; none and
@@ -464,12 +474,14 @@ def sign_access_review(
         raise ValidationError(TOO_MANY)
     if current.fingerprint != expected:
         raise ValidationError(STALE)
+    # Every account the review records must be one whose gate is held: an account that left the
+    # scope and came back between the two readings is not, and the signing is refused.
+    if {grant.account_id for grant in current.grants} - set(ids):
+        raise ValidationError(STALE)
     if not current.grants:
         raise ValidationError(NOTHING)
     signer_roles = roles_label(signer)
     signed_at = timezone.now()
-    # The organization's name as the reading holds it, the name its decisions record.
-    organization_name = current.grants[0].organization_name if organization is not None else ""
     chosen = _decisions(current.grants, decisions)
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s, %s)", list(SIGNING_LOCK))
@@ -479,7 +491,7 @@ def sign_access_review(
         number=f"{ACCESS_NUMBER_PREFIX}{pk:06d}",
         scope=scope,
         organization_id=organization.pk if organization is not None else None,
-        organization_name=organization_name,
+        organization_name=current.organization_name,
         accounts=current.accounts,
         grants=len(current.grants),
         removals=chosen.count(Decision.REMOVE),

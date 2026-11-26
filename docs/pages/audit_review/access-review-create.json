@@ -67,7 +67,7 @@
     {
       "title": "Grants held now",
       "paragraphs": [
-        "The line above the list counts the accounts and grants, as they stand now, and how many grants still need a decision. Accounts are listed by the name shown, then username, each with its username and, for a portal account, its organization. Your own account is marked You. Each grant shows its words and a line below:"
+        "The line above the list counts the accounts and grants, as they stand now, and how many grants had no decision when the page was drawn; that count does not change as you choose. Accounts are listed by the name shown, then username, each with its username and, for a portal account, its organization. Your own account is marked You. Each grant shows its words and a line below:"
       ],
       "items": [
         {

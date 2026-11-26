@@ -330,14 +330,17 @@ def review_create(request):
                     password_hash=form.checked_hash,
                 )
             except ValidationError as exc:
-                if access_reviews.STALE in exc.messages:
+                redrawn = [
+                    message
+                    for message in (access_reviews.STALE, access_reviews.TOO_MANY)
+                    if message in exc.messages
+                ]
+                if redrawn:
+                    # Drawn again as the accounts now stand: over the limit, the page shows the
+                    # limit and no form.
                     current = access_reviews.reading(scope, organization)
                     form = form.redraw(
-                        current.grants,
-                        current.fingerprint,
-                        access_reviews.STALE,
-                        scope,
-                        organization,
+                        current.grants, current.fingerprint, redrawn[0], scope, organization
                     )
                 else:
                     _errors(form, exc)

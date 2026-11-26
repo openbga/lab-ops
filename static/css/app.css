@@ -4444,6 +4444,12 @@ html:has(> body.vr-entrance-page) {
   color: var(--vr-text-muted);
 }
 
+/* A long option, one unbroken word included, wraps inside the menu rather than past its edge. */
+.ts-dropdown .vr-ts-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .ts-dropdown .optgroup-header {
   padding: var(--vr-space-2) var(--vr-space-2-5) var(--vr-space-1);
   background: transparent;
