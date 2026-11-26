@@ -20,13 +20,21 @@
       "steps": [
         "Change the contact or the scope, write the [[Reason for change]] and select [[Save access]]."
       ]
+    },
+    {
+      "title": "Give access until a last day",
+      "steps": [
+        "Set [[Last day of this access (optional)]] to today or a later day. Leave it empty for no end.",
+        "Once access was saved before, write the [[Reason for change]]. Then select [[Save access]]."
+      ]
     }
   ],
   "good_to_know": [
     "Until access is saved, an account sees only the tickets it raised. Access not set says so, also after the account moved here from another organization.",
     "An account always sees the tickets it raised. A ticket in a restricted category is seen by the account that raised it and by nobody else on the account's side.",
     "Only account managers, client services staff and the admin role can open this form. An account is only found under its own organization.",
-    "Changing access that is already set needs a reason. If it changed since you opened the form, saving is refused and your input stays."
+    "Changing access that is already set needs a reason. If it changed since you opened the form, saving is refused and your input stays.",
+    "After the last day ends, in the laboratory's time zone, the account sees only the tickets it raised. Nothing removes the access or reminds anyone; set a later day or clear it to give it again."
   ],
   "sections": [
     {
@@ -48,6 +56,10 @@
           "description": "With Listed sites only, tick at least one site. Only this organization's active sites are offered, plus any inactive site already listed. With The whole organization the listed sites are cleared."
         },
         {
+          "label": "Last day of this access (optional)",
+          "description": "The last day the access holds. It ends at the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; a later time-zone change does not move it). A newly chosen day must be today or later, or the field shows: Choose today or a later day. To end it now, remove it instead. A day kept as stored, even one already past, is never refused. Leave it empty for no end. Changing only the last day is a change of existing access and needs the reason."
+        },
+        {
           "label": "Reason for change",
           "description": "Shown only once the account's access has been saved before, and then required. Kept with the change in the access history."
         }
@@ -61,8 +73,12 @@
           "description": "Sees only the tickets it raised itself."
         },
         {
+          "label": "Account whose last day has passed",
+          "description": "Treated exactly as an account without access, by the database's clock: only the tickets it raised, no site choice when raising a ticket, and only the contacts who serve the whole organization; the notices it receives follow the same scope. The access stays saved and shows the warning Access ended on this page until you set a later day or clear it, which gives it again."
+        },
+        {
           "label": "Account moved from another organization",
-          "description": "Its access is emptied when it moves, however the move is made, and the reset is recorded in the history: no linked contact, no sites, not the whole organization. Moving it back restores nothing. It sees only the tickets it raised here until you set its access. If the account moves while this form is open, saving is refused; reload it on the account's new organization."
+          "description": "Its access is emptied when it moves, however the move is made, and the reset is recorded in the history: no linked contact, no sites, not the whole organization, no last day. Moving it back restores nothing. It sees only the tickets it raised here until you set its access. If the account moves while this form is open, saving is refused; reload it on the account's new organization."
         },
         {
           "label": "Restricted tickets",
@@ -74,7 +90,7 @@
         },
         {
           "label": "Sees column",
-          "description": "The Portal accounts table on the organization's page states the result in words: The whole organization, the listed site names, or Only tickets it raised."
+          "description": "The Portal accounts table on the organization's page states the result in words: The whole organization, the listed site names, or Only tickets it raised, with Last day and the date under it when access has one. Once the last day has passed it shows Only tickets it raised (access ended after the date)."
         }
       ]
     },
@@ -83,7 +99,7 @@
       "items": [
         {
           "label": "Save access",
-          "description": "Saves and returns to the Portal accounts panel of the organization's page. Each save is audited with the person, the time, the reason and the before and after values (the contact and the scope, as identifiers and flags). A submission that changes nothing is refused with Change at least one detail before saving. If the account is saving a ticket or a reply at that moment, the save waits for it; what the account does after the save follows the new access."
+          "description": "Saves and returns to the Portal accounts panel of the organization's page. Each save is audited with the person, the time, the reason and the before and after values (the contact, the scope and the end, as identifiers, flags and a moment). A submission that changes nothing is refused with Change at least one detail before saving. If the account is saving a ticket or a reply at that moment, the save waits for it; what the account does after the save follows the new access."
         },
         {
           "label": "Cancel",
@@ -102,6 +118,9 @@
   ],
   "sources": [
     "clients/urls.py",
+    "accounts/grant_ends.py",
+    "clients/portal.py",
+    "desk/tests/test_portal_access_ends.py",
     "clients/views.py",
     "clients/forms.py",
     "clients/models.py",

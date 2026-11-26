@@ -160,16 +160,19 @@ class CapabilityEnd(models.Model):
     """When a capability given directly to an account ends (accounts.grant_ends): from `ends_at` on,
     by the database's clock, the grant gives nothing (accounts.roles.direct_grants), though it
     stays on the account until it is removed or a later end is set. At most one for each account
-    and capability; it goes with the grant (accounts.acting removes it when the grant is removed,
-    and a grant given anew starts without one). A capability given through a role or group has no
-    end. Set on the account's page in the admin console (accounts.admin), which records it in the
-    account's change event."""
+    and capability; it goes with the grant (accounts.grant_ends removes it when the grant is
+    removed, and a grant given anew starts without one). A capability given through a role or
+    group has no end. Set on the account's page in the admin console (accounts.admin), which
+    records it in the account's change event."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="capability_ends")
     permission = models.ForeignKey("auth.Permission", on_delete=models.CASCADE, related_name="+")
     ends_at = models.DateTimeField()
 
     class Meta:
+        # Changed only with the account (accounts.admin), never on a page of its own: no add,
+        # change, delete or view permissions of its own to offer under User permissions.
+        default_permissions = ()
         constraints = [
             models.UniqueConstraint(fields=["user", "permission"], name="one_end_per_grant")
         ]

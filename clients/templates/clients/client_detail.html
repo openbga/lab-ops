@@ -117,7 +117,7 @@ Contacts have no page of their own: the name links to the edit form for those wh
         {% for account in portal_users %}{% with access=account.current_access %}
         <tr>
           <th scope="row">{{ account.get_full_name|default:account.get_username }}{% if account.email %}<br><span class="vr-muted small">{{ account.email }}</span>{% endif %}</th>
-          <td>{% include "clients/_portal_scope.html" with access=access %}</td>
+          <td><div>{% include "clients/_portal_scope.html" with access=access %}</div></td>
           <td>{% if access.contact %}{{ access.contact.name }}{% else %}—{% endif %}</td>
           <td>{% if account.is_active %}{% status label="Active" tone="success" plain=True %}{% else %}{% status label="Inactive" tone="neutral" plain=True %}{% endif %}</td>
           <td class="vr-nowrap">{% if account.last_login %}<time datetime="{{ account.last_login|date:'c' }}" title="{{ account.last_login|date:'Y-m-d H:i T' }}">{{ account.last_login|date:"Y-m-d H:i" }}</time>{% else %}<span class="vr-muted">Never signed in</span>{% endif %}</td>
@@ -127,7 +127,7 @@ Contacts have no page of their own: the name links to the edit form for those wh
       </tbody>
     </table></div>
   {% endlist_results %}
-    <p class="vr-muted small">Portal accounts are opened by an administrator. Each sees only its own organization: the whole organization's tickets, or its listed sites' tickets, and always the tickets it raised itself.</p>
+    <p class="vr-muted small">Portal accounts are opened by an administrator. Each sees only its own organization: the whole organization's tickets, or its listed sites' tickets, until the last day of its access where one is set, and always the tickets it raised itself.</p>
 {% endpanel %}
 
 {% include "links/_client_links.html" with client=client user=user %}

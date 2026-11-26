@@ -99,11 +99,11 @@
         },
         {
           "label": "Still held",
-          "description": "The account holds the grant now: it is active and still has the admin console access or superuser status, the membership of that role or group, or the capability given directly. A portal account is held while it is active in the organization it was reviewed in, whatever sites it may see now."
+          "description": "The account holds the grant now: it is active and still has the admin console access or superuser status, the membership of that role or group, or the capability given directly while its last day has not passed. A portal account is held while it is active in the organization it was reviewed in, whatever sites it may see now."
         },
         {
           "label": "No longer held",
-          "description": "The account does not hold the grant now, or it is deactivated or no longer exists. A deactivated account holds nothing."
+          "description": "The account does not hold the grant now, or it is deactivated or no longer exists. A deactivated account holds nothing. A capability given directly whose last day has passed by the database's clock is no longer held, though it stays on the account until it is removed."
         },
         {
           "label": "How a grant is removed",
@@ -167,6 +167,7 @@
   ],
   "sources": [
     "audit_review/access_reviews.py",
+    "accounts/grant_ends.py",
     "audit_review/access_review_views.py",
     "audit_review/models.py",
     "audit_review/sources.py",

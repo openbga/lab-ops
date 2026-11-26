@@ -127,8 +127,11 @@ activity across the organization. Staff see only tickets within their scope.
 
 Account managers and client services staff can create or update these records. From an organization
 add a site or contact, or use **Set access** beside a portal account to choose its linked contact
-and its organization-wide or site-specific scope. Without an access grant, the account can read
-only tickets it raised in its current organization.
+and its organization-wide or site-specific scope. For access needed only for a while, set
+**Last day of this access (optional)** to today or a later day; after that day ends, in the
+laboratory's time zone, the account is treated as one without a grant until you set a later day
+or clear it. The organization's **Sees** column shows the last day, or that the access ended.
+Without an access grant, the account can read only tickets it raised in its current organization.
 
 For a bulk update, open **Spreadsheet import**. Download the corresponding CSV template. Load
 organizations before their sites, contacts or external identifiers. Check the preview for creates,

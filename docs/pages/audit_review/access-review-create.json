@@ -44,7 +44,7 @@
       "items": [
         {
           "label": "Accounts to review",
-          "description": "Staff accounts (the default) or Client portal accounts. Staff accounts are the active staff accounts, leaving out the scheduled jobs' own account and accounts that hold no role, group, capability or admin console access. Client portal accounts are the active portal accounts. Deactivated accounts are never listed."
+          "description": "Staff accounts (the default) or Client portal accounts. Staff accounts are the active staff accounts, leaving out the scheduled jobs' own account and accounts that hold no role, group, capability or admin console access. A capability given directly whose last day has passed counts as not held, so an account whose only grant it was is not listed. Client portal accounts are the active portal accounts. Deactivated accounts are never listed."
         },
         {
           "label": "Organization",
@@ -88,11 +88,11 @@
         },
         {
           "label": "A capability given directly",
-          "description": "Can view patient information or Can review access and audit records granted to the account itself, with Given directly below. A capability held only through a group is part of that group's grant."
+          "description": "Can view patient information or Can review access and audit records granted to the account itself, with Given directly below, or Given directly, last day YYYY-MM-DD when it has a last day. One whose last day has passed by the database's clock gives nothing and is not listed. A capability held only through a group is part of that group's grant."
         },
         {
           "label": "Portal account",
-          "description": "For a client portal account, the account itself, with what of its organization it may see below: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised."
+          "description": "For a client portal account, the account itself, with what of its organization it may see below: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised. Access with a last day adds , last day YYYY-MM-DD; access whose last day has passed reads Only the tickets it raised."
         },
         {
           "label": "Keep and Remove",
@@ -130,7 +130,7 @@
         },
         {
           "label": "Accounts or grants changed",
-          "description": "When an account was added to or left the choice, or an account's name, username or grants changed after the form was drawn, signing is refused and the form is drawn again as they stand. Your decisions are kept for the grants that did not change; the others are marked New or changed and need one. Enter your password again and sign."
+          "description": "When an account was added to or left the choice, or an account's name, username or grants changed after the form was drawn (including a last day set, moved or cleared, or a last day that passed before you signed), signing is refused and the form is drawn again as they stand. Your decisions are kept for the grants that did not change; the others are marked New or changed and need one. Enter your password again and sign."
         },
         {
           "label": "Cancel",
@@ -157,6 +157,8 @@
     "audit_review/access_report.py",
     "audit_review/templates/audit_review/access_review_form.html",
     "accounts/confirmation.py",
-    "accounts/roles.py"
+    "accounts/roles.py",
+    "accounts/grant_ends.py",
+    "audit_review/tests/test_grant_ends.py"
   ]
 }

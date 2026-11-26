@@ -48,6 +48,23 @@ includes the operational roles. A person or group needs an explicit grant for pa
 information. A superuser can administer accounts. Portal accounts have a client organization
 and cannot hold staff roles or capabilities.
 
+A capability given directly (`accounts.models.CapabilityEnd`) and a portal access
+(`PortalAccess.ends_at`) may end ([accounts/grant_ends.py](../accounts/grant_ends.py)). The form
+takes a last day; the end stored is the start of the next day in `TIME_ZONE` as set when the day
+is saved, so a later zone change does not move it. There is one clock: every check compares the
+end with `transaction_timestamp()`, the database's time at the start of the checking transaction,
+in the statement that reads the grant, so every process agrees and every check within one change
+or one page reading gives the same answer. The choke points are `accounts.roles.direct_grants`
+(every reading of what an account holds directly: `has_capability`, the sidebar's
+`roles_and_capabilities`, the Security settings holder counts, the access report and the access
+review) and `clients.portal.current_access` (every portal scope reading); the second-factor rule's
+SQL repeats the same condition. An ended grant stays stored, giving nothing; removing a direct
+grant deletes its end and a grant given anew starts without one (an `m2m_changed` receiver).
+Saving a `CapabilityEnd` takes the account's access gate exclusively (`pre_save`, like a removal),
+and a portal access save already does. Known limits: a change that checked the grant before the
+end and commits after it is a holder's change, since nothing waits for an end; and paths that
+bypass `save()` (`QuerySet.update`, raw SQL) do not take the gate.
+
 Use the same scoped query in lists, pages, lookups, counts and actions. Staff ticket
 queries start with `staff_requests`. Portal queries start with `portal_requests`, which combines
 organization, site grants, the originating account and the ticket's restriction. Client-visible
@@ -283,7 +300,9 @@ without the jobs' account, or active portal accounts, of every organization or o
 `MOST_ACCOUNTS` accounts (their gates are held until it commits) and `MOST_GRANTS` grants (one form
 field each, under Django's field limit). `read_grants` reads each account's grants as they stand:
 the console flags, group memberships with the capabilities each group gives, capabilities given
-directly, and a portal account with its `PortalAccess`. A grant's identity is its account, kind and
+directly whose end has not passed (with their last day), and a portal account with its
+`PortalAccess` (its last day, or none once it has ended). An end passing before the signing reads
+again is a changed grant. A grant's identity is its account, kind and
 code; its form field is named from a digest of everything shown about it, so a decision is never
 carried over to changed words, and the form posts a `fingerprint` of every grant it showed.
 `sign_access_review` reads the ids of the accounts the scope covers before any lock, takes their
@@ -340,7 +359,7 @@ do in `core.session_limits`. The same change updates [the safeguards reference](
 session limits) and turns it into one condition on the accounts table, used both to decide for one
 account and to count them, so the page and the sign-in agree. Roles are matched as
 `effective_roles` counts them and the patient-information grant as `has_capability` does (on the
-account or a group). At sign-in, `accounts.sessions.start_session` records on the new
+account, while its end has not passed, or a group). At sign-in, `accounts.sessions.start_session` records on the new
 `AccountSession` row whether the rule covered the account then (`second_factor_required`).
 `accounts.enrolment.EnrolmentMiddleware`, after `SessionLimitMiddleware`, reads in one statement
 on each request that flag, whether the account has an authenticator of a type the deployment offers
@@ -733,8 +752,8 @@ so a reading taken after the locks would not be enough on its own. What takes ac
 the gate of each account it affects exclusively, before any row it locks: a save that
 deactivates the account or moves a portal account to another organization (which then locks the
 account FOR NO KEY UPDATE), the account page before its check of the remaining owners, the role group
-page, a portal access change, and every removal of a role, a capability, a team membership or a
-portal site. It waits for that person's changes under way. The gate queues in order, as row
+page, a portal access change, setting or moving the end of a capability given directly, and every
+removal of a role, a capability, a team membership or a portal site. It waits for that person's changes under way. The gate queues in order, as row
 share locks do not, so a change the person starts meanwhile waits behind it, then reads the new
 state and is refused. An access change that affects several accounts, such as the role group
 page, takes their gates one at a time in id order: a member it has not reached yet can still
@@ -757,7 +776,7 @@ gate shared, so it waits for an access change under way but not for the person's
 and never compares it with the copy of the account it read earlier
 ([clients/signals.py](../clients/signals.py)). The account page carries the account as it was
 drawn (a fingerprint of the values it draws: names, email, organization, flags, the roles and
-capabilities it holds, `accounts.admin.PAGE_FIELDS`; a role renamed on its own page changes no
+capabilities it holds and the ends of those given directly, `accounts.admin.PAGE_FIELDS`; a role renamed on its own page changes no
 account). After the gate and the remaining owners' rows it
 locks the account's row FOR NO KEY UPDATE, so any other change of the account under way, an
 email corrected on its own included, commits first, and refuses the save when what it reads

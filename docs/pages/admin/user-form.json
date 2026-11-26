@@ -25,7 +25,8 @@
     {
       "title": "Grant a capability",
       "steps": [
-        "Under [[User permissions]], choose the accounts permission Can view patient information, or add a group that grants it. Then save."
+        "Under [[User permissions]], choose the accounts permission Can view patient information, or add a group that grants it. Then save.",
+        "For access needed only for a while, give it under [[User permissions]] and set its last day under Capability end dates. After that day it gives nothing."
       ]
     },
     {
@@ -53,7 +54,7 @@
       "title": "Access and page variants",
       "paragraphs": [
         "The administration site requires an active account with Staff status. User and group pages additionally require Superuser status; a laboratory admin role alone or individual model permissions do not open them. These technical flags do not themselves confer operational roles or capabilities.",
-        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Important dates (read only) and Sessions (read only); Compromised password (read only) follows Password.",
+        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Capability end dates, Important dates (read only) and Sessions (read only); Compromised password (read only) follows Password.",
         "On both forms, while saving asks you to confirm it is you, a Confirm it is you section follows the fields, before the buttons (see Confirm it is you)."
       ]
     },
@@ -115,7 +116,19 @@
         },
         {
           "label": "User permissions",
-          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities, such as the accounts permission Can view patient information. Groups can grant the same capability. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks. Removing a capability waits for a change the person is saving at that moment."
+          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities, such as the accounts permission Can view patient information. Groups can grant the same capability. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks. Removing a capability waits for a change the person is saving at that moment. Removing a capability given directly also removes its last day, and a capability given anew starts with none."
+        },
+        {
+          "label": "Last day of “Can view patient information” / Last day of “Can review access and audit records”",
+          "description": "Change only, under Capability end dates; optional, one date for each capability. It applies only to the capability given to the account directly (ticked under User permissions); a capability given through a role or group has no end date. A day for a capability not given directly is refused: Give this capability to the account directly (under User permissions), or clear its last day. A newly chosen day must be today or later: Choose today or a later day. To end it now, remove it instead. A day kept as stored, even one already past, is never refused. Leave empty for no end."
+        },
+        {
+          "label": "When a last day ends",
+          "description": "The grant gives nothing from the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; the moment is stored, so a later time-zone change does not move it). Every check compares the end with the database's clock: the sidebar items, every page and action that needs the capability (patient information shown or revealed, Audit review and Access review), the second sign-in factor rule for holders of Can view patient information, the holder counts on Security settings, the access report's capability filter and the access review. The ended grant stays on the account, giving nothing, until you remove it or set a later day, which gives it again. Its field's help then starts with Ended. The Capabilities column of the Users list leaves out an ended grant."
+        },
+        {
+          "label": "Setting or moving a last day",
+          "description": "Takes away access like a removal: a change the person is saving at that moment finishes first; one they start afterwards is checked against the new end. Nothing reminds anyone before an end, and nothing removes an ended grant automatically."
         },
         {
           "label": "Last login",
@@ -134,7 +147,7 @@
     {
       "title": "Integrity and history",
       "paragraphs": [
-        "Client isolation, last-active-superuser preservation and immutable historical actors are checked by this administration implementation. Existing built-in groups cannot be renamed in group editing. Capabilities such as viewing patient information are held only through an explicit permission. Account/role changes are audited with before/after snapshots; secret values are omitted. The change form carries the account as it was drawn. Saving waits for another change of the account being saved at that moment, then compares: if anything the page shows has changed since it was drawn, the save is refused and nothing is recorded, so a page opened earlier cannot put back an older email, name, role or status. The comparison is with the values the page was drawn with; roles count by which ones the account holds, so renaming a role on the role group page changes no account and does not refuse it. Roles and permissions are saved as the difference between those values and your choices, so a role given by other means after the comparison is kept. The audit's before values are the account as read under that wait, and its after values are what this save made."
+        "Client isolation, last-active-superuser preservation and immutable historical actors are checked by this administration implementation. Existing built-in groups cannot be renamed in group editing. Capabilities such as viewing patient information are held only through an explicit permission. Account/role changes are audited with before/after snapshots; secret values are omitted. The change form carries the account as it was drawn. Saving waits for another change of the account being saved at that moment, then compares: if anything the page shows has changed since it was drawn, the save is refused and nothing is recorded, so a page opened earlier cannot put back an older email, name, role or status. The comparison is with the values the page was drawn with; roles count by which ones the account holds, so renaming a role on the role group page changes no account and does not refuse it. Roles and permissions are saved as the difference between those values and your choices, so a role given by other means after the comparison is kept. The audit's before values are the account as read under that wait, and its after values are what this save made. When the account has or had a capability last day, the change event also records the ends before and after."
       ]
     },
     {
@@ -177,7 +190,7 @@
       "items": [
         {
           "label": "Save",
-          "description": "Asks you to confirm it is you first, unless you did in this browser in the last 5 minutes (see Confirm it is you); so do Save and continue editing and Save and add another. On Add user, saves and normally opens the new change form so you can edit remaining options. On Change user, saves and returns to the user list. Popup creation returns the selection to its opener. On Change user, the save is refused with the message that someone else saved this account when any value the page shows (username, names, email, client, groups, permissions, Active, Staff status or Superuser status) changed after you opened it, by another administrator, the person or the application; nothing is saved. Open the account again to see the current values. A change of the password or the sign-in time meanwhile does not refuse the save and is kept: a save writes only the fields this page edits."
+          "description": "Asks you to confirm it is you first, unless you did in this browser in the last 5 minutes (see Confirm it is you); so do Save and continue editing and Save and add another. On Add user, saves and normally opens the new change form so you can edit remaining options. On Change user, saves and returns to the user list. Popup creation returns the selection to its opener. On Change user, the save is refused with the message that someone else saved this account when any value the page shows (username, names, email, client, groups, permissions, a capability's last day, Active, Staff status or Superuser status) changed after you opened it, by another administrator, the person or the application; nothing is saved. Open the account again to see the current values. A change of the password or the sign-in time meanwhile does not refuse the save and is kept: a save writes only the fields this page edits."
         },
         {
           "label": "Save and continue editing",
@@ -203,6 +216,8 @@
     }
   ],
   "sources": [
+    "accounts/grant_ends.py",
+    "accounts/tests/test_grant_ends.py",
     "accounts/acting.py",
     "accounts/admin.py",
     "accounts/models.py",

@@ -42,6 +42,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
+                "default_permissions": (),
                 "constraints": [
                     models.UniqueConstraint(fields=("user", "permission"), name="one_end_per_grant")
                 ],
