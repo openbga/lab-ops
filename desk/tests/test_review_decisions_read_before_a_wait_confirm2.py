@@ -553,8 +553,13 @@ def test_account_event_uses_the_checked_names_for_both_sides_of_a_membership_swi
     assert save.result.status_code == 302
     assert list(member.groups.values_list("name", flat=True)) == ["Last counter"]
     event = AuditEvent.objects.get(actor=editor, action="account.updated")
-    assert (event.before["groups"], event.after["groups"]) == (["Early counter"], ["Late counter"])
-    assert AuditEvent.objects.filter(actor=peer, action="group.updated").count() == 2
+    # Adapted with Access review: the account page names the roles as they stand when it records
+    # the change (accounts.setup.held_role_names), one reading for both sides, so the renames
+    # committed while the save waited are read, and the account's event comes after them.
+    assert (event.before["groups"], event.after["groups"]) == (["First counter"], ["Last counter"])
+    renames = AuditEvent.objects.filter(actor=peer, action="group.updated")
+    assert renames.count() == 2
+    assert all(rename.occurred_at < event.occurred_at for rename in renames)
 
 
 def test_blocking_settings_editor_recovers_from_a_rolled_back_first_actor_creation(make_user):
