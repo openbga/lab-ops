@@ -15,9 +15,12 @@ statement run on its own (outside a transaction) is its own transaction.
 
 Nothing removes an ended grant: it stays on the account, giving nothing, until someone removes it
 or sets a later day (which gives it again). Setting or moving an end is an access change: it takes
-the account's access gate (accounts.acting.close_access) like a removal, whatever saves it (a
-CapabilityEnd saved, a PortalAccess saved with another end). Paths that bypass save()
-(QuerySet.update, raw SQL) take no gate.
+the account's access gate (accounts.acting.close_access) like a removal: a CapabilityEnd's save
+takes it whatever saves it, and a portal access's end is changed only by the Set access form and
+the portal access services (clients.services.set_portal_access, reset_portal_access, and the move
+trigger of clients.0008), which take it and advance the access's revision. Known limit, one rule:
+other code that saves a PortalAccess (its end or its scope), and paths that bypass save()
+(QuerySet.update, raw SQL), neither take the gate nor advance the revision.
 
 A form sends back the last day it showed. A day sent back unchanged keeps the end as stored, even
 when the time zone changed after the page was drawn and the same end now falls on another day
@@ -102,9 +105,18 @@ def check_new_day(last_day, shown_day, past=PAST_DAY):
     now = today()
     if last_day < now:
         return past
-    if last_day > now + timedelta(days=MOST_YEARS * 366):
+    if last_day > latest_day(now):
         return TOO_LATE
     return None
+
+
+def latest_day(now):
+    """The last day a new choice may be: MOST_YEARS calendar years after `now` (29 February
+    becomes 28 February in a year that has none)."""
+    try:
+        return now.replace(year=now.year + MOST_YEARS)
+    except ValueError:
+        return now.replace(year=now.year + MOST_YEARS, day=28)
 
 
 def chosen_end(last_day, shown_day, stored_end):
@@ -135,23 +147,6 @@ def _on_end_saved(sender, instance, raw=False, **kwargs):
     close_access([instance.user_id])
 
 
-def _on_access_saved(sender, instance, raw=False, update_fields=None, **kwargs):
-    """A portal access's end set, moved or cleared, by any path that saves it: it can take access
-    away, so it takes the account's access gate, as the portal access form does. A new access only
-    gives, and takes none. (A change of its scope saved without the form is the gates' existing
-    limit: accounts.acting.)"""
-    if raw or instance.pk is None:
-        return
-    if update_fields is not None and "ends_at" not in update_fields:
-        return
-    stored = type(instance).objects.filter(pk=instance.pk).values_list("ends_at", flat=True)
-    if list(stored) == [instance.ends_at]:
-        return
-    from .acting import close_access
-
-    close_access([instance.user_id])
-
-
 def _on_direct_grants(sender, instance, action, reverse, model, pk_set, **kwargs):
     """An end goes with its grant: removed with it, and a grant given anew starts without one."""
     from .models import CapabilityEnd
@@ -173,12 +168,9 @@ def _on_direct_grants(sender, instance, action, reverse, model, pk_set, **kwargs
 def connect():
     from django.db.models.signals import m2m_changed, pre_save
 
-    from clients.models import PortalAccess
-
     from .models import CapabilityEnd, User
 
     pre_save.connect(_on_end_saved, sender=CapabilityEnd, dispatch_uid="grant-end-gate")
-    pre_save.connect(_on_access_saved, sender=PortalAccess, dispatch_uid="portal-access-gate")
     m2m_changed.connect(
         _on_direct_grants, sender=User.user_permissions.through, dispatch_uid="grant-end-goes"
     )

@@ -147,7 +147,8 @@ class Grant:
             self.code,
             self.label,
             self.detail,
-            self.ends,
+            # Only a grant with an end carries it, so a grant without one reads as it always has.
+            *([self.ends] if self.ends else []),
         ]
 
     @property
@@ -296,8 +297,9 @@ def read_grants(accounts_list):
         if account.client_id is not None:
             access = portal.get(account.pk)
             code, detail = _portal(account, access)
-            held = access is not None and access.applies_to(account) and not access.over
-            ends = access.ends_at if held else None
+            # The end of access that grants something (not "only the tickets it raised").
+            grants_some = not code.endswith(":none")
+            ends = access.ends_at if grants_some else None
             grants.append(grant(GrantKind.PORTAL, code, PORTAL_LABEL, detail, ends))
     return grants
 

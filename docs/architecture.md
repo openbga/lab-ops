@@ -64,15 +64,19 @@ or one page reading gives the same answer. The choke points are `accounts.roles.
 filter, the access review's choice of staff accounts and whether a removal is still held) and
 `clients.portal.current_access` (every portal scope reading); the second-factor rule's SQL repeats
 the same condition. Pages that list stored grants, ended ones included, read each grant with its
-end and whether it has ended in the same statement (`audit_review.access_report.direct_with_ends`;
-the admin account list, the access report's rows and the access review's list of grants) and leave
-out or mark the ended ones. An ended grant stays stored, giving nothing; removing a direct
+end and whether it has ended (the access report's rows and the access review's list of grants in
+one statement, `audit_review.access_report.direct_with_ends`; the admin account list from two
+prefetches) and leave out or mark the ended ones. An ended grant stays stored, giving nothing; removing a direct
 grant deletes its end and a grant given anew starts without one (an `m2m_changed` receiver).
-Saving a `CapabilityEnd`, and saving a `PortalAccess` with another end through `save()`, takes
-the account's access gate exclusively (`pre_save` receivers, like a removal). The move trigger of
+Saving a `CapabilityEnd` takes the account's access gate exclusively (a `pre_save` receiver, like
+a removal); a portal access's end is changed only by the Set access form and the portal access
+services, which take the gate and advance the access's revision. The move trigger of
 `clients.0007`, replaced in `clients.0008`, empties the end with the rest of the access. Known limits: a change that checked the grant before the
-end and commits after it is a holder's change, since nothing waits for an end; and paths that
-bypass `save()` (`QuerySet.update`, raw SQL) do not take the gate.
+end and commits after it is a holder's change, since nothing waits for an end; other code that
+saves a `PortalAccess` (its end or its scope) neither takes the gate nor advances the revision, as
+before this change; paths that bypass `save()` (`QuerySet.update`, raw SQL) take no gate; and a
+form whose hidden shown day was altered only keeps the stored end (nothing is stored that the
+fingerprint or revision did not check).
 
 Use the same scoped query in lists, pages, lookups, counts and actions. Staff ticket
 queries start with `staff_requests`. Portal queries start with `portal_requests`, which combines

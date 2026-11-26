@@ -417,23 +417,3 @@ def test_the_ended_help_is_drawn_again_on_a_refused_page(owner, make_user, clien
     refused = response.context["adminform"].form
     assert refused.fields[end_field(PATIENT)].help_text.startswith("Ended:")
     assert not refused.fields[end_field(REVIEW)].help_text.startswith("Ended:")
-
-
-def test_a_portal_access_saved_with_another_end_takes_the_gate(make_user, monkeypatch):
-    from clients.models import Client, PortalAccess
-
-    clinic = Client.objects.create(name="Gate Clinic")
-    portal = make_user("gateportal", client=clinic)
-    closed = []
-    monkeypatch.setattr("accounts.acting.close_access", lambda ids: closed.append(list(ids)))
-    access = PortalAccess.objects.create(user=portal, client=clinic, whole_organization=True)
-    access.contact = None
-    access.save()  # no end changed
-    access.whole_organization = False
-    access.save(update_fields=["whole_organization"])
-    assert closed == []  # a new access, and saves that leave the end as it is
-    access.ends_at = future()
-    access.save()
-    access.ends_at = None
-    access.save(update_fields=["ends_at"])
-    assert closed == [[portal.pk], [portal.pk]]

@@ -33,7 +33,6 @@ from .models import Client, ClientContact, ClientSite, PortalAccess
 from .permissions import require_client_manager
 from .services import (
     CHANGED,
-    UNSHOWN,
     add_contact,
     create_client,
     create_site,
@@ -321,7 +320,14 @@ def portal_access_edit(request, pk, user_pk):
         "shown_last_day": last_day_of(access.ends_at) if access else None,
         "expected_revision": stored.revision if stored else 0,
     }
-    form = PortalAccessForm(request.POST or None, account=account, access=stored, initial=initial)
+    data = request.POST if request.method == "POST" else None
+    if data is not None and "shown_last_day" not in data:
+        # A page that sent back no shown day is read as showing the stored end's day, and is
+        # drawn again (after a refusal) with it.
+        data = data.copy()
+        shown = initial["shown_last_day"]
+        data["shown_last_day"] = shown.isoformat() if shown else ""
+    form = PortalAccessForm(data, account=account, access=stored, initial=initial)
     record_url = reverse("clients:client-detail", kwargs={"pk": client.pk})
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
@@ -333,11 +339,7 @@ def portal_access_edit(request, pk, user_pk):
                 whole_organization=data["whole_organization"],
                 sites=data.get("sites") or (),
                 last_day=data.get("last_day"),
-                # As the page showed it; a page that did not send it is read as showing the
-                # stored day now.
-                shown_last_day=data.get("shown_last_day")
-                if "shown_last_day" in request.POST
-                else UNSHOWN,
+                shown_last_day=data.get("shown_last_day"),  # as the page showed it
                 expected_client_id=client.pk,  # the organization this form was decided for
                 expected_revision=data.get("expected_revision"),
                 reason=data.get("reason", ""),

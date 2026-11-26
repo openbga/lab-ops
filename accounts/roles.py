@@ -106,8 +106,8 @@ def direct_grants(**filters):
     force: rows of User.user_permissions' table, narrowed by `filters`, without those whose end
     (accounts.models.CapabilityEnd) has passed by the database's clock at the start of the
     transaction (accounts.grant_ends). Every check of whether an account holds a capability
-    directly goes through this; pages that list stored grants with their ends read them with the
-    end in the same statement (audit_review.access_report.direct_with_ends)."""
+    directly goes through this; pages that list stored grants with their ends read the ends with
+    them (audit_review.access_report.direct_with_ends; the admin account list's prefetch)."""
     from .grant_ends import ended
     from .models import CapabilityEnd, User
 
