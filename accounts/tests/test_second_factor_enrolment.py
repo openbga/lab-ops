@@ -9,10 +9,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import (
     SECRET_SESSION_KEY,
     TOTP,
-    format_hotp_value,
     generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
 )
 from django.contrib.auth.models import Group, Permission
 from django.core.cache import cache
@@ -20,6 +17,7 @@ from django.urls import reverse
 
 from accounts.enrolment import ALLOWED_VIEWS, NEXT_KEY
 from accounts.models import AccountSession
+from accounts.tests.test_confirm_identity import code_for as safe_code_for
 from clients.models import Client
 from core.models import SecondFactorRule
 
@@ -53,7 +51,9 @@ def sign_in(client, user, next_page=None):
 
 
 def code_for(secret):
-    return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    # Taken with time left in its period: a code sent just before the period ends is refused
+    # after it (the app accepts only the current period).
+    return safe_code_for(secret)
 
 
 def reauthenticate(client):

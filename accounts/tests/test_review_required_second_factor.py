@@ -19,10 +19,7 @@ from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import (
     SECRET_SESSION_KEY,
     TOTP,
-    format_hotp_value,
     generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
 )
 from django.conf import settings
 from django.core import mail
@@ -33,6 +30,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from accounts.models import AccountSession
+from accounts.tests.test_confirm_identity import code_for as code_with_time_left
 from clients.models import Client as Organization
 from core.models import AuditEvent
 
@@ -76,7 +74,7 @@ def activate_app(browser):
         opened = browser.get(reverse("mfa_activate_totp"))
     assert opened.status_code == 200
     secret = browser.session[SECRET_SESSION_KEY]
-    code = format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    code = code_with_time_left(secret)
     submitted = browser.post(reverse("mfa_activate_totp"), {"code": code})
     assert submitted.status_code == 302
     return submitted, secret
@@ -154,13 +152,7 @@ def test_signin_uses_the_rule_in_force_when_the_last_factor_completes(client, ma
         other.post(EDIT, {"staff": "on", "expected_revision": 0, "reason": "Review."}).url
         == SECURITY
     )
-    counter = next(yield_hotp_counters_from_time())
-    assert (
-        client.post(
-            staged.url, {"code": format_hotp_value(hotp_value(secret, counter))}
-        ).status_code
-        == 302
-    )
+    assert client.post(staged.url, {"code": code_with_time_left(secret)}).status_code == 302
     assert AccountSession.objects.get(user=user).second_factor_required
 
 
@@ -255,8 +247,7 @@ def test_an_emailed_code_user_can_use_a_remaining_recovery_code_to_confirm_setup
     assert setup_form.status_code == 200
     assert setup_form.resolver_match.view_name == "mfa_activate_totp"
     secret = client.session[SECRET_SESSION_KEY]
-    counter = next(yield_hotp_counters_from_time())
-    enrolled = client.post(response.url, {"code": format_hotp_value(hotp_value(secret, counter))})
+    enrolled = client.post(response.url, {"code": code_with_time_left(secret)})
     assert enrolled.status_code == 302 and enrolled.url == reverse("mfa_index")
     assert Authenticator.objects.filter(user=user, type="totp").exists()
 
@@ -286,8 +277,7 @@ def test_email_help_matches_what_an_enrolled_owner_can_do(client, make_user, are
         secret = generate_totp_secret()
         TOTP.activate(user, secret)
         challenge = password_sign_in(client, user)
-        counter = next(yield_hotp_counters_from_time())
-        client.post(challenge.url, {"code": format_hotp_value(hotp_value(secret, counter))})
+        client.post(challenge.url, {"code": code_with_time_left(secret)})
         assert client.session["_auth_user_id"] == str(user.pk)
         alias = "review-alias@example.invalid"
         client.post(reverse("account_email"), {"action_add": "1", "email": alias})
@@ -750,7 +740,8 @@ def test_both_enrolled_browsers_observe_the_owners_changes_at_the_next_request(
 
         def answer(request):
             with ThreadPoolExecutor(max_workers=1) as pool:
-                pool.submit(run_action).result(timeout=10)
+                # Room for activate_app's wait for time left in the code's period (up to 10 s).
+                pool.submit(run_action).result(timeout=30)
             return original(request)
 
         with monkeypatch.context() as patch:
@@ -764,10 +755,9 @@ def test_both_enrolled_browsers_observe_the_owners_changes_at_the_next_request(
     secret = generate_totp_secret()
     TOTP.activate(user, secret)
     recovery = RecoveryCodes.activate(user).get_unused_codes()[0]
-    counter = next(yield_hotp_counters_from_time())
     first, second = Browser(), Browser()
     for browser, code in (
-        (first, format_hotp_value(hotp_value(secret, counter))),
+        (first, code_with_time_left(secret)),
         (second, recovery),
     ):
         challenge = password_sign_in(browser, user)

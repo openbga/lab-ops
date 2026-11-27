@@ -6,10 +6,7 @@ import json
 import pytest
 from allauth.mfa.totp.internal.auth import (
     TOTP,
-    format_hotp_value,
     generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
 )
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import Group
@@ -24,6 +21,7 @@ from django.urls import reverse
 from accounts import compromised, sessions
 from accounts.models import AccountSession, CompromisedPassword, User
 from accounts.passwords import guidance
+from accounts.tests.test_confirm_identity import code_for as safe_code_for
 from core.models import AuditEvent
 
 from .conftest import PASSWORD
@@ -94,7 +92,9 @@ def sign_in(browser, user, password=PASSWORD, next_page=None):
 
 
 def code_for(secret):
-    return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    # Taken with time left in its period: a code sent just before the period ends is refused
+    # after it (the app accepts only the current period).
+    return safe_code_for(secret)
 
 
 def choose(browser, person, password, confirmation=None):

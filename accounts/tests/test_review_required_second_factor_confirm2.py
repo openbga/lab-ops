@@ -117,7 +117,8 @@ def test_continue_agrees_with_the_enrolment_shown_when_a_second_browser_finishes
         if request.path == reverse(route) and not seen:
             seen.append(pending)
             with ThreadPoolExecutor(max_workers=1) as pool:
-                pool.submit(finish_setup).result(timeout=15)
+                # Room for activate_app's wait for time left in the code's period (up to 10 s).
+                pool.submit(finish_setup).result(timeout=30)
         return pending
 
     monkeypatch.setattr(enrolment, "pending", decide)

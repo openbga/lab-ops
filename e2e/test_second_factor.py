@@ -19,13 +19,11 @@ OVERFLOW = "() => document.documentElement.scrollWidth - window.innerWidth"
 
 
 def totp_code(secret):
-    from allauth.mfa.totp.internal.auth import (
-        format_hotp_value,
-        hotp_value,
-        yield_hotp_counters_from_time,
-    )
+    # Taken with time left in its period: a code sent just before the period ends is refused
+    # after it (the app accepts only the current period).
+    from accounts.tests.test_confirm_identity import code_for
 
-    return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    return code_for(secret)
 
 
 def test_admin_requires_a_second_factor_of_a_role(page: Page, demo):

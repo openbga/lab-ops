@@ -9,15 +9,14 @@ from allauth.account.internal.flows import code_verification
 from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import (
     TOTP,
-    format_hotp_value,
     generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
 )
 from django.core import mail
 from django.core.cache import cache
 from django.test import Client
 from django.urls import reverse
+
+from accounts.tests.test_confirm_identity import code_for as code_with_time_left
 
 from .conftest import PASSWORD
 
@@ -180,10 +179,7 @@ def test_an_unverified_address_does_not_block_adding_an_authenticator(client, ma
     page = client.get(reverse("mfa_activate_totp"))
     assert page.status_code == 200
     secret = client.session[SECRET_SESSION_KEY]
-    counter = next(yield_hotp_counters_from_time())
-    client.post(
-        reverse("mfa_activate_totp"), {"code": format_hotp_value(hotp_value(secret, counter))}
-    )
+    client.post(reverse("mfa_activate_totp"), {"code": code_with_time_left(secret)})
     assert Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).exists()
     for form in (MFAAuthenticateForm, MFAReauthenticateForm):
         assert form(user=user).fields["code"].label == "Authenticator or recovery code"

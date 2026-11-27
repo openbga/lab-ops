@@ -4,13 +4,12 @@ import pytest
 from allauth.account.models import EmailAddress
 from allauth.mfa.totp.internal.auth import (
     TOTP,
-    format_hotp_value,
     generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
 )
 from django.core.cache import cache
 from django.urls import reverse
+
+from accounts.tests.test_confirm_identity import code_for as code_with_time_left
 
 from .conftest import PASSWORD
 from .test_login import mailed_code, request_code
@@ -102,8 +101,7 @@ def test_mfa_failure_and_completed_sign_in_are_logged(client, make_user, signin_
 
     client.post(response.url, {"code": "invalid-Secret-code"})
     assert messages(signin_records) == ["signin.failed user=signin_mfa"]
-    counter = next(yield_hotp_counters_from_time())
-    response = client.post(response.url, {"code": format_hotp_value(hotp_value(secret, counter))})
+    response = client.post(response.url, {"code": code_with_time_left(secret)})
     assert client.session["_auth_user_id"] == str(user.pk)
     assert messages(signin_records) == [
         "signin.failed user=signin_mfa",

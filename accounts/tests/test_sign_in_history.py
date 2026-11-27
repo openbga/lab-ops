@@ -23,6 +23,7 @@ from django.urls import reverse
 from accounts import compromised, sessions, signin_history
 from accounts.models import AccountSession, SignInEvent, SignInFactor, User
 from accounts.session_list import end_account_sessions, sign_out_others
+from accounts.tests.test_confirm_identity import code_for as safe_code_for
 
 from .conftest import PASSWORD
 from .test_login import mailed_code, request_code
@@ -62,7 +63,9 @@ def sign_in(http, login, password=PASSWORD):
 
 
 def code_for(secret):
-    return format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    # Taken with time left in its period: a code sent just before the period ends is refused
+    # after it (the app accepts only the current period).
+    return safe_code_for(secret)
 
 
 def wrong_code(secret):

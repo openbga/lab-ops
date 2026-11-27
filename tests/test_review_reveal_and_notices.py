@@ -26,6 +26,7 @@ from accounts.acting import hold_actor
 from accounts.models import SignInEvent, SignInFactor, User
 from accounts.roles import ROLES
 from accounts.session_list import end_account_sessions
+from accounts.tests.test_confirm_identity import code_for as code_with_time_left
 from core.models import AuditEvent, LabContact
 from jobs import outbox
 from jobs.models import Notice, NoticeStatus
@@ -746,11 +747,6 @@ def notice_person_browser(user):
 def test_adding_an_app_with_retained_codes_does_not_promise_new_codes(
     notice_person, notice_admin_browser, django_capture_on_commit_callbacks
 ):
-    from allauth.mfa.totp.internal.auth import (
-        format_hotp_value,
-        hotp_value,
-        yield_hotp_counters_from_time,
-    )
 
     app = TOTP.activate(notice_person, generate_totp_secret()).instance
     codes = RecoveryCodes.activate(notice_person).instance
@@ -770,7 +766,7 @@ def test_adding_an_app_with_retained_codes_does_not_promise_new_codes(
     page = browser.get(url)
     assert page.status_code == 200
     secret = browser.session[SECRET_SESSION_KEY]
-    code = format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    code = code_with_time_left(secret)
     with django_capture_on_commit_callbacks(execute=True):
         response = browser.post(url, {"code": code})
     assert response.status_code == 302 and response.url == reverse("mfa_index")
