@@ -124,20 +124,22 @@ def test_a_portal_account_lists_its_portal_access_and_deactivates(page: Page, vi
 
     organization = Client.objects.create(name="E2E Water Utility", account_number="E2EWAT")
     portal = make_user("e2e_portal", PASSWORD, client=organization)
-    PortalAccess.objects.create(user=portal, client=organization)
+    PortalAccess.objects.create(user=portal, client=organization, whole_organization=True)
     make_owner()
     sign_in(page, OWNER, OWNER_PASSWORD)
 
     open_deactivate(page, portal)
     held = page.locator("ul.vr-held")
-    expect(held).to_contain_text("Portal access: ")
+    expect(held).to_contain_text("Portal access: Its organization's tickets")
     expect(held).not_to_contain_text("Roles:")
     no_sideways_scroll(page, view)
 
     page.get_by_label("Reason").fill(REASON)
     page.get_by_role("button", name="Deactivate", exact=True).click()
     expect(page).to_have_url(re.compile(rf"/admin/accounts/user/{portal.pk}/change/$"))
-    expect(page.locator(".vr-deactivation")).to_contain_text("Portal access: ")
+    expect(page.locator(".vr-deactivation")).to_contain_text(
+        "Portal access: Its organization's tickets"
+    )
     assert not User.objects.get(pk=portal.pk).is_active
     no_sideways_scroll(page, view)
     assert page.console_errors == []

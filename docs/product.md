@@ -571,7 +571,7 @@ the account held just before, who saved, when, the reason (given only on Deactiv
 tickets went back to their team queues. The account's page shows the latest record, and the database
 refuses to change or delete one. Deactivating takes nothing off the account: its roles,
 capabilities, team memberships and portal access give nothing until it is made active again, which
-gives all of them back. An account deactivated before this release, or by a path that does not save
+gives back each of them whose last day has not passed. An account deactivated before this release, or by a path that does not save
 the account, has no record.
 
 The [safeguards reference](safeguards.md) states,

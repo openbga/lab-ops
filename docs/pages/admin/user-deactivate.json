@@ -26,13 +26,13 @@
     {
       "title": "Give a deactivated account its access back",
       "steps": [
-        "On the account's page, review its roles, capabilities, teams and portal access first: making it active again gives back all of them.",
+        "On the account's page, review its roles, capabilities, teams and portal access first: making it active again gives back each of them whose last day has not passed.",
         "Tick [[Active]] and save."
       ]
     }
   ],
   "good_to_know": [
-    "Roles, capabilities, teams and portal access stay on a deactivated account and give nothing. Making it active again gives all of them back.",
+    "Roles, capabilities, teams and portal access stay on a deactivated account and give nothing. Making it active again gives back each of them whose last day has not passed.",
     "The record keeps what the account held just before your save, your reason, who saved and when. Nobody can change or delete it. Do not put patient information in the reason.",
     "Your own account and an account that is already deactivated are refused. Another superuser deactivates yours.",
     "Clearing Active on the account's page also deactivates it. What it held is recorded then too, without a reason.",
@@ -58,7 +58,7 @@
         },
         {
           "label": "Reason",
-          "description": "Required, at most 1,000 characters; spaces alone are refused. Kept with the deactivation record on the account's page and in the audit history. Not shown to the person. Do not include patient information."
+          "description": "Required, at most 1,000 characters; spaces alone are refused. Kept with the deactivation record and in the audit history. Other superusers read it on the account's page; it is not shown to the person, even on their own account's page. Do not include patient information."
         },
         {
           "label": "Your password",
@@ -121,10 +121,10 @@
     {
       "title": "Rules and records",
       "paragraphs": [
-        "Every save that deactivates an account records what it held just before, in the same change: this page, clearing Active on the account's page, and any other part of the application that saves the account as deactivated. The record keeps who saved it (no one is named for a command or code that names nobody), when, by the database's clock, the reason (given only on this page, so blank otherwise), what the account held as this page lists it, with names as they stood then, and how many tickets went back to their team queues. It holds no ticket content, email address or patient information. The database refuses to change or delete a record. Saving an account that is already deactivated records nothing more. A deactivation made before this release, or by a path that does not save the account (directly in the database, for example), has no record, and the account's page says so.",
-        "Deactivating takes nothing off the account: its roles, capabilities, team memberships and portal access stay on it and give nothing while it is deactivated. Ticking Active on the account's page makes it active again with all of them, and its sessions stay ended. The account's page then shows the last deactivation as made active again since, with Deactivate offered again.",
-        "Your save waits for a change of the account's roles, capabilities, teams or portal access that is being saved on the application's pages at that moment; if that change alters the list, your save is refused, so the record matches the list you saw. An addition made outside those pages, by code or directly in the database, and committed after your save read the list is not in the record. Two superusers deactivating each other at the same moment take turns: the second is refused, because the first has deactivated them.",
-        "Each deactivation is also recorded as an account change in the audit history, with Active before and after and your reason, and the account's administration history lists it as Deactivated the account. Each session ended appears in the person's own Sign-in history as Signed out, Account deactivated, and a later sign-in with the right password is refused there as Account deactivated. Your reason is not shown there."
+        "Every save that deactivates an account records what it held just before, in the same change: this page, clearing Active on the account's page, and any other part of the application that saves the account as deactivated. The record keeps who saved it (no one is named for a command or code that names nobody), when, by the database's clock, the reason (given only on this page, so blank otherwise), what the account held as this page lists it, with names as they stood then, and how many tickets went back to their team queues. It holds no ticket content, email address or patient information. The database refuses to change or delete a record. Saving an account that is already deactivated records nothing more. A deactivation made before this release, or by a path that does not save the account (directly in the database, for example), has no record, and the account's page says so. The record lists what had been saved when the deactivating save read it: an addition that does not wait for the account's other changes (a member added to a team or made its lead on the team page, a capability added to a group on the role group page) and saved at that same moment can be missing from it, and does not make this page's save refused. It gives the deactivated account nothing.",
+        "Deactivating takes nothing off the account: its roles, capabilities, team memberships and portal access stay on it and give nothing while it is deactivated. Ticking Active on the account's page makes it active again with all of them, which give access again apart from a capability or portal access whose last day has passed, and its sessions stay ended. The account's page then shows the last deactivation as made active again since, with Deactivate offered again.",
+        "Your save waits for a change of the account that is being saved at that moment on its page in the admin console, on Set access, or by a removal from a team, a role or a capability; if that change alters the list, your save is refused. The record keeps the list your save was checked against, which is the list the page showed. Two superusers deactivating each other at the same moment take turns: the second is refused, because the first has deactivated them.",
+        "Each deactivation on this page is also recorded as an account change in the audit history, with Active before and after and your reason, and the account's administration history lists it as Deactivated the account. Clearing Active on the account's page records an account change with the reason Django admin and lists the change of Active in the administration history. Each session ended appears in the person's own Sign-in history as Signed out, Account deactivated, and a later sign-in with the right password is refused there as Account deactivated. Your reason is not shown there."
       ]
     }
   ],

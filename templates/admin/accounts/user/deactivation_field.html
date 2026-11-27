@@ -2,12 +2,13 @@
 The Deactivation line of an account's page (accounts.admin.AccountAdmin.deactivation): its latest
 deactivation record (accounts.models.Deactivation) with what it held then, and Deactivate for an
 active account. Context: account, last (the record or None), by (who saved it, as the account stands
-now, or None), own (the refusal for the superuser's own account, or empty), url (Deactivate).
+now, or None), own (the refusal for the superuser's own account, or empty), show_reason (false
+on the superuser's own account: the reason is for other superusers), url (Deactivate).
 {% endcomment %}
 <div class="vr-deactivation">
 {% if last %}
 <p>{% if account.is_active %}Made active again since it was deactivated{% else %}Deactivated{% endif %} on <time datetime="{{ last.deactivated_at|date:'c' }}">{{ last.deactivated_at|date:"Y-m-d H:i" }}</time> by {% if by %}{{ by.get_username }}{% else %}an account that was not recorded{% endif %}.{% if last.tickets_returned %} {{ last.tickets_returned }} open ticket{{ last.tickets_returned|pluralize }} returned to {{ last.tickets_returned|pluralize:"its,their" }} team queue{{ last.tickets_returned|pluralize }}.{% endif %}</p>
-<p>{% if last.reason %}Reason: {{ last.reason }}{% else %}No reason was recorded: the account was deactivated by clearing Active, or by a path other than Deactivate.{% endif %}</p>
+<p>{% if last.reason and not show_reason %}A reason was recorded. It is not shown on your own account's page.{% elif last.reason %}Reason: {{ last.reason }}{% else %}No reason was recorded: the account was deactivated by clearing Active, or by a path other than Deactivate.{% endif %}</p>
 <p>What it held when it was deactivated:</p>
 {% include "admin/accounts/user/includes/held.html" with held=last.held %}
 {% elif not account.is_active %}

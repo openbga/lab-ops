@@ -127,3 +127,18 @@ form .aligned ul.vr-held {
 form .aligned ul.vr-held li {
   list-style: disc;
 }
+
+/* A long username in a page's heading or subtitle, its breadcrumbs, the header's welcome line or the
+   Deactivate page's text wraps instead of widening the page. */
+#content > h1,
+#content > h2,
+div.breadcrumbs,
+#user-tools,
+.vr-deactivate p {
+  overflow-wrap: anywhere;
+}
+
+/* A long name without spaces (a team, an organization) wraps instead of widening the page. */
+ul.vr-held li {
+  overflow-wrap: anywhere;
+}

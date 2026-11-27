@@ -22,7 +22,7 @@ unless they did recently.
 &rsaquo; Deactivate
 </div>
 {% endblock %}
-{% block content %}<div id="content-main">
+{% block content %}<div id="content-main" class="vr-deactivate">
 {% if refused %}
 <p class="errornote">{{ refused }}</p>
 <p><a href="{% url opts|admin_urlname:'change' original.pk|admin_urlquote %}">Back to the account</a></p>
@@ -37,7 +37,7 @@ unless they did recently.
 <ul>
 <li>ends every session of the account at once ({% if open_count %}{{ open_count }} session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now{% else %}none is open now{% endif %}), and anything typed there and not saved is lost;</li>
 <li>returns the open tickets assigned to it to their team queues ({% if open_tickets %}{{ open_tickets }} open ticket{{ open_tickets|pluralize }} now{% else %}none now{% endif %});</li>
-<li>stops it signing in. What it holds stays on the account and gives nothing until it is made active again with Active on the account's page, which gives all of it back: review it then;</li>
+<li>stops it signing in. What it holds stays on the account and gives nothing until it is made active again with Active on the account's page, which gives back each grant whose last day has not passed: review them then;</li>
 <li>records what it holds, as listed above, with your reason, on the account's page.</li>
 </ul>
 <fieldset class="module aligned">

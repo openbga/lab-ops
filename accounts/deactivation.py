@@ -6,10 +6,12 @@ after the save has taken the account's access gate and locked its row and before
 ends the sessions or returns the tickets; once the row is written, in the same transaction, it
 stores that reading (accounts.models.Deactivation) with who saved (the save's changed_by, as the
 desk's release reads it), the reason given on the Deactivate page, and how many open tickets the
-save returned to their team queues (desk.signals). The account page's Active box, the Deactivate
-page and any code that deactivates an account through save() each leave one. Paths that bypass
-save() (queryset.update, raw SQL) leave none, nor did deactivations before this release. The
-database refuses to change or delete a record (migration 0012).
+save returned to their team queues (desk.signals). The Deactivate page hands the save the reading
+it compared with the page under the same locks, so its record is the list the page showed (a name
+changed meanwhile, which takes no gate, does not slip in). The account page's Active box, the
+Deactivate page and any code that deactivates an account through save() each leave one. Paths that
+bypass save() (queryset.update, raw SQL) leave none, nor did deactivations before this release.
+The database refuses to change or delete a record (migration 0012).
 
 What it held (holdings): its kind, organization, admin console access, roles, capabilities (given
 directly, with the last day or as ended, or through a role or group), teams (lead, inactive team)
@@ -18,11 +20,13 @@ without who gave each), with names as they stood then. Never a ticket's content,
 patient information. A group that is neither a role nor gives a capability gives nothing and is
 not listed, as in the access report. Grants that the account page removes in the same save as it
 deactivates the account are in the record: the account's row is written before its roles and
-capabilities. Known
-limit: what the reading sees is what had committed when it was read; an addition made without the
-account's access gate (code, the database directly) and committed after that is not in it. The
-application's own pages take the gate on every save of an account's roles, capabilities, teams and
-portal access.
+capabilities. Known limit: the reading sees what had committed when it was read. A change that
+takes the account's access gate (its page in the admin console, setting portal access, a removal
+from a team, a role or a capability) waits for the deactivating save or is read by it; an addition
+that takes no gate of the account (a member added to a team or made its lead on the team page, a
+capability added to a group on the role group page, code, the database directly) and commits after
+the reading is not in the record, and does not make the Deactivate page's save refused. It gives
+the deactivated account nothing.
 
 A deactivated account keeps its roles, capabilities, team memberships and portal access, which give
 nothing until it is made active again (the account page's Active box): the record says what it held
@@ -51,8 +55,10 @@ from django.db import transaction
 from .models import Deactivation, User
 
 REASON_LENGTH = 1000
-# Set on the account by the Deactivate page before its save: the reason the record keeps.
+# Set on the account by the Deactivate page before its save: the reason the record keeps, and the
+# reading of what it holds that the page's fingerprint was compared with, which the record keeps.
 REASON = "_deactivation_reason"
+HELD = "_deactivation_held"
 
 REFUSALS = {
     "own": "This is your own account. Another superuser can deactivate it.",
@@ -95,8 +101,10 @@ def fingerprint(held):
 def record_held(user):
     """For accounts.models.User.save, once it holds the account's access gate and row and has
     found that it deactivates the account: what the account holds, read before the save writes
-    anything."""
-    return holdings(user.pk)
+    anything; or, from the Deactivate page, the reading its fingerprint was compared with under
+    the same locks, so that the record is the list the page showed."""
+    held = user.__dict__.pop(HELD, None)
+    return held if held is not None else holdings(user.pk)
 
 
 def record(user, held):
@@ -153,15 +161,20 @@ def deactivate(*, actor, account_id, reason, drawn):
     from core.audit import record_event
 
     from .acting import close_access
-    from .setup import account_snapshot
+    from .admin import ENDS, _end_labels, account_reading
+    from .setup import seed_snapshot
 
+    actor_id = getattr(actor, "pk", None)
+    if actor_id is None or not owns_administration(User.objects.filter(pk=actor_id).first()):
+        # Before anything else, from the acting account as stored now (not the copy given);
+        # decided again below, once the owner's access gate is held.
+        raise PermissionDenied(NOT_ALLOWED)
     reason = (reason or "").strip()
     if not reason:
         raise ValidationError({"reason": "A reason is required."})
     if len(reason) > REASON_LENGTH:
         raise ValidationError({"reason": f"Keep the reason to {REASON_LENGTH:,} characters."})
-    actor_id = getattr(actor, "pk", None)
-    if actor_id is not None and actor_id == account_id:
+    if actor_id == account_id:
         # Decided before any lock: the owner's own gate is taken below for their access.
         raise ValidationError(REFUSALS["own"])
     with transaction.atomic():
@@ -182,12 +195,19 @@ def deactivate(*, actor, account_id, reason, drawn):
         refused = refusal(current, held_actor)
         if refused:
             raise ValidationError(refused)
-        if str(drawn or "") != fingerprint(holdings(current.pk)):
+        compared = holdings(current.pk)
+        if str(drawn or "") != fingerprint(compared):
             raise ValidationError(CHANGED_SINCE_DRAWN)
-        before = account_snapshot(current)
+        # The account change event's shape (accounts.admin), less the email address, which the
+        # change does not touch: the ends of capabilities given directly only when it has one.
+        before = seed_snapshot(current)
+        ends = account_reading(current)[ENDS]
+        if ends:
+            before[ENDS] = _end_labels(ends)
         current.is_active = False
         current.changed_by = held_actor
         setattr(current, REASON, reason)
+        setattr(current, HELD, compared)
         current.save(update_fields=["is_active"])
         record_event(
             actor=held_actor,

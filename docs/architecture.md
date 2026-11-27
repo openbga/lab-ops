@@ -364,12 +364,13 @@ migration leave none. The Deactivate page (`AccountAdmin.deactivate_view`, `deac
 access gates of the owner and the account in id order (`close_access`), reads the owner again (an
 active superuser with staff status), refuses the owner's own account, an inactive account and the
 jobs' account, locks the account's row FOR NO KEY UPDATE, compares a fingerprint of `holdings`
-with the one the page was drawn with, then saves `is_active` alone and records `account.updated`
+with the one the page was drawn with, hands that reading to the save as the record's (so the
+record is the list the page showed), then saves `is_active` alone and records `account.updated`
 with the reason; two owners deactivating each other take turns and the second is refused. Known
-limit: the reading sees what had committed when it was read, so an addition made without the
-account's access gate (code, the database directly) and committed after it is not in the record;
-the application's pages take the gate on every save of an account's roles, capabilities, teams and
-portal access.
+limit: the reading sees what had committed when it was read, so an addition that takes no gate of the
+account (a member added to a team or made its lead, a capability added to a group, code, the
+database directly) and commits after it is not in the record and does not refuse the Deactivate
+page's save; the account page, portal access and every removal take the gate.
 [Deactivation](../accounts/deactivation.py)
 
 ## Security settings

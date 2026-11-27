@@ -584,8 +584,9 @@ class DeactivateForm(ConfirmIdentity, forms.Form):
         widget=forms.Textarea(attrs={"rows": 3, "cols": 60, "autofocus": True}),
         max_length=1000,
         help_text="Recorded with what the account held and in the audit history, for example the "
-        "person left the laboratory or no longer works for the client. The person does not see "
-        "it. Do not include patient information.",
+        "person left the laboratory or no longer works for the client. Other superusers read it "
+        "on the account's page; the person does not see it, even on their own account's page. Do "
+        "not include patient information.",
     )
     # What the account held as the page showed it (accounts.deactivation.fingerprint): a page
     # opened before a change of it is refused.
@@ -990,6 +991,8 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 "last": last,
                 "by": _deactivated_by(last),
                 "own": REFUSALS["own"] if own else "",
+                # The reason is for other superusers: not shown on the person's own account page.
+                "show_reason": not own,
                 "url": reverse("admin:accounts_user_deactivate", args=[user.pk]),
             },
         )
@@ -1165,12 +1168,13 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         if not self.has_change_permission(request, user) or not owns_administration(request.user):
             raise PermissionDenied
         refused = refusal(user, request.user)
-        held = holdings(user.pk)
-        if held is None:
-            raise Http404("No such account.")
         if request.method == "POST":
             form = DeactivateForm(request.POST)
         else:
+            # The list drawn and its fingerprint: one reading.
+            held = holdings(user.pk)
+            if held is None:
+                raise Http404("No such account.")
             form = DeactivateForm(initial={"drawn": fingerprint(held)})
         if request.method == "POST" and refused is None and form.is_valid():
             try:
@@ -1189,13 +1193,6 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                         form.add_error(field if field in form.fields else None, errors)
                 else:
                     form.add_error(None, error)
-                # Refused as it saved: the page is drawn again from the account as it is now, and
-                # the page's fingerprint is that of the list it now shows.
-                user = User.objects.filter(pk=user.pk).first()
-                if user is None:
-                    raise Http404("No such account.") from None
-                refused = refusal(user, request.user)
-                held = holdings(user.pk)
             except User.DoesNotExist:
                 raise Http404("No such account.") from None
             else:
@@ -1213,8 +1210,15 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 )
                 return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
         if form.is_bound:
-            # Drawn again (a refusal, a missing reason, a confirmation not given): the page now
-            # shows `held`, so a save of it is checked against that list, not the one first shown.
+            # Drawn again (a refusal, a missing reason, a confirmation not given): the account, why
+            # it cannot be deactivated and what it holds are read once more, after the decision,
+            # and the page's fingerprint is that of the list it now shows, so a save of it is
+            # checked against that list, not the one first shown.
+            user = User.objects.filter(pk=user.pk).first()
+            held = holdings(user.pk) if user is not None else None
+            if held is None:
+                raise Http404("No such account.")
+            refused = refusal(user, request.user)
             data = form.data.copy()
             data["drawn"] = fingerprint(held)
             form.data = data

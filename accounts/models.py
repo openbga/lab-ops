@@ -458,7 +458,8 @@ class Deactivation(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.DO_NOTHING, db_constraint=False, related_name="deactivations"
     )
-    # By the database's clock: the start of the transaction that deactivated the account.
+    # By the database's clock, when the record is written, in the transaction that deactivated the
+    # account.
     deactivated_at = models.DateTimeField(db_default=Now())
     # Who saved it (the save's changed_by, as the desk's release reads it), or None when the save
     # named nobody (a command, code).

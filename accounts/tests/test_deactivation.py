@@ -388,9 +388,8 @@ def test_only_an_owner_of_the_administration_opens_or_saves_the_page(person, kin
 
 
 def test_a_missing_account_is_not_found(owner):
-    assert browser_for(owner).get(
-        reverse("admin:accounts_user_deactivate", args=[987654])
-    ).status_code in (302, 404)
+    url = reverse("admin:accounts_user_deactivate", args=[987654])
+    assert browser_for(owner).get(url).status_code == 404
     with pytest.raises(User.DoesNotExist):
         deactivation.deactivate(actor=owner, account_id=987654, reason="x", drawn="x")
 
@@ -447,7 +446,7 @@ def test_two_owners_deactivating_each_other_take_turns():
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_role_change_under_way_finishes_first_and_the_page_is_refused(person):
+def test_a_change_holding_the_accounts_gate_finishes_first_and_the_page_is_refused(person):
     owner = make_owner()
     drawn = deactivation.fingerprint(deactivation.holdings(person.pk))
     started, release = threading.Event(), threading.Event()
