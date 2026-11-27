@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static admin_urls %}
+{% comment %}
+Deactivate (accounts.admin.AccountAdmin.deactivate_view), owners of the account administration only:
+shows what the account holds now and what deactivating does, then deactivates it with a reason
+(accounts.deactivation), recorded with what it held and in the audit history. Context: original (the
+account), form (DeactivateForm: reason, and the fingerprint of the list shown), refused (why this
+account cannot be deactivated now, or None: then no form is offered), held (what it holds now,
+accounts.deactivation.holdings), open_count (its sessions open now, counted only), open_tickets (open
+tickets assigned to it now). Saving asks the superuser to confirm it is them (accounts.confirmation)
+unless they did recently.
+{% endcomment %}
+{% block title %}{% if refused or form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+{% block bodyclass %}{{ block.super }} {{ opts.app_label }}-{{ opts.model_name }} change-form{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'change' original.pk|admin_urlquote %}">{{ original|truncatewords:"18" }}</a>
+&rsaquo; Deactivate
+</div>
+{% endblock %}
+{% block content %}<div id="content-main" class="vr-deactivate">
+{% if refused %}
+<p class="errornote">{{ refused }}</p>
+<p><a href="{% url opts|admin_urlname:'change' original.pk|admin_urlquote %}">Back to the account</a></p>
+{% else %}
+<form method="post" id="{{ opts.model_name }}_form">{% csrf_token %}
+<div>
+{% if form.errors %}<p class="errornote">Please correct the error below.</p>{{ form.non_field_errors }}{% endif %}
+{{ form.drawn }}
+<p>What <strong>{{ original.get_username }}</strong> holds now:</p>
+{% include "admin/accounts/user/includes/held.html" with held=held %}
+<p>Deactivating it:</p>
+<ul>
+<li>ends every session of the account at once ({% if open_count %}{{ open_count }} session{{ open_count|pluralize }} {{ open_count|pluralize:"is,are" }} open now{% else %}none is open now{% endif %}), and anything typed there and not saved is lost;</li>
+<li>returns the open tickets assigned to it to their team queues ({% if open_tickets %}{{ open_tickets }} open ticket{{ open_tickets|pluralize }} now{% else %}none now{% endif %});</li>
+<li>stops it signing in. What it holds stays on the account and gives nothing until it is made active again with Active on the account's page, which gives back each grant whose last day has not passed: review them then;</li>
+<li>records what it holds, as listed above, with your reason, on the account's page.</li>
+</ul>
+<fieldset class="module aligned">
+<div class="form-row field-reason">
+  {{ form.reason.errors }}
+  <div class="flex-container">{{ form.reason.label_tag }} {{ form.reason }}</div>
+  <div class="help" id="{{ form.reason.id_for_label }}_helptext"><p>{{ form.reason.help_text }}</p></div>
+</div>
+</fieldset>
+{% include "admin/includes/confirm_identity.html" with form=form %}
+<div class="submit-row">
+  <button type="submit" class="button default">Deactivate</button>
+</div>
+</div>
+</form>
+{% endif %}
+</div>
+{% endblock %}

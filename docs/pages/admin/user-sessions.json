@@ -15,7 +15,8 @@
     {
       "title": "Stop the person signing in again",
       "steps": [
-        "On the account's page, clear [[Active]] and save. Ending sessions does not stop a new sign-in, and neither does a new password where the laboratory sends sign-in codes by email."
+        "On the account's page, select [[Deactivate]], give a reason and confirm. Clearing [[Active]] and saving also deactivates it, recorded without a reason.",
+        "Ending sessions does not stop a new sign-in, and neither does a new password where the laboratory sends sign-in codes by email."
       ]
     }
   ],
@@ -62,6 +63,7 @@
     "accounts/sessions.py",
     "templates/admin/accounts/user/end_sessions.html",
     "tests/test_session_list.py",
+    "accounts/deactivation.py",
     "accounts/signin_history.py",
     "accounts/tests/test_sign_in_history.py",
     "accounts/confirmation.py",

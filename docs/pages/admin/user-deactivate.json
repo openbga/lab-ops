@@ -1,0 +1,150 @@
+{
+  "id": "admin-user-deactivate",
+  "routes": [
+    "admin:accounts_user_deactivate"
+  ],
+  "title": "Deactivate account",
+  "purpose": "Deactivate one account, with a reason, after seeing what it holds, and keep a record of what it held on the account's page.",
+  "summary": "See what the selected account holds now, then deactivate it with a reason. It can no longer sign in, its sessions end, its open tickets return to their team queues, and what it held is recorded.",
+  "tasks": [
+    {
+      "title": "Deactivate an account",
+      "steps": [
+        "Check the list of what the account holds now. It is what the record on the account's page keeps.",
+        "Type why in [[Reason]], for example the person left the laboratory or no longer works for the client.",
+        "If [[Confirm it is you]] is shown, type what it asks for: [[Your password]], a code in [[Authenticator or recovery code]], or both.",
+        "Select [[Deactivate]]. You return to the account's page, which shows what it held under Deactivation."
+      ]
+    },
+    {
+      "title": "Deactivate after the page was refused",
+      "steps": [
+        "If the page says what the account holds changed after you opened it, read the list it shows now. Your reason is kept.",
+        "Select [[Deactivate]] again, confirming it is you if the page asks."
+      ]
+    },
+    {
+      "title": "Give a deactivated account its access back",
+      "steps": [
+        "On the account's page, review its roles, capabilities, teams and portal access first: making it active again gives back each of them whose last day has not passed.",
+        "Tick [[Active]] and save."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Roles, capabilities, teams and portal access stay on a deactivated account and give nothing. Making it active again gives back each of them whose last day has not passed.",
+    "The record keeps what the account held just before your save, your reason, who saved and when. Nobody can change or delete it. Do not put patient information in the reason.",
+    "Your own account and an account that is already deactivated are refused. Another superuser deactivates yours.",
+    "Clearing Active on the account's page also deactivates it. What it held is recorded then too, without a reason.",
+    "Deactivating asks you to confirm it is you (your password, a code, or both), unless you confirmed in this browser in the last 5 minutes. Your reason stays if it is refused."
+  ],
+  "sections": [
+    {
+      "title": "Access",
+      "paragraphs": [
+        "The administration site requires an active account with Staff status. This page additionally requires an active Superuser with Staff status, checked again when you save; a laboratory admin role alone does not open it. It opens from Deactivate under Deactivation on an active account's page. The Scheduled jobs account, which nobody signs in as, has no Deactivate page."
+      ]
+    },
+    {
+      "title": "What the page shows",
+      "items": [
+        {
+          "label": "What the account holds now",
+          "description": "Read when the page opens, worded as the Accounts tab of Access review words it, without who gave each grant. Account: Staff or Client portal, with the client organization. For a portal account, Portal access: what of its organization it sees, with its last day, or Only the tickets it raised. For a staff account, Admin console (Admin console, Superuser, or none), Roles, Capabilities with how each is held (Directly, Directly with its last day, Directly and ended so that it gives nothing, or through a role or group) and Teams, marked lead or inactive team. A group that is neither a role nor gives a capability gives nothing and is not listed, as in the access report. It never shows an email address. This is the list the record keeps."
+        },
+        {
+          "label": "Deactivating it",
+          "description": "What deactivating does to this account: it ends every session of the account at once, with how many are open now (counted only), and anything typed there and not saved is lost; it returns to their team queues the tickets assigned to the account that are not closed, with how many there are now; it stops the account signing in, while what it holds stays on it and gives nothing until it is made active again with Active on the account's page; and it records the list above, with your reason, on the account's page."
+        },
+        {
+          "label": "Reason",
+          "description": "Required, at most 1,000 characters; spaces alone are refused. Kept with the deactivation record and in the audit history. Other superusers read it on the account's page; it is not shown to the person, even on their own account's page. Do not include patient information."
+        },
+        {
+          "label": "Your password",
+          "description": "Under Confirm it is you, after Reason, while deactivating asks for it, and shown when your account has a password: your own current password, not the account's. The help under it says what saving asks for and that you are not asked again in this browser for 5 minutes. Left empty: Enter your password to save this change. Not accepted: Incorrect password. Accepted, but the code is not: Enter your password again with the code (the page does not keep it)."
+        },
+        {
+          "label": "Authenticator or recovery code",
+          "description": "Under Confirm it is you, shown when your account has an authenticator app: a code from it, or one of your unused recovery codes, which is then used up. Left empty: Enter a code from your authenticator app, or a recovery code, to save this change. Not accepted: Incorrect code. The password is checked first; when it is not accepted, the code is not checked and can still be used."
+        },
+        {
+          "label": "Refused",
+          "description": "Instead of the form, a notice when the account cannot be deactivated here, with Back to the account: This is your own account. Another superuser can deactivate it. Or: This account is already deactivated."
+        }
+      ]
+    },
+    {
+      "title": "Confirm it is you",
+      "paragraphs": [
+        "Deactivate asks you, the person signed in, to confirm it is you, unless you already confirmed in this browser in the last 5 minutes. Nothing is deactivated until what you type under Confirm it is you is accepted. Signing in does not count: only confirming again does, and a new sign-in, even in the same browser, starts without one. Once you have confirmed, no page that asks (account administration, and the session limits and second sign-in factor rule on Security settings) asks again in this browser for 5 minutes. A page opened while you were confirmed and saved after the 5 minutes passed asks then.",
+        "Confirming on Confirm your password, or with a code before a change to your own two-factor settings, counts too, once every factor your account has was given there within the last 5 minutes: each counts for 5 minutes from when it was given, so the earlier one runs out first. A confirmation here counts for those pages as well. A new password, or a new or different authenticator app, on your account since you confirmed makes the next save ask again, for both. An account with neither a password nor an authenticator app cannot confirm, so it cannot deactivate an account until it sets a password.",
+        "When the confirmation is missing or not accepted, nothing is deactivated, no session ends, and nothing is recorded; your reason stays on the page. A confirmation accepted while the reason is refused is kept: the page shows the reason's error without the section, and deactivating within the 5 minutes does not ask again.",
+        "A password or code not accepted is listed in your own Sign-in history as Re-authentication failed and counts toward the failed sign-in limit; an attempt that limit refuses is listed as Too many failed attempts. What you type under Confirm it is you is never stored, logged or put in an audit event."
+      ],
+      "items": [
+        {
+          "label": "Too many failed login attempts. Try again later.",
+          "description": "The failed sign-in limit refused your password or code before checking it, after too many that were not accepted. Wait a few minutes, then try again."
+        },
+        {
+          "label": "Too many attempts to confirm it is you. Wait a minute, then try again.",
+          "description": "Shown after 10 tries within a minute by your account (the Confirm your password pages count too). Nothing was checked, and the refusal is not listed in Sign-in history."
+        },
+        {
+          "label": "Your account has no password to confirm it is you, so this change cannot be saved. Set a password on Change password first.",
+          "description": "Your account has neither a password nor an authenticator app, so it has nothing to confirm with. Set a password from Change password in the account menu, then deactivate again."
+        },
+        {
+          "label": "Your sign-in factors changed, or your confirmation ran out, while this page was open. Confirm it is you again.",
+          "description": "An authenticator app was added to or removed from your account, or your confirmation ran out, while your save was being checked. Nothing is deactivated. The section now asks for what your account has: fill it in and select Deactivate again."
+        }
+      ]
+    },
+    {
+      "title": "Actions",
+      "items": [
+        {
+          "label": "Deactivate",
+          "description": "Once you have confirmed it is you (see Confirm it is you), deactivates the account in one change, from the account as it stands when you save. It is refused, with nothing changed, when you are no longer an active superuser with Staff status, when the account was deactivated meanwhile (the page then shows the notice), or when anything in the list of what it holds differs from the list the page showed: What this account holds changed after you opened this page, so it was not deactivated. The page now shows what it holds. Your reason was kept: check the list, then deactivate it again. Each time the page is drawn again, after a refusal, a missing reason or a confirmation not given, it lists what the account holds then, and your next save is checked against that list. When it succeeds, every session of the account ends, including any that signed in after the page opened, its tickets that are not closed return to their team queues, unassigned, and what it held is recorded with your reason, your account and the time. You return to the account's page with Deactivated followed by the username, Its sessions ended., how many open tickets were returned to their team queues when there were any, and that what it held is recorded on its page."
+        },
+        {
+          "label": "Back to the account",
+          "description": "Shown with a refusal: returns to the account's page."
+        },
+        {
+          "label": "Breadcrumbs",
+          "description": "Return to the administration home, the Accounts section, the user list or the account's page without deactivating anything."
+        }
+      ]
+    },
+    {
+      "title": "Rules and records",
+      "paragraphs": [
+        "Every save that deactivates an account records what it held just before, in the same change: this page, clearing Active on the account's page, and any other part of the application that saves the account as deactivated. The record keeps who saved it (no one is named for a command or code that names nobody), when, by the database's clock, the reason (given only on this page, so blank otherwise), what the account held as this page lists it, with names as they stood then, and how many tickets went back to their team queues. It holds no ticket content, email address or patient information. The database refuses to change or delete a record. Saving an account that is already deactivated records nothing more. A deactivation made before this release, or by a path that does not save the account (directly in the database, for example), has no record, and the account's page says so. The record lists what had been saved when the deactivating save read it: an addition that does not wait for the account's other changes (a member added to a team or made its lead on the team page, a capability added to a group on the role group page) and saved at that same moment can be missing from it, and does not make this page's save refused. It gives the deactivated account nothing.",
+        "Deactivating takes nothing off the account: its roles, capabilities, team memberships and portal access stay on it and give nothing while it is deactivated. Ticking Active on the account's page makes it active again with all of them, which give access again apart from a capability or portal access whose last day has passed, and its sessions stay ended. The account's page then shows the last deactivation as made active again since, with Deactivate offered again.",
+        "Your save waits for a change of the account that is being saved at that moment on its page in the admin console, on Set access, or by a removal from a team, a role or a capability; if that change alters the list, your save is refused. The record keeps the list your save was checked against, which is the list the page showed. Two superusers deactivating each other at the same moment take turns: the second is refused, because the first has deactivated them.",
+        "Each deactivation on this page is also recorded as an account change in the audit history, with Active before and after and your reason, and the account's administration history lists it as Deactivated the account. Clearing Active on the account's page records an account change with the reason Django admin and lists the change of Active in the administration history. Each session ended appears in the person's own Sign-in history as Signed out, Account deactivated, and a later sign-in with the right password is refused there as Account deactivated. Your reason is not shown there."
+      ]
+    }
+  ],
+  "sources": [
+    "accounts/admin.py",
+    "accounts/deactivation.py",
+    "accounts/models.py",
+    "accounts/migrations/0012_deactivation.py",
+    "accounts/acting.py",
+    "accounts/session_list.py",
+    "accounts/sessions.py",
+    "audit_review/access_report.py",
+    "desk/services.py",
+    "desk/signals.py",
+    "templates/admin/accounts/user/deactivate.html",
+    "templates/admin/accounts/user/deactivation_field.html",
+    "templates/admin/accounts/user/includes/held.html",
+    "templates/admin/includes/confirm_identity.html",
+    "accounts/tests/test_deactivation.py",
+    "accounts/confirmation.py",
+    "accounts/tests/test_confirm_identity.py"
+  ]
+}

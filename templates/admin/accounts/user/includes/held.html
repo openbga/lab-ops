@@ -1,0 +1,17 @@
+{% comment %}
+What an account held or holds (accounts.deactivation.holdings), on the account's page (its latest
+deactivation record) and on Deactivate (what it holds now). Context: held. A portal account shows its
+organization and portal access; a staff account its admin console access, roles, capabilities and
+teams. Each item is worded as the access report words it.
+{% endcomment %}
+<ul class="vr-held">
+<li>Account: {{ held.kind }}{% if held.organization %}, {{ held.organization }}{% endif %}</li>
+{% if held.portal %}
+<li>Portal access: {{ held.portal }}</li>
+{% else %}
+<li>Admin console: {% for item in held.console %}{{ item }}{% if not forloop.last %}, {% endif %}{% empty %}none{% endfor %}</li>
+<li>Roles: {% for item in held.roles %}{{ item }}{% if not forloop.last %}, {% endif %}{% empty %}none{% endfor %}</li>
+<li>Capabilities: {% for item in held.capabilities %}{{ item.text }} ({{ item.note }}){% if not forloop.last %}; {% endif %}{% empty %}none{% endfor %}</li>
+<li>Teams: {% for item in held.teams %}{{ item.text }}{% if item.note %} ({{ item.note|lower }}){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}none{% endfor %}</li>
+{% endif %}
+</ul>

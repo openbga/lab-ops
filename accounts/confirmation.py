@@ -3,7 +3,8 @@ again before a change to roles, capabilities, security settings or another accou
 factors (docs/safeguards.md).
 
 Which changes ask. Every save in account administration that changes an account (adding one,
-its page, its password page, marking its password as compromised, removing its authenticator) or
+its page, its password page, marking its password as compromised, deactivating it on Deactivate,
+removing its authenticator) or
 a role (adding one or its page), and a change to the session limits, the second-factor rule or the
 confirmation before revealing patient information on Security settings; and, where the laboratory
 asks for it, the first reveal of patient information in a session (core.reveal_confirmation, on a

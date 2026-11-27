@@ -15,7 +15,7 @@ def remove_capability(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("accounts", "0011_grant_ends"),
+        ("accounts", "0012_deactivation"),
         ("auth", "0012_alter_user_first_name_max_length"),
     ]
 

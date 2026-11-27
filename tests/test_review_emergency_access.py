@@ -1724,7 +1724,8 @@ def test_emergency_migrations_preserve_earlier_rows_and_remove_only_the_new_gran
     from desk.models import ServiceRequest
 
     previous = [
-        ("accounts", "0011_grant_ends"),
+        # Adapted: the capability's migration follows accounts 0012_deactivation since the merge.
+        ("accounts", "0012_deactivation"),
         ("audit_review", "0005_access_reviews"),
         ("desk", "0007_ticket_terminology"),
     ]

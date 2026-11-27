@@ -53,6 +53,10 @@ class User(AbstractUser):
         # One transaction for the account and what its save signals change with it (releasing
         # a deactivated account's assignments, resetting portal access on a move), so they
         # succeed or fail together on every path, inside or outside a caller's transaction.
+        # Whether this save deactivates the account (its stored row active), decided under the
+        # locks below; then what it held is read before anything is written (accounts.deactivation).
+        deactivating = False
+        held = None
         with transaction.atomic():
             if self.pk is not None and _may_change_access(update_fields):
                 # The access gate, before the save: a change the person has under way holds it
@@ -68,12 +72,21 @@ class User(AbstractUser):
                 from .acting import close_access
 
                 close_access([self.pk])
-                list(
+                stored = list(
                     type(self)
                     .objects.select_for_update(no_key=True)
                     .filter(pk=self.pk)
-                    .values_list("pk", flat=True)
+                    .values_list("is_active", flat=True)
                 )
+                deactivating = (
+                    stored == [True]
+                    and not self.is_active
+                    and (update_fields is None or "is_active" in update_fields)
+                )
+                if deactivating:
+                    from .deactivation import record_held
+
+                    held = record_held(self)
             # The stored password, when this save writes the column: whatever changes the
             # stored value (a new password, an unusable one, a hash upgraded at sign-in) changes
             # what Django's sessions are checked against, so the sessions end with it.
@@ -97,6 +110,10 @@ class User(AbstractUser):
             if chosen:
                 self._check_chosen_while_marked()
             super().save(*args, **kwargs)
+            if deactivating:
+                from .deactivation import record
+
+                record(self, held)
             if chosen:
                 CompromisedPassword.objects.filter(user_id=self.pk, lifted_at__isnull=True).update(
                     lifted_at=Now()
@@ -425,3 +442,47 @@ class KeptDraftCutoff(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.discarded_at:%Y-%m-%d %H:%M}"
+
+
+class Deactivation(models.Model):
+    """What an account held when a save deactivated it (accounts.deactivation), recorded by that
+    save in the same transaction: who saved it, when, the reason given on the Deactivate page
+    (blank when the account page's Active box or another path deactivated it), what it held as
+    the access report words it, and how many open tickets the save returned to their team
+    queues. History: the database refuses to change or delete a row (migration 0012). Never a
+    ticket's content, an email address or patient information."""
+
+    # The account, by id. Not a constraint in the database, as for the sign-in history: a record
+    # outlives its account (accounts are deactivated, never deleted, by the application), and
+    # writing one takes no further lock on the account's row.
+    user = models.ForeignKey(
+        User, on_delete=models.DO_NOTHING, db_constraint=False, related_name="deactivations"
+    )
+    # By the database's clock, when the record is written, in the transaction that deactivated the
+    # account.
+    deactivated_at = models.DateTimeField(db_default=Now())
+    # Who saved it (the save's changed_by, as the desk's release reads it), or None when the save
+    # named nobody (a command, code).
+    deactivated_by = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    reason = models.TextField(blank=True)
+    # accounts.deactivation.holdings: kind, organization, console, roles, capabilities, teams and
+    # portal, in words, as they stood just before the save wrote the account.
+    held = models.JSONField()
+    tickets_returned = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # Written only by accounts.deactivation: no model permission to grant.
+        default_permissions = ()
+        indexes = [
+            models.Index(fields=["user", "-deactivated_at", "-id"], name="deactivation_latest")
+        ]
+
+    def __str__(self):
+        return f"account {self.user_id} deactivated {self.deactivated_at:%Y-%m-%d %H:%M}"
