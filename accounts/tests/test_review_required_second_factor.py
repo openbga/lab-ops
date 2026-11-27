@@ -740,7 +740,8 @@ def test_both_enrolled_browsers_observe_the_owners_changes_at_the_next_request(
 
         def answer(request):
             with ThreadPoolExecutor(max_workers=1) as pool:
-                pool.submit(run_action).result(timeout=10)
+                # Room for activate_app's wait for time left in the code's period (up to 10 s).
+                pool.submit(run_action).result(timeout=30)
             return original(request)
 
         with monkeypatch.context() as patch:
