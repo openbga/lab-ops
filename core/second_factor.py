@@ -82,6 +82,8 @@ def _tables():
     from django.contrib.auth.models import Group
     from django.contrib.contenttypes.models import ContentType
 
+    from accounts.models import CapabilityEnd
+
     User = get_user_model()
     quote = connection.ops.quote_name
     return {
@@ -90,6 +92,7 @@ def _tables():
             ("user", User),
             ("user_groups", User.groups.through),
             ("user_permissions", User.user_permissions.through),
+            ("capability_end", CapabilityEnd),
             ("group", Group),
             ("group_permissions", Group.permissions.through),
             ("permission", Permission),
@@ -130,7 +133,8 @@ def _parts_sql():
     effective_roles counts them (the admin role does the work of the operational ones), and only
     the role names of accounts.roles.ROLES, whatever else a stored row holds, as values() reads it;
     the
-    patient-information grant on the account or any of its groups, as has_capability counts it;
+    patient-information grant on the account (while it has not ended) or any of its groups, as
+    has_capability counts it;
     staff status as the admin console checks it."""
     t = _tables()
     held = (
@@ -142,7 +146,9 @@ def _parts_sql():
         f"SELECT 1 FROM {t['permission']} p JOIN {t['content_type']} ct "
         "ON ct.id = p.content_type_id WHERE p.codename = %s AND ct.app_label = 'accounts' AND ("
         f"p.id IN (SELECT up.permission_id FROM {t['user_permissions']} up "
-        "WHERE up.user_id = u.id) "
+        f"WHERE up.user_id = u.id AND NOT EXISTS (SELECT 1 FROM {t['capability_end']} e "
+        "WHERE e.user_id = up.user_id AND e.permission_id = up.permission_id "
+        "AND e.ends_at <= transaction_timestamp())) "
         f"OR p.id IN (SELECT gp.permission_id FROM {t['group_permissions']} gp "
         f"JOIN {t['user_groups']} ug2 ON ug2.group_id = gp.group_id WHERE ug2.user_id = u.id))"
     )

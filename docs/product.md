@@ -187,7 +187,7 @@ application's request log records the page only, without its search.
 | Client services or account manager | Maintain client organizations, sites, contacts and portal access. Import organization data. |
 | Supervisor | Read restricted tickets across teams, review eligible complaints, withdraw replies or files, read a ticket's audit history and who opened it, share saved views and manage team membership. Choose the owner of a nonconformance, close one they do not own and reopen one. |
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
-| Superuser | Manage identities and explicit grants through the admin console. The staff workspace still requires a role. |
+| Superuser | Manage identities and explicit grants through the admin console, including an optional last day for a capability given directly to an account. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
 | Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set; and they record and sign access reviews there, deciding to keep or remove each grant the accounts hold. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
@@ -197,7 +197,9 @@ application's request log records the page only, without its search.
 A portal account belongs to one organization. It can be granted access to the whole
 organization or to listed sites. It can also read tickets it raised in its current organization.
 Without an effective access grant it sees only those tickets and raises tickets without a site.
-Moving an account to another organization resets its access. Client accounts have no staff
+Staff may give the access a last day. After that day ends, in the laboratory's time zone, the
+access grants nothing and the account is treated as one without a grant until staff set it again.
+Moving an account to another organization resets its access, last day included. Client accounts have no staff
 roles. Replies from staff identify the team and the laboratory.
 
 ## Notifications
@@ -507,7 +509,8 @@ documents, is planned on the [roadmap](roadmap.md).
 Access review, also under Oversight and for the same holders, shows who can do what. Its Accounts
 tab lists every account, staff, client portal and the scheduled jobs' own, with its kind and
 status, admin console access, roles, capabilities (given to the account or through a role or
-group), teams, portal access, whether it has a second factor and whether the laboratory's rule
+group; a capability given directly shows its last day, or is marked ended once that day has
+passed), teams, portal access (with its last day, or what the account sees once it has passed), whether it has a second factor and whether the laboratory's rule
 requires one, and its last sign-in. For each role, capability and admin console access it names
 who gave it and when, read from the change history, or says "Not in the change history" when no
 recorded change gave it; a deactivated account names who deactivated it. It filters by kind,
@@ -524,14 +527,16 @@ clearance, and §164.308(a)(4)(ii)(C), access establishment and modification, bo
 read 2026-11-26). A holder of the capability chooses the staff accounts or the client portal accounts, of
 every organization or of one. The form lists every active account in that choice with each grant it
 holds now: admin console access, superuser status, each role or other group it belongs to (with the
-capability the group gives, if any), each capability given to it directly, and for a portal account
-the portal account itself with what of its organization it may see. The scheduled jobs' account and
+capability the group gives, if any), each capability given to it directly whose last day has not
+passed, with that day, and for a portal account the portal account itself with what of its
+organization it may see and the last day of that access. The scheduled jobs' account and
 staff accounts that hold no role, group, capability or admin console access are left out. One review
 covers at most 500 accounts and 900 grants. The reviewer decides Keep or Remove for every grant, with
 no default, may add findings and follow-up, and signs by entering their password again, as for the
 audit reviews: there are no drafts, the second factor is not asked, and a password not accepted
 signs nothing, keeps what was typed and is a failed re-authentication in the sign-in history. If an
-account or its grants changed after the form was opened, signing is refused and the form is drawn
+account or its grants changed after the form was opened, a last day included, or a last day passed
+in the meantime, signing is refused and the form is drawn
 again as they stand, keeping the decisions on grants that did not change and marking the others "New
 or changed". The review gets a number (AC-000001) and keeps every grant with its decision, the
 signer's name, username and roles as they stood, the meaning Reviewed, the time and a SHA-256
@@ -542,7 +547,19 @@ for each grant decided for removal, whether the account still holds it, read as 
 when the page is drawn and not part of what was signed, and checks the checksum against the review
 as stored. The list and each review's decisions export as spreadsheet files. Each page, export and
 drawing of the form is recorded as Workspace use, and each signing is a change event. Access reviews
-have no notes, no interval or due date, no reminder and no second approver. End dates on grants are
+have no notes, no interval or due date, no reminder and no second approver.
+
+A capability given directly to an account and a portal account's access may each have a last day,
+set by a superuser on the account's page in the admin console and by client services, account
+managers and admins on the portal account's Set access page. A newly chosen day must be today or
+later and within the next 100 years; a day left as the page showed it keeps the end as saved, even
+after a change of the laboratory's time zone. The grant gives nothing from the start of the next
+day in the laboratory's time zone, and every check of the grant compares the end with the
+database's clock. An ended grant stays on the
+account, giving nothing, until someone removes it or sets a later day; setting or moving an end is
+recorded in the account's or the access's change event. A capability given through a role or group
+has no end date, and neither do roles, admin console access or team memberships. Nothing reminds
+anyone before an end, and nothing removes an ended grant. Showing what a deactivated account held is
 planned on the [roadmap](roadmap.md).
 
 The [safeguards reference](safeguards.md) states,

@@ -6,10 +6,13 @@ The organizations cover the laboratory types of the build plan's seed: a clinic,
 system with its hospital, a recovery center (toxicology), an employer program (workplace
 toxicology), a water utility (environmental), a manufacturer (QC), a research institute
 (biorepository) and an inactive former client. demo_client sees its whole organization;
-demo_client_water is narrowed to one site.
+demo_client_water is narrowed to one site, with a last day (PORTAL_LAST_DAYS).
 """
 
+from datetime import timedelta
+
 from accounts.acting import hold_actor
+from accounts.grant_ends import later_today
 from accounts.models import User
 
 from .models import Client, ClientContact, ClientSite
@@ -276,6 +279,11 @@ DEMO_PORTAL_ACCOUNTS = (
 )
 
 
+# Portal accounts whose access has a last day, so many days after the seed's day
+# (core.seeding.SeedContext.day): the demonstration, reset each day, shows an end to come.
+PORTAL_LAST_DAYS = {"demo_client_water": 90}
+
+
 def seed_setup(ctx):
     """Nothing to configure."""
 
@@ -300,6 +308,7 @@ def seed_records(ctx):
             portal_user.set_password(ctx.password)
             portal_user.save()
         if not hasattr(portal_user, "portal_access"):
+            days = PORTAL_LAST_DAYS.get(username)
             set_portal_access(
                 actor=actor,
                 user_id=portal_user.pk,
@@ -307,6 +316,7 @@ def seed_records(ctx):
                 contact=ClientContact.objects.get(client=client, email=contact_email),
                 whole_organization=site_codes is None,
                 sites=list(ClientSite.objects.filter(client=client, code__in=site_codes or ())),
+                last_day=(ctx.day or later_today()) + timedelta(days=days) if days else None,
             )
 
 

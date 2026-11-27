@@ -411,12 +411,17 @@ def review_capability_holders():
 
 
 def _capability_holders(codename):
+    """Given directly (while the grant has not ended: accounts.roles.direct_grants) or through a
+    group."""
+    from accounts.roles import direct_grants
+
     grant = {"codename": codename, "content_type__app_label": "accounts"}
+    direct = direct_grants(**{f"permission__{key}": value for key, value in grant.items()})
     return (
         get_user_model()
         .objects.filter(is_active=True, client_id__isnull=True, groups__name__in=ROLES)
         .filter(
-            Q(**{f"user_permissions__{key}": value for key, value in grant.items()})
+            Q(pk__in=direct.values("user_id"))
             | Q(**{f"groups__permissions__{key}": value for key, value in grant.items()})
         )
         .distinct()

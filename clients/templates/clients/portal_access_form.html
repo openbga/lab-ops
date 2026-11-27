@@ -7,11 +7,15 @@ organization, or None before the first save or when the access was granted for a
 organization), granted (access gives the whole organization or at least one site; false after a
 reset), form (clients.forms.PortalAccessForm; carries the reason once access exists),
 cancel_url, history (AuditEvent of the access row, newest first; shown oldest first).
+access.ended: its last day has passed, by the database's clock as the page was read
+(clients.views.portal_access_edit; accounts.grant_ends).
 {% endcomment %}
 {% block breadcrumbs %}{% url 'clients:client-list' as list_url %}{% url 'clients:client-detail' client.pk as client_url %}{% breadcrumbs section="Client organizations" section_url=list_url record=client.name record_url=client_url %}{% endblock %}
 {% block content %}
 {% if not granted %}
 {% notice tone="info" label="Access not set" %}Until its access is saved, this account sees only the tickets it raises itself.{% endnotice %}
+{% elif access.ended %}
+{% notice tone="warning" label="Access ended" %}The last day of this access has passed, so the account sees only the tickets it raised itself. Choose a later last day, or clear it, to give the access again.{% endnotice %}
 {% endif %}
 {% form_page form=form cancel_url=cancel_url submit_label="Save access" class="vr-narrow" %}
   <fieldset class="vr-form-section">

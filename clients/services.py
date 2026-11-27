@@ -475,9 +475,18 @@ def update_site(*, actor, site_id, expected_revision, reason, **data):
 
 
 def portal_access_state(access, site_ids=None):
-    """The audited shape of one account's portal access (ids and flags, no names)."""
+    """The audited shape of one account's portal access (ids, flags and its end as a moment in
+    UTC, accounts.grant_ends.iso; no names)."""
+    from accounts.grant_ends import iso
+
     if access is None:
-        return {"client": None, "contact": None, "whole_organization": False, "sites": []}
+        return {
+            "client": None,
+            "contact": None,
+            "whole_organization": False,
+            "sites": [],
+            "ends_at": None,
+        }
     if site_ids is None:
         site_ids = access.sites.values_list("pk", flat=True) if access.pk else ()
     return {
@@ -485,7 +494,12 @@ def portal_access_state(access, site_ids=None):
         "contact": access.contact_id,
         "whole_organization": access.whole_organization,
         "sites": sorted(site_ids),
+        "ends_at": iso(access.ends_at),
     }
+
+
+# set_portal_access's `shown_last_day` when the form sent none back.
+UNSHOWN = object()
 
 
 @transaction.atomic
@@ -496,11 +510,13 @@ def set_portal_access(
     contact=None,
     whole_organization=False,
     sites=(),
+    last_day=None,
+    shown_last_day=UNSHOWN,
     expected_client_id,
     expected_revision=None,
     reason="",
 ):
-    """Set the linked contact and scope of one client portal account.
+    """Set the linked contact, scope and last day of one client portal account.
 
     `expected_client_id` is the organization the caller decided for (the form's organization).
     After the account is locked, a different current organization refuses the change: an
@@ -509,11 +525,19 @@ def set_portal_access(
     The account must be a portal account (`client_id` set); the contact and every site must
     belong to the same organization. Scope is the whole organization, or one or more listed
     sites (new ones active); listed sites are cleared when the scope is the whole organization.
-    Changing existing access needs a reason and the revision the form was opened at (a missing
-    revision is refused like a stale one); setting it the first time does not. Audited as
-    `portal_access.set` with ids and flags only.
+    `last_day` (a date, or None for no end) is the last day the access holds; it ends at the start
+    of the next day in the laboratory's time zone (accounts.grant_ends). `shown_last_day` is the
+    day the form showed (UNSHOWN, for a caller that sends none: the stored end's day now; None: no
+    day shown, as for access not yet set or granted for another organization): a day sent back as
+    shown keeps the end as stored (accounts.grant_ends.chosen_end), and only an end of access
+    granted for the account's organization is kept; any other day is a new choice, which must be
+    today or later and within accounts.grant_ends.MOST_YEARS. Changing existing access needs a
+    reason and the revision the form was opened at (a missing revision is refused like a stale
+    one); setting it the first time does not. Audited as `portal_access.set` with ids, flags and
+    the end only.
     """
     from accounts.acting import close_access
+    from accounts.grant_ends import PORTAL_PAST_DAY, check_new_day, chosen_end, last_day_of
     from accounts.models import User
 
     require_client_manager(actor)
@@ -552,9 +576,18 @@ def set_portal_access(
             raise ValidationError(
                 {"sites": "Choose at least one site, or give access to the whole organization."}
             )
+    # Only an end of access granted for this organization is kept: one left from another
+    # organization (or none) is never this organization's choice.
+    applies = access.pk is not None and access.client_id == account.client_id
+    stored_end = access.ends_at if applies else None
+    shown = last_day_of(stored_end) if shown_last_day is UNSHOWN else shown_last_day
+    refused = check_new_day(last_day, shown, past=PORTAL_PAST_DAY)
+    if refused:
+        raise ValidationError({"last_day": refused})
     access.client_id = account.client_id
     access.contact = contact
     access.whole_organization = bool(whole_organization)
+    access.ends_at = chosen_end(last_day, shown, stored_end)
     after = portal_access_state(access, site_ids)
     if access.pk is not None:
         if after == before:
@@ -589,8 +622,8 @@ def reset_portal_access(
     *, actor, user_id, expected_client_id, before=None, reason=ORGANIZATION_CHANGED
 ):
     """Take away every grant of one account's portal access: no contact, no sites, not the whole
-    organization, and the access now belongs to the account's current organization (none for an
-    account that is no longer a client account). The account then sees only the requests it
+    organization, no end, and the access now belongs to the account's current organization (none
+    for an account that is no longer a client account). The account then sees only the requests it
     raised until staff set its access again. Audited as `portal_access.reset`.
 
     Called when an account's organization changes (the account administration, and
@@ -617,13 +650,15 @@ def reset_portal_access(
         "contact": None,
         "whole_organization": False,
         "sites": [],
+        "ends_at": None,
     }
     if before == empty:
         return None
-    if portal_access_state(access) != empty:  # not yet emptied by the trigger
+    if portal_access_state(access) != empty:  # not yet emptied by the trigger (or an end left)
         access.client_id = account.client_id
         access.contact = None
         access.whole_organization = False
+        access.ends_at = None
         access.revision += 1
         access.save()
         access.sites.clear()

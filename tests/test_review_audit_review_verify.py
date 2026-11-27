@@ -1085,6 +1085,18 @@ def test_rollback_and_reapply_retire_only_the_review_permission(legacy_model):
     def migrate(*target):
         call_command("migrate", *target, verbosity=0, interactive=False)
 
+    def give(holder, *permissions):
+        # Rows as the schema at that migration holds them, written without the current code's
+        # receivers (accounts.grant_ends removes an end with its grant, in a table that schema
+        # does not have yet).
+        holder.through.objects.bulk_create(
+            holder.through(
+                **{f"{holder.source_field_name}_id": holder.instance.pk},
+                **{f"{holder.target_field_name}_id": permission.pk},
+            )
+            for permission in permissions
+        )
+
     codename = "review_audit_records"
     review = Permission.objects.filter(
         content_type__app_label="accounts", content_type__model="user", codename=codename
@@ -1108,13 +1120,13 @@ def test_rollback_and_reapply_retire_only_the_review_permission(legacy_model):
         )
         keep = {previous.pk, legacy.pk}
         for holder in holders:
-            holder.add(previous, legacy)
+            give(holder, previous, legacy)
 
         migrate("accounts", "0010_review_capability")
         original = review.get()
         assert not original.user_set.exists() and not original.group_set.exists()
         for holder in holders:
-            holder.add(original)
+            give(holder, original)
 
         migrate("accounts", "0009_sign_in_history")
         expected_removed = not review.exists()

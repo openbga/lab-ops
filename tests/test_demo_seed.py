@@ -93,6 +93,23 @@ def test_demo_seed_creates_synthetic_records_and_preserves_existing_data(
     assert whole.whole_organization and not whole.sites.exists()
     assert not narrow.whole_organization
     assert [site.code for site in narrow.sites.all()] == ["NORTH"]
+    # Time-limited grants (accounts.grant_ends): the site access and the supervisor's patient
+    # information access each have a last day 90 days after the seed's day; nothing else does.
+    from datetime import timedelta
+
+    from accounts import grant_ends
+    from accounts.models import CapabilityEnd
+
+    last_day = grant_ends.today() + timedelta(days=90)
+    assert not whole.ends_at and narrow.ends_at == grant_ends.end_of(last_day)
+    assert list(
+        CapabilityEnd.objects.values_list("user__username", "permission__codename", "ends_at")
+    ) == [("demo_supervisor", "view_patient_information", grant_ends.end_of(last_day))]
+    end_set = AuditEvent.objects.get(action="account.capability_end_set")
+    assert end_set.after == {
+        "capability": "view_patient_information",
+        "ends_at": grant_ends.iso(grant_ends.end_of(last_day)),
+    }
     assert not any(has_role(u, *ROLES) for u in User.objects.filter(client__isnull=False))
     # Every record went through the audited services, as the account manager.
     created = AuditEvent.objects.filter(action="client.created")

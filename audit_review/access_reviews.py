@@ -10,8 +10,11 @@ What is reviewed. A review covers one scope (AccessScope): the active staff acco
 jobs' own aside, or the active client portal accounts, of every organization or of one; at most
 MOST_ACCOUNTS accounts. For each account, every grant it holds as it stands (Grant, read_grants):
 admin console access and superuser status, each group it is a member of (a role, or another group,
-with the capabilities the group gives), each capability given to it directly, and for a client
-portal account the portal account itself, with what of its organization it may see. An account that
+with the capabilities the group gives), each capability given to it directly whose end has not
+passed (with its last day, if it has one), and for a client portal account the portal account
+itself, with what of its organization it may see and the last day of that access. Ends are read by
+the database's clock at the start of the signing's transaction (accounts.grant_ends), so a grant
+whose end passes between the form being drawn and the signing is a changed grant. An account that
 holds none of these (a staff account with no group, capability or admin console access) is not
 listed: it opens nothing but its own account pages.
 
@@ -62,7 +65,8 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from accounts.acting import share_access
-from accounts.roles import CAPABILITIES, ROLE_LABELS, ROLES
+from accounts.grant_ends import has_ended, iso
+from accounts.roles import CAPABILITIES, ROLE_LABELS, ROLES, direct_grants
 from clients.models import PortalAccess
 from core.audit import record_event
 
@@ -122,6 +126,10 @@ class Grant:
     code: str
     label: str
     detail: str
+    # The grant's end, as stored (accounts.grant_ends.iso), or "": part of what the form showed,
+    # so a moved end is a changed grant even where its last day reads the same. Not signed: the
+    # words (detail) name the last day.
+    ends: str = ""
 
     @property
     def key(self):
@@ -139,6 +147,8 @@ class Grant:
             self.code,
             self.label,
             self.detail,
+            # Only a grant with an end carries it, so a grant without one reads as it always has.
+            *([self.ends] if self.ends else []),
         ]
 
     @property
@@ -189,7 +199,7 @@ def _holds_something():
     read_grants lists for a staff account."""
     User = get_user_model()
     groups = User.groups.through.objects.filter(user_id=OuterRef("pk"))
-    direct = User.user_permissions.through.objects.filter(
+    direct = direct_grants(
         user_id=OuterRef("pk"),
         permission__in=access_report._capability_permissions(list(CAPABILITIES)),
     )
@@ -202,12 +212,15 @@ def _group_words(name):
 
 def _portal(account, access):
     """(code, words) of a portal account's grant: its organization, and the whole organization,
-    the sites granted (by a digest of their ids, and by name) or only the tickets it raised."""
+    the sites granted (by a digest of their ids, and by name) or only the tickets it raised; an
+    access whose end has passed (`over`, read with it: read_grants) grants only the tickets it
+    raised, and one with an end to come names its last day."""
     client = str(account.client_id)
-    if access is None or not access.applies_to(account):
+    if access is None or not access.applies_to(account) or access.over:
         return f"{client}:none", "Only the tickets it raised"
+    until = f", last day {access_report._day(access.ends_at)}" if access.ends_at else ""
     if access.whole_organization:
-        return f"{client}:all", "Its organization's tickets"
+        return f"{client}:all", f"Its organization's tickets{until}"
     sites = sorted(access.sites.all(), key=lambda site: (site.name.lower(), site.pk))
     if not sites:
         return f"{client}:none", "Only the tickets it raised"
@@ -215,7 +228,7 @@ def _portal(account, access):
     ids = ",".join(str(site.pk) for site in sorted(sites, key=lambda site: site.pk))
     digest = hashlib.sha256(ids.encode()).hexdigest()[:32]
     names = ", ".join(site.name for site in sites)
-    return f"{client}:sites:{digest}", f"Tickets of {names}, and those it raised"
+    return f"{client}:sites:{digest}", f"Tickets of {names}, and those it raised{until}"
 
 
 def read_grants(accounts_list):
@@ -233,10 +246,11 @@ def read_grants(accounts_list):
         group_ids.add(group_id)
     permissions = access_report._capability_permissions(list(CAPABILITIES))
     direct = {}
-    for user_id, codename in User.user_permissions.through.objects.filter(
-        user_id__in=ids, permission__in=permissions
-    ).values_list("user_id", "permission__codename"):
-        direct.setdefault(user_id, set()).add(codename)
+    for user_id, codename, ends_at, over in access_report.direct_with_ends(
+        User.user_permissions.through.objects.filter(user_id__in=ids, permission__in=permissions)
+    ):
+        if not over:  # an ended grant gives nothing: it is not held
+            direct.setdefault(user_id, {})[codename] = ends_at
     gives = {}
     for group_id, codename in Group.permissions.through.objects.filter(
         group_id__in=group_ids, permission__in=permissions
@@ -246,15 +260,21 @@ def read_grants(accounts_list):
         access.user_id: access
         for access in PortalAccess.objects.filter(
             user_id__in=[account.pk for account in accounts_list if account.client_id is not None]
-        ).prefetch_related("sites")
+        )
+        .annotate(over=has_ended())
+        .prefetch_related("sites")
     }
     grants = []
     for account in accounts_list:
         name = access_report.person_name(account)
         organization = account.client.name if account.client_id is not None else ""
 
-        def grant(kind, code, label, detail="", account=account, name=name, org=organization):
-            return Grant(account.pk, name, account.username, org, kind, code, label, detail)
+        def grant(
+            kind, code, label, detail="", ends=None, account=account, name=name, org=organization
+        ):
+            return Grant(
+                account.pk, name, account.username, org, kind, code, label, detail, iso(ends) or ""
+            )
 
         for flag, label in access_report.CONSOLE:
             if getattr(account, flag):
@@ -268,11 +288,19 @@ def read_grants(accounts_list):
             detail = f"Gives {' and '.join(given)}" if given else ""
             grants.append(grant(GrantKind.GROUP, str(group_id), _group_words(group_name), detail))
         for codename, label in CAPABILITIES.items():
-            if codename in direct.get(account.pk, ()):
-                grants.append(grant(GrantKind.CAPABILITY, codename, label, "Given directly"))
+            if codename in direct.get(account.pk, {}):
+                ends_at = direct[account.pk][codename]
+                until = f", last day {access_report._day(ends_at)}" if ends_at else ""
+                grants.append(
+                    grant(GrantKind.CAPABILITY, codename, label, f"Given directly{until}", ends_at)
+                )
         if account.client_id is not None:
-            code, detail = _portal(account, portal.get(account.pk))
-            grants.append(grant(GrantKind.PORTAL, code, PORTAL_LABEL, detail))
+            access = portal.get(account.pk)
+            code, detail = _portal(account, access)
+            # The end of access that grants something (not "only the tickets it raised").
+            grants_some = not code.endswith(":none")
+            ends = access.ends_at if grants_some else None
+            grants.append(grant(GrantKind.PORTAL, code, PORTAL_LABEL, detail, ends))
     return grants
 
 
@@ -578,7 +606,7 @@ def still_held(items):
     )
     capability_items = [item for item in items if item.kind == GrantKind.CAPABILITY]
     direct = set(
-        User.user_permissions.through.objects.filter(
+        direct_grants(
             user_id__in={item.account_id for item in capability_items},
             permission__in=access_report._capability_permissions(
                 [item.code for item in capability_items]

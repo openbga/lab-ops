@@ -202,7 +202,7 @@
         },
         {
           "label": "Sees",
-          "description": "Which tickets the account can see in the portal: The whole organization, the names of its listed sites, or Only tickets it raised. The last one reads (access not set) for an account whose access has never been saved. An account always sees the tickets it raised itself."
+          "description": "Which tickets the account can see in the portal: The whole organization, the names of its listed sites, or Only tickets it raised. The last one reads (access not set) for an account whose access has never been saved. When the access has a last day, Last day and the date (YYYY-MM-DD) show under the scope; once that day has passed, by the database's clock, it reads Only tickets it raised (access ended after the date) and the account sees only those. An account always sees the tickets it raised itself."
         },
         {
           "label": "Linked contact",
@@ -240,6 +240,7 @@
   ],
   "sources": [
     "clients/urls.py",
+    "accounts/grant_ends.py",
     "clients/views.py",
     "clients/models.py",
     "clients/permissions.py",

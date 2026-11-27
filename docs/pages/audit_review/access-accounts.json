@@ -44,6 +44,7 @@
     "Not in the change history means no recorded change gave it, or a later one took it away and it came back some other way. Check how the account got it.",
     "The list shows accounts as they stand when each page is drawn. Open the page again to see a change made since.",
     "A deactivated account still shows its roles and capabilities. They give it nothing until it is made active again.",
+    "A capability or portal access whose last day has passed still shows, marked ended. It gives nothing, and the Capability filter does not match it.",
     "Each page you open here and each export is recorded, and other reviewers see it under Workspace use in [[Audit review]]."
   ],
   "sections": [
@@ -71,7 +72,7 @@
         },
         {
           "label": "Capabilities",
-          "description": "Can view patient information and Can review access and audit records, each once for every way the account holds it. Directly: granted to the account, with who gave it. Through a role or a group: granted to that role or group, with who granted it to the role or group and who gave the account the role or group. None when it holds neither."
+          "description": "Can view patient information and Can review access and audit records, each once for every way the account holds it. Directly: granted to the account, with who gave it; with a last day it reads Directly, last day YYYY-MM-DD. A capability given directly whose last day has passed by the database's clock is listed as the name followed by (ended), for example Can view patient information (ended), with Directly, ended after YYYY-MM-DD, gives nothing: it stays on the account until it is removed or a later day is set. A capability given through a role or group has no last day. Through a role or a group: granted to that role or group, with who granted it to the role or group and who gave the account the role or group. None when it holds neither."
         },
         {
           "label": "Teams",
@@ -79,7 +80,7 @@
         },
         {
           "label": "Portal access",
-          "description": "For a client portal account, which of its organization's tickets it may see: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised. Not a portal account for staff."
+          "description": "For a client portal account, which of its organization's tickets it may see: Its organization's tickets, Tickets of the sites named and those it raised, or Only the tickets it raised. When the access has a last day, , last day YYYY-MM-DD follows the scope. Once that day has passed it reads Only the tickets it raised (access ended after YYYY-MM-DD). Not a portal account for staff."
         },
         {
           "label": "Second factor",
@@ -133,7 +134,7 @@
         },
         {
           "label": "Capability",
-          "description": "Under More filters: accounts holding the capability, granted to the account or through one of its groups, whatever their kind or status."
+          "description": "Under More filters: accounts holding the capability, granted to the account or through one of its groups, whatever their kind or status. A grant to the account whose last day has passed does not match."
         },
         {
           "label": "Person",
@@ -178,7 +179,7 @@
         },
         {
           "label": "Export CSV",
-          "description": "A spreadsheet file of every account listed, in the order shown: Person, Username, Kind, Client organization, Status, Deactivated, Admin console, Roles, Capabilities, Teams, Portal access, Second factor, Required by the rule, Last sign-in and Created, with who gave each item in brackets. Shown when 1 to 10,000 accounts are listed; when more are listed the export is refused and you narrow the filters. A cell that a spreadsheet would read as a formula starts with an apostrophe."
+          "description": "A spreadsheet file of every account listed, in the order shown: Person, Username, Kind, Client organization, Status, Deactivated, Admin console, Roles, Capabilities, Teams, Portal access, Second factor, Required by the rule, Last sign-in and Created, with who gave each item in brackets. Last days and ended grants read as on the page. Shown when 1 to 10,000 accounts are listed; when more are listed the export is refused and you narrow the filters. A cell that a spreadsheet would read as a formula starts with an apostrophe."
         }
       ]
     },
@@ -200,6 +201,8 @@
     "audit_review/permissions.py",
     "audit_review/templates/audit_review/access_accounts.html",
     "audit_review/tests/test_access_report.py",
+    "audit_review/tests/test_grant_ends.py",
+    "accounts/grant_ends.py",
     "core/second_factor.py",
     "core/templatetags/navigation.py"
   ]

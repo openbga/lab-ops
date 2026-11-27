@@ -10,6 +10,9 @@ class AccountsConfig(AppConfig):
         confirmation.connect()  # which password a password re-authentication was
 
         acting.connect()  # removals that take access away take the access gate
+        from . import grant_ends
+
+        grant_ends.connect()  # an end set takes the gate; an end goes with its grant
         # The sign-in's time is saved by accounts.sessions.start_session, after the account's
         # session-ending lock, not by Django's own receiver before it (with a transaction around
         # the request, that receiver's hold on the account's row would come first).

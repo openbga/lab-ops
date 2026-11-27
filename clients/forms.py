@@ -287,7 +287,8 @@ SCOPE_CHOICES = (
 
 
 class PortalAccessForm(StyledForm, forms.Form):
-    """Linked contact and scope of one portal account (clients.services.set_portal_access)."""
+    """Linked contact, scope and last day of one portal account
+    (clients.services.set_portal_access, which refuses a new last day in the past)."""
 
     contact = forms.ModelChoiceField(
         queryset=ClientContact.objects.none(),
@@ -307,6 +308,16 @@ class PortalAccessForm(StyledForm, forms.Form):
         label="Listed sites",
         help_text="With Listed sites only: the sites whose tickets this account sees.",
     )
+    last_day = forms.DateField(
+        required=False,
+        label="Last day of this access (optional)",
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        help_text="After this day ends, in the laboratory's time zone, the account sees only the "
+        "tickets it raised itself until its access is set again. Leave empty for no end.",
+    )
+    # The last day as the page showed it (clients.services.set_portal_access: a day sent back
+    # unchanged keeps the end as stored).
+    shown_last_day = forms.DateField(widget=forms.HiddenInput, required=False)
     expected_revision = forms.IntegerField(widget=forms.HiddenInput, required=False)
 
     def __init__(self, *args, account, access=None, **kwargs):
