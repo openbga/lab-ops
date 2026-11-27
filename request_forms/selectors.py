@@ -37,12 +37,22 @@ def is_portal_account(user):
 
 
 def may_see_patient_information(user):
+    """The capability, on every request the account may read. Emergency access gives it on one
+    request only: ask `sees_patient_information` about a request."""
     return (
         user.is_authenticated
         and user.client_id is None
         and has_role(user, *ROLES)
         and has_capability(user, PATIENT_CAPABILITY)
     )
+
+
+def sees_patient_information(user, request_id):
+    """Whether this staff account sees the patient information on request `request_id` (which the
+    caller has decided it may read): the capability, or emergency access in force there."""
+    from desk.emergency import sees_patient_information as sees
+
+    return sees(user, request_id)
 
 
 _USABLE = Q(
@@ -194,7 +204,8 @@ def staff_values(service_request, user, *, defn=None, current=None):
     filled = _filled(service_request)
     if filled is None or not staff_requests(user).filter(pk=service_request.pk).exists():
         return None
-    sees_patient = may_see_patient_information(user)
+    # The capability, or emergency access in force on this ticket (desk.emergency).
+    sees_patient = sees_patient_information(user, service_request.pk)
     values = current if current is not None else current_values(filled)
     rows = []
     for row in sorted(values.values(), key=lambda row: (row.position, row.pk)):
@@ -375,21 +386,31 @@ def repeat_from(template, user, number, defn=None):
 def revealable_value(user, value_id):
     """The current patient-information value row `value_id` on a request this staff account may
     read, for an audited reveal; None when it is not one (another request, not patient
-    information, superseded, no capability)."""
+    information, superseded, neither the capability nor emergency access there). `revealable`
+    also says what lets the account see it."""
+    return revealable(user, value_id)[0]
+
+
+def revealable(user, value_id):
+    """(row, grant): `revealable_value`'s row and what lets this account see the patient
+    information on its request (desk.emergency.patient_grant: the capability, or emergency access
+    in force there); (None, None) when the row is not revealable to it."""
+    from desk.emergency import patient_grant
     from desk.selectors import staff_requests
 
-    if not may_see_patient_information(user):
-        return None
     row = (
         FieldValue.objects.filter(pk=value_id, superseded_at__isnull=True)
         .select_related("field", "filled_form__request")
         .first()
     )
     if row is None or not _patient(row):
-        return None
+        return None, None
     if not staff_requests(user).filter(pk=row.filled_form.request_id).exists():
-        return None
-    return row
+        return None, None
+    grant = patient_grant(user, row.filled_form.request_id)
+    if grant is None:
+        return None, None
+    return row, grant
 
 
 def kept_eligible_fields(template_id, user_id):

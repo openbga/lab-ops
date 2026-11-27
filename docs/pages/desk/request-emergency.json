@@ -1,0 +1,128 @@
+{
+  "id": "desk-request-emergency",
+  "routes": [
+    "desk:request-emergency"
+  ],
+  "title": "Emergency access",
+  "purpose": "Start emergency access to the patient information on one ticket, with a reason, when you cannot view patient information and nobody who can is available.",
+  "summary": "Give a reason to reveal the patient information on this ticket for 60 minutes. For staff given Can use emergency access who cannot view patient information.",
+  "tasks": [
+    {
+      "title": "Start emergency access",
+      "steps": [
+        "Choose the reason under [[Why you need it]].",
+        "Describe the emergency in [[What the emergency is]]: who needs the information and why it cannot wait. Leave out names, identifiers and dates of birth.",
+        "If the page asks under [[Confirm it is you]], enter your password, and a code if it asks for one.",
+        "Select [[Start emergency access]]. You return to the ticket, where a banner says until when you can reveal."
+      ]
+    },
+    {
+      "title": "Reveal the patient information",
+      "steps": [
+        "On the ticket, select [[Reveal]] beside a patient-marked answer under Form details, or [[Reveal key]] on the person-level link under Links. Each reveal is recorded."
+      ]
+    },
+    {
+      "title": "Leave without starting",
+      "steps": [
+        "Select [[Cancel]]. You return to the ticket and nothing is recorded."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "It lasts 60 minutes and covers this ticket only. While it is in force, starting again changes nothing; once it has ended, you can start a new one.",
+    "It lets you reveal, nothing more: no other ticket, no Find by patient key, no link page, and no change to patient information.",
+    "Reviewers read your explanation when they review the use. Keep patient information out of it.",
+    "Supervisors and reviewers with an email address are sent a notice, where the deployment sends email. The use then waits for a review by someone other than you."
+  ],
+  "sections": [
+    {
+      "title": "What emergency access gives",
+      "paragraphs": [
+        "Emergency access is for staff who cannot view patient information and need it on one ticket when nobody who can is available. A use starts when you select Start emergency access and lasts 60 minutes from then, by the database's clock. The 60 minutes are fixed in this release; no setting changes them.",
+        "While the use is in force you can reveal the ticket's patient-marked answers (Reveal under Form details) and its person-level key (Reveal key under Links), one at a time, as staff with Can view patient information do. Each reveal is recorded in the same way as theirs: a change event, which also names the use, and an access record on the ticket's Who opened it page. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first.",
+        "It gives nothing else. Other tickets stay as they were. You cannot search by patient key, open a person-level link's page, fill in or correct patient-information fields, or add, edit or remove a person-level link. Emergency access does not open a ticket you cannot read.",
+        "While your account lacks Can use emergency access or a laboratory role, or is deactivated, the use gives nothing, even before its end. A reveal sent after the end, even from a page drawn before it, is refused as Not found. If you are given Can view patient information meanwhile, you reveal with that instead, and those reveals do not name the use."
+      ]
+    },
+    {
+      "title": "Fields and actions",
+      "paragraphs": [
+        "Opens from Use emergency access on the ticket, as a dialog or a full page. The text above the form says what the use gives and what follows."
+      ],
+      "items": [
+        {
+          "label": "Why you need it",
+          "description": "Required. Reporting a critical or urgent result; An urgent request from someone treating the patient; An urgent problem identifying a sample or a patient; or Another emergency. Kept with the use and in its change event. Left empty: Choose why you need it."
+        },
+        {
+          "label": "What the emergency is",
+          "description": "Required, up to 1,000 characters; spaces at either end are removed. Say who needs the information and why it cannot wait, for example the caller and what they asked. Leave out patient information: no names, identifiers or dates of birth. Kept with the use and shown on its page under Access review, to holders of Can review access and audit records. It is not in the change event or the email notice. Left empty: Say why you need it, without patient information."
+        },
+        {
+          "label": "Confirm it is you",
+          "description": "Shown unless you confirmed it is you in this browser in the last 5 minutes: Your password, where your account has one, and Authenticator or recovery code, where it has an authenticator app. It is checked only after the ticket and your access are: a request refused as Not found or not permitted checks no password. Nothing starts until what you type is accepted. A password or code not accepted is kept in your Sign-in history and counts toward the failed sign-in limit."
+        },
+        {
+          "label": "Start emergency access",
+          "description": "Reads your account and the ticket again as they stand. Nothing starts if the ticket no longer holds patient information hidden from you. Otherwise it records, together, the use (your name, username and roles as they are now, the ticket, the reason, the explanation, the start and the end), a change event Emergency access started (the ticket, the reason, the start and the end, never the explanation) and an email notice for each supervisor and reviewer. You return to the ticket with Emergency access started. You can reveal the patient information on the ticket until the time it ends."
+        },
+        {
+          "label": "Cancel",
+          "description": "Returns to the ticket. Nothing is recorded."
+        },
+        {
+          "label": "Not needed",
+          "description": "Shown instead of the form when your account can view patient information: reveal it on the ticket. Back to the ticket number returns there."
+        },
+        {
+          "label": "Nothing to reveal",
+          "description": "Shown instead of the form when the ticket holds no current person-level link and no current patient-marked answer with a value (a cleared answer has none), so there is nothing for emergency access to reveal. Nothing is recorded. Back to the ticket number returns there."
+        },
+        {
+          "label": "Emergency access",
+          "description": "Shown instead of the form while your use on this ticket is in force, with the time it ends. A form opened earlier and sent now starts nothing: you return to the ticket with Your emergency access to this ticket is already in force until the time it ends."
+        }
+      ]
+    },
+    {
+      "title": "Who is told",
+      "paragraphs": [
+        "Starting a use records an email notice to each supervisor (the supervisor or admin role) and to each staff member with a laboratory role who holds Can review access and audit records, except you, whose account is active and has an email address. It gives the ticket number, a fixed sentence saying that a member of staff used emergency access to the patient information on this ticket, the laboratory's name and a sign-in link: for a reviewer, to the use's page under Access review; for a supervisor who is not a reviewer, to the ticket's Who opened it page. It never holds your name, reason or explanation.",
+        "The notice is sent whatever each recipient chose for their own email notices. Before each attempt the application checks again that the recipient is still an active staff account with an email address and still a supervisor or a reviewer, and drops the notice otherwise. Where the deployment does not send email, as on the public demonstration, the notices are recorded as not sent."
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold Can use emergency access, given to the person or to a role group by a superuser in the admin console, and who do not hold Can view patient information. Nobody holds it until a superuser gives it, so emergency access is off until then. A capability given directly can have a last day, after which it gives nothing. Client portal accounts never have it.",
+        "A ticket you may not read, such as one in a restricted category whose team you do not belong to, answers Not found. An account that cannot use emergency access is refused. Both are decided before Confirm it is you, so a refused request checks no password. Emergency access starts only on a ticket that holds patient information hidden from you, and the ticket page offers Use emergency access only then."
+      ]
+    },
+    {
+      "title": "Records",
+      "paragraphs": [
+        "The use keeps your name, username and roles as they stood when you started, so a later change to your account does not change them. Each use waits on the Emergency access tab of Access review until someone other than you records a review, once it has ended. Neither the use nor its review can be changed or deleted: the database refuses it."
+      ]
+    }
+  ],
+  "sources": [
+    "desk/emergency.py",
+    "desk/emergency_views.py",
+    "desk/forms.py",
+    "desk/models.py",
+    "desk/urls.py",
+    "desk/notifications.py",
+    "desk/migrations/0008_emergency_access.py",
+    "desk/templates/desk/emergency_access.html",
+    "desk/templates/desk/request_detail.html",
+    "desk/tests/test_emergency_access.py",
+    "accounts/roles.py",
+    "accounts/confirmation.py",
+    "core/form_surfaces.py",
+    "request_forms/services.py",
+    "request_forms/selectors.py",
+    "links/services.py",
+    "links/views.py"
+  ]
+}

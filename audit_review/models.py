@@ -26,6 +26,8 @@ class Source(models.TextChoices):
     # The signed access reviews (AccessReview): their list, their pages, the form that lists the
     # grants to decide on, and their exports.
     ACCESS_REVIEWS = "grant_review", "Access review: reviews"
+    # The uses of emergency access (desk.models.EmergencyAccess): their list and their pages.
+    EMERGENCY = "emergency", "Access review: emergency access"
 
 
 class UseKind(models.TextChoices):

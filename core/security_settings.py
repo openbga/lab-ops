@@ -36,6 +36,7 @@ from .security_headers import DEFAULT_CONTENT_SECURITY_POLICY
 SECURITY_ROLES = ("admin",)
 PATIENT_CAPABILITY = "view_patient_information"
 REVIEW_CAPABILITY = "review_audit_records"
+EMERGENCY_CAPABILITY = "use_emergency_access"
 
 # source key: how the page names where a fact is set
 SOURCES = {
@@ -408,6 +409,20 @@ def review_capability_holders():
     explicit grant, directly or through a group (audit_review.permissions). A grant to an account
     without a role is not counted: it opens nothing."""
     return _capability_holders(REVIEW_CAPABILITY)
+
+
+def emergency_minutes():
+    """How long a use of emergency access lasts (desk.emergency.MINUTES, fixed in this release)."""
+    from desk.emergency import MINUTES
+
+    return MINUTES
+
+
+def emergency_capability_holders():
+    """Active staff accounts that can use emergency access: a laboratory role and the explicit
+    grant, directly or through a group (desk.emergency.is_eligible). A grant to an account without
+    a role is not counted: it opens nothing."""
+    return _capability_holders(EMERGENCY_CAPABILITY)
 
 
 def _capability_holders(codename):
@@ -1053,9 +1068,23 @@ def _patient(facts):
             _count(marked, "active field"),
             "forms",
             "An administrator marks a field as holding patient information. Staff who can view "
-            "patient information reveal its values one at a time, and each reveal is recorded.",
+            "patient information, or have emergency access in force on the ticket, reveal its "
+            "values one at a time, and each reveal is recorded.",
         ),
         _reveal_confirmation(),
+        Fact(
+            "emergency-capability",
+            CAPABILITIES[EMERGENCY_CAPABILITY],
+            _count(emergency_capability_holders(), "active staff account"),
+            "accounts",
+            "A superuser grants it to a person or to a role group; no role has it otherwise. "
+            "Emergency access is off while nobody holds it. A holder without the permission to "
+            "view patient information can, after giving a reason, reveal the patient information "
+            f"on one ticket for {emergency_minutes()} minutes; supervisors and reviewers are "
+            "told, and each use waits "
+            "under Access review until someone else reviews it. Counted: active staff accounts "
+            "with a laboratory role that hold it.",
+        ),
         Fact(
             "review-capability",
             CAPABILITIES[REVIEW_CAPABILITY],
@@ -1073,7 +1102,8 @@ def _patient(facts):
             "Masked",
             "release",
             "The key is revealed one link at a time, to staff who can view patient "
-            "information, and each reveal is recorded without the key.",
+            "information or have emergency access in force on the ticket, and each reveal is "
+            "recorded without the key.",
         ),
         Fact(
             "patient-portal",

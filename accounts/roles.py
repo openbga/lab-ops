@@ -28,8 +28,13 @@ CAPABILITIES = {
     # The audit review workspace (audit_review): change history, access records, sign-in history
     # and the workspace's own use, filtered and exported. Read-only: it changes nothing it shows.
     "review_audit_records": "Can review access and audit records",
+    # Emergency access (desk.emergency): for a short fixed time, after giving a reason, patient
+    # information on one ticket without view_patient_information. Nobody holds it until the
+    # laboratory names eligible staff.
+    "use_emergency_access": "Can use emergency access",
 }
 REVIEW_CAPABILITY = "review_audit_records"
+EMERGENCY_CAPABILITY = "use_emergency_access"
 
 
 def effective_roles(user):

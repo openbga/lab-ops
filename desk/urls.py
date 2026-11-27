@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import emergency_views, views
 
 app_name = "desk"
 urlpatterns = [
@@ -30,4 +30,5 @@ urlpatterns = [
     ),
     path("<int:pk>/history/", views.request_history, name="request-history"),
     path("<int:pk>/access/", views.request_access, name="request-access"),
+    path("<int:pk>/emergency/", emergency_views.request_emergency, name="request-emergency"),
 ]

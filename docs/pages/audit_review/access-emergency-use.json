@@ -1,0 +1,158 @@
+{
+  "id": "access-review-emergency-use",
+  "routes": [
+    "access_review:emergency-use"
+  ],
+  "title": "Emergency access use",
+  "purpose": "Read one use of emergency access: who used it, on which ticket, why, when it started and ended and what was revealed under it, and record its review once it has ended. For holders of the review capability only.",
+  "summary": "One use of emergency access: who used it, the ticket, the reason and explanation, its times, what was revealed under it, and its review. Record the review here once the use has ended.",
+  "tasks": [
+    {
+      "title": "Review a use",
+      "steps": [
+        "Read [[The use]] for who, which ticket and why, and [[Revealed during the use]] for what was shown.",
+        "Under [[Review]], choose the [[Outcome]] and write [[What you checked and found]], without patient information.",
+        "Select [[Record review]]. The review cannot be changed afterwards."
+      ]
+    },
+    {
+      "title": "Open the ticket",
+      "steps": [
+        "Select the ticket number beside [[Ticket]]. It is a link only when you may read the ticket."
+      ]
+    },
+    {
+      "title": "Read a recorded review",
+      "steps": [
+        "Read [[Review]]: the outcome, the note, who reviewed it and when."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A use can be reviewed only once it has ended, and only by someone other than the person who used it.",
+    "Each use has one review. Neither the use nor its review can be changed or removed.",
+    "Revealed during the use names each field or record type that was revealed, never the value.",
+    "The outcome is a record only. The application does nothing further with Not appropriate: what follows is the laboratory's.",
+    "Opening this page is recorded, and other reviewers see it under Workspace use in [[Audit review]]."
+  ],
+  "sections": [
+    {
+      "title": "Page header",
+      "items": [
+        {
+          "label": "Status",
+          "description": "In force (its end has not passed by the database's clock when the page opens), Waiting for review (ended, no review yet) or Reviewed."
+        },
+        {
+          "label": "Ticket number",
+          "description": "The ticket the use was for, as text."
+        }
+      ]
+    },
+    {
+      "title": "The use",
+      "items": [
+        {
+          "label": "Person",
+          "description": "The name and username of the person who used it, with their roles below, as they stood when they started. A later change to their account does not change them."
+        },
+        {
+          "label": "Ticket",
+          "description": "The ticket's number: a link to the ticket when you may read it, otherwise text. Opening the ticket is recorded as for any other reader."
+        },
+        {
+          "label": "What it gave",
+          "description": "Patient information on the ticket: its patient-marked answers and its person-level key, each revealed one at a time."
+        },
+        {
+          "label": "Reason",
+          "description": "The reason the person chose: Reporting a critical or urgent result, An urgent request from someone treating the patient, An urgent problem identifying a sample or a patient, or Another emergency."
+        },
+        {
+          "label": "Explanation",
+          "description": "What the emergency was, in the person's own words, as they wrote it. It is shown only here: it is not in the change history or the email notice."
+        },
+        {
+          "label": "Started / Ends",
+          "description": "The date and time it started, and when its 60 minutes ended or end, in the laboratory's time zone, by the database's clock. It gave nothing after the end, nor while the person lacked Can use emergency access or a laboratory role or their account was deactivated."
+        }
+      ]
+    },
+    {
+      "title": "Revealed during the use",
+      "paragraphs": [
+        "Each reveal made under this use, oldest first, with its time to the second: Patient-marked answer followed by the field's label, or Person-level key followed by the link's record type, both as they stand now, never the value or the key. A patient-marked answer or a person-level key that can no longer be found reads A patient-marked answer or A person-level key. The count beside the heading is how many there are. When there are none: Nothing has been revealed under this use.",
+        "The list is read from the change history: the reveal events that name this use. Each reveal also left an access record, which supervisors read on the ticket's Who opened it page."
+      ]
+    },
+    {
+      "title": "Review",
+      "items": [
+        {
+          "label": "This use is in force until",
+          "description": "Shown while the use is in force: the time it ends. It can be reviewed once it has ended."
+        },
+        {
+          "label": "You used this emergency access, so someone else reviews it.",
+          "description": "Shown instead of the form on a use you made yourself."
+        },
+        {
+          "label": "Outcome",
+          "description": "Required: Appropriate, or Not appropriate: follow-up needed. Left empty: Choose the outcome."
+        },
+        {
+          "label": "What you checked and found",
+          "description": "Required, up to 2,000 characters; spaces at either end are removed. For example whom you asked and whether the reason held. Leave out patient information. Kept with the review and shown on this page; not in the change history. Left empty: Say what you checked and found, without patient information."
+        },
+        {
+          "label": "Record review",
+          "description": "Reads your account and the use again as they stand, then records the review with the outcome, your note, your name, username and roles as they are now and the time by the database's clock, and a change event Emergency access reviewed with the outcome, never the note. The page then shows the review with Review recorded."
+        },
+        {
+          "label": "Not recorded",
+          "description": "Shown when a review you sent was refused and the form is no longer offered: someone recorded a review of this use after you opened the page (theirs is shown below), the use is still in force, or you used it yourself. Nothing was recorded."
+        },
+        {
+          "label": "Outcome, Note, Reviewed by, Reviewed",
+          "description": "A recorded review: the outcome, the reviewer's note, the reviewer's name, username and roles as they stood, and the date and time it was recorded."
+        }
+      ]
+    },
+    {
+      "title": "Rules",
+      "items": [
+        {
+          "label": "Who may review",
+          "description": "Any staff member with a laboratory role who holds Can review access and audit records, except the person who used it. The application decides this, and whether the use has ended and has no review yet, as the account and the use stand when you select Record review."
+        },
+        {
+          "label": "Two reviewers at once",
+          "description": "Two reviews of one use take turns: the first is recorded, and the second is refused with Someone recorded a review of this use after this page was opened. Their review is shown below."
+        },
+        {
+          "label": "Kept as written",
+          "description": "The database refuses a review of a use still in force or by the person who used it, and any change to or deletion of a use or a review."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, as for the rest of Access review. Everyone else is refused. A number that names no use shows Not found.",
+        "Each time the page is shown is recorded under Workspace use in Audit review, with the source Access review: emergency access and how many reveals were listed. If the record cannot be written, nothing is shown."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/emergency.py",
+    "audit_review/emergency_views.py",
+    "audit_review/access_urls.py",
+    "audit_review/models.py",
+    "audit_review/permissions.py",
+    "audit_review/templates/audit_review/access_emergency_use.html",
+    "desk/emergency.py",
+    "desk/models.py",
+    "desk/migrations/0008_emergency_access.py",
+    "desk/tests/test_emergency_access.py"
+  ]
+}

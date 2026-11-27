@@ -1,0 +1,131 @@
+{
+  "id": "access-review-emergency",
+  "routes": [
+    "access_review:emergency"
+  ],
+  "title": "Access review: emergency access",
+  "purpose": "See each use of emergency access, who used it, on which ticket and why, and which uses wait for a review. For holders of the review capability only.",
+  "summary": "Every use of emergency access, newest first: who used it, on which ticket, why, when it started, and whether it is in force, waiting for review or reviewed.",
+  "tasks": [
+    {
+      "title": "Find the uses that wait for a review",
+      "steps": [
+        "Choose Waiting for review in [[Status]] and select [[Show]].",
+        "Select a use's number, such as EA-000001, to open it and record your review there."
+      ]
+    },
+    {
+      "title": "Check who has emergency access now",
+      "steps": [
+        "Choose In force in [[Status]] and select [[Show]]. The time under the status is when the use ends."
+      ]
+    },
+    {
+      "title": "See every use",
+      "steps": [
+        "Choose Any status in [[Status]] and select [[Show]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A use is listed as soon as it starts. It can be reviewed only once it has ended, and only by someone other than the person who used it.",
+    "Nobody can use emergency access until a superuser gives Can use emergency access to someone, so the tab stays empty until then.",
+    "A use and its review cannot be changed or removed, by you or anyone else.",
+    "Each page you open here is recorded, and other reviewers see it under Workspace use in [[Audit review]]."
+  ],
+  "sections": [
+    {
+      "title": "The Emergency access tab",
+      "paragraphs": [
+        "The fourth tab of Access review, after Accounts, Unused accounts and Reviews. A use of emergency access is one start by a member of staff who holds Can use emergency access and cannot view patient information: for 60 minutes from its start they could reveal the patient-marked answers and the person-level key of one ticket they may read. Each use waits here until someone other than the person who used it records a review on its page.",
+        "Nothing on this tab changes an account or a ticket. To take emergency access away from someone, a superuser removes Can use emergency access on the account's page in the admin console, which also stops at once what a use in force gives; the use is still listed as In force until its end."
+      ]
+    },
+    {
+      "title": "Filter and columns",
+      "items": [
+        {
+          "label": "Waiting for review notice",
+          "description": "A notice above the table while at least one use has ended without a review: how many, counted when the page opens, whatever the status chosen."
+        },
+        {
+          "label": "Status",
+          "description": "Any status, In force, Waiting for review or Reviewed. Show applies it."
+        },
+        {
+          "label": "Use",
+          "description": "The use's number, such as EA-000001. Select it to open the use's page."
+        },
+        {
+          "label": "Person",
+          "description": "The name of the person who used it, with their roles below, as they stood when they started."
+        },
+        {
+          "label": "Ticket",
+          "description": "The ticket's number, as text. Open the use to reach the ticket, when you may read it."
+        },
+        {
+          "label": "Reason",
+          "description": "The reason the person chose: Reporting a critical or urgent result, An urgent request from someone treating the patient, An urgent problem identifying a sample or a patient, or Another emergency. Their explanation is on the use's page."
+        },
+        {
+          "label": "Started",
+          "description": "The date and time it started, in the laboratory's time zone, by the database's clock."
+        },
+        {
+          "label": "In force",
+          "description": "Its end has not passed by the database's clock when the page opens. The time below is when it ends. It cannot be reviewed yet."
+        },
+        {
+          "label": "Waiting for review",
+          "description": "It has ended and nobody has recorded a review."
+        },
+        {
+          "label": "Reviewed",
+          "description": "A review is recorded, with its outcome below: Appropriate, or Not appropriate: follow-up needed."
+        }
+      ]
+    },
+    {
+      "title": "Pages and empty lists",
+      "items": [
+        {
+          "label": "Pages",
+          "description": "Fifty uses per page, newest first. Every page lists the uses as they stood when the first page opened, so a use started since does not move a row; open the tab again from the menu to see it. A use whose start was still being saved when the first page opened can still appear on a later page. The status of each use is read again on each page."
+        },
+        {
+          "label": "No emergency access used yet",
+          "description": "Shown instead of the table until someone starts emergency access."
+        },
+        {
+          "label": "No use has this status",
+          "description": "Shown when uses exist but none has the status chosen. Choose Any status to see every use."
+        },
+        {
+          "label": "These filters cannot be applied",
+          "description": "Shown instead of the table when the address names a status that is not in the list. Nothing is listed until you choose a status from [[Status]]; the page is recorded under Workspace use as a filter that was not accepted."
+        }
+      ]
+    },
+    {
+      "title": "Who can use this page",
+      "paragraphs": [
+        "Staff with a laboratory role who hold the capability Can review access and audit records, as for the rest of Access review. A supervisor or the admin role without it is refused, and so are client portal accounts.",
+        "Each page of this list is recorded under Workspace use in Audit review, with the source Access review: emergency access and how many uses were listed. If the record cannot be written, nothing is shown."
+      ]
+    }
+  ],
+  "sources": [
+    "audit_review/emergency.py",
+    "audit_review/emergency_views.py",
+    "audit_review/access_urls.py",
+    "audit_review/models.py",
+    "audit_review/permissions.py",
+    "audit_review/migrations/0006_emergency_access_uses.py",
+    "audit_review/templates/audit_review/access_emergency.html",
+    "core/templatetags/navigation.py",
+    "desk/emergency.py",
+    "desk/models.py",
+    "desk/tests/test_emergency_access.py"
+  ]
+}

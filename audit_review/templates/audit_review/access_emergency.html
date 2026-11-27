@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load ui navigation %}
+{% comment %}
+The Emergency access tab of the Access review section (audit_review.emergency_views.uses_page), for
+holders of "Can review access and audit records": every use of emergency access, newest first, 50
+a page, narrowed by status, every page drawn as of the newest use when the first was (the pager's
+links carry `upto`). Context: page_obj (a Page of desk.models.EmergencyAccess, each with status and
+status_label; [] when the status is refused), form (StatusForm), status, invalid (the status was
+refused), filtered (a status is chosen and some use exists), total, waiting (uses waiting for
+review now). Showing a page is recorded (WorkspaceUse).
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Each time someone without the usual grant started emergency access to the patient information on a ticket, with their reason. Each use waits here until someone other than the person who used it records a review; its page shows what was revealed, if anything.</p>{% endblock %}
+{% block content %}
+{% section_tabs "access-review" %}
+{% if waiting %}{% notice tone="warning" label="Waiting for review" %}{{ waiting }} use{{ waiting|pluralize }} of emergency access {{ waiting|pluralize:"is,are" }} waiting for review.{% endnotice %}{% endif %}
+{% panel title=page_title table=True hidden_title=True class="mb-3" %}
+  {# form: filter #}
+  <form class="vr-form vr-filter-form p-3" method="get" novalidate>
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-6 col-lg-4">{{ form.status.as_field_group }}</div>
+      <div class="col-sm-3 col-lg-2"><button type="submit" class="btn btn-outline-secondary w-100">Show</button></div>
+    </div>
+  </form>
+  {% list_results items=page_obj noun="uses" filtered=filtered invalid=invalid paginate=False clear_url=request.path error_body="Choose a status from the list. Nothing is listed until the filter is valid." no_results_title="No use has this status" no_results_body="Choose Any status to see every use." empty_title="No emergency access used yet" empty_body="Uses appear here when someone the laboratory named starts emergency access on a ticket." %}
+  <div class="vr-table-wrap">
+    <table class="table vr-table" aria-label="Uses of emergency access">
+      <thead><tr>
+        <th scope="col">Use</th>
+        <th scope="col">Person</th>
+        <th scope="col">Ticket</th>
+        <th scope="col">Reason</th>
+        <th scope="col">Started</th>
+        <th scope="col">Status</th>
+      </tr></thead>
+      <tbody>
+        {% for use in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'access_review:emergency-use' use.pk %}">{{ use.number }}</a></th>
+          <td class="vr-wrap"><span class="vr-break-anywhere">{{ use.user_name }}<span class="d-block vr-muted small">{{ use.user_roles }}</span></span></td>
+          <td class="vr-nowrap"><span class="vr-id">{{ use.ticket.number }}</span></td>
+          <td class="vr-wrap">{{ use.get_reason_display }}</td>
+          <td class="vr-nowrap"><time datetime="{{ use.started_at|date:'c' }}">{{ use.started_at|date:"Y-m-d H:i" }}</time></td>
+          <td class="vr-wrap">{% if use.status == "in_force" %}{% status label="In force" tone="progress" %}<span class="d-block vr-muted small">until <time datetime="{{ use.ends_at|date:'c' }}">{{ use.ends_at|date:"H:i" }}</time></span>{% elif use.status == "waiting" %}{% status label="Waiting for review" tone="warning" %}{% else %}{% status label="Reviewed" tone="success" %}<span class="d-block vr-muted small">{{ use.review.get_outcome_display }}</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% pagination page_obj=page_obj noun="uses" fixed_size=True %}
+  {% endlist_results %}
+  {% fill footer %}<p class="vr-muted small mb-0">Uses are listed as they stood when the first page opened; their status is read on each page. A use and its review cannot be changed or removed. Each page shown here is recorded under Workspace use in Audit review.</p>{% endfill %}
+{% endpanel %}
+{% endblock %}

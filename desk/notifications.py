@@ -55,6 +55,9 @@ PHRASES = {
     "client_reply": "The client has replied on a ticket assigned to you.",
     "first_response_breached": "A ticket has passed its first-response target.",
     "resolution_breached": "A ticket has passed its resolution target.",
+    # desk.emergency: to supervisors and reviewers when someone starts emergency access.
+    "emergency_access": "A member of staff used emergency access to the patient information on "
+    "this ticket. Each use waits for a review by someone other than the person who used it.",
 }
 # When one change raises several client events, the client gets the most telling one.
 CLIENT_PRECEDENCE = ("resolved", "waiting_client", "reply")

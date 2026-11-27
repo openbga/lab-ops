@@ -308,6 +308,7 @@ def test_inactive_package_initialization_cannot_abort_the_facts(tmp_path):
             with patch.multiple(security, _second_factor_counts=lambda: (0, 0, 0, 0),
                                 patient_capability_holders=lambda: 0, _patient_fields=lambda: 0,
                                 review_capability_holders=lambda: 0,
+                                emergency_capability_holders=lambda: 0,
                                 _review_interval=lambda: None,
                                 _second_factor_rule=lambda: SecondFactorRule(pk=1),
                             _reveal_confirmation_rule=lambda: RevealConfirmationRule(pk=1)):

@@ -41,7 +41,7 @@ from service_levels.templatetags.clocks import clock_parts
 from taxonomy import terms
 from taxonomy.models import RequestCategory
 
-from . import opened, saved_views, services
+from . import emergency, opened, saved_views, services
 from .forms import (
     AssignForm,
     BulkForm,
@@ -758,6 +758,8 @@ def _detail_context(request, request_obj, composer=None):
     supervisor = is_supervisor(user)
     return {
         **_nonconformance_context(request, request_obj),
+        # Emergency access in force for this reader, or offered (desk.emergency).
+        "emergency": emergency.ticket_state(user, request_obj),
         "page_title": f"{request_obj.number} {request_obj.subject}",
         "req": request_obj,
         "entries": entries,

@@ -572,11 +572,16 @@ def update_link(
 
 @acting_change
 def reveal_person_key(*, actor, attachment_id):
-    """The full key of a person-level link on a request the actor may read. Audited; the event
-    names the link and the request, never the key."""
+    """The full key of a person-level link on a request the actor may read, for an actor holding
+    the capability or with emergency access in force on that request (desk.emergency). Audited;
+    the event names the link and the request, never the key, and the emergency access use when one
+    gave it (`emergency`)."""
+    from desk.emergency import emergency_marker, is_eligible, patient_grant
+
     require_staff(actor)
     actor = _reread(actor)  # the account as held (accounts.acting), not the request's copy
-    require_capability(actor, CAPABILITY)
+    if not is_eligible(actor):
+        require_capability(actor, CAPABILITY)
     attachment = LinkAttachment.objects.select_related("link", "link__system").get(pk=attachment_id)
     if (
         not attachment.is_person
@@ -585,11 +590,18 @@ def reveal_person_key(*, actor, attachment_id):
     ):
         raise LinkAttachment.DoesNotExist
     staff_requests(actor).get(pk=attachment.request_id)
+    grant = patient_grant(actor, attachment.request_id)
+    if grant is None:
+        require_capability(actor, CAPABILITY)  # refused: neither it nor emergency access here
     record_event(
         actor=actor,
         action="external_link.person_revealed",
         obj=attachment.link,
-        after={"request": attachment.request_id, "attachment": attachment.pk},
+        after={
+            "request": attachment.request_id,
+            "attachment": attachment.pk,
+            **emergency_marker(grant),
+        },
     )
     return attachment.link
 

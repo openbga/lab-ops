@@ -51,7 +51,7 @@
     {
       "title": "The Accounts tab",
       "paragraphs": [
-        "The first tab of Access review, under Oversight in the sidebar, beside Unused accounts and Reviews. It lists every account, staff, client portal and the scheduled jobs' own, active or deactivated, with what it holds as it stands when the page is drawn. It shows no password, second factor secret or code, the account's email address or anything of a ticket. A username is shown as it was chosen, even where it is an email address. The tab is read-only: roles, capabilities and admin console access are changed in the account administration. To record a decision to keep or remove each grant, with your sign-off, use the Reviews tab.",
+        "The first tab of Access review, under Oversight in the sidebar, beside Unused accounts, Reviews and Emergency access. It lists every account, staff, client portal and the scheduled jobs' own, active or deactivated, with what it holds as it stands when the page is drawn. It shows no password, second factor secret or code, the account's email address or anything of a ticket. A username is shown as it was chosen, even where it is an email address. The tab is read-only: roles, capabilities and admin console access are changed in the account administration. To record a decision to keep or remove each grant, with your sign-off, use the Reviews tab.",
         "When the laboratory has set an unused account period, the note under the table says how many days without a sign-in list an account under Unused accounts."
       ]
     },
@@ -72,7 +72,7 @@
         },
         {
           "label": "Capabilities",
-          "description": "Can view patient information and Can review access and audit records, each once for every way the account holds it. Directly: granted to the account, with who gave it; with a last day it reads Directly, last day YYYY-MM-DD. A capability given directly whose last day has passed by the database's clock is listed as the name followed by (ended), for example Can view patient information (ended), with Directly, ended after YYYY-MM-DD, gives nothing: it stays on the account until it is removed or a later day is set. A capability given through a role or group has no last day. Through a role or a group: granted to that role or group, with who granted it to the role or group and who gave the account the role or group. None when it holds neither."
+          "description": "Can view patient information, Can review access and audit records and Can use emergency access, each once for every way the account holds it. Directly: granted to the account, with who gave it; with a last day it reads Directly, last day YYYY-MM-DD. A capability given directly whose last day has passed by the database's clock is listed as the name followed by (ended), for example Can view patient information (ended), with Directly, ended after YYYY-MM-DD, gives nothing: it stays on the account until it is removed or a later day is set. A capability given through a role or group has no last day. Through a role or a group: granted to that role or group, with who granted it to the role or group and who gave the account the role or group. None when it holds none of them."
         },
         {
           "label": "Teams",
@@ -204,6 +204,7 @@
     "audit_review/tests/test_grant_ends.py",
     "accounts/grant_ends.py",
     "core/second_factor.py",
-    "core/templatetags/navigation.py"
+    "core/templatetags/navigation.py",
+    "accounts/roles.py"
   ]
 }

@@ -414,3 +414,127 @@ class SavedView(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# Emergency access (desk.emergency) -----------------------------------------------------------
+
+EMERGENCY_PREFIX = "EA-"
+
+
+class EmergencyKind(models.TextChoices):
+    """What an emergency access use gives on its ticket."""
+
+    PATIENT_INFORMATION = "patient_information", "Patient information on the ticket"
+
+
+class EmergencyReason(models.TextChoices):
+    """Why a person used emergency access: a code, so the change history never holds free text
+    about a patient. The person explains in their own words as well (`explanation`)."""
+
+    CRITICAL_RESULT = "critical_result", "Reporting a critical or urgent result"
+    TREATING_CLINICIAN = "treating_clinician", "An urgent request from someone treating the patient"
+    SAMPLE_IDENTITY = "sample_identity", "An urgent problem identifying a sample or a patient"
+    OTHER = "other", "Another emergency"
+
+
+class EmergencyOutcome(models.TextChoices):
+    APPROPRIATE = "appropriate", "Appropriate"
+    NOT_APPROPRIATE = "not_appropriate", "Not appropriate: follow-up needed"
+
+
+class EmergencyAccess(models.Model):
+    """One use of emergency access (desk.emergency): a person without the usual grant gave a reason
+    and, from `started_at` until `ends_at` (by the database's clock), may reveal the patient
+    information on one ticket. Who it was, by name, username and roles, is kept as it stood when
+    they started. Written once: the database refuses to change or delete a row (migration 0008),
+    and a review is a row of its own (EmergencyReview). reset_demo empties the table with TRUNCATE,
+    which row triggers do not see."""
+
+    id = models.BigAutoField(primary_key=True)
+    # By id, as for the access records: a record outlives what it names.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="+",
+    )
+    user_name = models.TextField()
+    user_username = models.CharField(max_length=150)
+    user_roles = models.CharField(max_length=200)
+    ticket = models.ForeignKey(
+        ServiceRequest, on_delete=models.PROTECT, related_name="emergency_uses"
+    )
+    kind = models.CharField(max_length=24, choices=EmergencyKind.choices)
+    reason = models.CharField(max_length=24, choices=EmergencyReason.choices)
+    explanation = models.TextField(max_length=1000)
+    # The database's clock at the start of the transaction that recorded it, and the end it gave.
+    started_at = models.DateTimeField()
+    ends_at = models.DateTimeField()
+    request_ref = models.CharField("request ID", max_length=32, blank=True)
+
+    class Meta:
+        # Written only by desk.emergency: no model permission to grant, and no admin.
+        default_permissions = ()
+        verbose_name = "emergency access"
+        verbose_name_plural = "emergency access uses"
+        ordering = ["-id"]
+        indexes = [
+            models.Index(fields=["user", "ticket", "-ends_at"], name="emergency_in_force"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(kind__in=EmergencyKind.values), name="emergency_kind"
+            ),
+            models.CheckConstraint(
+                condition=Q(reason__in=EmergencyReason.values), name="emergency_reason"
+            ),
+            models.CheckConstraint(
+                condition=Q(ends_at__gt=models.F("started_at")), name="emergency_ends_later"
+            ),
+            models.CheckConstraint(condition=~Q(explanation=""), name="emergency_explained"),
+        ]
+
+    def __str__(self):
+        return self.number
+
+    @property
+    def number(self):
+        return f"{EMERGENCY_PREFIX}{self.pk:06d}" if self.pk else ""
+
+
+class EmergencyReview(models.Model):
+    """The review of one emergency access use, recorded once it has ended by someone other than the
+    person who used it (audit_review.emergency): the outcome, a note, and who reviewed, by name,
+    username and roles as they stood, and when (the database's clock). The database refuses a
+    review by the person who used it or of a use still in force (migration 0008), and to change or
+    delete a row."""
+
+    use = models.OneToOneField(
+        EmergencyAccess, on_delete=models.PROTECT, primary_key=True, related_name="review"
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="+",
+    )
+    reviewer_name = models.TextField()
+    reviewer_username = models.CharField(max_length=150)
+    reviewer_roles = models.CharField(max_length=200)
+    outcome = models.CharField(max_length=20, choices=EmergencyOutcome.choices)
+    note = models.TextField(max_length=2000)
+    reviewed_at = models.DateTimeField()
+    request_ref = models.CharField("request ID", max_length=32, blank=True)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = "emergency access review"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(outcome__in=EmergencyOutcome.values), name="emergency_review_outcome"
+            ),
+            models.CheckConstraint(condition=~Q(note=""), name="emergency_review_noted"),
+        ]
+
+    def __str__(self):
+        return f"Review of {self.use_id}"

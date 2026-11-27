@@ -18,7 +18,7 @@
     {
       "title": "Grant a capability to a group's members",
       "steps": [
-        "Choose the accounts permission Can view patient information and save. A capability is never implied by a role, including admin."
+        "Choose the accounts permission, such as Can view patient information or Can use emergency access, and save. A capability is never implied by a role, including admin."
       ]
     }
   ],
@@ -42,7 +42,7 @@
         },
         {
           "label": "Permissions",
-          "description": "Optional Available permissions and Chosen permissions with filtering, choose/remove and Choose all/Remove all. The accounts permission Can view patient information is the capability that lets active internal members see patient information; no role grants it by itself. Permissions do not create laboratory roles for arbitrary group names. Removing a permission waits for any change the group's members are saving at that moment, one member at a time: a member it has not reached yet can still save a change before it, and nothing they save after it has the removed capability. Adding a permission waits for nothing."
+          "description": "Optional Available permissions and Chosen permissions with filtering, choose/remove and Choose all/Remove all. The accounts permission Can view patient information is the capability that lets active internal members see patient information; no role grants it by itself. The other capabilities are Can review access and audit records and Can use emergency access. Permissions do not create laboratory roles for arbitrary group names. Removing a permission waits for any change the group's members are saving at that moment, one member at a time: a member it has not reached yet can still save a change before it, and nothing they save after it has the removed capability. Adding a permission waits for nothing."
         }
       ]
     },

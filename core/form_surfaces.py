@@ -35,6 +35,7 @@ FORM_SURFACES = {
     "desk:complaint-decision": "lg",
     "desk:complaint-record": "lg",
     "desk:complaint-review": "lg",
+    "desk:request-emergency": "lg",
     "desk:entry-withdraw": "lg",
     "desk:view-create": "lg",
     "desk:view-edit": "lg",

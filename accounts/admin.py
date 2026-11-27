@@ -450,8 +450,10 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
     # One for each capability (accounts.roles.CAPABILITIES; tests check none is missing).
     last_day_view_patient_information = CapabilityEndField(CAPABILITIES["view_patient_information"])
     last_day_review_audit_records = CapabilityEndField(CAPABILITIES["review_audit_records"])
+    last_day_use_emergency_access = CapabilityEndField(CAPABILITIES["use_emergency_access"])
     shown_last_day_view_patient_information = ShownDayField()
     shown_last_day_review_audit_records = ShownDayField()
+    shown_last_day_use_emergency_access = ShownDayField()
 
     def __init__(self, *args, **kwargs):
         from jobs.actor import is_system_account

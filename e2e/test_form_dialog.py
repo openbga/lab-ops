@@ -9,6 +9,7 @@ from django.urls import reverse
 from helpers import field, sign_in
 from PIL import Image
 from playwright.sync_api import Locator, Page, expect
+from test_emergency_access import hidden_patient_row
 
 from core.form_surfaces import FORM_SURFACES
 
@@ -525,6 +526,9 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
     desk_request, complaint, review_target, reply, saved_view, team = _desk_records()
     site = client.sites.first()
     portal_account = User.objects.get(username="demo_client")
+    # Emergency access needs the capability, which the demonstration gives client services, on a
+    # ticket that holds patient information hidden from them.
+    emergency_ticket = hidden_patient_row().filled_form.request_id
     paths = {
         "clients:client-create": reverse("clients:client-create"),
         "clients:client-edit": reverse("clients:client-edit", args=[client.pk]),
@@ -550,6 +554,7 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
         "desk:request-create": reverse("desk:request-create"),
         "desk:request-assign": reverse("desk:request-assign", args=[desk_request.pk]),
         "desk:request-status": reverse("desk:request-status", args=[desk_request.pk]),
+        "desk:request-emergency": reverse("desk:request-emergency", args=[emergency_ticket]),
         "desk:request-properties": reverse("desk:request-properties", args=[desk_request.pk]),
         "desk:complaint-mark": reverse("desk:complaint-mark", args=[desk_request.pk]),
         "desk:complaint-decision": reverse("desk:complaint-decision", args=[complaint.pk]),
@@ -581,9 +586,21 @@ def test_every_form_surface_opens_as_a_dialog_and_cancel_leaves_it(page: Page, s
         for name, path in paths.items()
         if name.startswith(("audit_review:", "access_review:"))
     }
-    open_and_cancel({name: path for name, path in paths.items() if name not in reviewer_only})
+    agent_only = {"desk:request-emergency": paths["desk:request-emergency"]}
+    open_and_cancel(
+        {
+            name: path
+            for name, path in paths.items()
+            if name not in reviewer_only and name not in agent_only
+        }
+    )
+    page.wait_for_load_state("networkidle")
+    page.context.clear_cookies()
+    sign_in(page, "demo_client_services", demo.password)
+    open_and_cancel(agent_only)
     # The review forms need the capability "Can review access and audit records", which the
     # demonstration gives its supervisor.
+    page.wait_for_load_state("networkidle")
     page.context.clear_cookies()
     sign_in(page, "demo_supervisor", demo.password)
     open_and_cancel(reviewer_only)

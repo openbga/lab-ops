@@ -10,7 +10,9 @@ is_closed, list_query, list_url, previous_url, next_url, follow_ups, follow_up_o
 nonconformance_module (the optional module is on for this reader: its panel, links and actions
 show only then), nonconformance_opened (the nonconformance opened from this complaint, or None:
 part of the complaint's record, its number shown as text while the module is off) and
-nonconformances (the nonconformances linked to this ticket, empty while the module is off).
+nonconformances (the nonconformances linked to this ticket, empty while the module is off);
+emergency (desk.emergency.ticket_state: the reader's emergency access in force here, shown as a
+banner, or whether to offer it).
 The facts and conversation share a column beside the composer. On a phone the composer
 follows the conversation. Add entry jumps directly to it.
 {% endcomment %}
@@ -42,6 +44,8 @@ follows the conversation. Add entry jumps directly to it.
 {% endblock %}
 {% block content %}
 {% if is_closed %}{% notice tone="neutral" label="Closed" %}This ticket is closed. Internal notes can still be added; for anything the client needs, log a new ticket.{% endnotice %}{% endif %}
+{% if emergency.use %}{% notice tone="warning" label="Emergency access" %}You can reveal the patient information on this ticket until <time datetime="{{ emergency.use.ends_at|date:'c' }}">{{ emergency.use.ends_at|date:"H:i" }}</time>. Each reveal is recorded, and this use waits for a review by someone other than you.{% endnotice %}
+{% elif emergency.offer %}{% notice tone="neutral" label="Patient information hidden" %}<p class="mb-2">Patient information on this ticket is hidden from you. In an emergency, when nobody who can see it is available, you can reveal it for a short time after giving a reason.</p><a class="btn btn-sm btn-outline-secondary" href="{% url 'desk:request-emergency' req.pk %}?list={{ list_query|urlencode }}">Use emergency access</a>{% endnotice %}{% endif %}
 {% record_layout aside_label=composer_title stacked_lead=True %}
   {% fill lead %}
   {% panel title="Ticket details" heading_id="request-facts-heading" %}

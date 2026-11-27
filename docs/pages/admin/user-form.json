@@ -25,7 +25,7 @@
     {
       "title": "Grant a capability",
       "steps": [
-        "Under [[User permissions]], choose the accounts permission Can view patient information, or add a group that grants it. Then save.",
+        "Under [[User permissions]], choose the accounts permission, such as Can view patient information or Can use emergency access, or add a group that grants it. Then save.",
         "For access needed only for a while, give it under [[User permissions]] and set its last day under Capability end dates. After that day it gives nothing."
       ]
     },
@@ -121,15 +121,15 @@
         },
         {
           "label": "User permissions",
-          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities, such as the accounts permission Can view patient information. Groups can grant the same capability. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks. Removing a capability waits for a change the person is saving at that moment. Removing a capability given directly also removes its last day, and a capability given anew starts with none."
+          "description": "Change only. Available user permissions/Chosen user permissions assign explicit capabilities: the accounts permissions Can view patient information, Can review access and audit records and Can use emergency access. Can use emergency access lets a staff member with a laboratory role who cannot view patient information reveal it on one ticket they may read, for 60 minutes after giving a reason; nobody holds it until it is given. Groups can grant the same capabilities. Neither a role, the admin role nor Superuser status implies one, and model permissions do not replace laboratory role or ownership checks. Removing a capability waits for a change the person is saving at that moment. Removing a capability given directly also removes its last day, and a capability given anew starts with none."
         },
         {
-          "label": "Last day of “Can view patient information” / Last day of “Can review access and audit records”",
+          "label": "Last day of “Can view patient information” / Last day of “Can review access and audit records” / Last day of “Can use emergency access”",
           "description": "Change only, under Capability end dates; optional, one date for each capability. It applies only to the capability given to the account directly (ticked under User permissions); a capability given through a role or group has no end date. A day for a capability not given directly is refused: Give this capability to the account directly (under User permissions), or clear its last day. A newly chosen day must be today or later: Choose today or a later day. To end it now, remove it instead. It must also be within the next 100 years: Choose a day within the next 100 years, or leave it empty for no end. A day left as the page showed it, even one already past, is never refused and keeps the end as saved, even if the laboratory's time zone changed after the page opened. Leave empty for no end."
         },
         {
           "label": "When a last day ends",
-          "description": "The grant gives nothing from the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; the moment is stored, so a later time-zone change does not move it). Every check compares the end with the database's clock: the sidebar items, every page and action that needs the capability (patient information shown or revealed, Audit review and Access review), the second sign-in factor rule for holders of Can view patient information, the holder counts on Security settings, the access report's capability filter and the access review. The ended grant stays on the account, giving nothing, until you remove it or set a later day, which gives it again. Its field's help then starts with Ended. The Capabilities column of the Users list leaves out an ended grant."
+          "description": "The grant gives nothing from the start of the next day in the laboratory's time zone (the deployment's time zone as set when the day is saved; the moment is stored, so a later time-zone change does not move it). Every check compares the end with the database's clock: the sidebar items, every page and action that needs the capability (patient information shown or revealed, emergency access, Audit review and Access review), the second sign-in factor rule for holders of Can view patient information, the holder counts on Security settings, the access report's capability filter and the access review. The ended grant stays on the account, giving nothing, until you remove it or set a later day, which gives it again. Its field's help then starts with Ended. The Capabilities column of the Users list leaves out an ended grant."
         },
         {
           "label": "Setting or moving a last day",
@@ -247,6 +247,7 @@
     "accounts/deactivation.py",
     "templates/admin/accounts/user/deactivation_field.html",
     "templates/admin/accounts/user/includes/held.html",
-    "accounts/tests/test_deactivation.py"
+    "accounts/tests/test_deactivation.py",
+    "desk/emergency.py"
   ]
 }

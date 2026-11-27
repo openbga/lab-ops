@@ -88,7 +88,7 @@
         },
         {
           "label": "A capability given directly",
-          "description": "Can view patient information or Can review access and audit records granted to the account itself, with Given directly below, or Given directly, last day YYYY-MM-DD when it has a last day. One whose last day has passed by the database's clock gives nothing and is not listed. A capability held only through a group is part of that group's grant."
+          "description": "Can view patient information, Can review access and audit records or Can use emergency access granted to the account itself, with Given directly below, or Given directly, last day YYYY-MM-DD when it has a last day. One whose last day has passed by the database's clock gives nothing and is not listed. A capability held only through a group is part of that group's grant."
         },
         {
           "label": "Portal account",

@@ -5,10 +5,12 @@ team), so a person is only ever offered with a team they belong to."""
 from django import forms
 from django.urls import reverse_lazy
 
+from accounts.confirmation import ConfirmIdentity
 from accounts.models import User
 from attachments.forms import AttachmentsField
 from clients.models import Client, ClientContact, ClientSite
 from core.forms import REASON_HELP, GroupedForm, StyledForm
+from core.lab_profile_forms import GroupedForm as LabGroupedForm
 from core.lookups import RemoteSelect
 from taxonomy.choices import Priority
 from taxonomy.models import RequestCategory
@@ -21,6 +23,7 @@ from .models import (
     ContactChannel,
     ContactDirection,
     ContactOutcome,
+    EmergencyReason,
     EntryKind,
     Status,
     ViewSharing,
@@ -502,3 +505,27 @@ class SavedViewForm(StyledForm, forms.Form):
         empty_label="Choose a team",
         help_text="For a view shared with a team.",
     )
+
+
+class EmergencyAccessForm(ConfirmIdentity, LabGroupedForm, forms.Form):
+    """Start emergency access to the patient information on one ticket (desk.emergency.start):
+    why, as a code and in the person's own words, and Confirm it is you (accounts.confirmation)."""
+
+    reason = forms.ChoiceField(
+        label="Why you need it",
+        choices=EmergencyReason.choices,
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+        error_messages={"required": "Choose why you need it."},
+    )
+    explanation = forms.CharField(
+        label="What the emergency is",
+        max_length=1000,
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        help_text=(
+            "Say who needs the information and why it cannot wait, for example the caller and "
+            "what they asked. Leave out patient information: no names, identifiers or dates of "
+            "birth. Reviewers read it."
+        ),
+        error_messages={"required": "Say why you need it, without patient information."},
+    )
+    groups = (("Your reason", ["reason", "explanation"]),)

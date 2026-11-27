@@ -33,7 +33,13 @@ from clients.models import Client, ClientContact, ClientSite, PortalAccess
 from core.models import AccessKind, AccessRecord, AuditEvent
 from core.templatetags.ui import action_label
 from desk import opened
-from desk.models import ComplaintReview, RequestEntry, ServiceRequest
+from desk.models import (
+    EMERGENCY_PREFIX,
+    ComplaintReview,
+    EmergencyAccess,
+    RequestEntry,
+    ServiceRequest,
+)
 from links.models import LinkAttachment
 from request_forms.models import FilledForm
 from service_levels.models import BusinessCalendar, RequestClock
@@ -312,7 +318,10 @@ TICKET_PARTS = {
     "links.linkattachment": (LinkAttachment, "request__in"),
     "request_forms.filledform": (FilledForm, "request__in"),
     "service_levels.requestclock": (RequestClock, "request__in"),
+    "desk.emergencyaccess": (EmergencyAccess, "ticket__in"),
 }
+# The column naming each part's ticket, where it is not `request_id`.
+TICKET_COLUMNS = {"desk.servicerequest": "pk", "desk.emergencyaccess": "ticket_id"}
 
 
 def ticket_objects(tickets):
@@ -395,6 +404,7 @@ def _ticket_cell(ticket, ticket_id):
 
 
 ACCESS_REVIEW_TYPE = AccessReview._meta.label_lower
+EMERGENCY_TYPE = "desk.emergencyaccess"  # desk.models.EmergencyAccess
 
 
 def _changes(events, _accounts_read):
@@ -407,7 +417,7 @@ def _changes(events, _accounts_read):
         ids = [int(pk) for pk in by_type.get(object_type, ()) if pk.isdigit()]
         if not ids:
             continue
-        column = "pk" if object_type == "desk.servicerequest" else "request_id"
+        column = TICKET_COLUMNS.get(object_type, "request_id")
         for pk, ticket_id in model.objects.filter(pk__in=ids).values_list("pk", column):
             if ticket_id is not None:
                 owner[(object_type, str(pk))] = ticket_id
@@ -433,7 +443,11 @@ def _changes(events, _accounts_read):
         ticket_id = owner.get((event.object_type, event.object_id))
         if ticket_id is not None:
             record = _ticket_cell(tickets.get(ticket_id), ticket_id)
-            if event.object_type != "desk.servicerequest":
+            if event.object_type == EMERGENCY_TYPE:
+                # A use of emergency access is named by its number, which follows from its id.
+                number = f"{EMERGENCY_PREFIX}{int(event.object_id):06d}"
+                record.text = f"Emergency access {number} on {record.text}"
+            elif event.object_type != "desk.servicerequest":
                 record.text = f"{_type_label(event.object_type)} on {record.text}"
         elif event.object_type == ReviewSchedule._meta.label_lower:
             record = Cell("Audit review interval")
@@ -632,6 +646,7 @@ def describe_filters(use, people, tickets, clients, calendars=None, reviews=None
         number = reviews.get(int(review)) if str(review).isdigit() else None
         parts.append(f"Review {number or review}")
     parts.extend(_access_review_filters(filters))
+    parts.extend(_emergency_filters(filters))
     if use.kind == UseKind.VIEWED and filters.get("page") not in (None, "", "1"):
         parts.append(f"Page {filters['page']}")
     return "; ".join(parts) or "No filters"
@@ -680,6 +695,20 @@ def _access_review_filters(filters):
     if review := filters.get("access_review"):
         number = f"{ACCESS_NUMBER_PREFIX}{int(review):06d}" if str(review).isdigit() else review
         parts.append(f"Access review {number}")
+    return parts
+
+
+def _emergency_filters(filters):
+    """The Emergency access tab's uses (audit_review.emergency_views), in words: the list's status
+    filter, and a use shown, by its number (EmergencyAccess.number follows from its id)."""
+    from .emergency import STATUS_LABELS
+
+    parts = []
+    if status := filters.get("emergency_status"):
+        parts.append(f"Status: {STATUS_LABELS.get(status, status)}")
+    if shown := filters.get("emergency_use"):
+        number = f"{EMERGENCY_PREFIX}{int(shown):06d}" if str(shown).isdigit() else shown
+        parts.append(f"Emergency access {number}")
     return parts
 
 

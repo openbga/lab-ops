@@ -35,6 +35,7 @@ EVENT_LABELS = {
     "authenticator_removed": "Authenticator removed",
     "authenticator_added": "Authenticator added",
     "recovery_codes_replaced": "New recovery codes",
+    "emergency_access": "Emergency access used",
 }
 
 # A job's last-run counts in words: key -> (one, many). Keys not listed are left out.

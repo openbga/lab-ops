@@ -25,6 +25,7 @@ from core.concurrency import reading_account
 from core.ids import whole_number
 from core.lists import list_response
 from core.models import AccessKind, AuditEvent
+from desk.emergency import sees_patient_information
 from desk.selectors import staff_requests
 
 from .forms import (
@@ -309,16 +310,22 @@ def client_link_add(request, pk):
     )
 
 
-def _attachment_for(user, pk):
+def _attachment_for(user, pk, *, reveal=False):
     """An attachment the user may act on: its request readable, a person link only with the
-    capability. 404 otherwise, so a hidden record is indistinguishable from a missing one."""
+    capability, or, to reveal its key (`reveal`), emergency access in force on its request
+    (desk.emergency). 404 otherwise, so a hidden record is indistinguishable from a missing one."""
     attachment = get_object_or_404(
         LinkAttachment.objects.select_related("link", "link__system", "request", "client"), pk=pk
     )
     if attachment.request_id is not None:
         _readable_request(user, attachment.request_id)
     if attachment.is_person and not can_see_person_links(user):
-        raise Http404
+        if not (
+            reveal
+            and attachment.request_id is not None
+            and sees_patient_information(user, attachment.request_id)
+        ):
+            raise Http404
     return attachment
 
 
@@ -430,7 +437,7 @@ def attachment_reveal(request, pk):
         hold_actor(request.user)  # before the rule's lock (accounts.acting)
         if not reveal_confirmation.may_reveal(request):
             return reveal_confirmation_views.ask(request)
-        attachment = _attachment_for(request.user, pk)
+        attachment = _attachment_for(request.user, pk, reveal=True)
         if not attachment.is_person:
             raise Http404
         try:

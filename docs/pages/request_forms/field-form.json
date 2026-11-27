@@ -108,7 +108,7 @@
       "items": [
         {
           "label": "This field holds patient information",
-          "description": "Tick only if the laboratory decided this field needs patient information. Its values are revealed one at a time, with an audit entry, to staff who hold Can view patient information, and shown to the client who raised or may see the ticket, when the field is one clients see. They never appear in email, lists, search, logs or the audit history. Staff without that permission cannot fill, reveal or correct them and see only that patient information was recorded. The mark also protects values already entered. Once tickets hold values of the field, the mark cannot be cleared; add a new field instead. Prefer an order, accession or sample number: the product's stance is minimal patient data."
+          "description": "Tick only if the laboratory decided this field needs patient information. Its values are revealed one at a time, with an audit entry, to staff who hold Can view patient information (and, on one ticket for a short time, to staff with emergency access in force there), and shown to the client who raised or may see the ticket, when the field is one clients see. They never appear in email, lists, search, logs or the audit history. Staff without that permission cannot fill or correct them, or reveal them without emergency access, and otherwise see only that patient information was recorded. The mark also protects values already entered. Once tickets hold values of the field, the mark cannot be cleared; add a new field instead. Prefer an order, accession or sample number: the product's stance is minimal patient data."
         }
       ]
     },

@@ -145,7 +145,7 @@
         },
         {
           "label": "Ticket",
-          "description": "The ticket number, which opens the ticket. Not available to you when you may not open the ticket; the page then also hides who the notice was for. Account notice for a notice to a person about their own sign-in factors: the page shows a dash under For and does not say whose account it was."
+          "description": "The ticket number, which opens the ticket. Not available to you when you may not open the ticket; the page then also hides who the notice was for. Account notice for a notice to a person about their own sign-in factors: the page shows a dash under For and does not say whose account it was. A notice about a use of emergency access names the ticket that use was for, under the same rule."
         },
         {
           "label": "For",
@@ -153,7 +153,7 @@
         },
         {
           "label": "Notice",
-          "description": "What the notice was about: Reply, Waiting on client, Resolved, Assigned, Client reply, First-response target passed or Resolution target passed for a ticket; Password marked as compromised, Authenticator removed, Authenticator added or New recovery codes for an account notice. One account notice can list two, such as Authenticator added, New recovery codes when an app was added with new recovery codes."
+          "description": "What the notice was about: Reply, Waiting on client, Resolved, Assigned, Client reply, First-response target passed or Resolution target passed for a ticket; Password marked as compromised, Authenticator removed, Authenticator added or New recovery codes for an account notice; Emergency access used for a notice to supervisors and reviewers that someone started emergency access. One account notice can list two, such as Authenticator added, New recovery codes when an app was added with new recovery codes."
         },
         {
           "label": "Status",
@@ -193,6 +193,7 @@
     "docs/product.md",
     "accounts/kept.py",
     "accounts/security_notices.py",
-    "jobs/tests/test_pages.py"
+    "jobs/tests/test_pages.py",
+    "desk/emergency.py"
   ]
 }
