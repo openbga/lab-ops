@@ -85,8 +85,8 @@ MODEL_SAVE_LIMIT = (
     "does neither."
 )
 ALTERED_SHOWN_DAY_LIMIT = (
-    "Known limit: a form whose hidden shown day was altered only keeps the stored end; nothing is "
-    "stored that the fingerprint or revision did not check."
+    "Known limit: a form cannot tell an altered (or emptied) shown day: a day sent equal to it "
+    "keeps the stored end, and any other day is a new choice, checked as one."
 )
 
 

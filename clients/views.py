@@ -33,6 +33,7 @@ from .models import Client, ClientContact, ClientSite, PortalAccess
 from .permissions import require_client_manager
 from .services import (
     CHANGED,
+    UNSHOWN,
     add_contact,
     create_client,
     create_site,
@@ -321,9 +322,11 @@ def portal_access_edit(request, pk, user_pk):
         "expected_revision": stored.revision if stored else 0,
     }
     data = request.POST if request.method == "POST" else None
-    if data is not None and "shown_last_day" not in data:
-        # A page that sent back no shown day is read as showing the stored end's day, and is
-        # drawn again (after a refusal) with it.
+    # A page that sent back no shown day is read as showing the stored end's day as the service
+    # holds it (UNSHOWN), not as read here.
+    unshown = data is not None and "shown_last_day" not in data
+    if unshown:
+        # Drawn again (after a refusal) with the stored end's day as read here.
         data = data.copy()
         shown = initial["shown_last_day"]
         data["shown_last_day"] = shown.isoformat() if shown else ""
@@ -339,7 +342,8 @@ def portal_access_edit(request, pk, user_pk):
                 whole_organization=data["whole_organization"],
                 sites=data.get("sites") or (),
                 last_day=data.get("last_day"),
-                shown_last_day=data.get("shown_last_day"),  # as the page showed it
+                # As the page showed it.
+                shown_last_day=UNSHOWN if unshown else data.get("shown_last_day"),
                 expected_client_id=client.pk,  # the organization this form was decided for
                 expected_revision=data.get("expected_revision"),
                 reason=data.get("reason", ""),

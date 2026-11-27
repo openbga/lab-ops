@@ -903,10 +903,11 @@ def grant_capability():
 
 
 def end_capability():
-    """The last day of demo_supervisor's patient-information grant, CAPABILITY_DAYS after today,
-    set once and audited (the account page records an end in the account's change event; the seed,
+    """The last day of demo_supervisor's patient-information grant, CAPABILITY_DAYS after today
+    by the database's clock (the one that checks it, accounts.grant_ends.database_today), set once
+    and audited (the account page records an end in the account's change event; the seed,
     as for its grants, records an event of its own)."""
-    from accounts.grant_ends import end_of, iso, today
+    from accounts.grant_ends import database_today, end_of, iso
     from accounts.models import CapabilityEnd
 
     holder = User.objects.get(username=CAPABILITY_HOLDER)
@@ -917,7 +918,7 @@ def end_capability():
         return
     if CapabilityEnd.objects.filter(user=holder, permission=permission).exists():
         return
-    ends_at = end_of(today() + timedelta(days=CAPABILITY_DAYS))
+    ends_at = end_of(database_today() + timedelta(days=CAPABILITY_DAYS))
     with transaction.atomic():  # setting an end takes the account's access gate
         CapabilityEnd.objects.create(user=holder, permission=permission, ends_at=ends_at)
         record_event(

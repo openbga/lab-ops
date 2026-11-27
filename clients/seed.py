@@ -12,7 +12,7 @@ demo_client_water is narrowed to one site, with a last day (PORTAL_LAST_DAYS).
 from datetime import timedelta
 
 from accounts.acting import hold_actor
-from accounts.grant_ends import today
+from accounts.grant_ends import database_today
 from accounts.models import User
 
 from .models import Client, ClientContact, ClientSite
@@ -279,8 +279,8 @@ DEMO_PORTAL_ACCOUNTS = (
 )
 
 
-# Portal accounts whose access has a last day, so many days after the seed's day
-# (accounts.grant_ends): the demonstration, reset each day, shows an end to come.
+# Portal accounts whose access has a last day, so many days after the seed's day by the database's
+# clock (accounts.grant_ends): the demonstration, reset each day, shows an end to come.
 PORTAL_LAST_DAYS = {"demo_client_water": 90}
 
 
@@ -316,7 +316,8 @@ def seed_records(ctx):
                 contact=ClientContact.objects.get(client=client, email=contact_email),
                 whole_organization=site_codes is None,
                 sites=list(ClientSite.objects.filter(client=client, code__in=site_codes or ())),
-                last_day=today() + timedelta(days=days) if days else None,
+                # By the clock that checks it (accounts.grant_ends.database_today).
+                last_day=database_today() + timedelta(days=days) if days else None,
             )
 
 

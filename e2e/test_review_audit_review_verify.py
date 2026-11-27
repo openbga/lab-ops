@@ -1,6 +1,7 @@
 """Verify shared filter sheets and saved column layouts after the audit review changes."""
 
 import re
+from time import monotonic
 from urllib.parse import urlencode
 
 import pytest
@@ -160,6 +161,29 @@ def test_review_grid_layout_follows_account_and_list(page, demo, new_context):
     def ids(table):
         return table.locator("thead th").evaluate_all("cells => cells.map(c => c.dataset.vrCol)")
 
+    # Each change is saved in the background, a move more than once (the grid's reorder event and
+    # the move itself): wait until every save sent has its answer before the next change, so an
+    # earlier save cannot arrive after a later one (networkidle can pass before either).
+    saves = {"sent": 0, "answered": 0}
+
+    def count(key):
+        def counted(request):
+            if request.url.endswith("/preferences/") and request.method == "POST":
+                saves[key] += 1
+
+        return counted
+
+    page.on("request", count("sent"))
+    page.on("requestfinished", count("answered"))
+    page.on("requestfailed", count("answered"))
+
+    def settled():
+        deadline = monotonic() + 15
+        page.wait_for_timeout(100)  # a save sent after the event that caused it
+        while saves["answered"] < saves["sent"]:
+            assert monotonic() < deadline, f"Preference saves unanswered: {saves}"
+            page.wait_for_timeout(50)
+
     for name in lists:
         table = open_list(name, page)
         defaults[name] = ids(table)
@@ -173,9 +197,9 @@ def test_review_grid_layout_follows_account_and_list(page, demo, new_context):
         moved = defaults[name][3]
         move = dialog.locator(f'[data-vr-col-move="up"][data-vr-col-id="{moved}"]')
         move.click()
-        page.wait_for_load_state("networkidle")
+        settled()
         dialog.get_by_role("checkbox", name="Person").uncheck()
-        page.wait_for_load_state("networkidle")
+        settled()
         page.keyboard.press("Escape")
         expect(dialog).to_be_hidden()
         order = list(defaults[name])

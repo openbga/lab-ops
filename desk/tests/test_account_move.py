@@ -112,6 +112,7 @@ def assert_reset(account, organization_id, actor):
         "contact": None,
         "whole_organization": False,
         "sites": [],
+        "ends_at": None,
         "user": account.pk,
     }
     return event
@@ -131,6 +132,7 @@ def test_admin_move_resets_access_and_audits(
         "contact": clinic_contact.pk,
         "whole_organization": False,
         "sites": [clinic_site.pk],
+        "ends_at": None,
     }
     assert event.reason
     # The account administration's own audit of the account is still written.

@@ -254,3 +254,38 @@ def test_a_changed_day_from_the_page_is_a_new_choice_and_a_shown_one_is_kept(
     assert response.status_code == 302
     access = PortalAccess.objects.get(user=portal)
     assert access.contact == contact and access.ends_at == grant_ends.end_of(yesterday)
+
+
+@pytest.mark.parametrize("posted", ["moved-day", "drawn-day"])
+def test_a_page_that_sends_no_shown_day_is_read_against_the_access_the_save_holds(
+    clinic, manager, portal, client, monkeypatch, posted
+):
+    """Set access reads such a page as showing the day of the end the service holds after the
+    gate, not of the end the page read before it (review confirmation round, C01, for the account
+    page; here the end is moved and moved back by code that saves no revision)."""
+    from accounts.tests.test_grant_ends import moved_back_at_the_gate
+
+    drawn_day = grant_ends.today() + timedelta(days=21)
+    moved_day = drawn_day + timedelta(days=10)
+    grant(manager, portal, clinic, last_day=drawn_day)
+    contact = clinic.contacts.create(name="Held Day Contact", phone="555")
+    client.force_login(manager)
+    edit = reverse("clients:portal-access-edit", args=[clinic.pk, portal.pk])
+    form = client.get(edit).context["form"]
+    chosen = moved_day if posted == "moved-day" else drawn_day
+    data = {
+        "scope": "organization",
+        "contact": contact.pk,
+        "last_day": chosen.isoformat(),
+        "expected_revision": form["expected_revision"].value(),
+        "reason": "Synthetic contact correction",
+    }
+    rows = PortalAccess.objects.filter(user=portal)
+    rows.update(ends_at=grant_ends.end_of(moved_day))  # as the page is read
+    moved_back_at_the_gate(monkeypatch, rows, grant_ends.end_of(drawn_day))
+    assert client.post(edit, data).status_code == 302
+    access = rows.get()
+    assert access.contact == contact and access.ends_at == grant_ends.end_of(chosen)
+    event = AuditEvent.objects.get(action="portal_access.set", reason=data["reason"])
+    assert event.before["ends_at"] == grant_ends.iso(grant_ends.end_of(drawn_day))
+    assert event.after["ends_at"] == grant_ends.iso(grant_ends.end_of(chosen))

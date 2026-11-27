@@ -17,14 +17,18 @@ Nothing removes an ended grant: it stays on the account, giving nothing, until s
 or sets a later day (which gives it again). Setting or moving an end is an access change: it takes
 the account's access gate (accounts.acting.close_access) like a removal: a CapabilityEnd's save
 takes it whatever saves it, and a portal access's end is changed only by the Set access form and
-the portal access services (clients.services.set_portal_access, reset_portal_access, and the move
-trigger of clients.0008), which take it and advance the access's revision. Known limit, one rule:
-other code that saves a PortalAccess (its end or its scope), and paths that bypass save()
-(QuerySet.update, raw SQL), neither take the gate nor advance the revision.
+the portal access services (clients.services.set_portal_access, reset_portal_access), which take it
+and advance the access's revision, and by the move trigger of clients.0008, which empties it with
+the rest of the access and advances the revision (the gate is the moving caller's: an attributed
+move takes it, accounts.models). Known limit, one rule: other code that saves a PortalAccess (its
+end or its scope), and paths that bypass save() (QuerySet.update, raw SQL), take no gate and
+advance no revision (an account moved that way still runs the trigger).
 
 A form sends back the last day it showed. A day sent back unchanged keeps the end as stored, even
 when the time zone changed after the page was drawn and the same end now falls on another day
-(chosen_end); any other day is a new choice, checked by check_new_day.
+(chosen_end); any other day is a new choice, checked by check_new_day. A page that sent back no
+shown day is read as showing the day of the end the save holds. The form cannot tell an altered
+shown day: a day sent equal to it keeps the stored end, any other is a new choice.
 """
 
 from datetime import UTC, datetime, time, timedelta
@@ -87,6 +91,18 @@ def today():
     """Today in the laboratory's time zone, by the application's clock (for a form's own checks;
     the end itself is checked by the database's clock)."""
     return timezone.localdate(timezone.now(), zone())
+
+
+def database_today():
+    """Today in the laboratory's time zone by the database's clock, the one every check of an end
+    reads: for the demonstration seed, whose ends then hold for their days whatever the
+    application's clock says (a test may move it)."""
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT transaction_timestamp()")
+        (now,) = cursor.fetchone()
+    return timezone.localdate(now, zone())
 
 
 PAST_DAY = "Choose today or a later day. To end it now, remove it instead."

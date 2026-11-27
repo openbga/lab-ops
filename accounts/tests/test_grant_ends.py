@@ -386,6 +386,57 @@ def test_a_page_that_sends_no_shown_day_is_read_as_showing_the_stored_day(owner,
     assert grant_ends.PAST_DAY in response.context["adminform"].form.errors[end_field(PATIENT)]
 
 
+def moved_back_at_the_gate(monkeypatch, rows, ends_at):
+    """The first time a save takes the access gate, set `rows`' end to `ends_at` just before it:
+    a change that moved the end, moved back by another change before the save holds the
+    account."""
+    from accounts import acting
+
+    gate = acting.close_access
+    done = []
+
+    def moved_back(ids):
+        if not done:
+            done.append(True)
+            rows.update(ends_at=ends_at)
+        return gate(ids)
+
+    monkeypatch.setattr(acting, "close_access", moved_back)
+
+
+@pytest.mark.parametrize("posted", ["moved-day", "drawn-day", "cleared"])
+def test_a_page_that_sends_no_shown_day_is_read_against_the_end_the_save_holds(
+    owner, make_user, client, monkeypatch, posted
+):
+    """The day such a page is read as showing is the day of the end the save holds after the
+    gate, not of the end read when the form was built: an end moved, then moved back, leaves the
+    page's fingerprint as drawn, and the day chosen must still be saved (review confirmation
+    round, C01)."""
+    person = make_user(f"held-{posted}", "technical")
+    drawn_day = grant_ends.today() + timedelta(days=21)
+    moved_day = drawn_day + timedelta(days=10)
+    give(person, PATIENT, grant_ends.end_of(drawn_day))
+    client.force_login(owner)
+    url = reverse("admin:accounts_user_change", args=[person.pk])
+    data = page_data(client.get(url).context["adminform"].form, first_name="Held")
+    data.pop(f"shown_last_day_{PATIENT}")
+    chosen = {"moved-day": moved_day, "drawn-day": drawn_day, "cleared": None}[posted]
+    data[end_field(PATIENT)] = chosen.isoformat() if chosen else ""
+    ends = CapabilityEnd.objects.filter(user=person)
+    ends.update(ends_at=grant_ends.end_of(moved_day))  # as the post is read
+    moved_back_at_the_gate(monkeypatch, ends, grant_ends.end_of(drawn_day))
+    assert client.post(url, data).status_code == 302
+    person.refresh_from_db()
+    assert person.first_name == "Held"
+    assert [end.ends_at for end in ends] == ([grant_ends.end_of(chosen)] if chosen else [])
+    event = AuditEvent.objects.get(action="account.updated", object_id=str(person.pk))
+    label = f"accounts.{PATIENT}"
+    assert event.before["capability_ends"] == {label: grant_ends.iso(grant_ends.end_of(drawn_day))}
+    assert event.after.get("capability_ends", {}).get(label) == (
+        grant_ends.iso(grant_ends.end_of(chosen)) if chosen else None
+    )
+
+
 @pytest.mark.parametrize("years", [99, 101])
 def test_a_new_day_more_than_a_hundred_years_ahead_is_refused(owner, make_user, client, years):
     person = make_user(f"far{years}", "technical")

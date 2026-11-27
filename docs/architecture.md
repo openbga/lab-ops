@@ -71,12 +71,16 @@ grant deletes its end and a grant given anew starts without one (an `m2m_changed
 Saving a `CapabilityEnd` takes the account's access gate exclusively (a `pre_save` receiver, like
 a removal); a portal access's end is changed only by the Set access form and the portal access
 services, which take the gate and advance the access's revision. The move trigger of
-`clients.0007`, replaced in `clients.0008`, empties the end with the rest of the access. Known limits: a change that checked the grant before the
-end and commits after it is a holder's change, since nothing waits for an end; other code that
-saves a `PortalAccess` (its end or its scope) neither takes the gate nor advances the revision, as
-before this change; paths that bypass `save()` (`QuerySet.update`, raw SQL) take no gate; and a
-form whose hidden shown day was altered only keeps the stored end (nothing is stored that the
-fingerprint or revision did not check).
+`clients.0007`, replaced in `clients.0008`, empties the end with the rest of the access and
+advances the revision; the gate is the moving caller's (an attributed move takes it). A page that
+sent back no shown day is read as showing the day of the end the save holds, after the gate.
+Known limits: a change that checked the grant before the end and commits after it is a holder's
+change, since nothing waits for an end; other code that saves a `PortalAccess` (its end or its
+scope) neither takes the gate nor advances the revision, as before this change; paths that bypass
+`save()` (`QuerySet.update`, raw SQL) take no gate; and a form cannot tell an altered (or emptied)
+shown day: a day sent equal to it keeps the stored end, and any other day is a new choice, checked
+as one, so after a zone change an unedited day sent with an emptied shown day is stored again in
+the new zone.
 
 Use the same scoped query in lists, pages, lookups, counts and actions. Staff ticket
 queries start with `staff_requests`. Portal queries start with `portal_requests`, which combines

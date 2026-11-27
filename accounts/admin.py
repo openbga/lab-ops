@@ -446,10 +446,15 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
                     "Ended: this day has passed, so the capability gives nothing. Choose a later "
                     "day, or clear it, to give it again, or remove the capability. " + END_HELP
                 )
-        missing = [c for c in ends if self.is_bound and shown_field(c) not in self.data]
+        # A page that sent back no shown day is read as showing the stored end's day as the save
+        # holds it (shown_day), not as read here: an end moved and moved back meanwhile leaves
+        # the fingerprint as drawn.
+        self.unshown = (
+            {c for c in CAPABILITIES if shown_field(c) not in self.data} if self.is_bound else set()
+        )
+        missing = [c for c in ends if c in self.unshown]
         if missing:
-            # A page that sent back no shown day is read as showing the stored end's day, and is
-            # drawn again (after a refusal) with it.
+            # Drawn again (after a refusal) with the stored end's day as read here.
             self.data = self.data.copy()
             for codename in missing:
                 day = last_day_of(ends[codename][0])
@@ -472,11 +477,11 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
             password.help_text = ReservedPasswordWidget.explanation
 
     def shown_day(self, codename, stored):
-        """The day the page showed for this capability's end, as the page sent it back (a page
-        that sent none was given the stored end's day when the form was built), or, without the
-        field, the day of the stored end (`stored`, ISO 8601) now."""
+        """The day the page showed for this capability's end, as the page sent it back, or, for a
+        page that sent none (or without the field), the day now of the end the save holds
+        (`stored`, ISO 8601)."""
         name = shown_field(codename)
-        if name in self.fields:
+        if name in self.fields and codename not in self.unshown:
             return self.cleaned_data.get(name)
         return last_day_of(_moment(stored))
 
