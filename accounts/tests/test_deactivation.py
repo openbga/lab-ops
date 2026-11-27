@@ -313,7 +313,7 @@ def test_a_page_opened_before_a_change_of_what_it_holds_is_refused_and_shows_it_
     assert "changed after you opened this page" in text
     assert "Bench chemistry (lead)" not in text and "Bench chemistry</li>" in text
     assert response.context["form"]["reason"].value() == "Left"
-    # The page drawn again carries the fingerprint of the list it shows now: sent as it is, it saves.
+    # Drawn again with the fingerprint of the list it shows now: sent as it is, it saves.
     again = browser.post(page_url(person), {"reason": "Left", "drawn": drawn_of(response)})
     assert again.status_code == 302
     assert Deactivation.objects.get(user=person).held["teams"][0]["note"] == ""

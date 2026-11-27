@@ -172,9 +172,11 @@ To review who holds access, open **Access review**. On **Accounts**, narrow by *
 "Not in the change history" means no recorded change gave it, or a later recorded change took it
 away and it came back by a path that records nothing, so find out how the account got it.
 On **Unused accounts**, the first time, select **Set the period** and enter the laboratory's
-number of days with a reason. Deactivate an account that is no longer needed in the account
-administration; Access review changes no account, role or grant, only its own period. Export
-either list with **Export CSV** to keep it with the review.
+number of days with a reason. Deactivate an account that is no longer needed with **Deactivate**
+on its page in the account administration, giving a reason: the page lists what the account holds
+first, and the account's page then keeps what it held when it was deactivated. Access review
+changes no account, role or grant, only its own period. Export either list with **Export CSV** to
+keep it with the review.
 
 To record an access review, open **Reviews** in Access review and select **Record an access
 review**. Choose **Staff accounts**, or **Client portal accounts** and an **Organization**, and

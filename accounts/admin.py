@@ -1196,9 +1196,6 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     raise Http404("No such account.") from None
                 refused = refusal(user, request.user)
                 held = holdings(user.pk)
-                data = form.data.copy()
-                data["drawn"] = fingerprint(held)
-                form.data = data
             except User.DoesNotExist:
                 raise Http404("No such account.") from None
             else:
@@ -1215,6 +1212,12 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                     "is recorded on its page.",
                 )
                 return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
+        if form.is_bound:
+            # Drawn again (a refusal, a missing reason, a confirmation not given): the page now
+            # shows `held`, so a save of it is checked against that list, not the one first shown.
+            data = form.data.copy()
+            data["drawn"] = fingerprint(held)
+            form.data = data
         context = {
             **self.admin_site.each_context(request),
             "title": f"Deactivate: {user.get_username()}",

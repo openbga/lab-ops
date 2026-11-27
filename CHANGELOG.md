@@ -200,6 +200,16 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
 ### Medium impact
 
+- **Added:** See what an account held when it was deactivated (2026-11-27, Accounts & roles)
+
+  Deactivate an account with a reason after seeing what it holds; its page then keeps what it held, who deactivated it and when.
+
+  <details><summary>Technical notes</summary>
+
+  Migration `accounts.0012_deactivation` adds the table `accounts_deactivation`, with a trigger that refuses `UPDATE` and `DELETE` on it. It changes no data: no record is written for an account deactivated before it, and such an account's page says that what it held then was not recorded. From this release, every save of an account that deactivates it (the new Deactivate page, clearing Active on the account's page, or code that saves the account) writes one record in the same transaction; a change made with `QuerySet.update` or raw SQL writes none. The Deactivate page (`admin/accounts/user/<id>/deactivate/`, route `admin:accounts_user_deactivate`) is for active superusers with staff status, asks them to confirm it is them, and records the change event `account.updated` with the reason. Reversing the migration drops the table and its records. No new setting or environment variable.
+
+  </details>
+
 - **Added:** Count what each person did, and what happened outside business hours, in Audit review (2026-11-25, Audit review)
 
   The new People tab of Audit review counts, for each person over a period, their sign-ins, failed or refused sign-ins, tickets opened, files downloaded, patient information shown and changes made, and how many of these happened outside the hours of one of your business calendars. Select a count to open the rows behind it. Changes, Access records and Sign-ins can now be narrowed to what happened outside a business calendar's hours.

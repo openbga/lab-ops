@@ -15,8 +15,10 @@ What it held (holdings): its kind, organization, admin console access, roles, ca
 directly, with the last day or as ended, or through a role or group), teams (lead, inactive team)
 and portal access, worded as the access report words them (audit_review.access_report.describe,
 without who gave each), with names as they stood then. Never a ticket's content, an email address or
-patient information. Grants that the account page removes in the same save as it deactivates the
-account are in the record: the account's row is written before its roles and capabilities. Known
+patient information. A group that is neither a role nor gives a capability gives nothing and is
+not listed, as in the access report. Grants that the account page removes in the same save as it
+deactivates the account are in the record: the account's row is written before its roles and
+capabilities. Known
 limit: what the reading sees is what had committed when it was read; an addition made without the
 account's access gate (code, the database directly) and committed after that is not in it. The
 application's own pages take the gate on every save of an account's roles, capabilities, teams and
@@ -54,7 +56,7 @@ REASON = "_deactivation_reason"
 
 REFUSALS = {
     "own": "This is your own account. Another superuser can deactivate it.",
-    "inactive": "This account is already deactivated, so nothing changed.",
+    "inactive": "This account is already deactivated.",
     "system": "Nobody signs in as the scheduled jobs' account: it stays deactivated.",
 }
 CHANGED_SINCE_DRAWN = (

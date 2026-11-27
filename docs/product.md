@@ -387,7 +387,7 @@ The history starts at the upgrade that added it.
 Before a change to access or security settings, the application asks the person making it to
 confirm it is them: their password, and a code from their authenticator app or a recovery code
 where their account has one (an account without a password gives the code alone). In the admin console it asks a superuser who adds an account or saves
-an account's page, its password page or Mark as compromised, removes an authenticator, or adds or
+an account's page, its password page, Mark as compromised or Deactivate, removes an authenticator, or adds or
 saves a role; on Security settings it asks an administrator who saves the session limits, the
 second-factor rule or the confirmation before revealing patient information. Once they have confirmed, they are not asked again in that browser for 5
 minutes, unless their password or authenticator app changes meanwhile or they sign in again (a new
@@ -559,8 +559,20 @@ database's clock. An ended grant stays on the
 account, giving nothing, until someone removes it or sets a later day; setting or moving an end is
 recorded in the account's or the access's change event. A capability given through a role or group
 has no end date, and neither do roles, admin console access or team memberships. Nothing reminds
-anyone before an end, and nothing removes an ended grant. Showing what a deactivated account held is
-planned on the [roadmap](roadmap.md).
+anyone before an end, and nothing removes an ended grant.
+
+A superuser deactivates an account with Deactivate on its page in the admin console. The page shows
+what the account holds now, worded as Access review words it (its kind and organization, admin
+console access, roles, capabilities with how each is held, teams and portal access), how many
+sessions are open and how many open tickets are assigned to it, and asks for a reason; a page opened
+before a change of what the account holds is refused and drawn again with the current list. Every
+save that deactivates an account, there or by clearing Active on the account's page, records what
+the account held just before, who saved, when, the reason (given only on Deactivate) and how many
+tickets went back to their team queues. The account's page shows the latest record, and the database
+refuses to change or delete one. Deactivating takes nothing off the account: its roles,
+capabilities, team memberships and portal access give nothing until it is made active again, which
+gives all of them back. An account deactivated before this release, or by a path that does not save
+the account, has no record.
 
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the

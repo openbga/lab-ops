@@ -32,13 +32,14 @@
     {
       "title": "Stop someone from signing in",
       "steps": [
-        "Clear [[Active]] and save. Accounts are never deleted."
+        "Under Account status and technical access, select [[Deactivate]], check what the account holds, give a reason and confirm.",
+        "Clearing [[Active]] and saving also deactivates it; what it held is recorded, without a reason. Accounts are never deleted."
       ]
     },
     {
       "title": "Sign someone out everywhere",
       "steps": [
-        "Under Sessions, select [[End sessions]], give a reason and confirm. The person can sign in again unless you also clear [[Active]]."
+        "Under Sessions, select [[End sessions]], give a reason and confirm. The person can sign in again unless you also deactivate the account."
       ]
     }
   ],
@@ -54,7 +55,7 @@
       "title": "Access and page variants",
       "paragraphs": [
         "The administration site requires an active account with Staff status. User and group pages additionally require Superuser status; a laboratory admin role alone or individual model permissions do not open them. These technical flags do not themselves confer operational roles or capabilities.",
-        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Capability end dates, Important dates (read only) and Sessions (read only); Compromised password (read only) follows Password.",
+        "Add user includes Username, Email address, Password-based authentication, Password, Password confirmation, Client, Groups, Staff status and Superuser status. New users default to Active even though Active is not on this add form. After creation the change form exposes the remaining account options. Change user groups fields into Personal info, Client access, Laboratory roles, Account status and technical access, Capability end dates, Important dates (read only) and Sessions (read only); Compromised password (read only) follows Password, and Deactivation (read only) opens Account status and technical access.",
         "On both forms, while saving asks you to confirm it is you, a Confirm it is you section follows the fields, before the buttons (see Confirm it is you)."
       ]
     },
@@ -103,8 +104,12 @@
           "description": "Optional assigned groups in Available groups and Chosen groups, with filter boxes, choose/remove controls and Choose all/Remove all. Built-in group names determine roles. Custom groups can carry explicit permissions without becoming operational roles. Removing a role or a capability waits for a change the person is saving at that moment, which is kept; a change they start afterwards no longer has that role or capability. A role or a group's Can view patient information grant can bring the account under the laboratory's second sign-in factor rule (Security settings), from its next sign-in."
         },
         {
+          "label": "Deactivation",
+          "description": "Change only; read only, first under Account status and technical access. The account's latest deactivation record: Deactivated on a date and time (in the display time zone) by the username of whoever saved it, as that account is named now, or by an account that was not recorded when the save named nobody, with how many open tickets were returned to their team queues when there were any; Reason: the reason given on Deactivate, or No reason was recorded when the account was deactivated by clearing Active or by another path; and What it held when it was deactivated: its kind and organization, then its portal access, or its admin console access, roles, capabilities with how each was held, and teams, as they stood then. An account made active again since shows the same record, starting Made active again since it was deactivated on. An inactive account with no record says What it held then was not recorded: it was deactivated before deactivations were recorded, or by a path that records none. An active account shows the Deactivate link, which opens a page to see what it holds and deactivate it with a reason; on your own account the line says This is your own account. Another superuser can deactivate it. instead. The Scheduled jobs account shows a dash. A record is never changed or deleted."
+        },
+        {
           "label": "Active",
-          "description": "Change only; controls whether the account may authenticate and have operational access. Clear instead of deleting a historical contributor. Clearing it returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused. A change the person is saving at that moment, such as a note, finishes first and your save waits for it; one they start after it is refused. A client's reply on one of their tickets that is being saved at that moment is kept, and the ticket is still returned to the queue."
+          "description": "Change only; controls whether the account may authenticate and have operational access. Deactivate the account (the Deactivate link under Deactivation) or clear this instead of deleting a historical contributor. Clearing it records what the account held just before this save, including roles and capabilities removed in the same save, without a reason, shown under Deactivation. Clearing it also returns the person's tickets that are not closed to their teams' queues, unassigned, and the confirmation says how many; a ticket assigned to them while you save is either returned with the others or refused. A change the person is saving at that moment, such as a note, finishes first and your save waits for it; one they start after it is refused. A client's reply on one of their tickets that is being saved at that moment is kept, and the ticket is still returned to the queue. Ticking it again makes a deactivated account active with every role, capability, team membership and portal access it kept, which then give access again; its sessions stay ended."
         },
         {
           "label": "Staff status",
@@ -238,6 +243,10 @@
     "templates/admin/accounts/user/add_form.html",
     "templates/admin/accounts/user/change_form.html",
     "accounts/tests/test_confirm_identity.py",
-    "e2e/test_confirm_identity.py"
+    "e2e/test_confirm_identity.py",
+    "accounts/deactivation.py",
+    "templates/admin/accounts/user/deactivation_field.html",
+    "templates/admin/accounts/user/includes/held.html",
+    "accounts/tests/test_deactivation.py"
   ]
 }
