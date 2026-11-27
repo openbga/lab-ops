@@ -411,6 +411,11 @@ class CapabilityEndField(forms.DateField):
         )
 
 
+# The shown day of a page that sent none back, drawn again after a refusal with no reading held
+# under the gate (AccountChangeForm): the next save reads it as sending none again.
+UNSENT = "unsent"
+
+
 class ShownDayField(forms.DateField):
     """The last day as the page showed it, sent back with the form: a day sent back unchanged
     keeps the end as stored, whatever the time zone is when it is saved. Never a change of its
@@ -420,6 +425,9 @@ class ShownDayField(forms.DateField):
 
     def __init__(self):
         super().__init__(required=False)
+
+    def to_python(self, value):
+        return None if value == UNSENT else super().to_python(value)
 
     def has_changed(self, initial, data):
         return False
@@ -447,18 +455,19 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
                     "day, or clear it, to give it again, or remove the capability. " + END_HELP
                 )
         # A page that sent back no shown day is read as showing the stored end's day as the save
-        # holds it (shown_day), not as read here: an end moved and moved back meanwhile leaves
-        # the fingerprint as drawn.
+        # holds it (shown_day), never as read here: an end moved and moved back meanwhile leaves
+        # the fingerprint as drawn. Drawn again after a refusal, it carries the day of the end
+        # the refused save held under the gate (clean), or, when it held none, says again that
+        # it sent none.
         self.unshown = (
-            {c for c in CAPABILITIES if shown_field(c) not in self.data} if self.is_bound else set()
+            {c for c in CAPABILITIES if self.data.get(shown_field(c), UNSENT) == UNSENT}
+            if self.is_bound
+            else set()
         )
-        missing = [c for c in ends if c in self.unshown]
-        if missing:
-            # Drawn again (after a refusal) with the stored end's day as read here.
+        if self.unshown:
             self.data = self.data.copy()
-            for codename in missing:
-                day = last_day_of(ends[codename][0])
-                self.data[shown_field(codename)] = day.isoformat() if day else ""
+            for codename in self.unshown:
+                self.data[shown_field(codename)] = UNSENT
         if self.instance.pk and not self.is_bound:
             # The values this form draws, not a second reading of the account: a role added
             # between the two would otherwise be in the fingerprint and missing from the page.
@@ -494,6 +503,12 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
         held = getattr(self, "held_reading", None)
         if held is None:
             return data
+        for codename in self.unshown:
+            # Should this save be refused, the page is drawn again with the day it is now read as
+            # showing: the end held as drawn, which a later save of the page finds again or the
+            # page is stale.
+            day = last_day_of(_moment(held[ENDS].get(codename)))
+            self.data[shown_field(codename)] = day.isoformat() if day else ""
         ids = capability_ids()
         posted = {permission.pk for permission in data.get("user_permissions") or ()}
         for codename in CAPABILITIES:

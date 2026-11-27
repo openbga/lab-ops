@@ -73,7 +73,10 @@ a removal); a portal access's end is changed only by the Set access form and the
 services, which take the gate and advance the access's revision. The move trigger of
 `clients.0007`, replaced in `clients.0008`, empties the end with the rest of the access and
 advances the revision; the gate is the moving caller's (an attributed move takes it). A page that
-sent back no shown day is read as showing the day of the end the save holds, after the gate.
+sent back no shown day is read as showing the day of the end the save holds, after the gate. Drawn
+again after a refusal, the account page carries the day of the end the refused save held under
+the gate, or, when it held none, says again that none was sent; Set access carries the day it
+read, which the access's revision checks.
 Known limits: a change that checked the grant before the end and commits after it is a holder's
 change, since nothing waits for an end; other code that saves a `PortalAccess` (its end or its
 scope) neither takes the gate nor advances the revision, as before this change; paths that bypass

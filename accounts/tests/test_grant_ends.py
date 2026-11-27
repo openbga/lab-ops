@@ -437,6 +437,60 @@ def test_a_page_that_sends_no_shown_day_is_read_against_the_end_the_save_holds(
     )
 
 
+@pytest.mark.parametrize("refused_at", ["after-the-gate", "at-the-gate"])
+def test_a_page_that_sent_no_shown_day_is_drawn_again_with_only_what_the_save_held(
+    owner, make_user, client, monkeypatch, refused_at
+):
+    """Drawn again after a refusal, such a page carries the day of the end the refused save held
+    under the gate (the page as drawn), never the end read before it; refused at the gate (the
+    page no longer matched), it says again that it sent none, and a later save reads the end it
+    then holds. Either way the day chosen is saved once the page matches (review second
+    confirmation round)."""
+    from accounts.admin import UNSENT, shown_field
+
+    person = make_user(f"redrawn-{refused_at}", "technical")
+    drawn_day = grant_ends.today() + timedelta(days=21)
+    moved_day = drawn_day + timedelta(days=10)
+    give(person, PATIENT, grant_ends.end_of(drawn_day))
+    client.force_login(owner)
+    url = reverse("admin:accounts_user_change", args=[person.pk])
+    data = page_data(client.get(url).context["adminform"].form, email="not-an-address")
+    data.pop(shown_field(PATIENT))
+    data[end_field(PATIENT)] = moved_day.isoformat()  # the day chosen
+    ends = CapabilityEnd.objects.filter(user=person)
+    ends.update(ends_at=grant_ends.end_of(moved_day))  # as the post is read
+    if refused_at == "after-the-gate":
+        moved_back_at_the_gate(monkeypatch, ends, grant_ends.end_of(drawn_day))
+    refused = client.post(url, data)
+    assert refused.status_code == 200
+    redrawn = refused.context["adminform"].form
+    assert "email" in redrawn.errors
+    stale = CHANGED_SINCE_DRAWN in redrawn.non_field_errors()
+    assert stale == (refused_at == "at-the-gate")
+    marker = redrawn[shown_field(PATIENT)].value()
+    assert marker == (drawn_day.isoformat() if refused_at == "after-the-gate" else UNSENT)
+    assert str(redrawn[end_field(PATIENT)].value()) == moved_day.isoformat()
+    if stale:
+        ends.update(ends_at=grant_ends.end_of(drawn_day))  # moved back before the next save
+    retry = page_data(redrawn, email="redrawn@example.invalid")
+    retry[shown_field(PATIENT)] = marker  # as the page drew it
+    assert client.post(url, retry).status_code == 302
+    assert ends.get().ends_at == grant_ends.end_of(moved_day)
+
+
+def test_the_seeds_day_is_the_later_of_the_two_clocks_days(monkeypatch):
+    """accounts.grant_ends.later_today: a day after it is to come by the application's clock (which
+    checks a new day) and by the database's (which checks the end)."""
+    database_day = grant_ends.database_today()
+    now = timezone.now()
+    for shift in (-400, 0, 91):
+        monkeypatch.setattr(grant_ends.timezone, "now", lambda shift=shift: now + timedelta(shift))
+        assert grant_ends.later_today() == max(grant_ends.today(), database_day)
+        later = grant_ends.later_today() + timedelta(days=90)
+        assert grant_ends.check_new_day(later, None) is None
+        assert later > database_day
+
+
 @pytest.mark.parametrize("years", [99, 101])
 def test_a_new_day_more_than_a_hundred_years_ahead_is_refused(owner, make_user, client, years):
     person = make_user(f"far{years}", "technical")

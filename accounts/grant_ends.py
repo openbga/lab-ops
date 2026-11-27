@@ -95,14 +95,22 @@ def today():
 
 def database_today():
     """Today in the laboratory's time zone by the database's clock, the one every check of an end
-    reads: for the demonstration seed, whose ends then hold for their days whatever the
-    application's clock says (a test may move it)."""
+    reads."""
     from django.db import connection
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT transaction_timestamp()")
         (now,) = cursor.fetchone()
     return timezone.localdate(now, zone())
+
+
+def later_today():
+    """The later of today by the application's clock (which checks a new day, check_new_day) and
+    today by the database's (which checks the end): a day after it is to come by both. For the
+    demonstration seed, which a test may run under a moved application clock. Known limit: with
+    the application's clock about MOST_YEARS behind the database's, such a day is refused as too
+    far ahead."""
+    return max(today(), database_today())
 
 
 PAST_DAY = "Choose today or a later day. To end it now, remove it instead."
