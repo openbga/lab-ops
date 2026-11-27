@@ -29,6 +29,10 @@ rules:
   password page, Mark as compromised, removing an authenticator) asks the superuser to confirm it
   is them, unless they did in the last few minutes (accounts.confirmation). Ending sessions does
   not ask.
+- An account's page shows its latest deactivation record (accounts.deactivation): when, by whom,
+  why and what the account held then; Deactivate shows what an active account holds and deactivates
+  it with a reason, recorded. Clearing Active on the account's page deactivates it too, and is
+  recorded without a reason.
 - A capability given directly may have a last day (accounts.grant_ends), set on the account's
   page with the grant: after that day it gives nothing. Ends are part of what the page shows and
   saves, so a page opened before another change of an end refuses to save over it, and the
@@ -263,6 +267,13 @@ def _labels(permission_ids):
         pk: f"{app}.{code}"
         for pk, app, code in permissions.values_list("pk", "content_type__app_label", "codename")
     }
+
+
+def _deactivated_by(record):
+    """Who saved a deactivation record, by username as the account stands now, or None."""
+    if record is None or record.deactivated_by_id is None:
+        return None
+    return User.objects.filter(pk=record.deactivated_by_id).first()
 
 
 def _owns_administration(user):
@@ -567,6 +578,21 @@ class MarkCompromisedForm(ConfirmIdentity, forms.Form):
     drawn = forms.CharField(widget=forms.HiddenInput)
 
 
+class DeactivateForm(ConfirmIdentity, forms.Form):
+    reason = forms.CharField(
+        # The page's one field: focused when it opens, and again when a save is refused.
+        widget=forms.Textarea(attrs={"rows": 3, "cols": 60, "autofocus": True}),
+        max_length=1000,
+        help_text="Recorded with what the account held and in the audit history, for example the "
+        "person left the laboratory or no longer works for the client. Other superusers read it "
+        "on the account's page; the person does not see it, even on their own account's page. Do "
+        "not include patient information.",
+    )
+    # What the account held as the page showed it (accounts.deactivation.fingerprint): a page
+    # opened before a change of it is refused.
+    drawn = forms.CharField(widget=forms.HiddenInput)
+
+
 class AccountPasswordForm(ConfirmIdentity, PasswordGuidance, AdminPasswordChangeForm):
     """The account's password page. It saves the password only: the account was read when the
     request began, and a full save would put back what changed since, such as a deactivation
@@ -697,7 +723,13 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
 
     actions = None
     # Recorded by the application: shown, never edited (a save would put back the time drawn).
-    readonly_fields = ("last_login", "date_joined", "open_sessions", "compromised_password")
+    readonly_fields = (
+        "last_login",
+        "date_joined",
+        "open_sessions",
+        "compromised_password",
+        "deactivation",
+    )
     fieldsets = (
         (None, {"fields": ("username", "password", "compromised_password", "drawn")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
@@ -722,11 +754,19 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         (
             "Account status and technical access",
             {
-                "fields": ("is_active", "is_staff", "is_superuser", "user_permissions"),
+                "fields": (
+                    "deactivation",
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "user_permissions",
+                ),
                 "description": "Staff and superuser open this admin console only. They give "
                 "no laboratory role and no capability. A capability is an explicit permission "
                 "under accounts (for example accounts | user | Can view patient information), "
-                "given here or through a group. Untick Active instead of deleting a user.",
+                "given here or through a group. Deactivate an account instead of deleting it: "
+                "Deactivate shows what it holds first and records why. Clearing Active also "
+                "deactivates it; what it held is recorded either way.",
             },
         ),
         (
@@ -930,6 +970,33 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         url = reverse("admin:accounts_user_compromised", args=[user.pk])
         return format_html('Not marked. <a href="{}">Mark as compromised</a>', url)
 
+    @admin.display(description="Deactivation")
+    def deactivation(self, user):
+        """The account's latest deactivation record, with what it held then, and the way to
+        deactivate an active account."""
+        from django.template.loader import render_to_string
+
+        from jobs.actor import is_system_account
+
+        from .deactivation import REFUSALS, latest
+
+        if user.pk is None or is_system_account(user):
+            return "—"
+        last = latest(user.pk)
+        own = user.pk == getattr(user, "_vr_admin_viewer", None)
+        return render_to_string(
+            "admin/accounts/user/deactivation_field.html",
+            {
+                "account": user,
+                "last": last,
+                "by": _deactivated_by(last),
+                "own": REFUSALS["own"] if own else "",
+                # The reason is for other superusers: not shown on the person's own account page.
+                "show_reason": not own,
+                "url": reverse("admin:accounts_user_deactivate", args=[user.pk]),
+            },
+        )
+
     def get_object(self, request, object_id, from_field=None):
         user = super().get_object(request, object_id, from_field)
         if user is not None:
@@ -948,6 +1015,11 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
                 "<id>/compromised/",
                 self.admin_site.admin_view(self.mark_compromised_view),
                 name="accounts_user_compromised",
+            ),
+            path(
+                "<id>/deactivate/",
+                self.admin_site.admin_view(self.deactivate_view),
+                name="accounts_user_deactivate",
             ),
             *super().get_urls(),
         ]
@@ -1076,6 +1148,94 @@ class AccountAdmin(SuperuserOnly, UserAdmin):
         }
         request.current_app = self.admin_site.name
         return TemplateResponse(request, "admin/accounts/user/mark_compromised.html", context)
+
+    def deactivate_view(self, request, id):
+        """Show what the account holds and deactivate it, with a reason. Decided and recorded by
+        the service, from the account as it stands when it is saved (accounts.deactivation)."""
+        from .deactivation import (
+            deactivate,
+            fingerprint,
+            holdings,
+            open_tickets,
+            owns_administration,
+            refusal,
+        )
+        from .session_list import open_count
+
+        user = self.get_object(request, unquote(id))
+        if user is None:
+            raise Http404("No such account.")
+        if not self.has_change_permission(request, user) or not owns_administration(request.user):
+            raise PermissionDenied
+        refused = refusal(user, request.user)
+        if request.method == "POST":
+            form = DeactivateForm(request.POST)
+        else:
+            # The list drawn and its fingerprint: one reading.
+            held = holdings(user.pk)
+            if held is None:
+                raise Http404("No such account.")
+            form = DeactivateForm(initial={"drawn": fingerprint(held)})
+        if request.method == "POST" and refused is None and form.is_valid():
+            try:
+                with transaction.atomic():
+                    record = deactivate(
+                        actor=request.user,
+                        account_id=user.pk,
+                        reason=form.cleaned_data["reason"],
+                        drawn=form.cleaned_data["drawn"],
+                    )
+                    user = User.objects.get(pk=user.pk)
+                    self.log_change(request, user, "Deactivated the account.")
+            except ValidationError as error:
+                if hasattr(error, "error_dict"):
+                    for field, errors in error.error_dict.items():
+                        form.add_error(field if field in form.fields else None, errors)
+                else:
+                    form.add_error(None, error)
+            except User.DoesNotExist:
+                raise Http404("No such account.") from None
+            else:
+                returned = record.tickets_returned if record is not None else 0
+                tickets = (
+                    f" {returned} open ticket{'s' if returned != 1 else ''} returned to their "
+                    "team queues."
+                    if returned
+                    else ""
+                )
+                self.message_user(
+                    request,
+                    f"Deactivated {user.get_username()}. Its sessions ended.{tickets} What it held "
+                    "is recorded on its page.",
+                )
+                return HttpResponseRedirect(reverse("admin:accounts_user_change", args=[user.pk]))
+        if form.is_bound:
+            # Drawn again (a refusal, a missing reason, a confirmation not given): the account, why
+            # it cannot be deactivated and what it holds are read once more, after the decision,
+            # and the page's fingerprint is that of the list it now shows, so a save of it is
+            # checked against that list, not the one first shown.
+            user = User.objects.filter(pk=user.pk).first()
+            held = holdings(user.pk) if user is not None else None
+            if held is None:
+                raise Http404("No such account.")
+            refused = refusal(user, request.user)
+            data = form.data.copy()
+            data["drawn"] = fingerprint(held)
+            form.data = data
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Deactivate: {user.get_username()}",
+            "subtitle": None,
+            "opts": self.opts,
+            "original": user,
+            "form": form,
+            "refused": refused,
+            "held": held,
+            "open_count": open_count(user),
+            "open_tickets": open_tickets(user),
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(request, "admin/accounts/user/deactivate.html", context)
 
     def end_sessions_view(self, request, id):
         """End every open session of the account, with a reason (on one's own account, every one

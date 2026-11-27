@@ -351,6 +351,28 @@ review page, both exports and each drawing of the form are `WorkspaceUse` rows o
 `grant_review` ("Access review: reviews"), which migration 0005 adds to the allowed values.
 [Access review](../audit_review/access_report.py)
 
+`accounts.deactivation` keeps what an account held when a save deactivated it
+(`accounts.models.Deactivation`, migration `accounts.0012`, whose trigger refuses `UPDATE` and
+`DELETE`). `User.save` decides that it deactivates the account (the stored row active, the save
+writing `is_active` false) once it holds the account's access gate and row; it reads `holdings`
+(the access report's `describe` without history: kind, organization, console flags, roles,
+capabilities with how each is held, teams and portal access, in words) before it writes anything,
+and inserts the record after the account's row, in the same transaction, with `changed_by`, the
+Deactivate page's reason, the tickets `desk.signals` returned and the database's clock. Every
+deactivation through `save()` leaves one; `QuerySet.update`, raw SQL and deactivations before the
+migration leave none. The Deactivate page (`AccountAdmin.deactivate_view`, `deactivate`) takes the
+access gates of the owner and the account in id order (`close_access`), reads the owner again (an
+active superuser with staff status), refuses the owner's own account, an inactive account and the
+jobs' account, locks the account's row FOR NO KEY UPDATE, compares a fingerprint of `holdings`
+with the one the page was drawn with, hands that reading to the save as the record's (so the
+record is the list the page showed), then saves `is_active` alone and records `account.updated`
+with the reason; two owners deactivating each other take turns and the second is refused. Known
+limit: the reading sees what had committed when it was read, so an addition that takes no gate of the
+account (a member added to a team or made its lead, a capability added to a group, code, the
+database directly) and commits after it is not in the record and does not refuse the Deactivate
+page's save; the account page, portal access and every removal take the gate.
+[Deactivation](../accounts/deactivation.py)
+
 ## Security settings
 
 `core.security_settings` reads what protects sign-in, sessions and patient information from the
