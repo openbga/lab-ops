@@ -30,10 +30,11 @@ DEFINITION = "form_definition"
 PATIENT_HELP = (
     "Tick only if the laboratory decided this field needs patient information. Its values are "
     "then revealed one at a time, with an audit entry, to staff who hold “Can view patient "
-    "information”, and, on fields clients see, shown to the client who raised or may see the "
+    "information” (and, on one ticket for a short time, to staff with emergency access in force "
+    "there), and, on fields clients see, shown to the client who raised or may see the "
     "ticket. They never "
     "appear in email, lists, search, logs or the audit history, and staff without "
-    "that permission cannot fill, reveal or correct them. "
+    "that permission cannot fill or correct them, or reveal them without emergency access. "
     "Prefer an order, accession or sample number: the product's stance is minimal patient data."
 )
 
@@ -301,8 +302,9 @@ class CorrectionForm(ValuesForm):
                 required=False,
                 max_length=1000,
                 help_text="Optional. Kept with the patient-information value it changed, shown "
-                "only to staff who hold “Can view patient information”; never in the audit "
-                "history. Dropped when no patient-information value changes.",
+                "only to staff who hold “Can view patient information” or have emergency access "
+                "in force on the ticket; never in the audit history. Dropped when no "
+                "patient-information value changes.",
                 widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
             )
 

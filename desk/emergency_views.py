@@ -13,6 +13,7 @@ a refusal draws the page again from a new reading, with what was typed.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -39,6 +40,9 @@ def _draw(request, pk, form):
         ticket = _request_or_404(account, pk)
         if not emergency.is_eligible(account):
             raise PermissionDenied(emergency.NOT_ELIGIBLE)
+        if form is None:
+            # Drawn in the reading, so the confirmation fields it asks for match the account.
+            form = EmergencyAccessForm()
         grant = emergency.patient_grant(account, ticket.pk)
         hidden = grant is None and emergency.has_hidden_patient_information(ticket)
         record_url = _record_url(ticket, _back(request))
@@ -63,6 +67,7 @@ def _draw(request, pk, form):
     return response
 
 
+@transaction.non_atomic_requests  # one_reading and the service open their own transactions
 @login_required
 @require_http_methods(["GET", "HEAD", "POST"])
 def request_emergency(request, pk):
@@ -73,8 +78,8 @@ def request_emergency(request, pk):
         _request_or_404(request.user, pk)
         if not emergency.is_eligible(request.user):
             raise PermissionDenied(emergency.NOT_ELIGIBLE)
-    form = EmergencyAccessForm(request.POST if request.method == "POST" else None)
-    if request.method == "POST" and form.is_valid():
+    form = EmergencyAccessForm(request.POST) if request.method == "POST" else None
+    if form is not None and form.is_valid():
         try:
             use = emergency.start(
                 actor=request.user,

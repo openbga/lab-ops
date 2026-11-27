@@ -91,7 +91,7 @@
       "items": [
         {
           "label": "Pages",
-          "description": "Fifty uses per page, newest first. Every page lists the uses as they stood when the first page opened, so a use started since does not move a row; open the tab again from the menu to see it. The status of each use is read again on each page."
+          "description": "Fifty uses per page, newest first. Every page lists the uses as they stood when the first page opened, so a use started since does not move a row; open the tab again from the menu to see it. A use whose start was still being saved when the first page opened can still appear on a later page. The status of each use is read again on each page."
         },
         {
           "label": "No emergency access used yet",
@@ -100,6 +100,10 @@
         {
           "label": "No use has this status",
           "description": "Shown when uses exist but none has the status chosen. Choose Any status to see every use."
+        },
+        {
+          "label": "These filters cannot be applied",
+          "description": "Shown instead of the table when the address names a status that is not in the list. Nothing is listed until you choose a status from [[Status]]; the page is recorded under Workspace use as a filter that was not accepted."
         }
       ]
     },

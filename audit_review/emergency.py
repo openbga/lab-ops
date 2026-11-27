@@ -98,8 +98,10 @@ def reveals(use):
     value_ids = {e.after.get("value_id") for e in events if e.action == REVEAL_ACTIONS[0]}
     attachment_ids = {e.after.get("attachment") for e in events if e.action == REVEAL_ACTIONS[1]}
     values = {
-        row.pk: row.label
-        for row in FieldValue.objects.filter(pk__in=[i for i in value_ids if i is not None])
+        row.pk: row.field.label
+        for row in FieldValue.objects.filter(
+            pk__in=[i for i in value_ids if i is not None]
+        ).select_related("field")
     }
     links = {
         row.pk: row.link.get_record_type_display()

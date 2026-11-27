@@ -5,10 +5,11 @@ The Emergency access tab of the Access review section (audit_review.emergency_vi
 holders of "Can review access and audit records": every use of emergency access, newest first, 50
 a page, narrowed by status, every page drawn as of the newest use when the first was (the pager's
 links carry `upto`). Context: page_obj (a Page of desk.models.EmergencyAccess, each with status and
-status_label), form (StatusForm), status, total, waiting (uses waiting for review now). Showing a
-page is recorded (WorkspaceUse).
+status_label; [] when the status is refused), form (StatusForm), status, invalid (the status was
+refused), filtered (a status is chosen and some use exists), total, waiting (uses waiting for
+review now). Showing a page is recorded (WorkspaceUse).
 {% endcomment %}
-{% block page_intro %}<p class="vr-page-intro">Each time someone without the usual grant revealed patient information on a ticket in an emergency, with their reason. Each use waits here until someone other than the person who used it records a review.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Each time someone without the usual grant started emergency access to the patient information on a ticket, with their reason. Each use waits here until someone other than the person who used it records a review; its page shows what was revealed, if anything.</p>{% endblock %}
 {% block content %}
 {% section_tabs "access-review" %}
 {% if waiting %}{% notice tone="warning" label="Waiting for review" %}{{ waiting }} use{{ waiting|pluralize }} of emergency access {{ waiting|pluralize:"is,are" }} waiting for review.{% endnotice %}{% endif %}
@@ -20,7 +21,7 @@ page is recorded (WorkspaceUse).
       <div class="col-sm-3 col-lg-2"><button type="submit" class="btn btn-outline-secondary w-100">Show</button></div>
     </div>
   </form>
-  {% list_results items=page_obj noun="uses" filtered=status paginate=False clear_url=request.path no_results_title="No use has this status" no_results_body="Choose Any status to see every use." empty_title="No emergency access used yet" empty_body="Uses appear here when someone the laboratory named starts emergency access on a ticket." %}
+  {% list_results items=page_obj noun="uses" filtered=filtered invalid=invalid paginate=False clear_url=request.path error_body="Choose a status from the list. Nothing is listed until the filter is valid." no_results_title="No use has this status" no_results_body="Choose Any status to see every use." empty_title="No emergency access used yet" empty_body="Uses appear here when someone the laboratory named starts emergency access on a ticket." %}
   <div class="vr-table-wrap">
     <table class="table vr-table" aria-label="Uses of emergency access">
       <thead><tr>

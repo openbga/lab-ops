@@ -895,7 +895,9 @@ def grant_capability(day=None):
             "Demonstration seed: client services may use emergency access",
         ),
     ):
-        holder = User.objects.get(username=username)
+        holder = User.objects.filter(username=username).first()
+        if holder is None:  # a seed step run on its own, without every demonstration account
+            continue
         permission = Permission.objects.get(
             codename=codename, content_type__app_label="accounts", content_type__model="user"
         )

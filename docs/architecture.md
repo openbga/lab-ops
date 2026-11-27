@@ -393,7 +393,8 @@ way and stops what the use gives at once; nothing marks the use, so giving them 
 gives it again. A page drawn while a use was in force still offers Reveal; a reveal sent after the
 end is refused as for anyone without the grant. The ticket page's banner and offer come from
 `ticket_state`, read in the page's reading: the offer needs an eligible account with no grant on the
-ticket and a current patient-marked answer or person-level link (`has_hidden_patient_information`).
+ticket and a current person-level link or a current patient-marked answer with a value, one the
+ticket shows (a cleared answer shows nothing; `has_hidden_patient_information`).
 
 `desk.emergency_views.request_emergency` (`desk:request-emergency`, a form dialog surface) draws its
 page in one reading (`one_reading`, `reading_account`): 404 for a ticket `staff_requests` does not
@@ -422,8 +423,11 @@ reviewer (`audit_review.permissions.may_review`) nor a supervisor
 (`desk.permissions.is_supervisor`); otherwise it words it from `desk.notifications`' allow-list (the
 ticket number, `PHRASES["emergency_access"]`, the laboratory's name and a sign-in link to
 `access_review:emergency-use` for a reviewer, `desk:request-access` for a supervisor who is not
-one). It takes no locks and reads no notice preference, so the notices go whatever the recipients
-chose for their own email notices. The Scheduled jobs page
+one). Before deciding, it holds without waiting the recipient's account row, its roles
+(`held_roles`) and its grants of `review_audit_records`, its own and its groups', until the notice is
+sent (`_hold_recipient`, the outbox's contract), so a change to any of them under way leaves the
+notice for a later attempt. It reads no notice preference, so the notices go whatever the
+recipients chose for their own email notices. The Scheduled jobs page
 (`jobs.selectors.notices_needing_attention`) names the ticket of a failed or retrying emergency
 notice through its use, to a reader who may read that ticket, with the event Emergency access used.
 

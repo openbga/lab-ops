@@ -4,10 +4,13 @@ review access and audit records" (audit_review.permissions).
 
 Pages are drawn in one reading (core.concurrency.one_reading) with the account read in it. Every
 page of the list is drawn as of the newest use when its first page was (`upto`), and its status
-filter is applied in each page's reading. Each page of the list and each use's page shown is
-recorded (WorkspaceUse) with the answer it is about (core.access.keep). A review sent is decided by
-audit_review.emergency.record_review, which holds the acting account, locks the use and reads both
-again as they stand; a refusal draws the page again from a new reading, with what was typed.
+filter is applied in each page's reading; a status the form does not accept lists nothing. As for
+the audit review lists, a use whose start was being saved when the first page was drawn can still
+take a place on a later page (ids are given out before a start commits). Each page of the list and
+each use's page shown is recorded (WorkspaceUse) with the answer it is about (core.access.keep). A
+review sent is decided by audit_review.emergency.record_review, which holds the acting account,
+locks the use and reads both again as they stand; a refusal draws the page again from a new reading,
+with what was typed.
 """
 
 from django import forms
@@ -89,17 +92,23 @@ def _upto(request):
 def uses_page(request):
     """The Emergency access tab: every use, newest first, narrowed by status."""
     form = StatusForm(request.GET or None)
-    status = form.cleaned_data["status"] if form.is_valid() else ""
+    # A status the form does not accept lists nothing (the list says why) and is recorded so.
+    invalid = form.is_bound and not form.is_valid()
+    status = form.cleaned_data["status"] if form.is_bound and not invalid else ""
     with one_reading():
         account = reading_account(request)
         require_reviewer(account)
         upto = _upto(request)
-        rows = emergency.uses(status).filter(pk__lte=upto)
-        page_obj = Paginator(rows, PAGE_SIZE).get_page(request.GET.get("page"))
-        for use in page_obj:
-            use.status = emergency.status_of(use)
-            use.status_label = emergency.STATUS_LABELS[use.status]
-        total = page_obj.paginator.count
+        page_obj, total = [], 0
+        if not invalid:
+            rows = emergency.uses(status).filter(pk__lte=upto)
+            page_obj = Paginator(rows, PAGE_SIZE).get_page(request.GET.get("page"))
+            for use in page_obj:
+                use.status = emergency.status_of(use)
+                use.status_label = emergency.STATUS_LABELS[use.status]
+            total = page_obj.paginator.count
+        # With no use at all, the list says so whatever the status chosen.
+        any_use = EmergencyAccess.objects.filter(pk__lte=upto).exists()
         query = request.GET.copy()
         query["upto"] = str(upto)
         request.GET = query  # the pager's links carry the reading's moment
@@ -110,12 +119,17 @@ def uses_page(request):
                 "page_title": LIST_TITLE,
                 "form": form if form.is_bound else StatusForm(),
                 "status": status,
+                "invalid": invalid,
+                "filtered": bool(status) and any_use,
                 "page_obj": page_obj,
                 "total": total,
                 "waiting": emergency.waiting_count(),
             },
         )
-    use = _use(request, UseKind.VIEWED, total, emergency_status=status, page=page_obj.number)
+    if invalid:
+        use = _use(request, UseKind.VIEWED, 0, invalid=True)
+    else:
+        use = _use(request, UseKind.VIEWED, total, emergency_status=status, page=page_obj.number)
     access.keep(request, use)
     return response
 

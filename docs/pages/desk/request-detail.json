@@ -250,7 +250,7 @@
       "items": [
         {
           "label": "Patient information hidden",
-          "description": "A notice at the top of the page, shown only to staff who hold Can use emergency access, cannot view patient information and have no emergency access in force on this ticket, when the ticket holds a current patient-marked answer or a current person-level link."
+          "description": "A notice at the top of the page, shown only to staff who hold Can use emergency access, cannot view patient information and have no emergency access in force on this ticket, when the ticket holds a current person-level link or a current patient-marked answer with a value (a cleared answer has none)."
         },
         {
           "label": "Use emergency access",

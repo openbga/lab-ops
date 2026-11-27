@@ -77,7 +77,7 @@
         },
         {
           "label": "Nothing to reveal",
-          "description": "Shown instead of the form when the ticket holds no current patient-marked answer and no current person-level link, so there is nothing for emergency access to reveal. Nothing is recorded. Back to the ticket number returns there."
+          "description": "Shown instead of the form when the ticket holds no current person-level link and no current patient-marked answer with a value (a cleared answer has none), so there is nothing for emergency access to reveal. Nothing is recorded. Back to the ticket number returns there."
         },
         {
           "label": "Emergency access",

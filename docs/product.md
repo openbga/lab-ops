@@ -585,7 +585,8 @@ admin console, as for the other capabilities; given to the person, it can have a
 holds it until then, so emergency access is off. It works for an active staff account with a
 laboratory role that does not hold "Can view patient information"; a client portal account never has
 it. Security settings shows how many active staff accounts hold it. On a ticket the person may read
-that holds a patient-marked answer or a person-level link hidden from them, the ticket's page shows
+that holds a person-level link or a patient-marked answer with a value (a cleared answer has none)
+hidden from them, the ticket's page shows
 Patient information hidden with **Use emergency access**; emergency access starts only on such a
 ticket. Whether the person may read the ticket and use emergency access is decided before they
 confirm it is them, so a refused request checks no password. The person chooses a reason (reporting

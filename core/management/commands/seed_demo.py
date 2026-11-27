@@ -474,12 +474,13 @@ def seeded_reach(username):
     """What the announcement says `username` can read, from the seed's definitions.
 
     Staff: patient information only for the capability holder; restricted tickets only for a
-    supervising role (the story keeps restricted work in Quality, whose members supervise).
+    supervising role (the story keeps restricted work in Quality, whose members supervise); audit
+    review and emergency access only for their capabilities' holders, while they hold them.
     Portal: its own organization, and the listed sites, or every active site of a
     whole-organization grant.
     """
     from clients.models import ClientSite
-    from desk.story import CAPABILITY, REVIEW_CAPABILITY
+    from desk.story import CAPABILITY, EMERGENCY_CAPABILITY, REVIEW_CAPABILITY
 
     authority = seeded_authority(username)
     patient = CAPABILITY in authority["capabilities"]
@@ -488,6 +489,8 @@ def seeded_reach(username):
             "patient information": patient,
             "restricted tickets": bool(authority["roles"] & SUPERVISING_ROLES),
             "audit review": REVIEW_CAPABILITY in authority["capabilities"]
+            and bool(authority["roles"]),
+            "emergency access": EMERGENCY_CAPABILITY in authority["capabilities"]
             and bool(authority["roles"]),
         }
     code, _, sites = authority["portal"]
@@ -509,6 +512,7 @@ def held_reach(user):
     """What `user` can read now, evaluated with the selectors every page uses."""
     from audit_review.permissions import may_review
     from clients.portal import current_access
+    from desk.emergency import is_eligible
     from desk.portal_scope import portal_requests, portal_sites, raised_by
     from desk.selectors import staff_requests
     from links.services import can_see_person_links
@@ -532,6 +536,7 @@ def held_reach(user):
             "patient information": patient,
             "restricted tickets": reads_restricted,
             "audit review": may_review(user),
+            "emergency access": is_eligible(user),
         }
     others = portal_requests(user).exclude(raised_by(user))
     sites = frozenset(portal_sites(user).values_list("code", flat=True))

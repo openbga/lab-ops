@@ -135,15 +135,22 @@ def emergency_marker(grant):
 
 def has_hidden_patient_information(ticket):
     """Whether the ticket holds patient information a person without the grant sees only as a
-    placeholder: a current patient-marked answer or a current person-level link."""
+    placeholder: a current person-level link, or a current patient-marked answer with a value
+    (a cleared one shows nothing)."""
     from links.models import LinkAttachment
+    from request_forms import kinds
     from request_forms.models import FieldValue
 
-    answers = FieldValue.objects.filter(
-        filled_form__request=ticket, superseded_at__isnull=True
-    ).filter(Q(holds_patient_information=True) | Q(field__holds_patient_information=True))
     links = LinkAttachment.objects.filter(request=ticket, is_person=True, removed_at__isnull=True)
-    return answers.exists() or links.exists()
+    if links.exists():
+        return True
+    answers = (
+        FieldValue.objects.filter(filled_form__request=ticket, superseded_at__isnull=True)
+        .filter(Q(holds_patient_information=True) | Q(field__holds_patient_information=True))
+        .only("kind", "value")
+    )
+    # Only an answer the ticket shows (request_forms.selectors.staff_values): a cleared one is none.
+    return any(kinds.display(row.kind, row.value) for row in answers)
 
 
 def ticket_state(user, ticket):
@@ -206,6 +213,8 @@ def start(*, actor, ticket_id, reason, explanation):
     from .selectors import staff_requests
     from .services import current_staff
 
+    if getattr(actor, "pk", None) is None or not actor.is_authenticated:
+        raise PermissionDenied(NOT_ELIGIBLE)
     reason = clean_reason(reason)
     explanation = clean_explanation(explanation)
     _lock_starts(actor.pk)  # after the hold (acting_change), so two starts of one person take turns
@@ -321,33 +330,63 @@ def _review_path(use_id):
     return reverse("access_review:emergency-use", args=[use_id])
 
 
+def _hold_recipient(recipient_id):
+    """Hold, until the attempt's transaction ends (jobs.outbox), the rows the decision about a
+    notice's recipient rests on, and read the account after them: its account row (an address
+    change, a deactivation), its roles, read and held in one statement (accounts.roles.held_roles),
+    and its grants of "Can review access and audit records", its own and its roles'. Taken without
+    waiting, so a row someone is changing leaves the notice for a later attempt. Returns (account,
+    roles), or (None, set())."""
+    from django.contrib.auth.models import Group
+
+    from accounts.models import User
+    from accounts.roles import held_roles
+    from jobs.locks import share_lock
+
+    share_lock(User, [recipient_id], nowait=True)
+    account = (
+        User.objects.filter(pk=recipient_id, is_active=True, client_id__isnull=True)
+        .exclude(email="")
+        .first()
+    )
+    if account is None:
+        return None, set()
+    roles = held_roles(account, nowait=True, mode="key share")
+    grant = {
+        "permission__codename": REVIEW_CAPABILITY,
+        "permission__content_type__app_label": "accounts",
+    }
+    direct = User.user_permissions.through.objects.filter(user_id=account.pk, **grant)
+    share_lock(User.user_permissions.through, direct.values_list("pk", flat=True), nowait=True)
+    through_groups = Group.permissions.through.objects.filter(group__user=account, **grant)
+    share_lock(Group.permissions.through, through_groups.values_list("pk", flat=True), nowait=True)
+    return account, roles
+
+
 def prepare_emergency_notice(notice):
     """At each sending attempt (jobs.outbox): None when the notice no longer applies (the use is
     gone, or the recipient is no longer an active staff account with an address that is a
     supervisor or a reviewer); otherwise the notice, worded from desk.notifications' allow-list,
     with a link to the use's review page for a reviewer and to the ticket's Who opened it page for
-    a supervisor who is not one."""
-    from django.contrib.auth import get_user_model
+    a supervisor who is not one. The rows the decision rests on are held until the notice is sent
+    (`_hold_recipient`); one someone is changing leaves it for a later attempt."""
     from django.urls import reverse
 
-    from audit_review.permissions import may_review
+    from accounts.roles import ROLES
     from jobs.outbox import Prepared
 
     from . import notifications
-    from .permissions import is_supervisor
+    from .permissions import SUPERVISOR_ROLES
 
     use = EmergencyAccess.objects.select_related("ticket").filter(pk=notice.object_id).first()
-    recipient = (
-        get_user_model()
-        .objects.filter(pk=notice.recipient_id, is_active=True, client_id__isnull=True)
-        .exclude(email="")
-        .first()
-    )
-    if use is None or recipient is None or recipient.pk == use.user_id:
+    if use is None or notice.recipient_id == use.user_id:
         return None
-    if may_review(recipient):
+    recipient, roles = _hold_recipient(notice.recipient_id)
+    if recipient is None or not roles.intersection(ROLES):
+        return None
+    if has_capability(recipient, REVIEW_CAPABILITY):
         path = _review_path(use.pk)
-    elif is_supervisor(recipient):
+    elif roles.intersection(SUPERVISOR_ROLES):
         path = reverse("desk:request-access", args=[use.ticket_id])
     else:
         return None
