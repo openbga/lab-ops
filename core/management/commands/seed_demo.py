@@ -63,7 +63,10 @@ ANNOUNCED_ACCOUNTS = (
         "supervisor: every ticket, restricted ones too, complaints awaiting review, patient "
         "links, audit review",
     ),
-    ("demo_client_services", "client services: the desk queues, calls, replies and assignments"),
+    (
+        "demo_client_services",
+        "client services: the desk queues, calls, replies and assignments, emergency access",
+    ),
     ("demo_account_manager", "account manager: organizations, sites, contacts, portal access"),
     ("demo_technical", "technical staff: technical questions; restricted tickets stay hidden"),
     ("demo_client", "client portal of a clinic, whole organization"),
@@ -404,7 +407,14 @@ def seeded_authority(username):
     organization).
     """
     from clients.seed import DEMO_PORTAL_ACCOUNTS
-    from desk.story import CAPABILITY, CAPABILITY_HOLDER, REVIEW_CAPABILITY, REVIEW_HOLDER
+    from desk.story import (
+        CAPABILITY,
+        CAPABILITY_HOLDER,
+        EMERGENCY_CAPABILITY,
+        EMERGENCY_HOLDER,
+        REVIEW_CAPABILITY,
+        REVIEW_HOLDER,
+    )
     from teams.seed import DEMO_MEMBERS
 
     portal = {row[0]: (row[3], row[4], row[5]) for row in DEMO_PORTAL_ACCOUNTS}
@@ -415,7 +425,8 @@ def seeded_authority(username):
     return {
         "roles": roles,
         "capabilities": ({CAPABILITY} if username == CAPABILITY_HOLDER else set())
-        | ({REVIEW_CAPABILITY} if username == REVIEW_HOLDER else set()),
+        | ({REVIEW_CAPABILITY} if username == REVIEW_HOLDER else set())
+        | ({EMERGENCY_CAPABILITY} if username == EMERGENCY_HOLDER else set()),
         "teams": {
             (slug, lead)
             for slug, _, members in DEMO_MEMBERS

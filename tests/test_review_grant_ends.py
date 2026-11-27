@@ -913,8 +913,9 @@ def test_staff_sidebar_admin_list_and_security_counts_agree(
     rendered = listing.model_admin.capabilities(
         next(u for u in listing.result_list if u.pk == reader.pk)
     )
-    for label in CAPABILITIES.values():
-        assert (label in rendered) is effective
+    # The two capabilities this reader was given (emergency access, added since, it was not).
+    for code in (STAFF_PATIENT, REVIEW_CAPABILITY):
+        assert (CAPABILITIES[code] in rendered) is effective
 
 
 def test_enrolment_session_rechecks_ended_grant_and_records_new_sign_in(client):

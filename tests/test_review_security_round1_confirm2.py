@@ -293,6 +293,7 @@ def test_overlapping_readings_keep_their_own_file_reasons(monkeypatch):
     monkeypatch.setattr(security_settings, "_second_factor_counts", counts)
     monkeypatch.setattr(security_settings, "patient_capability_holders", lambda: 0)
     monkeypatch.setattr(security_settings, "review_capability_holders", lambda: 0)
+    monkeypatch.setattr(security_settings, "emergency_capability_holders", lambda: 0)
     monkeypatch.setattr(security_settings, "_review_interval", lambda: None)
     monkeypatch.setattr(security_settings, "_patient_fields", lambda: 0)
     # Adapted for the reveal confirmation change: its rule is a database reading of the patient

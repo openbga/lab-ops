@@ -1020,22 +1020,29 @@ def correct_values(
 
 @acting_change
 def reveal_value(*, actor, value_id):
-    """A patient-information value for a staff account holding the capability, on a request it
-    may read. Audited; the event names the request, the field and the value row, never the
-    value. Raises FieldValue.DoesNotExist for anything else."""
+    """A patient-information value for a staff account holding the capability, or emergency
+    access in force on the request (desk.emergency), on a request it may read. Audited; the event
+    names the request, the field and the value row, never the value, and the emergency access use
+    when one gave it (`emergency`). Raises FieldValue.DoesNotExist for anything else."""
+    from desk.emergency import emergency_marker
     from desk.services import current_staff
 
-    from .selectors import revealable_value
+    from .selectors import revealable
 
     require_staff(actor)
     actor = current_staff(actor)  # the account as held (accounts.acting), not the request's copy
-    row = revealable_value(actor, value_id)
+    row, grant = revealable(actor, value_id)
     if row is None:
         raise FieldValue.DoesNotExist("No such value.")
     record_event(
         actor=actor,
         action="request_form.value_revealed",
         obj=row.filled_form,
-        after={"request_id": row.filled_form.request_id, "field": row.key, "value_id": row.pk},
+        after={
+            "request_id": row.filled_form.request_id,
+            "field": row.key,
+            "value_id": row.pk,
+            **emergency_marker(grant),
+        },
     )
     return row

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+Start emergency access to the patient information on one ticket (desk.emergency_views): what it
+gives and what follows, then why (a reason and the person's own words) and Confirm it is you. A
+form in the shared form dialog (core.form_surfaces), a full page without script. For staff who may
+use emergency access (403 otherwise) on a ticket they may read (404 otherwise). Context: req, form
+(desk.forms.EmergencyAccessForm, or None), holds (the account can see patient information
+already), use (its use in force on the ticket, or None), nothing_hidden (the ticket holds no
+patient information hidden from the account), minutes, cancel_url, list_query, crumbs.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs crumbs=crumbs %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">For an emergency when nobody who can see the patient information on this ticket is available.</p>{% endblock %}
+{% block content %}
+{% if holds %}
+{% notice tone="info" label="Not needed" %}You can see the patient information on this ticket without emergency access. Reveal it on the ticket.{% endnotice %}
+<p><a class="btn btn-outline-secondary" href="{{ cancel_url }}">Back to {{ req.number }}</a></p>
+{% elif nothing_hidden %}
+{% notice tone="info" label="Nothing to reveal" %}{{ req.number }} holds no patient information hidden from you, so there is nothing for emergency access to reveal.{% endnotice %}
+<p><a class="btn btn-outline-secondary" href="{{ cancel_url }}">Back to {{ req.number }}</a></p>
+{% elif use %}
+{% notice tone="warning" label="Emergency access" %}Your emergency access to the patient information on {{ req.number }} is in force until <time datetime="{{ use.ends_at|date:'c' }}">{{ use.ends_at|date:"H:i" }}</time>.{% endnotice %}
+<p><a class="btn btn-outline-secondary" href="{{ cancel_url }}">Back to {{ req.number }}</a></p>
+{% else %}
+{% form_page form=form cancel_url=cancel_url submit_label="Start emergency access" note="Starting it is recorded, with your reason." %}
+  <input type="hidden" name="list" value="{{ list_query }}">
+  <div class="vr-form-note mb-4">
+    <p>For the next {{ minutes }} minutes you can reveal the patient information on {{ req.number }}: its patient-marked answers and its person-level keys, one at a time. Nothing else changes: no other ticket, and no change to patient information.</p>
+    <ul class="mb-0">
+      <li>Each reveal is recorded, as for anyone who can view patient information.</li>
+      <li>Supervisors and reviewers are sent an email notice at once, where the laboratory sends email.</li>
+      <li>This use waits under Access review until someone other than you reviews it.</li>
+    </ul>
+  </div>
+  {% form_sections form=form %}
+{% endform_page %}
+{% endif %}
+{% endblock %}

@@ -36,7 +36,7 @@
         "Your laboratory can ask staff to confirm it is them before the first reveal of patient information in each browser session (Security settings, Revealing patient information). When it does, your first Reveal of a patient-information value on a ticket's form details, or Reveal key of a person-level link on a ticket's Links section, brings you here instead of showing the value. Nothing is read, revealed or recorded by that first select.",
         "It is not asked before a search by a person-level key, and client portal accounts are never asked: what they may see is shown without a reveal.",
         "Only staff accounts may open this page; a client portal account is refused. When your laboratory does not ask, or this sign-in has already confirmed, the page sends you straight back to the page you came from. It also sends you straight back, without showing the form, when you confirmed it is you in the last 5 minutes for another change (here or in another tab): that confirmation is recorded for reveals for the rest of this sign-in.",
-        "Staff without the Can view patient information permission who send a reveal are brought here too, so the answer says nothing about the value. After confirming, their reveal is refused as not found and nothing is recorded."
+        "Staff without the Can view patient information permission who send a reveal are brought here too, so the answer says nothing about the value. After confirming, their reveal is refused as not found and nothing is recorded, unless they have emergency access in force on that ticket, which lets them reveal there."
       ]
     },
     {
@@ -100,6 +100,7 @@
     "links/views.py",
     "request_forms/tests/test_reveal_confirmation.py",
     "links/tests/test_person_links.py",
-    "e2e/test_reveal_confirmation.py"
+    "e2e/test_reveal_confirmation.py",
+    "desk/emergency.py"
   ]
 }

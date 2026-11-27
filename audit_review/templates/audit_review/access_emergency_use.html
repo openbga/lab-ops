@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+One use of emergency access (audit_review.emergency_views.use_page), for holders of "Can review
+access and audit records": who used it (as they stood when they started), on which ticket, why,
+when it started and ended, what it revealed (from the change history, never a value), and its
+review, or the form to record one once it has ended (not to the person who used it). Context: use
+(desk.models.EmergencyAccess), status, status_label, review (EmergencyReview or None), own (the
+reader used it), form (ReviewForm, or None when no review can be recorded), reveals ((time,
+description) pairs), ticket_readable (the reader may open the ticket), refusal (why a review sent
+was not recorded, when the form is no longer offered), list_url. Showing it is recorded
+(WorkspaceUse).
+{% endcomment %}
+{% block title %}{{ use.number }} · Access review · OpenBGA Lab Ops{% endblock %}
+{% block breadcrumbs %}{% breadcrumbs section="Emergency access" section_url=list_url current=use.number %}{% endblock %}
+{% block page_heading %}Emergency access <span class="vr-id">{{ use.number }}</span>{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if status == "in_force" %}{% status label=status_label tone="progress" %}{% elif status == "waiting" %}{% status label=status_label tone="warning" %}{% else %}{% status label=status_label tone="success" %}{% endif %}</li>
+  <li><span class="vr-id">{{ use.ticket.number }}</span></li>
+{% endpage_meta %}{% endblock %}
+{% block content %}
+{% panel title="The use" heading_id="use-heading" class="mb-3" %}
+  <dl class="vr-facts">
+    {% fact label="Person" %}<span class="vr-break-anywhere">{{ use.user_name }} <span class="vr-muted">{{ use.user_username }}</span></span>{% if use.user_roles %}<span class="d-block vr-muted small">{{ use.user_roles }}</span>{% endif %}{% endfact %}
+    {% fact label="Ticket" %}{% if ticket_readable %}<a class="vr-id" href="{% url 'desk:request-detail' use.ticket_id %}">{{ use.ticket.number }}</a>{% else %}<span class="vr-id">{{ use.ticket.number }}</span>{% endif %}{% endfact %}
+    {% fact label="What it gave" value=use.get_kind_display %}
+    {% fact label="Reason" value=use.get_reason_display %}
+    {% fact label="Explanation" wide=True %}<span class="vr-break-anywhere">{{ use.explanation|linebreaksbr }}</span>{% endfact %}
+    {% fact label="Started" %}<time datetime="{{ use.started_at|date:'c' }}">{{ use.started_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+    {% fact label="Ends" %}<time datetime="{{ use.ends_at|date:'c' }}">{{ use.ends_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+  </dl>
+  {% fill footer %}<p class="vr-muted small mb-0">The person's name and roles are as they stood when they started. A use cannot be changed or removed.</p>{% endfill %}
+{% endpanel %}
+{% panel title="Revealed during the use" heading_id="reveals-heading" count=reveals|length class="mb-3" %}
+  {% if reveals %}
+  <ul class="list-unstyled mb-0">
+    {% for when, what in reveals %}<li><time class="vr-nowrap" datetime="{{ when|date:'c' }}">{{ when|date:"Y-m-d H:i:s" }}</time> · <span class="vr-break-anywhere">{{ what }}</span></li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="vr-muted mb-0">Nothing has been revealed under this use.</p>
+  {% endif %}
+  {% fill footer %}<p class="vr-muted small mb-0">From the change history: each patient-marked answer and person-level key revealed under this use, named by the field or the record type as they stand now, never by the value.</p>{% endfill %}
+{% endpanel %}
+{% panel title="Review" heading_id="review-heading" class="mb-3" %}
+  {% for message in refusal %}{% notice tone="danger" label="Not recorded" %}{{ message }}{% endnotice %}{% endfor %}
+  {% if review %}
+  <dl class="vr-facts">
+    {% fact label="Outcome" value=review.get_outcome_display %}
+    {% fact label="Note" wide=True %}<span class="vr-break-anywhere">{{ review.note|linebreaksbr }}</span>{% endfact %}
+    {% fact label="Reviewed by" %}<span class="vr-break-anywhere">{{ review.reviewer_name }} <span class="vr-muted">{{ review.reviewer_username }}</span></span>{% if review.reviewer_roles %}<span class="d-block vr-muted small">{{ review.reviewer_roles }}</span>{% endif %}{% endfact %}
+    {% fact label="Reviewed" %}<time datetime="{{ review.reviewed_at|date:'c' }}">{{ review.reviewed_at|date:"Y-m-d H:i" }}</time>{% endfact %}
+  </dl>
+  {% elif status == "in_force" %}
+  <p class="mb-0">This use is in force until <time datetime="{{ use.ends_at|date:'c' }}">{{ use.ends_at|date:"H:i" }}</time>. It can be reviewed once it has ended.</p>
+  {% elif own %}
+  <p class="mb-0">You used this emergency access, so someone else reviews it.</p>
+  {% elif form %}
+  {% form_page form=form submit_label="Record review" note="A review cannot be changed afterwards." %}
+    <fieldset class="vr-form-section">
+      {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
+    </fieldset>
+  {% endform_page %}
+  {% endif %}
+{% endpanel %}
+{% endblock %}

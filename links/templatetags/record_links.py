@@ -9,6 +9,7 @@ from django import template
 from django.urls import reverse
 
 from accounts.roles import ROLES, has_role
+from desk.emergency import sees_patient_information
 from links.access import client_link_rows, request_link_rows
 from links.services import can_see_person_links
 
@@ -17,8 +18,17 @@ register = template.Library()
 
 @register.inclusion_tag("links/request_links_panel.html")
 def request_links(service_request, user):
+    # Find by patient key needs the capability; the rows also show to emergency access in force
+    # on this ticket (desk.emergency).
     may_see_person = can_see_person_links(user)
-    current, removed = request_link_rows(service_request, may_see_person=may_see_person)
+    emergency = not may_see_person and sees_patient_information(user, service_request.pk)
+    current, removed = request_link_rows(
+        service_request, may_see_person=may_see_person or emergency
+    )
+    if emergency:
+        # Emergency access reveals the current keys only: removed person-level links stay
+        # placeholders, and their rows link to no link page and offer no removal (the template).
+        _, removed = request_link_rows(service_request, may_see_person=False)
     reference = (service_request.client_reference or "").strip()
     linked_identifiers = {row.identifier.casefold() for row in current if row.identifier}
     return {

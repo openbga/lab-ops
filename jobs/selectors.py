@@ -19,6 +19,8 @@ RECENT = timedelta(days=7)
 ATTENTION_LIMIT = 25
 # Notice topics whose object is a ticket (desk.models.ServiceRequest).
 TICKET_TOPICS = frozenset({"desk.request", "desk.breach"})
+# Notices of emergency access (desk.emergency): their object is the use, which names a ticket.
+EMERGENCY_TOPIC = "desk.emergency"
 
 
 def current_settings():
@@ -73,6 +75,7 @@ def notices_needing_attention(viewer):
     """Failed notices and those waiting to be retried, newest first, at most ATTENTION_LIMIT.
     Each gets `.ticket_id` (the ticket's id when `viewer` may open it, else None), so the page
     names a ticket, and who the notice was for, only to someone who may read the ticket."""
+    from desk.models import EmergencyAccess
     from desk.selectors import staff_requests
 
     notices = list(
@@ -82,10 +85,18 @@ def notices_needing_attention(viewer):
         .select_related("recipient")
         .order_by("-created_at", "-pk")[:ATTENTION_LIMIT]
     )
-    ticket_ids = {n.object_id for n in notices if n.topic in TICKET_TOPICS}
+    # A notice of emergency access names the use, which names its ticket (desk.emergency).
+    uses = {n.object_id for n in notices if n.topic == EMERGENCY_TOPIC}
+    use_tickets = dict(EmergencyAccess.objects.filter(pk__in=uses).values_list("pk", "ticket_id"))
+
+    def ticket_of(notice):
+        if notice.topic in TICKET_TOPICS:
+            return notice.object_id
+        return use_tickets.get(notice.object_id) if notice.topic == EMERGENCY_TOPIC else None
+
+    ticket_ids = {ticket_of(n) for n in notices} - {None}
     readable = set(staff_requests(viewer).filter(pk__in=ticket_ids).values_list("pk", flat=True))
     for notice in notices:
-        notice.ticket_id = notice.object_id if notice.object_id in readable else None
-        if notice.topic not in TICKET_TOPICS:
-            notice.ticket_id = None
+        ticket_id = ticket_of(notice)
+        notice.ticket_id = ticket_id if ticket_id in readable else None
     return notices

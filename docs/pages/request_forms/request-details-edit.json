@@ -48,7 +48,7 @@
         },
         {
           "label": "Patient information",
-          "description": "A notice shown when the form has active patient information fields and you do not hold Can view patient information. Only staff who can view patient information see, fill or correct those fields."
+          "description": "A notice shown when the form has active patient information fields and you do not hold Can view patient information. Only staff who can view patient information see, fill or correct those fields; emergency access does not add them to this form."
         },
         {
           "label": "required missing",
@@ -64,7 +64,7 @@
         },
         {
           "label": "Note on the patient-information change",
-          "description": "Shown with the reason list. Optional, up to 1000 characters. Kept with the patient information value it changed and shown under Earlier values only to staff who hold Can view patient information; never in the audit history or the timeline. Dropped when no patient information value changes."
+          "description": "Shown with the reason list. Optional, up to 1000 characters. Kept with the patient information value it changed and shown under Earlier values only to staff who hold Can view patient information or have emergency access in force on the ticket; never in the audit history or the timeline. Dropped when no patient information value changes."
         }
       ]
     },
@@ -92,7 +92,7 @@
     {
       "title": "Earlier values",
       "paragraphs": [
-        "Replaced and cleared values stay, newest first. Each shows the field's label and the old value (blank when it was cleared), who entered it and when, who replaced it and when, and the reason. A patient information value never shows its value. Without Can view patient information the row is only Patient information (not shown), with no person, time or reason; with it, the row shows who changed it and when, the reason chosen and any note. Earlier values are never edited or deleted. When nothing was corrected, No corrections is shown."
+        "Replaced and cleared values stay, newest first. Each shows the field's label and the old value (blank when it was cleared), who entered it and when, who replaced it and when, and the reason. A patient information value never shows its value. Without Can view patient information the row is only Patient information (not shown), with no person, time or reason; with it, or with emergency access in force on the ticket, the row shows who changed it and when, the reason chosen and any note. Earlier values are never edited or deleted. When nothing was corrected, No corrections is shown."
       ]
     }
   ],
@@ -108,6 +108,7 @@
     "request_forms/tests/test_pages.py",
     "request_forms/tests/test_values.py",
     "request_forms/urls.py",
-    "core/access.py"
+    "core/access.py",
+    "desk/emergency.py"
   ]
 }

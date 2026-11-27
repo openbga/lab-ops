@@ -25,7 +25,7 @@ from desk.selectors import staff_requests
 from . import kinds
 from .forms import CorrectionForm
 from .models import FieldValue, FilledForm
-from .selectors import may_see_patient_information, staff_values
+from .selectors import may_see_patient_information, sees_patient_information, staff_values
 from .services import CLOSED_MESSAGE, FORM_CHANGED, correct_values, is_form_changed
 from .services import reveal_value as services_reveal_value
 
@@ -39,7 +39,8 @@ def _earlier_values(filled, user):
     """Superseded values, newest first, as this staff account may see them. A patient-information
     row never shows its value; without the capability it is a bare placeholder (no person, time
     or reason), with it the reason code and note."""
-    sees_patient = may_see_patient_information(user)
+    # The capability, or emergency access in force on this request (desk.emergency).
+    sees_patient = sees_patient_information(user, filled.request_id)
     rows = []
     for row in (
         filled.values.filter(superseded_at__isnull=False)

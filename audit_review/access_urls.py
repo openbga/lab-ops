@@ -3,7 +3,7 @@
 
 from django.urls import path
 
-from . import access_review_views, access_views
+from . import access_review_views, access_views, emergency_views
 
 app_name = "access_review"
 
@@ -18,4 +18,6 @@ urlpatterns = [
     path("reviews/new/", access_review_views.review_create, name="review-create"),
     path("reviews/<int:pk>/", access_review_views.review_page, name="review"),
     path("reviews/<int:pk>/export/", access_review_views.review_export, name="review-export"),
+    path("emergency/", emergency_views.uses_page, name="emergency"),
+    path("emergency/<int:pk>/", emergency_views.use_page, name="emergency-use"),
 ]

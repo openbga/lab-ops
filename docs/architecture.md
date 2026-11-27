@@ -15,14 +15,14 @@ served locally. [Browser dependency versions and licenses](../static/vendor/READ
 | `core` | Laboratory profile and contacts, the security settings facts and session limits, optional module switches, audit events, navigation, preferences, page help, announcements, What's new, shared controls and demonstration commands |
 | `clients` | Organization directory, sites, contacts and portal access grants |
 | `teams` and `taxonomy` | Team membership, ticket categories, priorities and laboratory presets |
-| `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search and notices |
+| `desk` | Ticket lifecycle, conversation, assignment, complaint records, saved views, search, notices and emergency access |
 | `service_levels` and `links` | Business calendars and ticket clocks, and references to records in external systems |
 | `request_forms` | Form definitions, offerings, catalogs and captured values |
 | `attachments` | Upload inspection, file metadata, bytes, withdrawal and authorized downloads |
 | `dataimport` | CSV previews and transactional updates for the client directory |
 | `jobs` | The notification outbox, the scheduled jobs command, its settings and the account the jobs act as |
 | `nonconformance` | The optional nonconformance and corrective action module: records, actions, linked tickets and monthly counts |
-| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval; the Access review section (`access_review` URLs at `/access-review/`): the access report, the unused accounts with their period, and the signed access reviews |
+| `audit_review` | The audit review workspace over the change history, access records and sign-in history, its counts by person, its exports and the record of its own use, and the signed review records with their notes and the review interval; the Access review section (`access_review` URLs at `/access-review/`): the access report, the unused accounts with their period, the signed access reviews, and the uses of emergency access with their reviews |
 
 Views and forms handle HTTP input, display and validation. Domain services use the Django ORM,
 database constraints and explicit transactions. An action that affects multiple records checks
@@ -45,7 +45,8 @@ records the zone selected at setup.
 
 Role and capability checks live in [accounts/roles.py](../accounts/roles.py). An admin role
 includes the operational roles. A person or group needs an explicit grant for patient
-information. A superuser can administer accounts. Portal accounts have a client organization
+information; emergency access (below) gives what it gives on one ticket, for a fixed time, to an
+account holding another explicit grant, `use_emergency_access`. A superuser can administer accounts. Portal accounts have a client organization
 and cannot hold staff roles or capabilities.
 
 A capability given directly (`accounts.models.CapabilityEnd`) and a portal access
@@ -91,15 +92,16 @@ organization, site grants, the originating account and the ticket's restriction.
 conversation is defined in `desk/visibility.py`. Checking the ticket URL alone is insufficient
 for a file download. It must also pass the visibility rules for the entry and file.
 
-Person-level links have no web address. A staff reveal or an exact-key search needs the
-explicit capability and produces an audit event that omits the key. A non-person link can open
+Person-level links have no web address. A staff reveal needs the explicit capability or
+emergency access in force on the ticket (`desk.emergency.patient_grant`), and an exact-key search
+needs the capability; each produces an audit event that omits the key. A non-person link can open
 an HTTPS URL only on the external system's configured host. The application does not fetch
 records from that URL. [Product access rules](product.md#roles-and-capabilities)
 
 A form that changes roles, capabilities, security settings or another account's sign-in factors
 mixes in `accounts.confirmation.ConfirmIdentity`: in the account administration the account, new
-account, password, compromised-password, authenticator-removal and role forms, and the session
-limits and second-factor rule forms. Unless the browser's session holds a re-authentication of
+account, password, compromised-password, authenticator-removal and role forms, the session
+limits and second-factor rule forms, and the form that starts emergency access. Unless the browser's session holds a re-authentication of
 every factor the account has now, each within `ACCOUNT_REAUTHENTICATION_TIMEOUT` (the sign-in does
 not count), the form adds the password and code fields and checks them before its own `clean()`,
 so nothing is locked, decided or saved for a request that has not confirmed; the view's access
@@ -350,6 +352,110 @@ account is held while it is active in the organization it was reviewed in. The t
 review page, both exports and each drawing of the form are `WorkspaceUse` rows of the source
 `grant_review` ("Access review: reviews"), which migration 0005 adds to the allowed values.
 [Access review](../audit_review/access_report.py)
+
+## Emergency access
+
+`desk.emergency` gives a staff account without `view_patient_information` what that capability gives
+on one ticket, for `MINUTES` (60, fixed in this release, not a setting): reveals of the ticket's
+patient-marked answers and person-level key, one at a time. It is for an active staff account with a
+laboratory role that holds `use_emergency_access` (`accounts.roles.EMERGENCY_CAPABILITY`,
+`is_eligible`); accounts migration 0012 declares the permission and gives it to nobody, and
+reversing it deletes the permission with its grants. `desk.models.EmergencyAccess` is one use: the
+account by id without a database constraint (as for access records), its name, username and roles
+(`audit_review.reviews.roles_label`) as they stood, the ticket (`PROTECT`), the kind
+(`EmergencyKind`, only `patient_information` in this release), the reason as a code
+(`EmergencyReason`), the explanation (at most 1,000 characters), `started_at`, `ends_at` and the
+request ID. `EmergencyReview` is its review, keyed by the use: the reviewer by id and as they stood,
+the outcome (`EmergencyOutcome`), the note (at most 2,000 characters) and `reviewed_at`. Check
+constraints hold the kind, reason and outcome to their choices, `ends_at` after `started_at` and the
+explanation and note non-empty. Neither model has permissions or an admin.
+
+There is one clock, as for grant ends: `started_at` is `transaction_timestamp()`
+(`accounts.grant_ends.TransactionTime`) and `ends_at` that plus `DURATION`, both computed by the
+insert, and every check reads the use in the statement that compares `ends_at` with
+`transaction_timestamp()`. `patient_grant(user, ticket_id)` is the one decision: `BY_CAPABILITY`
+when `request_forms.selectors.may_see_patient_information` holds, otherwise the account's latest use
+in force on the ticket (`in_force`) while `is_eligible` holds, otherwise None; the caller has
+decided that the account may read the ticket. `revealable_value` (with `reveal_value`),
+`staff_values`, the Form details page's earlier values, `links.services.reveal_person_key`,
+`links.views._attachment_for(reveal=True)` and the Links section (`links.templatetags.record_links`)
+ask it; under a use the Links section shows a current person-level row's masked label as text and
+its Reveal key, without a link to the link page or the row's actions, and keeps removed person-level
+rows as placeholders. Everything else stays on the capability (`may_see_patient_information`,
+`can_see_person_links`): Find by patient key, the link pages (`person_link_readable`), removing,
+adding or editing a person-level link, and entering or correcting a patient-information field
+(`request_forms.definition`). When a use gave the grant, the reveal's event
+(`request_form.value_revealed`, `external_link.person_revealed`) carries the use's id as `emergency`
+in `after` (`emergency_marker`); the access record is the usual one. The reveal views hold the
+acting account (`hold_actor`) and the check reads the capability and the role as the account holds
+them in that transaction, so removing either, or deactivating the account, waits for a reveal under
+way and stops what the use gives at once; nothing marks the use, so giving them back before its end
+gives it again. A page drawn while a use was in force still offers Reveal; a reveal sent after the
+end is refused as for anyone without the grant. The ticket page's banner and offer come from
+`ticket_state`, read in the page's reading: the offer needs an eligible account with no grant on the
+ticket and a current patient-marked answer or person-level link (`has_hidden_patient_information`).
+
+`desk.emergency_views.request_emergency` (`desk:request-emergency`, a form dialog surface) draws its
+page in one reading (`one_reading`, `reading_account`): 404 for a ticket `staff_requests` does not
+return, 403 for an account `is_eligible` refuses, and no form for an account with the capability, a
+use in force or a ticket with nothing hidden from it (`nothing_hidden`, Nothing to reveal).
+`EmergencyAccessForm` mixes in `ConfirmIdentity`. A POST decides access before the form is built:
+the ticket (`_request_or_404`, 404) and `is_eligible` (403), so a refused request checks no
+password; `start` then decides again under its locks. `start` holds the acting account, then takes
+`START_LOCK`, the advisory lock `pg_advisory_xact_lock(19570, id)` keyed by the account (its id
+modulo 2^31 - 1), so two starts by one person take turns; then it reads the account again
+(`desk.services.current_staff`), checks the capability and the ticket through `staff_requests`,
+refuses an account holding `view_patient_information`, one with a use already in force on the ticket
+(`AlreadyInForce`, which the view answers with a redirect to the ticket) and a ticket with no
+patient information hidden from it (`NOTHING_HIDDEN`, from `has_hidden_patient_information`), and
+writes the use, the event `emergency_access.started` (`after`: the ticket, kind, reason code,
+`started_at` and `ends_at`; never the explanation) and the notices in one transaction.
+
+`told(use)` lists the active staff accounts in the supervisor or admin group and the active accounts
+with a laboratory role holding `review_audit_records` (directly, through `direct_grants`, or through
+a group), without the person and the scheduled jobs' account, that have an email address. Each gets
+an outbox notice under the topic `desk.emergency` (`jobs.registry.NOTICE_TOPICS`), with the ticket
+number as its reference, the event `emergency_access` and the use's id, given its first attempt
+after the commit. At each attempt `prepare_emergency_notice` drops it when the use is gone, the
+recipient is no longer an active staff account with an address, is the person, or is neither a
+reviewer (`audit_review.permissions.may_review`) nor a supervisor
+(`desk.permissions.is_supervisor`); otherwise it words it from `desk.notifications`' allow-list (the
+ticket number, `PHRASES["emergency_access"]`, the laboratory's name and a sign-in link to
+`access_review:emergency-use` for a reviewer, `desk:request-access` for a supervisor who is not
+one). It takes no locks and reads no notice preference, so the notices go whatever the recipients
+chose for their own email notices. The Scheduled jobs page
+(`jobs.selectors.notices_needing_attention`) names the ticket of a failed or retrying emergency
+notice through its use, to a reader who may read that ticket, with the event Emergency access used.
+
+The Emergency access tab of Access review (`audit_review.emergency`, `audit_review.emergency_views`;
+`access_review:emergency` and `access_review:emergency-use`, for `require_reviewer`) draws each page
+in one reading. `uses()` works out `in_force` (against `TransactionTime`) and `reviewed` in the same
+statement; the list is paged 50 at a time as of the newest use id when its first page was drawn
+(`upto`), and the status filter is applied in each page's reading. `reveals(use)` reads the reveal
+events whose `after` names the use and describes them by the answer's label or the link's record
+type as they stand now, never by a value. `record_review` holds the acting account, locks the use's
+row (`SELECT ... FOR UPDATE OF` the use) so two reviews of one use take turns, reads the account
+again and checks `may_review`, that it is not the person who used the access, that there is no
+review yet and that the use has ended by `transaction_timestamp()`, then writes the review
+(`reviewed_at` from `TransactionTime`) and the event `emergency_access.reviewed` (`after`: the
+outcome and `reviewed_at`; never the note) in one transaction. A refusal draws the page again from a
+new reading. Each list page and each use page drawn is a `WorkspaceUse` of the source `emergency`
+("Access review: emergency access"), which audit_review migration 0006 adds to the allowed values
+(the check constraint dropped and recreated, no row rewritten). In the audit review workspace a use
+is one of its ticket's parts (`TICKET_PARTS`, by `ticket_id`), so the Changes list's ticket and
+organization filters take its events, named `Emergency access EA-000001 on` the ticket (the number
+is `EA-` and at least six digits from the id), and the Workspace use list describes the tab's
+filters `emergency_status` and `emergency_use` as the status's label and the use's number
+(`audit_review.sources`).
+
+Desk migration 0008 adds the two tables and their triggers: `emergency_access_immutable` and
+`emergency_review_immutable` refuse `UPDATE` and `DELETE` with core's `prevent_record_mutation`, and
+`emergency_review_allowed` refuses a review whose reviewer is the person who used the access or
+whose use has not ended by `transaction_timestamp()`. Reversing it is refused once a use is
+recorded; `reset_demo`'s `TRUNCATE` is not seen by the row triggers. Not built: opening a ticket
+that `staff_requests` does not return (a restricted ticket) by emergency access, the remaining part
+of the roadmap item.
+[Emergency access](../desk/emergency.py)
 
 ## Security settings
 

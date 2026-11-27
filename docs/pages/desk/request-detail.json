@@ -152,7 +152,7 @@
         },
         {
           "label": "Form details",
-          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information select Reveal to see one value, which is recorded as a change event (kept with the form's answers, not listed in the ticket's audit history) and on Who opened it. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
+          "description": "Shown when the ticket was raised with a ticket form: the form's name and each value under the label it had then, noting values not shown to the client, corrected values and fields no longer on the form, and the required fields still needed. Patient information shows as recorded; with Can view patient information, or emergency access in force on this ticket, select Reveal to see one value, which is recorded as a change event (kept with the form's answers, not listed in the ticket's audit history) and on Who opened it. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. Edit form details fills or corrects values with a reason; it is hidden on a closed ticket, whose form details can no longer change."
         },
         {
           "label": "First response / Resolution",
@@ -234,7 +234,35 @@
         },
         {
           "label": "Find by patient key",
-          "description": "Opens the exact-key search for staff with permission to view patient information."
+          "description": "Opens the exact-key search for staff with permission to view patient information. Not offered under emergency access."
+        },
+        {
+          "label": "Person-level link under emergency access",
+          "description": "While your emergency access on this ticket is in force, its current person-level link shows its masked label, as text, and Reveal key, with no link to the link's page and no Actions menu. A removed person-level link still shows only Patient linked."
+        }
+      ]
+    },
+    {
+      "title": "Emergency access",
+      "paragraphs": [
+        "For staff with a laboratory role who hold Can use emergency access and cannot view patient information. In an emergency, when nobody who can see the patient information on a ticket is available, they can reveal it on that ticket for 60 minutes after giving a reason (see the Emergency access page's help). Nobody holds the permission until a superuser gives it."
+      ],
+      "items": [
+        {
+          "label": "Patient information hidden",
+          "description": "A notice at the top of the page, shown only to staff who hold Can use emergency access, cannot view patient information and have no emergency access in force on this ticket, when the ticket holds a current patient-marked answer or a current person-level link."
+        },
+        {
+          "label": "Use emergency access",
+          "description": "In that notice. Opens the Emergency access page, where you give a reason and start emergency access to the patient information on this ticket."
+        },
+        {
+          "label": "Emergency access",
+          "description": "A banner at the top of the page while your emergency access on this ticket is in force: You can reveal the patient information on this ticket until the time it ends, in the laboratory's time zone. After that time, Reveal and Reveal key answer Not found, also on a page opened before it."
+        },
+        {
+          "label": "What it gives",
+          "description": "Reveal beside each patient-marked answer under Form details and Reveal key on the person-level link under Links, one at a time, each recorded as for staff with Can view patient information and naming the use in its change event. Earlier values of patient-information fields on Edit form details show who changed them, when and why, never the value. Nothing else: no other ticket, no Find by patient key, and no change to patient-information fields or person-level links."
         }
       ]
     },
@@ -377,6 +405,8 @@
     "accounts/kept.py",
     "static/js/kept-typing.js",
     "templates/includes/kept_typing.html",
-    "core/access.py"
+    "core/access.py",
+    "desk/emergency.py",
+    "desk/emergency_views.py"
   ]
 }

@@ -83,11 +83,11 @@
     {
       "title": "Person-level links",
       "paragraphs": [
-        "Only staff with the explicit permission Can view patient information can add, see, reveal, remove or search person-level links. The permission is a setting on the account or one of its groups. No role, including admin, and no superuser status implies it. Staff without it see only Patient linked on the ticket.",
+        "Only staff with the explicit permission Can view patient information can add, see, reveal, remove or search person-level links. The permission is a setting on the account or one of its groups. No role, including admin, and no superuser status implies it. Staff without it see only Patient linked on the ticket. Staff with emergency access in force on a ticket also see that ticket's current person-level link, with its masked label as text and Reveal key, and no Actions menu; they cannot add, remove or search person-level links or open a link's page, and a removed one stays Patient linked for them.",
         "A warning above the form reminds you to type the source system's key only, never a name, date of birth or contact detail, and that the label is masked.",
         "The label is masked. Left empty, it is made from the record type and four dots followed by the last four characters of the key, when the key has at least eight characters. A shorter key needs an alias that you type. A label is refused if it contains the whole key (also when punctuation or capitals differ), an email address, or more than eight digits in a row.",
         "A ticket carries at most one person-level link at a time. To link another person, remove the current link first. Person-level links belong on tickets, never on client organizations.",
-        "A person-level link has no web address, because an address can carry the key into browser history. Removing or correcting one takes a reason from a list: Wrong person, Entered in error, No longer needed or Other. An optional note is kept on the link's row on the ticket and shown only to staff with the permission; the history and the timeline record the reason only. Staff without the permission see only Patient linked, even for a removed link."
+        "A person-level link has no web address, because an address can carry the key into browser history. Removing or correcting one takes a reason from a list: Wrong person, Entered in error, No longer needed or Other. An optional note is kept on the link's row on the ticket and shown only to staff with the permission; the history and the timeline record the reason only. Staff without the permission see only Patient linked for a removed link, even with emergency access in force on the ticket."
       ]
     },
     {
@@ -145,7 +145,7 @@
         },
         {
           "label": "Reveal key",
-          "description": "Person-level links, for holders of the permission. A POST that replaces the button with the full key. Person-level links have no address: open the person in the source system yourself. A removed person link cannot be revealed. Every reveal is recorded in the audit history, and the key is never in the page until then. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. The key is hidden again as soon as you leave the page, and it does not come back with Back or Forward: reveal it again, which is recorded again."
+          "description": "Person-level links, for holders of the permission, and on a ticket where you have emergency access in force. A POST that replaces the button with the full key. Person-level links have no address: open the person in the source system yourself. A removed person link cannot be revealed. Every reveal is recorded in the audit history, and the key is never in the page until then. Where the laboratory asks for it, the first reveal in a session sends you to confirm it is you first. The key is hidden again as soon as you leave the page, and it does not come back with Back or Forward: reveal it again, which is recorded again."
         },
         {
           "label": "Show to client / Hide from client",
@@ -157,7 +157,7 @@
         },
         {
           "label": "Patient linked",
-          "description": "What staff without the permission see in place of a person-level link: the record type and nothing else, with no label, key, address or actions."
+          "description": "What staff without the permission see in place of a person-level link (with emergency access in force on the ticket, in place of a removed one only): the record type and nothing else, with no label, key, address or actions."
         },
         {
           "label": "Removed links",
@@ -188,6 +188,7 @@
     "links/templates/links/request_links_panel.html",
     "links/templates/links/_revealed_key.html",
     "links/tests/test_links.py",
-    "links/tests/test_person_links.py"
+    "links/tests/test_person_links.py",
+    "desk/emergency.py"
   ]
 }

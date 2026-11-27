@@ -74,7 +74,7 @@
         },
         {
           "label": "Workspace use",
-          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, and the same for the Accounts, Unused accounts and Reviews tabs of [[Access review]], with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. On the Reviews tab of Access review, each access review opened reads as Access review AC-000001, and each time its record form is drawn as Accounts: Staff accounts; Record an access review, with the grants listed as the rows. Opening this tab is recorded too."
+          "description": "Each page of the four lists, of People and of Reviews that someone opened, each review opened and each export, and the same for the Accounts, Unused accounts, Reviews and Emergency access tabs of [[Access review]], with who, when, which tab, the filters (for a review, its number), how many rows matched and the request ID. On the Reviews tab of Access review, each access review opened reads as Access review AC-000001, and each time its record form is drawn as Accounts: Staff accounts; Record an access review, with the grants listed as the rows. On the Emergency access tab, the status chosen reads as, for example, Status: In force, and each use opened as Emergency access EA-000001. Opening this tab is recorded too."
         },
         {
           "label": "Reviews",
@@ -99,7 +99,7 @@
         },
         {
           "label": "Record",
-          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record, the ticket's form or its service clock) is named by the ticket's number (the line below is empty for a ticket logged without an organization), an account by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
+          "description": "On Changes: the record changed. A ticket or a part of one (an entry, a file, a link, the complaint record, the ticket's form, its service clock or a use of emergency access on it) is named by the ticket's number (the line below is empty for a ticket logged without an organization); a use of emergency access reads Emergency access EA-000001 on the ticket's number. An account is named by its username as it stands now, and anything else by its kind and number. The line below names the client organization it belongs to, if any."
         },
         {
           "label": "What",
@@ -152,7 +152,7 @@
         },
         {
           "label": "Ticket number",
-          "description": "Under More filters, on Changes and Access records: the ticket's number as shown, such as REQ-000123, or its number alone. On Changes it takes the ticket and its parts: its entries, complaint record, files, links, form and service clock. A number that names no ticket is refused."
+          "description": "Under More filters, on Changes and Access records: the ticket's number as shown, such as REQ-000123, or its number alone. On Changes it takes the ticket and its parts: its entries, complaint record, files, links, form, service clock and uses of emergency access. A number that names no ticket is refused."
         },
         {
           "label": "From and To",
@@ -207,6 +207,7 @@
     "audit_review/people.py",
     "audit_review/tests/test_people.py",
     "service_levels/business_time.py",
-    "audit_review/access_review_views.py"
+    "audit_review/access_review_views.py",
+    "audit_review/emergency_views.py"
   ]
 }

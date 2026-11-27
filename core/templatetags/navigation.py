@@ -70,6 +70,7 @@ STAFF_NAV = (
             "desk:entry-withdraw",
             "desk:request-history",
             "desk:request-access",
+            "desk:request-emergency",
             "desk:view-create",
             "desk:view-edit",
             # A complaint's nonconformance, opened from the ticket (optional module).
@@ -177,6 +178,8 @@ STAFF_NAV = (
             "access_review:reviews",
             "access_review:review",
             "access_review:review-create",
+            "access_review:emergency",
+            "access_review:emergency-use",
         ),
     ),
     # Setup
@@ -451,6 +454,7 @@ SECTION_TABS = {
             Tab("Accounts", "access_review:accounts"),
             Tab("Unused accounts", "access_review:unused"),
             Tab("Reviews", "access_review:reviews"),
+            Tab("Emergency access", "access_review:emergency"),
         ),
     ),
     "quality": TabSet(

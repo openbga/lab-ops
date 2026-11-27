@@ -48,7 +48,7 @@
       "items": [
         {
           "label": "Confirm it is you before the first reveal in a session",
-          "description": "Ticked: staff who can view patient information confirm it is them before their first Reveal of a patient-information value or Reveal key of a person-level link after each sign-in: their password and, where they have an authenticator app, a code from it or a recovery code (an account without a password gives the code alone). Later reveals in that sign-in are not asked; a new sign-in, even of the same account in the same browser, asks again. Clear: a reveal asks for nothing more than the permission. Not ticked until the setting is first saved."
+          "description": "Ticked: staff who reveal patient information, with Can view patient information or under emergency access, confirm it is them before their first Reveal of a patient-information value or Reveal key of a person-level link after each sign-in: their password and, where they have an authenticator app, a code from it or a recovery code (an account without a password gives the code alone). Later reveals in that sign-in are not asked; a new sign-in, even of the same account in the same browser, asks again. Clear: a reveal asks for nothing more than the permission or emergency access in force on the ticket. Not ticked until the setting is first saved."
         },
         {
           "label": "Reason",
@@ -122,6 +122,7 @@
     "tests/test_reveal_confirmation_rule.py",
     "accounts/confirmation.py",
     "templates/includes/form_sections.html",
-    "request_forms/tests/test_reveal_confirmation.py"
+    "request_forms/tests/test_reveal_confirmation.py",
+    "desk/emergency.py"
   ]
 }

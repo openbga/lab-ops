@@ -40,6 +40,10 @@ CAPABILITY_HOLDER = "demo_supervisor"
 # work includes reviewing who opened and changed what.
 REVIEW_CAPABILITY = "review_audit_records"
 REVIEW_HOLDER = "demo_supervisor"
+# "Can use emergency access" (desk.emergency), for the client services account, which cannot see
+# patient information: the demonstration shows the emergency access journey and its review.
+EMERGENCY_CAPABILITY = "use_emergency_access"
+EMERGENCY_HOLDER = "demo_client_services"
 # The patient-information grant is time-limited (accounts.grant_ends): its last day is this many
 # days after the seed's day, so the demonstration, reset each day, shows an end to come.
 CAPABILITY_DAYS = 90
@@ -876,13 +880,19 @@ def _when(start, minutes, calendar, now):
 
 def grant_capability(day=None):
     """ "Can view patient information" and "Can review access and audit records" for
-    demo_supervisor only, each audited like an admin grant."""
+    demo_supervisor, and "Can use emergency access" for demo_client_services, each audited like an
+    admin grant."""
     for codename, username, reason in (
         (CAPABILITY, CAPABILITY_HOLDER, "Demonstration seed: the supervisor sees patient links"),
         (
             REVIEW_CAPABILITY,
             REVIEW_HOLDER,
             "Demonstration seed: the supervisor reviews access and audit records",
+        ),
+        (
+            EMERGENCY_CAPABILITY,
+            EMERGENCY_HOLDER,
+            "Demonstration seed: client services may use emergency access",
         ),
     ):
         holder = User.objects.get(username=username)

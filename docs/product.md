@@ -81,7 +81,8 @@ eligible client answers from a ticket the account may read. Dates, times, confir
 patient information must be entered again.
 
 A laboratory can mark a form field as holding patient information. Staff need an explicit
-grant to enter, reveal or correct it. A reveal is audited. Where the laboratory turns it on, the
+grant to enter, reveal or correct it; emergency access (below) lets staff the laboratory names
+reveal it on one ticket for a short time. A reveal is audited. Where the laboratory turns it on, the
 first reveal in a session also asks the person to confirm it is them (Security settings and
 contacts, below). A portal account may see a
 patient-marked value if it may read the ticket and the field was, and still is, visible to
@@ -96,7 +97,8 @@ Links on a closed ticket are frozen.
 
 A ticket can have one person-level link for a patient, participant or donor. Its key is masked,
 has no URL and is never shown to clients. Showing the full key or searching for an exact key
-requires the patient-information capability and creates an audit event. Prefer an order,
+requires the patient-information capability, or emergency access on that ticket for showing the
+key, and creates an audit event. Prefer an order,
 accession or sample reference when a person-level key is unnecessary.
 
 ### Service clocks
@@ -189,7 +191,8 @@ application's request log records the page only, without its search.
 | Administrator role | All operational roles plus laboratory settings, security and privacy contacts, the Security settings page, optional modules, teams, taxonomy, forms, catalogs, external systems, business calendars, targets and scheduled jobs. |
 | Superuser | Manage identities and explicit grants through the admin console, including an optional last day for a capability given directly to an account. The staff workspace still requires a role. |
 | Can view patient information | An explicit grant to a staff account or group. It permits protected person-link actions and protected form-field actions on authorized records. |
-| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set; and they record and sign access reviews there, deciding to keep or remove each grant the accounts hold. |
+| Can use emergency access | An explicit grant to a staff account or group, effective with a laboratory role for an account without Can view patient information. Nobody holds it until a superuser gives it. Its holder can start emergency access on a ticket they may read and, for 60 minutes, reveal that ticket's patient-marked answers and person-level key (Emergency access, below). |
+| Can review access and audit records | An explicit grant to a staff account or group, effective with a laboratory role. It opens the Audit review workspace: every change event, access record and account's sign-in history, filtered and exported, and counts of them by person over a period, with each use recorded. Its holders also record and sign reviews of these records, add notes to them and set how often reviews are due. They also open Access review: every account with what it holds and who gave it, and the accounts unused for a period they set; and they record and sign access reviews there, deciding to keep or remove each grant the accounts hold, and review each use of emergency access. |
 | Client account | Raise, read and reply to tickets within its portal scope. |
 
 ## Client portal rules
@@ -265,7 +268,7 @@ The Security settings page, for administrators, lists what protects sign-in, ses
 information in the running deployment and who sets each item: this release's code, the
 application's configuration, a deployment setting, each person, the admin console or a setup page.
 It shows the password rule, the failed sign-in limit, sign-in with an emailed code, what changing
-access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information or review access and audit records,
+access and security settings asks for, the session limits and what ends a session, how many active staff accounts with a role can view patient information, use emergency access or review access and audit records,
 whether staff confirm it is them before the first reveal of patient information in a session,
 how many active staff and portal accounts have a second factor, how many form fields hold patient
 information, and the HTTPS and content security policy settings. It describes this release's
@@ -416,7 +419,9 @@ a new password set for the account or a deactivation. A confirmation given in th
 last 5 minutes for another change counts; the sign-in does not. Failed confirmations are kept in
 Sign-in history and count toward the failed sign-in limit, and an account with neither a password
 nor an authenticator cannot reveal while it is on. Staff without the patient-information grant who
-send a reveal are asked first too, then refused, so the answer says nothing about the value. It is
+send a reveal are asked first too, then refused, so the answer says nothing about the value, unless
+they have emergency access in force on that ticket. The same confirmation applies to reveals under
+emergency access. It is
 not asked before a search by a person-level key, or for what a client portal account sees, which is
 shown without a reveal. Each reveal is recorded whether or not it is asked. No rule the
 application follows requires this confirmation; it is the laboratory's choice.
@@ -450,7 +455,8 @@ change event), Access records (every sensitive read), Sign-ins (every account's 
 and Workspace use (the workspace's own record of its use). Each is filtered by person (any
 account), action and days in the laboratory's time zone, all but Workspace use also by client
 organization, and Changes and Access records also by ticket number; on Changes a ticket takes its
-parts (entries, files, links, the complaint record, the ticket's form and its service clock) and an
+parts (entries, files, links, the complaint record, the ticket's form, its service clock and its
+uses of emergency access) and an
 organization its own record, contacts, sites, portal access and portal accounts and its tickets.
 Every page, and the export, is drawn as the list stood when its first page opened, except that a
 row still being saved at that moment (or a change saved by a server whose clock runs behind) can
@@ -565,6 +571,67 @@ planned on the [roadmap](roadmap.md).
 The [safeguards reference](safeguards.md) states,
 for each safeguard the roadmap cites, what the application does today and what stays with the
 laboratory and its host.
+
+### Emergency access
+
+Staff who cannot see patient information sometimes need it on a ticket urgently, when nobody who can
+see it is available. Emergency access lets staff the laboratory names reveal it on that one ticket
+for a short time, with a reason, and keeps each use for a review by someone else. The emergency
+access procedure (45 CFR §164.312(a)(2)(ii), required) is the laboratory's; this gives it a recorded
+means in the application.
+
+A superuser gives the capability "Can use emergency access" to a person or to a role group in the
+admin console, as for the other capabilities; given to the person, it can have a last day. Nobody
+holds it until then, so emergency access is off. It works for an active staff account with a
+laboratory role that does not hold "Can view patient information"; a client portal account never has
+it. Security settings shows how many active staff accounts hold it. On a ticket the person may read
+that holds a patient-marked answer or a person-level link hidden from them, the ticket's page shows
+Patient information hidden with **Use emergency access**; emergency access starts only on such a
+ticket. Whether the person may read the ticket and use emergency access is decided before they
+confirm it is them, so a refused request checks no password. The person chooses a reason (reporting
+a critical or urgent result, an urgent request from someone treating the patient, an urgent problem
+identifying a sample or a patient, or another emergency), says in their own words what the emergency
+is, without patient information, and confirms it is them (their password, and a code where they have
+an authenticator app, unless they confirmed in that browser in the last 5 minutes).
+
+For 60 minutes from the start, by the database's clock, they can then reveal that ticket's
+patient-marked answers and person-level key, one at a time, and a banner on the ticket says until
+when. In the ticket's Links, the current person-level link then shows its masked label and Reveal
+key, without its link page or actions; a removed one still shows only that a patient was linked. The
+60 minutes are fixed in this release. Each reveal is recorded as any reveal is, with an access
+record on Who opened it and a change event that also names the use; where the laboratory asks for
+it, the first reveal in a session asks the person to confirm it is them. It gives nothing else: no
+other ticket, no Find by patient key, no person-level link page, no entering or correcting patient
+information and no adding, changing or removing a person-level link. It does not open a ticket the
+person cannot read: opening a restricted ticket by emergency access is planned on the
+[roadmap](roadmap.md). Removing the capability or the role, or deactivating the account, stops what
+a use gives at once; given back before the use's end, it gives again until then. Starting again on
+the same ticket while a use is in force starts nothing.
+
+Starting a use records, in one step, the use (the person's name, username and roles as they stood,
+the ticket, the reason, the explanation, the start and the end), a change event with the reason and
+the times but not the explanation, and an email notice to every active supervisor (the supervisor or
+admin role) and every staff member with a laboratory role who holds "Can review access and audit
+records", except the person, who has an email address. The notice gives the ticket number, a fixed
+sentence, the laboratory's name and a sign-in link: to the use's page for a reviewer, to the
+ticket's Who opened it page for other supervisors. It never holds the person's name, reason or
+explanation, and it is sent whatever each recipient chose for their own email notices. With email
+off, as on the public demonstration, it is recorded as not sent.
+
+Holders of "Can review access and audit records" find every use on the Emergency access tab of
+Access review, newest first, 50 a page, by status (In force, Waiting for review or Reviewed), with
+how many wait for review. A use's page shows who used it, the ticket, the reason and explanation,
+the start and end, and what was revealed under it, read from the change history and named by the
+field's label or the link's record type, never by the value. Once the use has ended, someone other
+than the person who used it records its review: an outcome (Appropriate, or Not appropriate:
+follow-up needed) and a note of what they checked and found, with their name, username and roles and
+the time. Each use has one review; of two sent at the same moment, the second is refused. The
+database refuses to change or delete a use or a review, a review by the person who used it and a
+review of a use still in force. Each page of the tab and each use's page shown is recorded as
+Workspace use, and starting and reviewing are change events. The application does nothing further
+with the outcome, sends no reminder about uses waiting for review and sets no time to review them.
+Who is eligible, when to use emergency access, how to follow up a use found not appropriate and how
+staff obtain information while the application is unavailable stay with the laboratory.
 
 ## Record keeping and laboratory policy
 

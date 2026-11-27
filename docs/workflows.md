@@ -10,9 +10,9 @@ Sign in with the account the laboratory provides. A superuser creates accounts i
 roles**. Staff and client portal accounts are distinct. Users can enroll an authenticator and
 save recovery codes; where the laboratory requires one of their account, they set it up at sign-in
 before anything else. Password resets and sign-in codes depend on the deployment's email settings.
-Saving a change to an account or a role, the session limits or the second-factor rule asks the
-person making it for their password again, and a code where their account has an authenticator
-app, unless they confirmed in that browser in the last 5 minutes.
+Saving a change to an account or a role, the session limits or the second-factor rule, and
+starting emergency access, asks the person for their password again, and a code where their
+account has an authenticator app, unless they confirmed in that browser in the last 5 minutes.
 [Sign-in configuration](operations.md#sign-in-limits-behind-a-proxy)
 
 ## Roles and capabilities
@@ -20,7 +20,9 @@ app, unless they confirmed in that browser in the last 5 minutes.
 Staff can work tickets within their scope. Supervisors can work across restricted teams and
 review eligible complaints. Client portal accounts belong to one organization. The separate
 **Can view patient information** grant controls staff access to person-level links and marked
-form answers. The **Can review access and audit records** grant opens **Audit review**, under
+form answers. The **Can use emergency access** grant lets staff without it reveal the marked
+answers and person-level key of one ticket for 60 minutes in an emergency (journey 14). The
+**Can review access and audit records** grant opens **Audit review**, under
 Oversight in the sidebar: choose **Changes**, **Access records**, **Sign-ins** or **Workspace use**,
 narrow it by person, organization, action, ticket number, days or **Outside the hours of** a
 business calendar, and select **Export CSV** to keep what was reviewed. **People** counts each
@@ -29,8 +31,9 @@ and changes over a period, with how much fell outside business hours; select a c
 rows behind it. **Reviews** keeps the signed record of each review (journey 13). Each page opened
 there and each export is itself recorded. The same grant opens **Access review**: **Accounts** lists every
 account with its roles and capabilities and who gave them, **Unused accounts** lists active
-accounts with no sign-in for the laboratory's period, and **Reviews** keeps the signed access
-reviews (journey 13).
+accounts with no sign-in for the laboratory's period, **Reviews** keeps the signed access
+reviews (journey 13), and **Emergency access** lists each use of emergency access for its review
+(journey 14).
 [Full access table](product.md#roles-and-capabilities)
 
 ## Staff journeys
@@ -186,15 +189,36 @@ a superuser then removes each grant decided for removal, or deactivates the port
 account's page in the admin console. The review's page shows each removal as **Still held** or
 **No longer held** as the accounts stand when it is opened.
 
+### 14. Use emergency access and review it
+
+Staff the laboratory has given **Can use emergency access**, and who cannot see patient
+information, use it when a ticket's patient information is needed urgently and nobody who can see
+it is available. On the ticket, the notice **Patient information hidden** offers **Use emergency
+access**. Choose the reason under **Why you need it**, describe the emergency in **What the
+emergency is** without names, identifiers or dates of birth, confirm it is you if the page asks,
+and select **Start emergency access**. For the next 60 minutes a banner on the ticket says until
+when you can select **Reveal** on a patient-marked answer or **Reveal key** on the person-level
+link; each reveal is recorded. Nothing else opens: other tickets, **Find by patient key** and the
+link pages stay closed. Where the deployment sends email, supervisors and reviewers are sent a
+notice.
+
+Once the use has ended, a holder of **Can review access and audit records** other than the person
+who used it opens **Access review**, then **Emergency access**, chooses **Waiting for review** in
+**Status** and selects **Show**. Open the use and read who used it, the reason and explanation, and
+what was revealed under it. Choose the **Outcome** and write **What you checked and found**, for
+example whom you asked and whether the reason held, without patient information, then select
+**Record review**. The review cannot be changed, and what follows a use found not appropriate is
+the laboratory's to decide.
+
 ## Client journeys
 
-### 14. Sign in and see open tickets
+### 15. Sign in and see open tickets
 
 The portal home offers services and lists open tickets, including those waiting for you. Choose
 **Tickets** for the fuller list. Access depends on the organization and sites assigned to your
 account. A restricted ticket appears only to the client account that raised it.
 
-### 15. Raise a ticket
+### 16. Raise a ticket
 
 Select a service, such as **Request a pickup**, or use **New ticket** for another topic. Choose
 a site when asked. Fill the required details, include an order or sample number in **Your
@@ -202,7 +226,7 @@ reference** if relevant and send. Keep the ticket number for follow-up. If a for
 available, **Request again** on a previous ticket starts another with eligible answers copied.
 Check them and enter any dates, times, confirmations or patient details again.
 
-### 16. Follow a ticket and reply
+### 17. Follow a ticket and reply
 
 Open a ticket to see its status, the conversation and any form details, files or references
 shared with you. Send a reply to answer the laboratory. Replying to a resolved ticket or one
