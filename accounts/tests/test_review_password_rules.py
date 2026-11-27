@@ -33,6 +33,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.roles import ROLES
+from accounts.tests.test_confirm_identity import code_for as code_with_time_left
 from clients.models import Client
 from core import security_settings
 from core.models import AuditEvent, Lab, SecondFactorRule
@@ -706,10 +707,7 @@ def test_successful_second_factor_cleanup_is_scoped_to_the_attempt(make_user, cl
     from allauth.core.internal import ratelimit
     from allauth.mfa.totp.internal.auth import (
         TOTP,
-        format_hotp_value,
         generate_totp_secret,
-        hotp_value,
-        yield_hotp_counters_from_time,
     )
     from django.test import RequestFactory
 
@@ -736,7 +734,7 @@ def test_successful_second_factor_cleanup_is_scoped_to_the_attempt(make_user, cl
         return delete(key, *args, **kwargs)
 
     monkeypatch.setattr(cache, "delete", observe)
-    code = format_hotp_value(hotp_value(secret, next(yield_hotp_counters_from_time())))
+    code = code_with_time_left(secret)
     client.post(mfa.url, {"code": code})
     assert client.session["_auth_user_id"] == str(person.pk)
     assert not deleted_whole_history
