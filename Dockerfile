@@ -1,5 +1,10 @@
 FROM ghcr.io/astral-sh/uv:0.13.7 AS uv
 FROM python:3.14.10-slim-bookworm
+# Debian's published updates, security fixes included, which the base image can lag behind
+# (SECURITY.md: the image check fails on a High or Critical vulnerability with a published fix).
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1
 WORKDIR /app
 COPY --from=uv /uv /uvx /bin/
