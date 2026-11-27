@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.13.7 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.10 AS uv
 FROM python:3.14.10-slim-bookworm
 # Debian's published updates, security fixes included, which the base image can lag behind
 # (SECURITY.md: the image check fails on a High or Critical vulnerability with a published fix).
