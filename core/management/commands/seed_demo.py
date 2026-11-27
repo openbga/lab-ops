@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.acting import hold_actors, scope
+from accounts.grant_ends import later_today
 from accounts.models import User
 from accounts.passwords import (
     SINGLE_FACTOR_MINIMUM,
@@ -247,7 +248,7 @@ class Command(BaseCommand):
                 reason="Demonstration laboratory created by seed_demo",
             )
         self._seed_profile()
-        run_seed(SeedContext(password=password, stdout=self.stdout))
+        run_seed(SeedContext(password=password, stdout=self.stdout, day=later_today()))
         if options.get("announce_accounts"):
             posted = self._announce_accounts(password)
             self.stdout.write(

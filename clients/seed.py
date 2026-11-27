@@ -280,7 +280,7 @@ DEMO_PORTAL_ACCOUNTS = (
 
 
 # Portal accounts whose access has a last day, so many days after the seed's day
-# (accounts.grant_ends.later_today): the demonstration, reset each day, shows an end to come.
+# (core.seeding.SeedContext.day): the demonstration, reset each day, shows an end to come.
 PORTAL_LAST_DAYS = {"demo_client_water": 90}
 
 
@@ -316,7 +316,7 @@ def seed_records(ctx):
                 contact=ClientContact.objects.get(client=client, email=contact_email),
                 whole_organization=site_codes is None,
                 sites=list(ClientSite.objects.filter(client=client, code__in=site_codes or ())),
-                last_day=later_today() + timedelta(days=days) if days else None,
+                last_day=(ctx.day or later_today()) + timedelta(days=days) if days else None,
             )
 
 

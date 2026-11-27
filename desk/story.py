@@ -874,7 +874,7 @@ def _when(start, minutes, calendar, now):
     return min(moment, now - timedelta(minutes=1))
 
 
-def grant_capability():
+def grant_capability(day=None):
     """ "Can view patient information" and "Can review access and audit records" for
     demo_supervisor only, each audited like an admin grant."""
     for codename, username, reason in (
@@ -899,14 +899,14 @@ def grant_capability():
             after={"capability": codename},
             reason=reason,
         )
-    end_capability()
+    end_capability(day)
 
 
-def end_capability():
+def end_capability(day=None):
     """The last day of demo_supervisor's patient-information grant, CAPABILITY_DAYS after the
-    seed's day (accounts.grant_ends.later_today), set once and audited (the account page records
-    an end in the account's change event; the seed, as for its grants, records an event of its
-    own)."""
+    seed's day (`day`, core.seeding.SeedContext.day; read now when None), set once and audited
+    (the account page records an end in the account's change event; the seed, as for its grants,
+    records an event of its own)."""
     from accounts.grant_ends import end_of, iso, later_today
     from accounts.models import CapabilityEnd
 
@@ -918,7 +918,7 @@ def end_capability():
         return
     if CapabilityEnd.objects.filter(user=holder, permission=permission).exists():
         return
-    ends_at = end_of(later_today() + timedelta(days=CAPABILITY_DAYS))
+    ends_at = end_of((day or later_today()) + timedelta(days=CAPABILITY_DAYS))
     with transaction.atomic():  # setting an end takes the account's access gate
         CapabilityEnd.objects.create(user=holder, permission=permission, ends_at=ends_at)
         record_event(
@@ -1146,11 +1146,12 @@ def switch_on_patient_identifier():
         )
 
 
-def tell():
-    """Seed the story once (an existing request means it has been told)."""
+def tell(day=None):
+    """Seed the story once (an existing request means it has been told). `day`: the seed's day
+    (core.seeding.SeedContext.day), for the capability's end."""
     if ServiceRequest.objects.exists():
         return
-    grant_capability()
+    grant_capability(day)
     switch_on_patient_identifier()
     usernames = {AGENT, LEAD, TECH, MANAGER, CLINIC_PORTAL, WATER_PORTAL, "demo_admin"}
     users = User.objects.in_bulk(list(usernames), field_name="username")

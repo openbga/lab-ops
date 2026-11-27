@@ -401,7 +401,7 @@ def expected_demo_end_from_database(ahead=0):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("clock_delta", [-400, 90], ids=["app-behind", "last-day-is-app-today"])
+@pytest.mark.parametrize("clock_delta", [-400, 90], ids=["app-behind", "app-ahead-90"])
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 def test_seeded_ends_use_the_database_calendar_and_agree_on_the_account_report_and_review(
     client, monkeypatch, clock_delta

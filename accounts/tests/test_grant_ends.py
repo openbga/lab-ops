@@ -437,15 +437,16 @@ def test_a_page_that_sends_no_shown_day_is_read_against_the_end_the_save_holds(
     )
 
 
-@pytest.mark.parametrize("refused_at", ["after-the-gate", "at-the-gate"])
+@pytest.mark.parametrize("refused_at", ["field-error", "own-end-check", "at-the-gate"])
 def test_a_page_that_sent_no_shown_day_is_drawn_again_with_only_what_the_save_held(
     owner, make_user, client, monkeypatch, refused_at
 ):
     """Drawn again after a refusal, such a page carries the day of the end the refused save held
     under the gate (the page as drawn), never the end read before it; refused at the gate (the
     page no longer matched), it says again that it sent none, and a later save reads the end it
-    then holds. Either way the day chosen is saved once the page matches (review second
-    confirmation round)."""
+    then holds. Either way the day chosen is saved once the page matches (review second and third
+    confirmation rounds; a refusal by any check after the gate's, here a field's and the form's own
+    check of another capability's day, keeps the held day)."""
     from accounts.admin import UNSENT, shown_field
 
     person = make_user(f"redrawn-{refused_at}", "technical")
@@ -454,25 +455,31 @@ def test_a_page_that_sent_no_shown_day_is_drawn_again_with_only_what_the_save_he
     give(person, PATIENT, grant_ends.end_of(drawn_day))
     client.force_login(owner)
     url = reverse("admin:accounts_user_change", args=[person.pk])
-    data = page_data(client.get(url).context["adminform"].form, email="not-an-address")
+    after_the_gate = refused_at != "at-the-gate"
+    data = page_data(client.get(url).context["adminform"].form)
+    if refused_at == "own-end-check":  # a day for a capability not given directly
+        data[end_field(REVIEW)] = (drawn_day + timedelta(days=1)).isoformat()
+    else:
+        data["email"] = "not-an-address"
     data.pop(shown_field(PATIENT))
     data[end_field(PATIENT)] = moved_day.isoformat()  # the day chosen
     ends = CapabilityEnd.objects.filter(user=person)
     ends.update(ends_at=grant_ends.end_of(moved_day))  # as the post is read
-    if refused_at == "after-the-gate":
+    if after_the_gate:
         moved_back_at_the_gate(monkeypatch, ends, grant_ends.end_of(drawn_day))
     refused = client.post(url, data)
     assert refused.status_code == 200
     redrawn = refused.context["adminform"].form
-    assert "email" in redrawn.errors
+    if refused_at == "own-end-check":
+        assert NOT_DIRECT in redrawn.errors[end_field(REVIEW)]
     stale = CHANGED_SINCE_DRAWN in redrawn.non_field_errors()
-    assert stale == (refused_at == "at-the-gate")
+    assert stale == (not after_the_gate)
     marker = redrawn[shown_field(PATIENT)].value()
-    assert marker == (drawn_day.isoformat() if refused_at == "after-the-gate" else UNSENT)
+    assert marker == (drawn_day.isoformat() if after_the_gate else UNSENT)
     assert str(redrawn[end_field(PATIENT)].value()) == moved_day.isoformat()
     if stale:
         ends.update(ends_at=grant_ends.end_of(drawn_day))  # moved back before the next save
-    retry = page_data(redrawn, email="redrawn@example.invalid")
+    retry = page_data(redrawn, email="redrawn@example.invalid", **{end_field(REVIEW): ""})
     retry[shown_field(PATIENT)] = marker  # as the page drew it
     assert client.post(url, retry).status_code == 302
     assert ends.get().ends_at == grant_ends.end_of(moved_day)

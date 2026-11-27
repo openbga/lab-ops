@@ -485,6 +485,15 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
             password.widget = ReservedPasswordWidget()
             password.help_text = ReservedPasswordWidget.explanation
 
+    def _check_drawn(self, data, owner):
+        """AccessRules._check_drawn, then, for a page that sent no shown day, the day it is now
+        read as showing, drawn again should the save be refused for any reason after this: the
+        end held as drawn, which a later save of the page finds again or the page is stale."""
+        super()._check_drawn(data, owner)
+        for codename in self.unshown:
+            day = last_day_of(_moment(self.held_reading[ENDS].get(codename)))
+            self.data[shown_field(codename)] = day.isoformat() if day else ""
+
     def shown_day(self, codename, stored):
         """The day the page showed for this capability's end, as the page sent it back, or, for a
         page that sent none (or without the field), the day now of the end the save holds
@@ -503,12 +512,6 @@ class AccountChangeForm(ConfirmIdentity, AccessRules, UserChangeForm):
         held = getattr(self, "held_reading", None)
         if held is None:
             return data
-        for codename in self.unshown:
-            # Should this save be refused, the page is drawn again with the day it is now read as
-            # showing: the end held as drawn, which a later save of the page finds again or the
-            # page is stale.
-            day = last_day_of(_moment(held[ENDS].get(codename)))
-            self.data[shown_field(codename)] = day.isoformat() if day else ""
         ids = capability_ids()
         posted = {permission.pk for permission in data.get("user_permissions") or ()}
         for codename in CAPABILITIES:

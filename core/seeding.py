@@ -37,6 +37,9 @@ class SeedContext:
     # What a seed created in this run, for a later seed to use by identity rather than look up
     # again by a code someone may have reused: {"clients": {account code: Client}}.
     created: dict = field(default_factory=dict)
+    # The seed's day, read once for the run (accounts.grant_ends.later_today): the ends it sets
+    # count from it, so a run that crosses midnight gives them one day. None: read when needed.
+    day: Any = None
 
 
 def run_seed(ctx):
