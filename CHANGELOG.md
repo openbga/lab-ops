@@ -14,7 +14,7 @@ Changes to OpenBGA Lab Ops, grouped by month and impact.
 
   <details><summary>Technical notes</summary>
 
-  The Dockerfile runs `apt-get update` and `apt-get upgrade` on the `python:3.14.10-slim-bookworm` base before installing the application. This brings in the `libpam` packages `1.5.2-6+deb12u3` from Debian's security archive (CVE-2025-6020, rated High), which the base image did not carry yet. An image built later picks up whatever updates Debian has published by then. Rebuild your image to include them. No new setting or environment variable.
+  The Dockerfile runs `apt-get update` and `apt-get upgrade` on the `python:3.14.10-slim-bookworm` base before installing the application. This brings in the `libpam` packages `1.5.2-6+deb12u3` from Debian's security archive (CVE-2025-6020, rated High), which the base image did not carry yet. Docker keeps this step in its build cache: an image built again on the same machine reuses the packages of the earlier build. To bring in updates Debian has published since, build without the cache and with a fresh base image (`docker build --pull --no-cache`). A host that builds from a clean cache, as CI does, gets them anyway. No new setting or environment variable.
 
   </details>
 
