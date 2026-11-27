@@ -42,8 +42,9 @@ def test_confirmation_focus_and_saved_reason_remain_readable(page, view):
     if view.phone:
         assert submit.bounding_box()["height"] >= 44
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
-    # An operator pastes a synthetic case reference, within the documented length.
-    reference = "CASE-" + "49AC28E7" * 16
+    # An operator pastes a synthetic case reference, within the documented length, long enough to
+    # overflow 1366 px under any font unless it wraps.
+    reference = "CASE-" + "49AC28E7" * 50
     reason.fill(reference)
     submit.click()
     expect(password).to_be_focused()

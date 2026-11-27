@@ -128,13 +128,15 @@ form .aligned ul.vr-held li {
   list-style: disc;
 }
 
-/* A long username in a page's heading or subtitle, its breadcrumbs, the header's welcome line or the
-   Deactivate page's text wraps instead of widening the page. */
+/* A long username in a page's heading or subtitle, its breadcrumbs, the header's welcome line, the
+   Deactivate page's text or an account page's Deactivation line (a long reason, who saved it) wraps
+   instead of widening the page. */
 #content > h1,
 #content > h2,
 div.breadcrumbs,
 #user-tools,
-.vr-deactivate p {
+.vr-deactivate p,
+.vr-deactivation p {
   overflow-wrap: anywhere;
 }
 
